@@ -743,7 +743,6 @@ function TableSkeleton({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // RolesTab
 // ---------------------------------------------------------------------------
@@ -753,7 +752,11 @@ export function RolesTab() {
   const [editRole, setEditRole] = useState<RoleDetail | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const { menuState: roleMenu, handleContextMenu: openRoleMenu, closeMenu: closeRoleMenu } = useContextMenu<Role>();
+  const {
+    menuState: roleMenu,
+    handleContextMenu: openRoleMenu,
+    closeMenu: closeRoleMenu,
+  } = useContextMenu<Role>();
 
   const rolesQuery = useQuery({
     queryKey: ["roles"],
@@ -829,7 +832,6 @@ export function RolesTab() {
     setEditRole(role as RoleDetail);
     setEditOpen(true);
   }
-
 
   const roles = rolesQuery.data ?? [];
   const permissions = permissionsQuery.data ?? [];
@@ -1042,9 +1044,21 @@ export function RolesTab() {
           x={roleMenu.x}
           y={roleMenu.y}
           items={[
-            { label: "Edit Permissions", onClick: () => handleEdit(roleMenu.data!) },
-            { label: "Clone Role", onClick: () => cloneMutation.mutate(roleMenu.data!) },
-            { label: "Delete", danger: true, divider: true, disabled: roleMenu.data!.is_predefined, onClick: () => deleteMutation.mutate(roleMenu.data!.id) },
+            {
+              label: "Edit Permissions",
+              onClick: () => handleEdit(roleMenu.data!),
+            },
+            {
+              label: "Clone Role",
+              onClick: () => cloneMutation.mutate(roleMenu.data!),
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              disabled: roleMenu.data!.is_predefined,
+              onClick: () => deleteMutation.mutate(roleMenu.data!.id),
+            },
           ]}
           onClose={closeRoleMenu}
         />

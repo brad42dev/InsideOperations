@@ -32,7 +32,8 @@ export default function ExportPresets() {
 
   const [deletePreset, setDeletePreset] = useState<ExportPreset | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ExportPreset>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ExportPreset>();
 
   // We need to fetch presets across all templates.
   // The API is per-template, so we first fetch all templates, then their presets.
@@ -253,9 +254,29 @@ export default function ExportPresets() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Apply to Report", onClick: () => { closeMenu(); navigate(`/reports?preset=${menuState.data!.id}`); } },
-            { label: "Duplicate", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, onClick: () => { setDeletePreset(menuState.data!); setDeleteOpen(true); closeMenu(); } },
+            {
+              label: "Apply to Report",
+              onClick: () => {
+                closeMenu();
+                navigate(`/reports?preset=${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Duplicate",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                setDeletePreset(menuState.data!);
+                setDeleteOpen(true);
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

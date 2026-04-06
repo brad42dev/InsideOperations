@@ -364,7 +364,10 @@ export default function BarColumnChart({ config }: RendererProps) {
                 label: "Export Chart Image",
                 onClick: () => {
                   setMenuPos(null);
-                  const url = chartRef.current?.getDataURL({ type: "png", pixelRatio: 2 });
+                  const url = chartRef.current?.getDataURL({
+                    type: "png",
+                    pixelRatio: 2,
+                  });
                   if (url) {
                     const a = document.createElement("a");
                     a.href = url;
@@ -374,7 +377,17 @@ export default function BarColumnChart({ config }: RendererProps) {
                 },
               },
               { label: "Toggle Legend", onClick: () => setMenuPos(null) },
-              { label: "Reset Zoom", onClick: () => { setMenuPos(null); chartRef.current?.dispatchAction({ type: "dataZoom", start: 0, end: 100 }); } },
+              {
+                label: "Reset Zoom",
+                onClick: () => {
+                  setMenuPos(null);
+                  chartRef.current?.dispatchAction({
+                    type: "dataZoom",
+                    start: 0,
+                    end: 100,
+                  });
+                },
+              },
             ]}
             onClose={() => setMenuPos(null)}
           />

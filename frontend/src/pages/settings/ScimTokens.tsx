@@ -79,12 +79,13 @@ function buildScimGuides(scimEndpointUrl: string): ScimIdpGuide[] {
         {
           title: "Enter the bearer token",
           body: "Paste the token you generated above into the Secret Token field. Click Test Connection — it must succeed before you can continue.",
-          warning: "The token is only shown once. If you didn't copy it, revoke it and create a new one.",
+          warning:
+            "The token is only shown once. If you didn't copy it, revoke it and create a new one.",
         },
         {
           title: "Review attribute mappings",
           nav: "Mappings section → Provision Azure Active Directory Users",
-          body: "Verify these key mappings are present:\n• userPrincipalName → userName\n• mail → emails[type eq \"work\"].value\n• givenName → name.givenName\n• surname → name.familyName\n• IsSoftDeleted → active (expression: Not([IsSoftDeleted]))\n• objectId → externalId",
+          body: 'Verify these key mappings are present:\n• userPrincipalName → userName\n• mail → emails[type eq "work"].value\n• givenName → name.givenName\n• surname → name.familyName\n• IsSoftDeleted → active (expression: Not([IsSoftDeleted]))\n• objectId → externalId',
         },
         {
           title: "Enable group sync (optional)",
@@ -121,7 +122,8 @@ function buildScimGuides(scimEndpointUrl: string): ScimIdpGuide[] {
         {
           title: "Set authentication",
           body: "Authentication Mode: HTTP Header. In the Authorization field, paste your bearer token. Click Test API Credentials.",
-          warning: "The token is only shown once. If you didn't copy it, revoke it and create a new one.",
+          warning:
+            "The token is only shown once. If you didn't copy it, revoke it and create a new one.",
         },
         {
           title: "Enable provisioning actions",
@@ -148,7 +150,8 @@ function buildScimGuides(scimEndpointUrl: string): ScimIdpGuide[] {
         {
           title: "Check your Google edition",
           body: "Outbound SCIM provisioning to third-party apps requires Google Cloud Identity Enterprise or Google Workspace Enterprise edition.",
-          warning: "Standard Google Workspace editions do not support outbound SCIM push. See the note below.",
+          warning:
+            "Standard Google Workspace editions do not support outbound SCIM push. See the note below.",
         },
         {
           title: "Enable SCIM (Enterprise editions)",
@@ -175,11 +178,12 @@ function buildScimGuides(scimEndpointUrl: string): ScimIdpGuide[] {
         {
           title: "Authentication",
           body: "I/O uses Bearer token authentication for SCIM. Paste the generated token into your IdP's Secret Token or Authorization field.",
-          warning: "The token is only shown once when created. Copy it immediately.",
+          warning:
+            "The token is only shown once when created. Copy it immediately.",
         },
         {
           title: "Required endpoint support",
-          body: "I/O implements the full SCIM 2.0 spec including:\n• GET /ServiceProviderConfig\n• GET/POST /Users\n• GET/PUT/PATCH/DELETE /Users/{id}\n• GET/POST /Groups\n• GET/PUT/PATCH/DELETE /Groups/{id}\n• Filtering: filter=userName eq \"...\"\n• Pagination: count and startIndex",
+          body: 'I/O implements the full SCIM 2.0 spec including:\n• GET /ServiceProviderConfig\n• GET/POST /Users\n• GET/PUT/PATCH/DELETE /Users/{id}\n• GET/POST /Groups\n• GET/PUT/PATCH/DELETE /Groups/{id}\n• Filtering: filter=userName eq "..."\n• Pagination: count and startIndex',
         },
         {
           title: "Supported user attributes",
@@ -205,7 +209,10 @@ interface ScimSetupGuideProps {
 function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState("azure");
-  const guides = useMemo(() => buildScimGuides(scimEndpointUrl), [scimEndpointUrl]);
+  const guides = useMemo(
+    () => buildScimGuides(scimEndpointUrl),
+    [scimEndpointUrl],
+  );
   const guide = guides.find((g) => g.id === selectedId) ?? guides[0];
 
   return (
@@ -237,24 +244,60 @@ function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ fontSize: "16px" }}>📋</span>
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--io-text-primary)" }}>
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
               IdP Configuration Guide
             </div>
-            <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: "1px" }}>
-              Step-by-step instructions for configuring SCIM in your identity provider
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-muted)",
+                marginTop: "1px",
+              }}
+            >
+              Step-by-step instructions for configuring SCIM in your identity
+              provider
             </div>
           </div>
         </div>
-        <span style={{ color: "var(--io-text-muted)", fontSize: "13px", fontWeight: 600 }}>
+        <span
+          style={{
+            color: "var(--io-text-muted)",
+            fontSize: "13px",
+            fontWeight: 600,
+          }}
+        >
           {open ? "Hide ▲" : "Show ▼"}
         </span>
       </button>
 
       {open && (
-        <div style={{ padding: "16px 20px 20px", background: "var(--io-surface)" }}>
+        <div
+          style={{ padding: "16px 20px 20px", background: "var(--io-surface)" }}
+        >
           {/* IdP selector */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
-            <label style={{ fontSize: "12px", color: "var(--io-text-secondary)", fontWeight: 500, whiteSpace: "nowrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-secondary)",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+              }}
+            >
               I'm using:
             </label>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -269,13 +312,18 @@ function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
                     fontSize: "12px",
                     fontWeight: 500,
                     cursor: "pointer",
-                    border: selectedId === g.id
-                      ? "1.5px solid var(--io-accent)"
-                      : "1px solid var(--io-border)",
-                    background: selectedId === g.id
-                      ? "color-mix(in srgb, var(--io-accent) 12%, transparent)"
-                      : "transparent",
-                    color: selectedId === g.id ? "var(--io-accent)" : "var(--io-text-secondary)",
+                    border:
+                      selectedId === g.id
+                        ? "1.5px solid var(--io-accent)"
+                        : "1px solid var(--io-border)",
+                    background:
+                      selectedId === g.id
+                        ? "color-mix(in srgb, var(--io-accent) 12%, transparent)"
+                        : "transparent",
+                    color:
+                      selectedId === g.id
+                        ? "var(--io-accent)"
+                        : "var(--io-text-secondary)",
                   }}
                 >
                   {g.label}
@@ -325,7 +373,14 @@ function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--io-text-primary)", marginBottom: "3px" }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--io-text-primary)",
+                      marginBottom: "3px",
+                    }}
+                  >
                     {step.title}
                   </div>
 
@@ -379,7 +434,8 @@ function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
                         marginTop: "6px",
                         padding: "5px 8px",
                         borderRadius: "var(--io-radius)",
-                        background: "color-mix(in srgb, var(--io-info, #3b82f6) 10%, transparent)",
+                        background:
+                          "color-mix(in srgb, var(--io-info, #3b82f6) 10%, transparent)",
                         borderLeft: "2px solid var(--io-info, #3b82f6)",
                         fontSize: "11px",
                         color: "var(--io-text-secondary)",
@@ -396,7 +452,8 @@ function ScimSetupGuide({ scimEndpointUrl }: ScimSetupGuideProps) {
                         marginTop: "6px",
                         padding: "5px 8px",
                         borderRadius: "var(--io-radius)",
-                        background: "color-mix(in srgb, var(--io-warning) 12%, transparent)",
+                        background:
+                          "color-mix(in srgb, var(--io-warning) 12%, transparent)",
                         borderLeft: "2px solid var(--io-warning)",
                         fontSize: "11px",
                         color: "var(--io-text-secondary)",
@@ -438,13 +495,17 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
   }
 
   const createMutation = useMutation({
-    mutationFn: (payload: CreateScimTokenPayload) => scimApi.createToken(payload),
+    mutationFn: (payload: CreateScimTokenPayload) =>
+      scimApi.createToken(payload),
     onSuccess: (result) => {
       if (result.success) {
         reset();
         onCreated(result.data);
       } else {
-        const errResult = result as { success: false; error?: { message: string } };
+        const errResult = result as {
+          success: false;
+          error?: { message: string };
+        };
         setError(errResult.error?.message ?? "Failed to create token");
       }
     },
@@ -460,7 +521,12 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
     >
       <Dialog.Portal>
         <Dialog.Overlay
-          style={{ position: "fixed", inset: 0, background: "var(--io-overlay, rgba(0,0,0,0.5))", zIndex: 100 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
+            zIndex: 100,
+          }}
         />
         <Dialog.Content
           aria-describedby={undefined}
@@ -479,7 +545,12 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
           }}
         >
           <Dialog.Title
-            style={{ margin: "0 0 20px", fontSize: "16px", fontWeight: 600, color: "var(--io-text-primary)" }}
+            style={{
+              margin: "0 0 20px",
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             Create SCIM Token
           </Dialog.Title>
@@ -505,7 +576,10 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
               type="text"
               placeholder="e.g. Azure AD, Okta"
               value={name}
-              onChange={(e) => { setName(e.target.value); setError(""); }}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError("");
+              }}
               style={inputStyle}
             />
           </div>
@@ -521,14 +595,22 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
             />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
+          >
             <Dialog.Close asChild>
               <button style={btnSecondary}>Cancel</button>
             </Dialog.Close>
             <button
               onClick={() => {
-                if (!name.trim()) { setError("Name is required"); return; }
-                createMutation.mutate({ name: name.trim(), description: description.trim() || undefined });
+                if (!name.trim()) {
+                  setError("Name is required");
+                  return;
+                }
+                createMutation.mutate({
+                  name: name.trim(),
+                  description: description.trim() || undefined,
+                });
               }}
               disabled={createMutation.isPending}
               style={btnPrimary}
@@ -562,10 +644,20 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
   };
 
   return (
-    <Dialog.Root open={!!result} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog.Root
+      open={!!result}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay
-          style={{ position: "fixed", inset: 0, background: "var(--io-overlay, rgba(0,0,0,0.5))", zIndex: 100 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
+            zIndex: 100,
+          }}
         />
         <Dialog.Content
           style={{
@@ -582,11 +674,19 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
             maxWidth: "calc(100vw - 32px)",
           }}
         >
-          <Dialog.Title style={{ margin: "0 0 6px", fontSize: "16px", fontWeight: 600, color: "var(--io-text-primary)" }}>
+          <Dialog.Title
+            style={{
+              margin: "0 0 6px",
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
             SCIM Token Created
           </Dialog.Title>
           <Dialog.Description style={{ display: "none" }}>
-            Your new SCIM bearer token. Copy it now — it will not be shown again.
+            Your new SCIM bearer token. Copy it now — it will not be shown
+            again.
           </Dialog.Description>
           <div
             style={{
@@ -595,13 +695,22 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
               gap: "8px",
               padding: "8px 12px",
               borderRadius: "var(--io-radius)",
-              background: "color-mix(in srgb, var(--io-warning) 12%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--io-warning) 40%, transparent)",
+              background:
+                "color-mix(in srgb, var(--io-warning) 12%, transparent)",
+              border:
+                "1px solid color-mix(in srgb, var(--io-warning) 40%, transparent)",
               marginBottom: "16px",
             }}
           >
             <span style={{ fontSize: "16px" }}>⚠</span>
-            <p style={{ margin: 0, fontSize: "13px", color: "var(--io-text-secondary)", fontWeight: 500 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+                fontWeight: 500,
+              }}
+            >
               Copy this token now — it will not be shown again.
             </p>
           </div>
@@ -628,11 +737,19 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
             </code>
           </div>
 
-          <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginBottom: "20px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginBottom: "20px",
+            }}
+          >
             <strong>Name:</strong> {result?.name}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
+          >
             <button onClick={handleCopy} style={btnSecondary}>
               {copied ? "Copied!" : "Copy Token"}
             </button>
@@ -653,8 +770,12 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
 export default function ScimTokensSection() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [newTokenResult, setNewTokenResult] = useState<CreateScimTokenResponse | null>(null);
-  const [confirmRevoke, setConfirmRevoke] = useState<{ id: string; name: string } | null>(null);
+  const [newTokenResult, setNewTokenResult] =
+    useState<CreateScimTokenResponse | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
 
   const { data: listResult, isLoading } = useQuery({
@@ -666,7 +787,9 @@ export default function ScimTokensSection() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => scimApi.deleteToken(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["scim-tokens"] }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scim-tokens"] });
+    },
   });
 
   const handleCreated = (result: CreateScimTokenResponse) => {
@@ -690,12 +813,26 @@ export default function ScimTokensSection() {
         }}
       >
         <div>
-          <h3 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 600, color: "var(--io-text-primary)" }}>
+          <h3
+            style={{
+              margin: "0 0 4px",
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
             SCIM 2.0 Provisioning
           </h3>
-          <p style={{ margin: "0 0 14px", fontSize: "13px", color: "var(--io-text-secondary)" }}>
-            SCIM enables your identity provider to automatically create, update, and disable user accounts
-            in I/O when changes happen in your directory. Tokens below authenticate IdP sync requests.
+          <p
+            style={{
+              margin: "0 0 14px",
+              fontSize: "13px",
+              color: "var(--io-text-secondary)",
+            }}
+          >
+            SCIM enables your identity provider to automatically create, update,
+            and disable user accounts in I/O when changes happen in your
+            directory. Tokens below authenticate IdP sync requests.
           </p>
 
           {/* Endpoint URL */}
@@ -743,20 +880,36 @@ export default function ScimTokensSection() {
                 {copiedEndpoint ? "Copied!" : "Copy"}
               </button>
             </div>
-            <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
-              Provide this URL to your identity provider when configuring SCIM provisioning.
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+              }}
+            >
+              Provide this URL to your identity provider when configuring SCIM
+              provisioning.
             </p>
           </div>
         </div>
 
-        <button onClick={() => setShowCreate(true)} style={{ ...btnPrimary, whiteSpace: "nowrap", marginTop: "28px" }}>
+        <button
+          onClick={() => setShowCreate(true)}
+          style={{ ...btnPrimary, whiteSpace: "nowrap", marginTop: "28px" }}
+        >
           + New Token
         </button>
       </div>
 
       {/* Token table */}
       {isLoading ? (
-        <div style={{ fontSize: "13px", color: "var(--io-text-muted)", padding: "12px 0" }}>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "var(--io-text-muted)",
+            padding: "12px 0",
+          }}
+        >
           Loading…
         </div>
       ) : tokens.length === 0 ? (
@@ -769,51 +922,111 @@ export default function ScimTokensSection() {
           }}
         >
           <div style={{ fontSize: "28px", marginBottom: "10px" }}>🔑</div>
-          <p style={{ fontSize: "13px", color: "var(--io-text-secondary)", margin: "0 0 6px", fontWeight: 500 }}>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--io-text-secondary)",
+              margin: "0 0 6px",
+              fontWeight: 500,
+            }}
+          >
             No SCIM tokens yet
           </p>
-          <p style={{ fontSize: "12px", color: "var(--io-text-muted)", margin: 0 }}>
-            Create a token to enable IdP provisioning. Each IdP connection should use its own token.
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              margin: 0,
+            }}
+          >
+            Create a token to enable IdP provisioning. Each IdP connection
+            should use its own token.
           </p>
         </div>
       ) : (
-        <div style={{ border: "1px solid var(--io-border)", borderRadius: "var(--io-radius)", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+        <div
+          style={{
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            overflow: "hidden",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "13px",
+            }}
+          >
             <thead>
-              <tr style={{ background: "var(--io-surface-secondary)", borderBottom: "1px solid var(--io-border)" }}>
-                {["Name", "Created", "Last Used", "Status", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "10px 16px",
-                      textAlign: "left",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr
+                style={{
+                  background: "var(--io-surface-secondary)",
+                  borderBottom: "1px solid var(--io-border)",
+                }}
+              >
+                {["Name", "Created", "Last Used", "Status", "Actions"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 16px",
+                        textAlign: "left",
+                        fontWeight: 600,
+                        color: "var(--io-text-muted)",
+                        fontSize: "11px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
               {tokens.map((token, idx) => (
-                <tr key={token.id} style={{ borderTop: idx > 0 ? "1px solid var(--io-border)" : undefined }}>
-                  <td style={{ padding: "12px 16px", color: "var(--io-text-primary)" }}>
+                <tr
+                  key={token.id}
+                  style={{
+                    borderTop:
+                      idx > 0 ? "1px solid var(--io-border)" : undefined,
+                  }}
+                >
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      color: "var(--io-text-primary)",
+                    }}
+                  >
                     <div style={{ fontWeight: 500 }}>{token.name}</div>
                     {token.description && (
-                      <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: "2px" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--io-text-muted)",
+                          marginTop: "2px",
+                        }}
+                      >
                         {token.description}
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: "12px 16px", color: "var(--io-text-secondary)" }}>
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      color: "var(--io-text-secondary)",
+                    }}
+                  >
                     {formatDate(token.created_at)}
                   </td>
-                  <td style={{ padding: "12px 16px", color: "var(--io-text-secondary)" }}>
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      color: "var(--io-text-secondary)",
+                    }}
+                  >
                     {formatRelative(token.last_used_at)}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
@@ -825,8 +1038,12 @@ export default function ScimTokensSection() {
                         borderRadius: "100px",
                         fontSize: "11px",
                         fontWeight: 600,
-                        background: token.enabled ? "var(--io-success-subtle)" : "var(--io-surface-secondary)",
-                        color: token.enabled ? "var(--io-success)" : "var(--io-text-muted)",
+                        background: token.enabled
+                          ? "var(--io-success-subtle)"
+                          : "var(--io-surface-secondary)",
+                        color: token.enabled
+                          ? "var(--io-success)"
+                          : "var(--io-text-muted)",
                       }}
                     >
                       {token.enabled ? "Active" : "Disabled"}
@@ -834,9 +1051,15 @@ export default function ScimTokensSection() {
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right" }}>
                     <button
-                      onClick={() => setConfirmRevoke({ id: token.id, name: token.name })}
+                      onClick={() =>
+                        setConfirmRevoke({ id: token.id, name: token.name })
+                      }
                       disabled={deleteMutation.isPending}
-                      style={{ ...btnSmall, color: "var(--io-danger)", borderColor: "var(--io-danger)" }}
+                      style={{
+                        ...btnSmall,
+                        color: "var(--io-danger)",
+                        borderColor: "var(--io-danger)",
+                      }}
                     >
                       Revoke
                     </button>
@@ -851,18 +1074,29 @@ export default function ScimTokensSection() {
       {/* IdP setup guide */}
       <ScimSetupGuide scimEndpointUrl={scimEndpointUrl} />
 
-      <CreateDialog open={showCreate} onOpenChange={setShowCreate} onCreated={handleCreated} />
+      <CreateDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onCreated={handleCreated}
+      />
 
-      <RevealDialog result={newTokenResult} onClose={() => setNewTokenResult(null)} />
+      <RevealDialog
+        result={newTokenResult}
+        onClose={() => setNewTokenResult(null)}
+      />
 
       <ConfirmDialog
         open={!!confirmRevoke}
-        onOpenChange={(v) => { if (!v) setConfirmRevoke(null); }}
+        onOpenChange={(v) => {
+          if (!v) setConfirmRevoke(null);
+        }}
         title={`Revoke "${confirmRevoke?.name ?? ""}"?`}
         description="IdPs using this token will lose access immediately."
         confirmLabel="Revoke"
         variant="danger"
-        onConfirm={() => confirmRevoke && deleteMutation.mutate(confirmRevoke.id)}
+        onConfirm={() =>
+          confirmRevoke && deleteMutation.mutate(confirmRevoke.id)
+        }
       />
     </div>
   );

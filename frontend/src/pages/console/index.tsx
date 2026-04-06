@@ -254,18 +254,25 @@ function LayoutIcon({
   return (
     <svg
       width={size}
-      height={Math.round(size * 9 / 16)}
+      height={Math.round((size * 9) / 16)}
       viewBox={`0 0 ${W} ${H}`}
       style={{ display: "block" }}
     >
-      <rect x={0} y={0} width={W} height={H} fill="var(--io-surface-elevated)" rx={0.5} />
+      <rect
+        x={0}
+        y={0}
+        width={W}
+        height={H}
+        fill="var(--io-surface-elevated)"
+        rx={0.5}
+      />
       {slots.map((slot, i) => (
         <rect
           key={i}
-          x={slot.x / G * W + gap}
-          y={slot.y / G * H + gap}
-          width={slot.w / G * W - gap * 2}
-          height={slot.h / G * H - gap * 2}
+          x={(slot.x / G) * W + gap}
+          y={(slot.y / G) * H + gap}
+          width={(slot.w / G) * W - gap * 2}
+          height={(slot.h / G) * H - gap * 2}
           fill={active ? "var(--io-accent)" : "var(--io-text-muted)"}
           opacity={active ? 0.75 : 0.45}
           rx={0.25}
@@ -284,18 +291,34 @@ const LAYOUT_GROUPS: { label: string; presets: LayoutPreset[] }[] = [
     label: "Even Grid",
     presets: [
       "1x1",
-      "2x1", "1x2", "2x2",
-      "3x1", "1x3", "3x2", "2x3", "3x3",
-      "4x1", "1x4", "4x2", "2x4", "4x3", "3x4", "4x4",
+      "2x1",
+      "1x2",
+      "2x2",
+      "3x1",
+      "1x3",
+      "3x2",
+      "2x3",
+      "3x3",
+      "4x1",
+      "1x4",
+      "4x2",
+      "2x4",
+      "4x3",
+      "3x4",
+      "4x4",
     ],
   },
   {
     label: "Asymmetric",
     presets: [
-      "big-left-3-right", "big-right-3-left",
-      "big-top-3-bottom", "big-bottom-3-top",
-      "featured-sidebar", "side-by-side-unequal",
-      "2-big-4-small", "pip",
+      "big-left-3-right",
+      "big-right-3-left",
+      "big-top-3-bottom",
+      "big-bottom-3-top",
+      "featured-sidebar",
+      "side-by-side-unequal",
+      "2-big-4-small",
+      "pip",
     ],
   },
 ];
@@ -1595,7 +1618,15 @@ export default function ConsolePage() {
           return {
             ...w,
             panes: [firstPane],
-            gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12 * GRID_SCALE, h: 8 * GRID_SCALE }],
+            gridItems: [
+              {
+                i: firstPane.id,
+                x: 0,
+                y: 0,
+                w: 12 * GRID_SCALE,
+                h: 8 * GRID_SCALE,
+              },
+            ],
           };
         }
 
@@ -1638,7 +1669,9 @@ export default function ConsolePage() {
           newGridItems = [...currentItems, { i: np.id, ...freeSlot }];
         } else {
           const tentative = { i: np.id, x: 0, y: 0, w: halfW, h: halfH };
-          const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+          const pinnedSet = new Set(
+            w.panes.filter((p) => p.pinned).map((p) => p.id),
+          );
           newGridItems = scanLineCompact(
             [...currentItems, tentative],
             tentative.i,
@@ -1695,13 +1728,18 @@ export default function ConsolePage() {
           }
         };
 
-        const np: PaneConfig = applyItem({ id: uuidv4(), type: "blank" as const });
+        const np: PaneConfig = applyItem({
+          id: uuidv4(),
+          type: "blank" as const,
+        });
 
         if (w.panes.length === 0) {
           return {
             ...w,
             panes: [np],
-            gridItems: [{ i: np.id, x: 0, y: 0, w: 12 * GRID_SCALE, h: 8 * GRID_SCALE }],
+            gridItems: [
+              { i: np.id, x: 0, y: 0, w: 12 * GRID_SCALE, h: 8 * GRID_SCALE },
+            ],
           };
         }
 
@@ -1716,7 +1754,9 @@ export default function ConsolePage() {
           newGridItems = [...currentItems, { i: np.id, ...freeSlot }];
         } else {
           const tentative = { i: np.id, x: 0, y: 0, w: halfW, h: halfH };
-          const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+          const pinnedSet = new Set(
+            w.panes.filter((p) => p.pinned).map((p) => p.id),
+          );
           newGridItems = scanLineCompact(
             [...currentItems, tentative],
             tentative.i,
@@ -2910,10 +2950,21 @@ export default function ConsolePage() {
                     const freeSlot = findFreeSlot(currentItems, halfW, halfH);
                     let newGridItems: GridItem[];
                     if (freeSlot) {
-                      newGridItems = [...currentItems, { i: newId, ...freeSlot }];
+                      newGridItems = [
+                        ...currentItems,
+                        { i: newId, ...freeSlot },
+                      ];
                     } else {
-                      const tentative = { i: newId, x: 0, y: 0, w: halfW, h: halfH };
-                      const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+                      const tentative = {
+                        i: newId,
+                        x: 0,
+                        y: 0,
+                        w: halfW,
+                        h: halfH,
+                      };
+                      const pinnedSet = new Set(
+                        w.panes.filter((p) => p.pinned).map((p) => p.id),
+                      );
                       newGridItems = scanLineCompact(
                         [...currentItems, tentative],
                         tentative.i,
@@ -2923,7 +2974,10 @@ export default function ConsolePage() {
                     }
                     return {
                       ...w,
-                      panes: [...w.panes, { id: newId, type: "blank" as const }],
+                      panes: [
+                        ...w.panes,
+                        { id: newId, type: "blank" as const },
+                      ],
                       gridItems: newGridItems,
                     };
                   });

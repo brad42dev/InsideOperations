@@ -23,7 +23,8 @@ export default function RoundTemplates() {
   });
 
   const templates = data?.success ? data.data : [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundTemplate>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<RoundTemplate>();
 
   const btnStyle = (primary?: boolean): React.CSSProperties => ({
     padding: "6px 14px",
@@ -202,11 +203,44 @@ export default function RoundTemplates() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Open", onClick: () => { closeMenu(); navigate(`/rounds/templates/${menuState.data!.id}`); } },
-            { label: "Edit", permission: "rounds:write", onClick: () => { closeMenu(); navigate(`/rounds/templates/${menuState.data!.id}/edit`); } },
-            { label: "Duplicate", permission: "rounds:write", onClick: () => { closeMenu(); } },
-            { label: "Print", permission: "rounds:write", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+            {
+              label: "Open",
+              onClick: () => {
+                closeMenu();
+                navigate(`/rounds/templates/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Edit",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                navigate(`/rounds/templates/${menuState.data!.id}/edit`);
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Print",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

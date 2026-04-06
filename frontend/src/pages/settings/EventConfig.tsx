@@ -126,9 +126,7 @@ interface AlarmDialogState {
 function AlarmDefinitionsSection() {
   const queryClient = useQueryClient();
 
-  const [dialogState, setDialogState] = useState<AlarmDialogState | null>(
-    null,
-  );
+  const [dialogState, setDialogState] = useState<AlarmDialogState | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [pendingExprId, setPendingExprId] = useState<string | null>(null);
   const [pendingExprName, setPendingExprName] = useState<string | null>(null);
@@ -169,8 +167,13 @@ function AlarmDefinitionsSection() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: CreateAlarmDefinitionBody }) =>
-      alarmDefinitionsApi.update(id, body),
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: string;
+      body: CreateAlarmDefinitionBody;
+    }) => alarmDefinitionsApi.update(id, body),
     onSuccess: (result) => {
       if (!result.success) {
         setFormError(result.error.message);
@@ -193,7 +196,12 @@ function AlarmDefinitionsSection() {
   });
 
   function openCreate() {
-    setForm({ name: "", definition_type: "threshold", priority: "medium", enabled: true });
+    setForm({
+      name: "",
+      definition_type: "threshold",
+      priority: "medium",
+      enabled: true,
+    });
     setPendingExprId(null);
     setPendingExprName(null);
     setFormError(null);
@@ -210,7 +218,9 @@ function AlarmDefinitionsSection() {
       expression_id: def.expression_id ?? undefined,
     });
     setPendingExprId(def.expression_id);
-    setPendingExprName(def.expression_id ? `Expression ${def.expression_id.slice(0, 8)}…` : null);
+    setPendingExprName(
+      def.expression_id ? `Expression ${def.expression_id.slice(0, 8)}…` : null,
+    );
     setFormError(null);
     setDialogState({ mode: "edit", def });
   }
@@ -218,9 +228,7 @@ function AlarmDefinitionsSection() {
   async function handleExprApply(ast: ExpressionAst) {
     // Save the expression to get an ID, then attach it to the form.
     const saveResult = await expressionsApi.create({
-      name: form.name
-        ? `Alarm: ${form.name}`
-        : "Alarm expression",
+      name: form.name ? `Alarm: ${form.name}` : "Alarm expression",
       context: "alarm_definition",
       ast,
     });
@@ -237,7 +245,11 @@ function AlarmDefinitionsSection() {
       setFormError("Name is required.");
       return;
     }
-    if (form.definition_type === "expression" && !form.expression_id && !pendingExprId) {
+    if (
+      form.definition_type === "expression" &&
+      !form.expression_id &&
+      !pendingExprId
+    ) {
       setFormError("Configure an expression before saving.");
       return;
     }
@@ -304,15 +316,33 @@ function AlarmDefinitionsSection() {
       {/* Definitions list */}
       <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
         {listQuery.isLoading ? (
-          <div style={{ padding: "20px", color: "var(--io-text-muted)", fontSize: "13px" }}>
+          <div
+            style={{
+              padding: "20px",
+              color: "var(--io-text-muted)",
+              fontSize: "13px",
+            }}
+          >
             Loading…
           </div>
         ) : definitions.length === 0 ? (
-          <div style={{ padding: "20px", color: "var(--io-text-muted)", fontSize: "13px" }}>
+          <div
+            style={{
+              padding: "20px",
+              color: "var(--io-text-muted)",
+              fontSize: "13px",
+            }}
+          >
             No alarm definitions yet. Create one to get started.
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: "13px" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse" as const,
+              fontSize: "13px",
+            }}
+          >
             <thead>
               <tr>
                 {["Name", "Type", "Priority", "Enabled", "Actions"].map((h) => (
@@ -337,17 +367,37 @@ function AlarmDefinitionsSection() {
             <tbody>
               {definitions.map((def) => (
                 <tr key={def.id}>
-                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
-                    <div style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
                       {def.name}
                     </div>
                     {def.description && (
-                      <div style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--io-text-muted)",
+                        }}
+                      >
                         {def.description}
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                    }}
+                  >
                     <span
                       style={{
                         padding: "2px 8px",
@@ -380,13 +430,20 @@ function AlarmDefinitionsSection() {
                     style={{
                       padding: "9px 14px",
                       borderBottom: "1px solid var(--io-border)",
-                      color: def.enabled ? "var(--io-success)" : "var(--io-text-muted)",
+                      color: def.enabled
+                        ? "var(--io-success)"
+                        : "var(--io-text-muted)",
                       fontSize: "12px",
                     }}
                   >
                     {def.enabled ? "Yes" : "No"}
                   </td>
-                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                    }}
+                  >
                     <div style={{ display: "flex", gap: 6 }}>
                       <button
                         onClick={() => openEdit(def)}
@@ -462,7 +519,9 @@ function AlarmDefinitionsSection() {
                 color: "var(--io-text-primary)",
               }}
             >
-              {dialogState.mode === "create" ? "New Alarm Definition" : "Edit Alarm Definition"}
+              {dialogState.mode === "create"
+                ? "New Alarm Definition"
+                : "Edit Alarm Definition"}
             </h3>
 
             {formError && (
@@ -482,13 +541,21 @@ function AlarmDefinitionsSection() {
 
             {/* Name */}
             <div>
-              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+              <label
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-muted)",
+                  fontWeight: 600,
+                }}
+              >
                 Name *
               </label>
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
                 style={{
                   display: "block",
                   width: "100%",
@@ -506,7 +573,13 @@ function AlarmDefinitionsSection() {
 
             {/* Type */}
             <div>
-              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+              <label
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-muted)",
+                  fontWeight: 600,
+                }}
+              >
                 Condition Type
               </label>
               <select
@@ -514,7 +587,9 @@ function AlarmDefinitionsSection() {
                 onChange={(e) => {
                   setForm((f) => ({
                     ...f,
-                    definition_type: e.target.value as "threshold" | "expression",
+                    definition_type: e.target.value as
+                      | "threshold"
+                      | "expression",
                   }));
                 }}
                 style={{
@@ -548,10 +623,22 @@ function AlarmDefinitionsSection() {
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--io-text-secondary)" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "var(--io-text-secondary)",
+                    }}
+                  >
                     Expression Condition
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: 2 }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--io-text-muted)",
+                      marginTop: 2,
+                    }}
+                  >
                     {pendingExprName
                       ? `Configured: ${pendingExprName}`
                       : "No expression configured"}
@@ -578,12 +665,23 @@ function AlarmDefinitionsSection() {
 
             {/* Priority */}
             <div>
-              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+              <label
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-muted)",
+                  fontWeight: 600,
+                }}
+              >
                 Priority
               </label>
               <select
                 value={form.priority}
-                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as typeof form.priority }))}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    priority: e.target.value as typeof form.priority,
+                  }))
+                }
                 style={{
                   display: "block",
                   width: "100%",
@@ -605,19 +703,32 @@ function AlarmDefinitionsSection() {
             </div>
 
             {/* Enabled */}
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={form.enabled ?? true}
-                onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, enabled: e.target.checked }))
+                }
               />
-              <span style={{ fontSize: "13px", color: "var(--io-text-secondary)" }}>
+              <span
+                style={{ fontSize: "13px", color: "var(--io-text-secondary)" }}
+              >
                 Enabled
               </span>
             </label>
 
             {/* Actions */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div
+              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+            >
               <button
                 onClick={() => setDialogState(null)}
                 style={{
@@ -646,7 +757,9 @@ function AlarmDefinitionsSection() {
                   cursor: "pointer",
                 }}
               >
-                {createMutation.isPending || updateMutation.isPending ? "Saving…" : "Save"}
+                {createMutation.isPending || updateMutation.isPending
+                  ? "Saving…"
+                  : "Save"}
               </button>
             </div>
           </div>
@@ -679,13 +792,23 @@ function AlarmDefinitionsSection() {
               boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
             }}
           >
-            <h3 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600 }}>
+            <h3
+              style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600 }}
+            >
               Delete Alarm Definition?
             </h3>
-            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "var(--io-text-secondary)" }}>
+            <p
+              style={{
+                margin: "0 0 20px",
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+              }}
+            >
               This cannot be undone.
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div
+              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+            >
               <button
                 onClick={() => setDeleteId(null)}
                 style={{

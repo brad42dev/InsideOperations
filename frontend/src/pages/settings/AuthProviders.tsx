@@ -64,19 +64,19 @@ const OIDC_GUIDES: IdpGuide[] = [
       {
         title: "Copy the Client ID",
         nav: "App registration → Overview",
-        body: 'Copy the Application (client) ID — this is your Client ID. Also note the Directory (tenant) ID for the Issuer URL below.',
+        body: "Copy the Application (client) ID — this is your Client ID. Also note the Directory (tenant) ID for the Issuer URL below.",
       },
       {
         title: "Create a client secret",
         nav: "App registration → Certificates & secrets → New client secret",
-        body: "Add a description (e.g. \"I/O\"), set expiry to 24 months, click Add. Copy the Value immediately — it won't be shown again.",
+        body: 'Add a description (e.g. "I/O"), set expiry to 24 months, click Add. Copy the Value immediately — it won\'t be shown again.',
         warning: "Copy the secret Value now. Azure will not show it again.",
       },
       {
         title: "Set the Issuer URL",
         body: "Enter the Issuer URL using your tenant ID:",
         code: "https://login.microsoftonline.com/{tenant-id}/v2.0",
-        note: 'Replace {tenant-id} with your Directory (tenant) ID from the Overview page.',
+        note: "Replace {tenant-id} with your Directory (tenant) ID from the Overview page.",
       },
       {
         title: "Configure group claims (for role mapping)",
@@ -269,7 +269,8 @@ const SAML_GUIDES: IdpGuide[] = [
         title: "Assign users and groups",
         nav: "Enterprise application → Users and groups → Add user/group",
         body: "Assign which users or groups can access Inside Operations.",
-        warning: "Certificate expiry: Azure certificates expire every 3 years. Set a calendar reminder to renew.",
+        warning:
+          "Certificate expiry: Azure certificates expire every 3 years. Set a calendar reminder to renew.",
       },
     ],
   },
@@ -285,7 +286,8 @@ const SAML_GUIDES: IdpGuide[] = [
       {
         title: "Save IdP information",
         body: "On the Google IdP Information page, copy the SSO URL, Entity ID, and download the Certificate. You'll need these for the IdP Configuration fields on the left.",
-        warning: "Save these values before clicking Continue — you can only download the certificate from this screen.",
+        warning:
+          "Save these values before clicking Continue — you can only download the certificate from this screen.",
       },
       {
         title: "Enter SP details",
@@ -404,7 +406,7 @@ const LDAP_GUIDES: IdpGuide[] = [
       {
         title: "Create a service account",
         nav: "Active Directory Users and Computers (ADUC) → OU=Service Accounts → New User",
-        body: "Create a dedicated read-only service account (e.g. io-svc). Set a strong password, check \"Password never expires\" and \"User cannot change password\". No special permissions needed.",
+        body: 'Create a dedicated read-only service account (e.g. io-svc). Set a strong password, check "Password never expires" and "User cannot change password". No special permissions needed.',
       },
       {
         title: "Find the Bind DN",
@@ -848,7 +850,8 @@ function SetupGuide({ type, ctx }: SetupGuideProps) {
                         marginTop: "5px",
                         padding: "5px 8px",
                         borderRadius: "var(--io-radius)",
-                        background: "color-mix(in srgb, var(--io-info, #3b82f6) 10%, transparent)",
+                        background:
+                          "color-mix(in srgb, var(--io-info, #3b82f6) 10%, transparent)",
                         borderLeft: "2px solid var(--io-info, #3b82f6)",
                         fontSize: "11px",
                         color: "var(--io-text-secondary)",
@@ -866,7 +869,8 @@ function SetupGuide({ type, ctx }: SetupGuideProps) {
                         marginTop: "5px",
                         padding: "5px 8px",
                         borderRadius: "var(--io-radius)",
-                        background: "color-mix(in srgb, var(--io-warning) 12%, transparent)",
+                        background:
+                          "color-mix(in srgb, var(--io-warning) 12%, transparent)",
                         borderLeft: "2px solid var(--io-warning)",
                         fontSize: "11px",
                         color: "var(--io-text-secondary)",
@@ -911,10 +915,15 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
     : [];
 
   const createMutation = useMutation({
-    mutationFn: (body: { idp_group: string; role_id: string; match_type: string }) =>
-      authProvidersApi.createMapping(provider.id, body),
+    mutationFn: (body: {
+      idp_group: string;
+      role_id: string;
+      match_type: string;
+    }) => authProvidersApi.createMapping(provider.id, body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["auth-provider-mappings", provider.id] });
+      qc.invalidateQueries({
+        queryKey: ["auth-provider-mappings", provider.id],
+      });
       setNewGroup("");
       setNewRoleId("");
       setNewMatchType("exact");
@@ -925,7 +934,9 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
     mutationFn: (mappingId: string) =>
       authProvidersApi.deleteMapping(provider.id, mappingId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["auth-provider-mappings", provider.id] });
+      qc.invalidateQueries({
+        queryKey: ["auth-provider-mappings", provider.id],
+      });
     },
   });
 
@@ -962,13 +973,28 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
       </div>
 
       {isLoading ? (
-        <p style={{ fontSize: "13px", color: "var(--io-text-muted)" }}>Loading…</p>
+        <p style={{ fontSize: "13px", color: "var(--io-text-muted)" }}>
+          Loading…
+        </p>
       ) : mappings.length === 0 ? (
-        <p style={{ fontSize: "13px", color: "var(--io-text-muted)", marginBottom: "10px" }}>
-          No mappings yet. Add a mapping below to assign roles based on IdP group membership.
+        <p
+          style={{
+            fontSize: "13px",
+            color: "var(--io-text-muted)",
+            marginBottom: "10px",
+          }}
+        >
+          No mappings yet. Add a mapping below to assign roles based on IdP
+          group membership.
         </p>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "12px" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginBottom: "12px",
+          }}
+        >
           <thead>
             <tr style={{ borderBottom: "1px solid var(--io-border)" }}>
               {["IdP Group / Value", "Role", "Match", ""].map((h) => (
@@ -991,8 +1017,17 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
           </thead>
           <tbody>
             {mappings.map((m) => (
-              <tr key={m.id} style={{ borderBottom: "1px solid var(--io-border)" }}>
-                <td style={{ ...cellStyle, fontFamily: "var(--io-font-mono, monospace)", fontSize: "12px" }}>
+              <tr
+                key={m.id}
+                style={{ borderBottom: "1px solid var(--io-border)" }}
+              >
+                <td
+                  style={{
+                    ...cellStyle,
+                    fontFamily: "var(--io-font-mono, monospace)",
+                    fontSize: "12px",
+                  }}
+                >
                   {m.idp_group}
                 </td>
                 <td style={cellStyle}>{getRoleName(m.role_id)}</td>
@@ -1011,7 +1046,11 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
                 </td>
                 <td style={{ ...cellStyle, textAlign: "right" }}>
                   <button
-                    style={{ ...btnSmall, color: "var(--io-danger)", borderColor: "var(--io-danger)" }}
+                    style={{
+                      ...btnSmall,
+                      color: "var(--io-danger)",
+                      borderColor: "var(--io-danger)",
+                    }}
                     disabled={deleteMutation.isPending}
                     onClick={() => deleteMutation.mutate(m.id)}
                   >
@@ -1025,7 +1064,14 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
       )}
 
       {/* Add mapping row */}
-      <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
         <div style={{ flex: 3, minWidth: "160px" }}>
           <label style={labelStyle}>IdP Group / Value</label>
           <input
@@ -1075,7 +1121,9 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
         <div>
           <button
             style={btnPrimary}
-            disabled={createMutation.isPending || !newGroup.trim() || !newRoleId.trim()}
+            disabled={
+              createMutation.isPending || !newGroup.trim() || !newRoleId.trim()
+            }
             onClick={() =>
               createMutation.mutate({
                 idp_group: newGroup.trim(),
@@ -1133,10 +1181,19 @@ function OidcFields({
         />
         <FieldHint>
           The provider's base URL. Discovery document is fetched from{" "}
-          <code style={{ fontFamily: "monospace" }}>{"{issuer}"}/.well-known/openid-configuration</code>
+          <code style={{ fontFamily: "monospace" }}>
+            {"{issuer}"}/.well-known/openid-configuration
+          </code>
         </FieldHint>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "12px",
+          marginBottom: "14px",
+        }}
+      >
         <div>
           <label style={labelStyle}>Client ID *</label>
           <input
@@ -1154,7 +1211,9 @@ function OidcFields({
             type="password"
             value={clientSecret}
             onChange={(e) => onChange("clientSecret", e.target.value)}
-            placeholder={isEdit ? "Leave blank to keep current" : "Client secret value"}
+            placeholder={
+              isEdit ? "Leave blank to keep current" : "Client secret value"
+            }
           />
           {isEdit && (
             <FieldHint>Leave blank to keep the existing secret.</FieldHint>
@@ -1170,7 +1229,9 @@ function OidcFields({
           placeholder="openid profile email"
         />
         <FieldHint>
-          Space-separated. Add <code style={{ fontFamily: "monospace" }}>groups</code> if your IdP supports a groups claim (Okta, Keycloak).
+          Space-separated. Add{" "}
+          <code style={{ fontFamily: "monospace" }}>groups</code> if your IdP
+          supports a groups claim (Okta, Keycloak).
         </FieldHint>
       </div>
 
@@ -1212,7 +1273,8 @@ function OidcFields({
         </div>
       </div>
       <FieldHint>
-        Claim names in the ID token that contain user email, display name, and group memberships. Leave blank to use defaults.
+        Claim names in the ID token that contain user email, display name, and
+        group memberships. Leave blank to use defaults.
       </FieldHint>
     </>
   );
@@ -1253,7 +1315,8 @@ function SamlFields({
       <div
         style={{
           background: "color-mix(in srgb, var(--io-accent) 6%, transparent)",
-          border: "1px solid color-mix(in srgb, var(--io-accent) 25%, transparent)",
+          border:
+            "1px solid color-mix(in srgb, var(--io-accent) 25%, transparent)",
           borderRadius: "var(--io-radius)",
           padding: "14px 16px",
           marginBottom: "20px",
@@ -1271,7 +1334,9 @@ function SamlFields({
         >
           SP Information — give these to your IdP
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}
+        >
           <CopyField
             label="Entity ID (Audience URI)"
             value={spEntityId}
@@ -1299,7 +1364,10 @@ function SamlFields({
           onChange={(e) => onChange("entityId", e.target.value)}
           placeholder={spEntityId}
         />
-        <FieldHint>Your SP Entity ID sent in AuthnRequests. Defaults to the value shown above if left blank.</FieldHint>
+        <FieldHint>
+          Your SP Entity ID sent in AuthnRequests. Defaults to the value shown
+          above if left blank.
+        </FieldHint>
       </div>
       <div style={{ marginBottom: "14px", marginTop: "14px" }}>
         <div>
@@ -1312,12 +1380,20 @@ function SamlFields({
             disabled={useXml}
           />
           <FieldHint>
-            The server fetches this URL automatically when the provider is saved. Paste it from your IdP's federation metadata link.
+            The server fetches this URL automatically when the provider is
+            saved. Paste it from your IdP's federation metadata link.
           </FieldHint>
         </div>
         <div style={{ marginTop: "8px" }}>
           <label
-            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--io-text-secondary)", cursor: "pointer" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              color: "var(--io-text-secondary)",
+              cursor: "pointer",
+            }}
           >
             <input
               type="checkbox"
@@ -1454,9 +1530,10 @@ function LdapFields({
           required
         />
         <FieldHint>
-          Use <code style={{ fontFamily: "monospace" }}>ldaps://</code> (port 636) for TLS, or{" "}
-          <code style={{ fontFamily: "monospace" }}>ldap://</code> with StartTLS (port 389).
-          Plain LDAP is not recommended for production.
+          Use <code style={{ fontFamily: "monospace" }}>ldaps://</code> (port
+          636) for TLS, or{" "}
+          <code style={{ fontFamily: "monospace" }}>ldap://</code> with StartTLS
+          (port 389). Plain LDAP is not recommended for production.
         </FieldHint>
       </div>
       <div style={{ marginBottom: "14px" }}>
@@ -1468,7 +1545,10 @@ function LdapFields({
           placeholder="CN=io-svc,OU=Service Accounts,DC=corp,DC=plant,DC=com"
           required
         />
-        <FieldHint>Distinguished name of the service account used to search the directory.</FieldHint>
+        <FieldHint>
+          Distinguished name of the service account used to search the
+          directory.
+        </FieldHint>
       </div>
       <div style={{ marginBottom: "20px" }}>
         <label style={labelStyle}>Bind Password *</label>
@@ -1477,10 +1557,14 @@ function LdapFields({
           type="password"
           value={bindPassword}
           onChange={(e) => onChange("bindPassword", e.target.value)}
-          placeholder={isEdit ? "Leave blank to keep current" : "Service account password"}
+          placeholder={
+            isEdit ? "Leave blank to keep current" : "Service account password"
+          }
           required={!isEdit}
         />
-        {isEdit && <FieldHint>Leave blank to keep the existing password.</FieldHint>}
+        {isEdit && (
+          <FieldHint>Leave blank to keep the existing password.</FieldHint>
+        )}
       </div>
 
       <SectionHeader title="User Search" />
@@ -1493,7 +1577,9 @@ function LdapFields({
           placeholder="OU=Users,DC=corp,DC=plant,DC=com"
           required
         />
-        <FieldHint>Base DN to search for users. Use root DC to search all OUs.</FieldHint>
+        <FieldHint>
+          Base DN to search for users. Use root DC to search all OUs.
+        </FieldHint>
       </div>
       <div style={{ marginBottom: "20px" }}>
         <label style={labelStyle}>User Filter *</label>
@@ -1505,7 +1591,9 @@ function LdapFields({
           required
         />
         <FieldHint>
-          LDAP filter to find users. Use <code style={{ fontFamily: "monospace" }}>{"{username}"}</code> as a placeholder for the login name.
+          LDAP filter to find users. Use{" "}
+          <code style={{ fontFamily: "monospace" }}>{"{username}"}</code> as a
+          placeholder for the login name.
         </FieldHint>
       </div>
 
@@ -1518,7 +1606,10 @@ function LdapFields({
           onChange={(e) => onChange("groupSearchBase", e.target.value)}
           placeholder="OU=Groups,DC=corp,DC=plant,DC=com"
         />
-        <FieldHint>Base DN for group searches. Leave blank to skip group-based role mapping.</FieldHint>
+        <FieldHint>
+          Base DN for group searches. Leave blank to skip group-based role
+          mapping.
+        </FieldHint>
       </div>
       <div style={{ marginBottom: "20px" }}>
         <label style={labelStyle}>Group Filter</label>
@@ -1529,8 +1620,10 @@ function LdapFields({
           placeholder="(member:1.2.840.113556.1.4.1941:={userDN})"
         />
         <FieldHint>
-          Filter to find groups a user belongs to. Use <code style={{ fontFamily: "monospace" }}>{"{userDN}"}</code> for the user's DN.
-          The AD recursive membership OID above finds all transitive groups in one query.
+          Filter to find groups a user belongs to. Use{" "}
+          <code style={{ fontFamily: "monospace" }}>{"{userDN}"}</code> for the
+          user's DN. The AD recursive membership OID above finds all transitive
+          groups in one query.
         </FieldHint>
       </div>
 
@@ -1579,7 +1672,9 @@ function LdapFields({
             onChange={(e) => onChange("groupNameAttr", e.target.value)}
             placeholder="cn"
           />
-          <FieldHint>Attribute used as the group value in Role Mappings.</FieldHint>
+          <FieldHint>
+            Attribute used as the group value in Role Mappings.
+          </FieldHint>
         </div>
       </div>
     </>
@@ -1600,7 +1695,9 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
   const qc = useQueryClient();
   const isEdit = Boolean(existing);
 
-  const [providerType, setProviderType] = useState<"oidc" | "saml" | "ldap">("oidc");
+  const [providerType, setProviderType] = useState<"oidc" | "saml" | "ldap">(
+    "oidc",
+  );
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -1630,7 +1727,9 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
   const [samlAttrGroups, setSamlAttrGroups] = useState("");
 
   // LDAP
-  const [ldapServerUrl, setLdapServerUrl] = useState("ldaps://dc.corp.example.com:636");
+  const [ldapServerUrl, setLdapServerUrl] = useState(
+    "ldaps://dc.corp.example.com:636",
+  );
   const [ldapBindDn, setLdapBindDn] = useState("");
   const [ldapBindPassword, setLdapBindPassword] = useState("");
   const [ldapSearchBase, setLdapSearchBase] = useState("");
@@ -1674,7 +1773,9 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
     setOidcIssuerUrl((cfg.issuer_url as string) ?? "");
     setOidcClientId((cfg.client_id as string) ?? "");
     setOidcClientSecret("");
-    setOidcScopes((cfg.scopes as string[])?.join(" ") ?? "openid profile email");
+    setOidcScopes(
+      (cfg.scopes as string[])?.join(" ") ?? "openid profile email",
+    );
     setOidcClaimsEmail((cfg.claims_email as string) ?? "");
     setOidcClaimsName((cfg.claims_name as string) ?? "");
     setOidcClaimsGroups((cfg.claims_groups as string) ?? "");
@@ -1687,12 +1788,15 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
     setSamlAttrName((cfg.attr_name as string) ?? "");
     setSamlAttrGroups((cfg.attr_groups as string) ?? "");
     // LDAP
-    setLdapServerUrl((cfg.server_url as string) ?? "ldaps://dc.corp.example.com:636");
+    setLdapServerUrl(
+      (cfg.server_url as string) ?? "ldaps://dc.corp.example.com:636",
+    );
     setLdapBindDn((cfg.bind_dn as string) ?? "");
     setLdapBindPassword("");
     setLdapSearchBase((cfg.search_base as string) ?? "");
     setLdapUserFilter(
-      (cfg.user_filter as string) ?? "(&(sAMAccountName={username})(objectClass=user))",
+      (cfg.user_filter as string) ??
+        "(&(sAMAccountName={username})(objectClass=user))",
     );
     setLdapGroupSearchBase((cfg.group_search_base as string) ?? "");
     setLdapGroupFilter((cfg.group_filter as string) ?? "");
@@ -1710,31 +1814,51 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
         return {
           issuer_url: oidcIssuerUrl.trim(),
           client_id: oidcClientId.trim(),
-          ...(oidcClientSecret.trim() ? { client_secret: oidcClientSecret.trim() } : {}),
+          ...(oidcClientSecret.trim()
+            ? { client_secret: oidcClientSecret.trim() }
+            : {}),
           scopes: oidcScopes.split(/[\s,]+/).filter(Boolean),
-          ...(oidcClaimsEmail.trim() ? { claims_email: oidcClaimsEmail.trim() } : {}),
-          ...(oidcClaimsName.trim() ? { claims_name: oidcClaimsName.trim() } : {}),
-          ...(oidcClaimsGroups.trim() ? { claims_groups: oidcClaimsGroups.trim() } : {}),
+          ...(oidcClaimsEmail.trim()
+            ? { claims_email: oidcClaimsEmail.trim() }
+            : {}),
+          ...(oidcClaimsName.trim()
+            ? { claims_name: oidcClaimsName.trim() }
+            : {}),
+          ...(oidcClaimsGroups.trim()
+            ? { claims_groups: oidcClaimsGroups.trim() }
+            : {}),
         };
       case "saml":
         return {
           ...(samlEntityId.trim() ? { entity_id: samlEntityId.trim() } : {}),
-          ...(samlIdpMetadataUrl.trim() ? { idp_metadata_url: samlIdpMetadataUrl.trim() } : {}),
-          ...(samlIdpMetadataXml.trim() ? { idp_metadata_xml: samlIdpMetadataXml.trim() } : {}),
+          ...(samlIdpMetadataUrl.trim()
+            ? { idp_metadata_url: samlIdpMetadataUrl.trim() }
+            : {}),
+          ...(samlIdpMetadataXml.trim()
+            ? { idp_metadata_xml: samlIdpMetadataXml.trim() }
+            : {}),
           nameid_format: samlNameidFormat,
           ...(samlAttrEmail.trim() ? { attr_email: samlAttrEmail.trim() } : {}),
           ...(samlAttrName.trim() ? { attr_name: samlAttrName.trim() } : {}),
-          ...(samlAttrGroups.trim() ? { attr_groups: samlAttrGroups.trim() } : {}),
+          ...(samlAttrGroups.trim()
+            ? { attr_groups: samlAttrGroups.trim() }
+            : {}),
         };
       case "ldap":
         return {
           server_url: ldapServerUrl.trim(),
           bind_dn: ldapBindDn.trim(),
-          ...(ldapBindPassword.trim() ? { bind_password: ldapBindPassword.trim() } : {}),
+          ...(ldapBindPassword.trim()
+            ? { bind_password: ldapBindPassword.trim() }
+            : {}),
           search_base: ldapSearchBase.trim(),
           user_filter: ldapUserFilter.trim(),
-          ...(ldapGroupSearchBase.trim() ? { group_search_base: ldapGroupSearchBase.trim() } : {}),
-          ...(ldapGroupFilter.trim() ? { group_filter: ldapGroupFilter.trim() } : {}),
+          ...(ldapGroupSearchBase.trim()
+            ? { group_search_base: ldapGroupSearchBase.trim() }
+            : {}),
+          ...(ldapGroupFilter.trim()
+            ? { group_filter: ldapGroupFilter.trim() }
+            : {}),
           username_attr: ldapUsernameAttr.trim() || "sAMAccountName",
           email_attr: ldapEmailAttr.trim() || "mail",
           display_name_attr: ldapDisplayNameAttr.trim() || "displayName",
@@ -1855,8 +1979,12 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
 
   const isPending = createMutation.isPending || updateMutation.isPending;
   const mutationError =
-    (createMutation.error instanceof Error ? createMutation.error.message : null) ??
-    (updateMutation.error instanceof Error ? updateMutation.error.message : null);
+    (createMutation.error instanceof Error
+      ? createMutation.error.message
+      : null) ??
+    (updateMutation.error instanceof Error
+      ? updateMutation.error.message
+      : null);
 
   const typeLabels: Record<string, string> = {
     oidc: "OIDC",
@@ -1892,7 +2020,9 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
             background: "var(--io-surface-secondary)",
             border: "1px solid var(--io-border)",
             borderRadius: "12px",
-            width: guideOpen ? "min(960px, calc(100vw - 32px))" : "min(620px, calc(100vw - 32px))",
+            width: guideOpen
+              ? "min(960px, calc(100vw - 32px))"
+              : "min(620px, calc(100vw - 32px))",
             maxHeight: "calc(100vh - 48px)",
             display: "flex",
             flexDirection: "column",
@@ -1907,7 +2037,14 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
               flexShrink: 0,
             }}
           >
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "12px",
+              }}
+            >
               <div>
                 <Dialog.Title
                   style={{
@@ -1917,13 +2054,25 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                     margin: "0 0 4px",
                   }}
                 >
-                  {isEdit ? `Edit ${typeLabels[providerType]} Provider` : "Add Authentication Provider"}
+                  {isEdit
+                    ? `Edit ${typeLabels[providerType]} Provider`
+                    : "Add Authentication Provider"}
                 </Dialog.Title>
-                <p style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}>
-                  {isEdit ? `Editing "${existing?.display_name}"` : typeDescriptions[providerType]}
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "13px",
+                    color: "var(--io-text-muted)",
+                  }}
+                >
+                  {isEdit
+                    ? `Editing "${existing?.display_name}"`
+                    : typeDescriptions[providerType]}
                 </p>
               </div>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <div
+                style={{ display: "flex", gap: "8px", alignItems: "center" }}
+              >
                 <button
                   type="button"
                   onClick={() => setGuideOpen((v) => !v)}
@@ -1932,8 +2081,12 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                     display: "flex",
                     alignItems: "center",
                     gap: "5px",
-                    color: guideOpen ? "var(--io-accent)" : "var(--io-text-secondary)",
-                    borderColor: guideOpen ? "var(--io-accent)" : "var(--io-border)",
+                    color: guideOpen
+                      ? "var(--io-accent)"
+                      : "var(--io-text-secondary)",
+                    borderColor: guideOpen
+                      ? "var(--io-accent)"
+                      : "var(--io-border)",
                   }}
                 >
                   <span>📋</span>
@@ -1971,13 +2124,18 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: "pointer",
-                      border: providerType === t
-                        ? "1.5px solid var(--io-accent)"
-                        : "1px solid var(--io-border)",
-                      background: providerType === t
-                        ? "color-mix(in srgb, var(--io-accent) 12%, transparent)"
-                        : "transparent",
-                      color: providerType === t ? "var(--io-accent)" : "var(--io-text-secondary)",
+                      border:
+                        providerType === t
+                          ? "1.5px solid var(--io-accent)"
+                          : "1px solid var(--io-border)",
+                      background:
+                        providerType === t
+                          ? "color-mix(in srgb, var(--io-accent) 12%, transparent)"
+                          : "transparent",
+                      color:
+                        providerType === t
+                          ? "var(--io-accent)"
+                          : "var(--io-text-secondary)",
                       transition: "all 0.1s ease",
                     }}
                   >
@@ -1989,7 +2147,14 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
           </div>
 
           {/* Dialog body — two-column layout */}
-          <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              overflow: "hidden",
+              minHeight: 0,
+            }}
+          >
             {/* Left: form */}
             <form
               onSubmit={handleSubmit}
@@ -2002,7 +2167,14 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
             >
               {/* Basic info */}
               <SectionHeader title="Provider Details" />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "12px",
+                  marginBottom: "14px",
+                }}
+              >
                 <div>
                   <label style={labelStyle}>Internal Name *</label>
                   <input
@@ -2015,7 +2187,10 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                     title="Lowercase letters, numbers, hyphens, underscores only"
                     disabled={isEdit}
                   />
-                  <FieldHint>Lowercase letters, numbers, hyphens only. Cannot be changed after creation.</FieldHint>
+                  <FieldHint>
+                    Lowercase letters, numbers, hyphens only. Cannot be changed
+                    after creation.
+                  </FieldHint>
                 </div>
                 <div>
                   <label style={labelStyle}>Display Name *</label>
@@ -2030,20 +2205,63 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "20px", marginBottom: "20px", flexWrap: "wrap" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--io-text-secondary)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "20px",
+                  marginBottom: "20px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "13px",
+                    color: "var(--io-text-secondary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(e) => setEnabled(e.target.checked)}
+                  />
                   Enabled
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--io-text-secondary)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={jitProvisioning} onChange={(e) => setJitProvisioning(e.target.checked)} />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "13px",
+                    color: "var(--io-text-secondary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={jitProvisioning}
+                    onChange={(e) => setJitProvisioning(e.target.checked)}
+                  />
                   JIT Provisioning
-                  <span style={{ fontSize: "11px", color: "var(--io-text-muted)" }}>
+                  <span
+                    style={{ fontSize: "11px", color: "var(--io-text-muted)" }}
+                  >
                     (auto-create users on first login)
                   </span>
                 </label>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <label style={{ fontSize: "13px", color: "var(--io-text-secondary)", whiteSpace: "nowrap" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <label
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--io-text-secondary)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     Display Order
                   </label>
                   <input
@@ -2057,14 +2275,30 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
               </div>
 
               {/* Config toggle */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: "12px",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => {
-                    if (!showRaw) setConfigJson(JSON.stringify(buildConfigFromFields(), null, 2));
+                    if (!showRaw)
+                      setConfigJson(
+                        JSON.stringify(buildConfigFromFields(), null, 2),
+                      );
                     setShowRaw((v) => !v);
                   }}
-                  style={{ background: "none", border: "none", color: "var(--io-accent)", fontSize: "12px", cursor: "pointer", padding: 0 }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--io-accent)",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
                 >
                   {showRaw ? "← Use Structured Fields" : "Edit Raw JSON →"}
                 </button>
@@ -2094,14 +2328,25 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                       {/* Show redirect URI prominently */}
                       <div
                         style={{
-                          background: "color-mix(in srgb, var(--io-accent) 6%, transparent)",
-                          border: "1px solid color-mix(in srgb, var(--io-accent) 25%, transparent)",
+                          background:
+                            "color-mix(in srgb, var(--io-accent) 6%, transparent)",
+                          border:
+                            "1px solid color-mix(in srgb, var(--io-accent) 25%, transparent)",
                           borderRadius: "var(--io-radius)",
                           padding: "10px 14px",
                           marginBottom: "16px",
                         }}
                       >
-                        <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--io-accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px" }}>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: "var(--io-accent)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.07em",
+                            marginBottom: "6px",
+                          }}
+                        >
                           Give this to your IdP first
                         </div>
                         <CopyField
@@ -2159,7 +2404,13 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
               )}
 
               {configError && (
-                <p style={{ fontSize: "12px", color: "var(--io-danger)", marginBottom: "12px" }}>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--io-danger)",
+                    marginBottom: "12px",
+                  }}
+                >
                   {configError}
                 </p>
               )}
@@ -2180,12 +2431,25 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", paddingTop: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "10px",
+                  paddingTop: "8px",
+                }}
+              >
                 <Dialog.Close asChild>
-                  <button type="button" style={btnSecondary}>Cancel</button>
+                  <button type="button" style={btnSecondary}>
+                    Cancel
+                  </button>
                 </Dialog.Close>
                 <button type="submit" style={btnPrimary} disabled={isPending}>
-                  {isPending ? "Saving…" : isEdit ? "Save Changes" : "Add Provider"}
+                  {isPending
+                    ? "Saving…"
+                    : isEdit
+                      ? "Save Changes"
+                      : "Add Provider"}
                 </button>
               </div>
             </form>
@@ -2224,7 +2488,10 @@ function ProviderRow({ provider }: ProviderRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [testStatus, setTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testStatus, setTestStatus] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [testing, setTesting] = useState(false);
 
   const deleteMutation = useMutation({
@@ -2243,11 +2510,16 @@ function ProviderRow({ provider }: ProviderRowProps) {
       if (result.success) {
         setTestStatus({
           ok: true,
-          message: (result.data as { message?: string }).message ?? "Connection successful",
+          message:
+            (result.data as { message?: string }).message ??
+            "Connection successful",
         });
       } else {
         const err = result as { success: false; error?: { message: string } };
-        setTestStatus({ ok: false, message: err.error?.message ?? "Test failed" });
+        setTestStatus({
+          ok: false,
+          message: err.error?.message ?? "Test failed",
+        });
       }
     } catch {
       setTestStatus({ ok: false, message: "Connection test failed" });
@@ -2263,7 +2535,13 @@ function ProviderRow({ provider }: ProviderRowProps) {
           <div style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
             {provider.display_name}
           </div>
-          <div style={{ fontSize: "11px", color: "var(--io-text-muted)", fontFamily: "var(--io-font-mono, monospace)" }}>
+          <div
+            style={{
+              fontSize: "11px",
+              color: "var(--io-text-muted)",
+              fontFamily: "var(--io-font-mono, monospace)",
+            }}
+          >
             {provider.name}
           </div>
         </td>
@@ -2275,7 +2553,9 @@ function ProviderRow({ provider }: ProviderRowProps) {
             style={{
               fontSize: "12px",
               fontWeight: 600,
-              color: provider.enabled ? "var(--io-success)" : "var(--io-text-muted)",
+              color: provider.enabled
+                ? "var(--io-success)"
+                : "var(--io-text-muted)",
             }}
           >
             {provider.enabled ? "Enabled" : "Disabled"}
@@ -2297,12 +2577,21 @@ function ProviderRow({ provider }: ProviderRowProps) {
           )}
         </td>
         <td style={{ ...cellStyle, textAlign: "right" }}>
-          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }}
+          >
             {testStatus && (
               <span
                 style={{
                   fontSize: "12px",
-                  color: testStatus.ok ? "var(--io-success)" : "var(--io-danger)",
+                  color: testStatus.ok
+                    ? "var(--io-success)"
+                    : "var(--io-danger)",
                   maxWidth: "200px",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -2322,7 +2611,11 @@ function ProviderRow({ provider }: ProviderRowProps) {
               Edit
             </button>
             <button
-              style={{ ...btnSmall, color: "var(--io-danger)", borderColor: "var(--io-danger)" }}
+              style={{
+                ...btnSmall,
+                color: "var(--io-danger)",
+                borderColor: "var(--io-danger)",
+              }}
               disabled={deleteMutation.isPending}
               onClick={() => setConfirmDeleteOpen(true)}
             >
@@ -2340,7 +2633,11 @@ function ProviderRow({ provider }: ProviderRowProps) {
         </tr>
       )}
 
-      <ProviderDialog open={editOpen} onOpenChange={setEditOpen} existing={provider} />
+      <ProviderDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        existing={provider}
+      />
 
       <ConfirmDialog
         open={confirmDeleteOpen}
@@ -2397,12 +2694,22 @@ export default function AuthProvidersPage() {
           >
             Authentication Providers
           </h2>
-          <p style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: 0 }}>
-            Configure OIDC, SAML 2.0, and LDAP / Active Directory identity providers for single sign-on.
-            Each provider can have group-to-role mappings for automatic role assignment.
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+              margin: 0,
+            }}
+          >
+            Configure OIDC, SAML 2.0, and LDAP / Active Directory identity
+            providers for single sign-on. Each provider can have group-to-role
+            mappings for automatic role assignment.
           </p>
         </div>
-        <button style={{ ...btnPrimary, whiteSpace: "nowrap" }} onClick={() => setAddOpen(true)}>
+        <button
+          style={{ ...btnPrimary, whiteSpace: "nowrap" }}
+          onClick={() => setAddOpen(true)}
+        >
           + Add Provider
         </button>
       </div>
@@ -2416,22 +2723,50 @@ export default function AuthProvidersPage() {
         }}
       >
         {isLoading ? (
-          <p style={{ padding: "24px", fontSize: "13px", color: "var(--io-text-muted)" }}>
+          <p
+            style={{
+              padding: "24px",
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+            }}
+          >
             Loading providers…
           </p>
         ) : error ? (
-          <p style={{ padding: "24px", fontSize: "13px", color: "var(--io-danger)" }}>
+          <p
+            style={{
+              padding: "24px",
+              fontSize: "13px",
+              color: "var(--io-danger)",
+            }}
+          >
             Failed to load providers.
           </p>
         ) : providers.length === 0 ? (
           <div style={{ padding: "48px", textAlign: "center" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔐</div>
-            <p style={{ fontSize: "14px", color: "var(--io-text-secondary)", margin: "0 0 8px", fontWeight: 500 }}>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "var(--io-text-secondary)",
+                margin: "0 0 8px",
+                fontWeight: 500,
+              }}
+            >
               No SSO providers configured
             </p>
-            <p style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: "0 0 20px", maxWidth: "400px", marginInline: "auto" }}>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "var(--io-text-muted)",
+                margin: "0 0 20px",
+                maxWidth: "400px",
+                marginInline: "auto",
+              }}
+            >
               Add an OIDC, SAML, or LDAP provider to enable single sign-on.
-              Setup guides are included for Microsoft Entra ID, Okta, Google Workspace, and more.
+              Setup guides are included for Microsoft Entra ID, Okta, Google
+              Workspace, and more.
             </p>
             <button style={btnPrimary} onClick={() => setAddOpen(true)}>
               Add your first provider

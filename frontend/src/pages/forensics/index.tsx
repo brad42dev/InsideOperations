@@ -240,7 +240,8 @@ function InvestigationCard({
   onShare: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Investigation>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<Investigation>();
 
   const createdDate = new Date(inv.created_at).toLocaleDateString("en-US", {
     year: "numeric",
@@ -250,86 +251,124 @@ function InvestigationCard({
 
   return (
     <>
+      <div
+        onClick={onClick}
+        onContextMenu={(e) => handleContextMenu(e, inv)}
+        style={{
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "6px",
+          padding: "14px 16px",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          transition: "border-color 0.15s, background 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          const el = e.currentTarget as HTMLDivElement;
+          el.style.borderColor = "var(--io-accent, #4A9EFF)";
+          el.style.background = "var(--io-surface-elevated)";
+        }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget as HTMLDivElement;
+          el.style.borderColor = "var(--io-border)";
+          el.style.background = "var(--io-surface)";
+        }}
+      >
         <div
-          onClick={onClick}
-          onContextMenu={(e) => handleContextMenu(e, inv)}
           style={{
-            background: "var(--io-surface)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "6px",
-            padding: "14px 16px",
-            cursor: "pointer",
             display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            transition: "border-color 0.15s, background 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLDivElement;
-            el.style.borderColor = "var(--io-accent, #4A9EFF)";
-            el.style.background = "var(--io-surface-elevated)";
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLDivElement;
-            el.style.borderColor = "var(--io-border)";
-            el.style.background = "var(--io-surface)";
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
           }}
         >
-          <div
+          <span
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "var(--io-text-primary)",
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {inv.name}
-            </span>
-            <StatusBadge status={inv.status} />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              fontSize: "12px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            {inv.anchor_point_id && (
-              <span>
-                Anchor:{" "}
-                <span style={{ color: "var(--io-text-secondary)" }}>
-                  {inv.anchor_point_id}
-                </span>
-              </span>
-            )}
-            <span>Created {createdDate}</span>
-            <span>by {inv.created_by}</span>
-          </div>
+            {inv.name}
+          </span>
+          <StatusBadge status={inv.status} />
         </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          {inv.anchor_point_id && (
+            <span>
+              Anchor:{" "}
+              <span style={{ color: "var(--io-text-secondary)" }}>
+                {inv.anchor_point_id}
+              </span>
+            </span>
+          )}
+          <span>Created {createdDate}</span>
+          <span>by {inv.created_by}</span>
+        </div>
+      </div>
       {menuState && (
         <SharedContextMenu
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Open", onClick: () => { closeMenu(); onClick(); } },
-            { label: "Duplicate", permission: "forensics:write", onClick: () => { closeMenu(); } },
-            { label: "Toggle Starred", permission: "forensics:write", onClick: () => { closeMenu(); } },
-            { label: "Export Investigation", onClick: () => { closeMenu(); onExport(inv.id); } },
-            { label: "Archive", onClick: () => { closeMenu(); onClose(inv.id); } },
-            { label: "Delete", danger: true, divider: true, onClick: () => { closeMenu(); onDelete(inv.id); } },
+            {
+              label: "Open",
+              onClick: () => {
+                closeMenu();
+                onClick();
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "forensics:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Toggle Starred",
+              permission: "forensics:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export Investigation",
+              onClick: () => {
+                closeMenu();
+                onExport(inv.id);
+              },
+            },
+            {
+              label: "Archive",
+              onClick: () => {
+                closeMenu();
+                onClose(inv.id);
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                closeMenu();
+                onDelete(inv.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />
@@ -404,9 +443,7 @@ function CalculatedSeries() {
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 3600 * 1000).toISOString().slice(0, 16),
   );
-  const [endDate, setEndDate] = useState(
-    new Date().toISOString().slice(0, 16),
-  );
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 16));
   const [results, setResults] = useState<(number | null)[] | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -494,7 +531,9 @@ function CalculatedSeries() {
         >
           Calculated Series
         </h3>
-        <p style={{ margin: 0, fontSize: "12px", color: "var(--io-text-muted)" }}>
+        <p
+          style={{ margin: 0, fontSize: "12px", color: "var(--io-text-muted)" }}
+        >
           Build an expression using OPC point values and evaluate it over a
           historical time range.
         </p>
@@ -518,9 +557,7 @@ function CalculatedSeries() {
           {expression ? "Edit Expression" : "Build Expression"}
         </button>
         {expression && (
-          <span
-            style={{ fontSize: "12px", color: "var(--io-text-secondary)" }}
-          >
+          <span style={{ fontSize: "12px", color: "var(--io-text-secondary)" }}>
             Expression configured
           </span>
         )}
@@ -529,7 +566,11 @@ function CalculatedSeries() {
       {/* Time range */}
       <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
         <label
-          style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 500 }}
+          style={{
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+            fontWeight: 500,
+          }}
         >
           From
         </label>
@@ -547,7 +588,11 @@ function CalculatedSeries() {
           }}
         />
         <label
-          style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 500 }}
+          style={{
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+            fontWeight: 500,
+          }}
         >
           To
         </label>
@@ -569,7 +614,9 @@ function CalculatedSeries() {
           onClick={() => void handleRun()}
           style={{
             padding: "7px 16px",
-            background: expression ? "var(--io-accent)" : "var(--io-surface-secondary)",
+            background: expression
+              ? "var(--io-accent)"
+              : "var(--io-surface-secondary)",
             border: "none",
             borderRadius: "var(--io-radius)",
             color: expression ? "#fff" : "var(--io-text-muted)",

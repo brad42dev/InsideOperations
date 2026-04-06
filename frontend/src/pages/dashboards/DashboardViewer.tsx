@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { dashboardsApi, type DashboardVariable, type WidgetConfig } from "../../api/dashboards";
+import {
+  dashboardsApi,
+  type DashboardVariable,
+  type WidgetConfig,
+} from "../../api/dashboards";
 import { useAuthStore } from "../../store/auth";
 import { useUiStore } from "../../store/ui";
 import WidgetContainer from "./widgets/WidgetContainer";
@@ -316,7 +320,11 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
   }
 
   const widgets = dashboard.widgets ?? [];
-  const { menuState: widgetMenuState, handleContextMenu: handleWidgetContextMenu, closeMenu: closeWidgetMenu } = useContextMenu<WidgetConfig>();
+  const {
+    menuState: widgetMenuState,
+    handleContextMenu: handleWidgetContextMenu,
+    closeMenu: closeWidgetMenu,
+  } = useContextMenu<WidgetConfig>();
 
   return (
     <div
@@ -569,9 +577,24 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
               x={widgetMenuState.x}
               y={widgetMenuState.y}
               items={[
-                { label: "Refresh Widget", onClick: () => { closeWidgetMenu(); } },
-                { label: "Export Data", onClick: () => { closeWidgetMenu(); } },
-                { label: "Full Screen", onClick: () => { closeWidgetMenu(); } },
+                {
+                  label: "Refresh Widget",
+                  onClick: () => {
+                    closeWidgetMenu();
+                  },
+                },
+                {
+                  label: "Export Data",
+                  onClick: () => {
+                    closeWidgetMenu();
+                  },
+                },
+                {
+                  label: "Full Screen",
+                  onClick: () => {
+                    closeWidgetMenu();
+                  },
+                },
               ]}
               onClose={closeWidgetMenu}
             />

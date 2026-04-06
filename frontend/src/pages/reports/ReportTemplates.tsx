@@ -28,7 +28,8 @@ export default function ReportTemplates() {
 
   const result = data?.success ? data.data : null;
   const templates = result?.data ?? [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportTemplate>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ReportTemplate>();
 
   // Collect unique categories for filter dropdown
   const categories = Array.from(
@@ -274,11 +275,43 @@ export default function ReportTemplates() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Open", onClick: () => { closeMenu(); navigate(`/reports/generate/${menuState.data!.id}`); } },
-            { label: "Edit", permission: "reports:write", onClick: () => { closeMenu(); navigate(`/reports/templates/${menuState.data!.id}/edit`); } },
-            { label: "Duplicate", permission: "reports:write", onClick: () => { closeMenu(); } },
-            { label: "Export", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "reports:write", onClick: () => { closeMenu(); } },
+            {
+              label: "Open",
+              onClick: () => {
+                closeMenu();
+                navigate(`/reports/generate/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Edit",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+                navigate(`/reports/templates/${menuState.data!.id}/edit`);
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

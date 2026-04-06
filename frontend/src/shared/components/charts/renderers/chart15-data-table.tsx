@@ -43,7 +43,10 @@ export default function Chart15DataTable({ config }: RendererProps) {
   const pointIds = seriesSlots.map((s) => s.pointId);
 
   const { values } = useWebSocket(pointIds);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{ tagName: string; displayValue: string }>();
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{
+    tagName: string;
+    displayValue: string;
+  }>();
 
   // Fetch metadata for all points — useQueries handles dynamic array of queries
   // without violating Rules of Hooks (unlike calling useQuery in a loop).
@@ -130,7 +133,9 @@ export default function Chart15DataTable({ config }: RendererProps) {
               <tr
                 key={slot.pointId}
                 style={{ background: rowBg, cursor: "context-menu" }}
-                onContextMenu={(e) => handleContextMenu(e, { tagName, displayValue })}
+                onContextMenu={(e) =>
+                  handleContextMenu(e, { tagName, displayValue })
+                }
               >
                 <td
                   style={{
@@ -184,14 +189,18 @@ export default function Chart15DataTable({ config }: RendererProps) {
               label: "Copy Tag Name",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(menuState.data?.tagName ?? "");
+                void navigator.clipboard.writeText(
+                  menuState.data?.tagName ?? "",
+                );
               },
             },
             {
               label: "Copy Value",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(menuState.data?.displayValue ?? "");
+                void navigator.clipboard.writeText(
+                  menuState.data?.displayValue ?? "",
+                );
               },
             },
           ]}

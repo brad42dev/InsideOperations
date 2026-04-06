@@ -645,10 +645,38 @@ export default function TrendPane({
             x={ctxMenu.x}
             y={ctxMenu.y}
             items={[
-              { label: "Save As…", onClick: () => { setCtxMenu(null); setSaveModal({ publish: false }); } },
-              ...(canPublish ? [{ label: "Publish…", onClick: () => { setCtxMenu(null); setSaveModal({ publish: true }); } }] : []),
-              { label: "Configure Chart…", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
-              { label: "Add Point to Trend", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+              {
+                label: "Save As…",
+                onClick: () => {
+                  setCtxMenu(null);
+                  setSaveModal({ publish: false });
+                },
+              },
+              ...(canPublish
+                ? [
+                    {
+                      label: "Publish…",
+                      onClick: () => {
+                        setCtxMenu(null);
+                        setSaveModal({ publish: true });
+                      },
+                    },
+                  ]
+                : []),
+              {
+                label: "Configure Chart…",
+                onClick: () => {
+                  setCtxMenu(null);
+                  setShowConfig(true);
+                },
+              },
+              {
+                label: "Add Point to Trend",
+                onClick: () => {
+                  setCtxMenu(null);
+                  setShowConfig(true);
+                },
+              },
             ]}
             onClose={() => setCtxMenu(null)}
           />
@@ -970,8 +998,20 @@ export default function TrendPane({
           x={ctxMenu.x}
           y={ctxMenu.y}
           items={[
-            { label: "Configure Chart…", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
-            { label: "Add Point to Trend", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+            {
+              label: "Configure Chart…",
+              onClick: () => {
+                setCtxMenu(null);
+                setShowConfig(true);
+              },
+            },
+            {
+              label: "Add Point to Trend",
+              onClick: () => {
+                setCtxMenu(null);
+                setShowConfig(true);
+              },
+            },
           ]}
           onClose={() => setCtxMenu(null)}
         />

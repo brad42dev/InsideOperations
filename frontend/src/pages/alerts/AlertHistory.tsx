@@ -101,7 +101,8 @@ export default function AlertHistory() {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const canExport = usePermission("alerts:read");
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<NotificationMessage>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<NotificationMessage>();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["notifications", "messages", page, severity],
@@ -489,9 +490,25 @@ export default function AlertHistory() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "View Details", onClick: () => { closeMenu(); } },
-            { label: "Investigate Alarm", permission: "forensics:write", onClick: () => { closeMenu(); } },
-            { label: "Export", onClick: () => { closeMenu(); } },
+            {
+              label: "View Details",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Investigate Alarm",
+              permission: "forensics:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

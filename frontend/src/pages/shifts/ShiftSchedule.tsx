@@ -515,85 +515,107 @@ function ShiftRow({ shift }: { shift: Shift }) {
 
   return (
     <>
-    <tr
-      onClick={() => navigate(`/shifts/schedule/${shift.id}`)}
-      onContextMenu={(e) => handleContextMenu(e, shift)}
-      style={{ cursor: "pointer", borderBottom: "1px solid var(--io-border)" }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLTableRowElement).style.background =
-          "var(--io-surface-secondary)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLTableRowElement).style.background =
-          "transparent";
-      }}
-    >
-      <td
+      <tr
+        onClick={() => navigate(`/shifts/schedule/${shift.id}`)}
+        onContextMenu={(e) => handleContextMenu(e, shift)}
         style={{
-          padding: "12px 16px",
-          color: "var(--io-text-primary)",
-          fontWeight: 500,
+          cursor: "pointer",
+          borderBottom: "1px solid var(--io-border)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLTableRowElement).style.background =
+            "var(--io-surface-secondary)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLTableRowElement).style.background =
+            "transparent";
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {shift.name}
-          <ExternalBadge shift={shift} />
-        </div>
-      </td>
-      <td
-        style={{
-          padding: "12px 16px",
-          color: "var(--io-text-secondary)",
-          fontSize: 13,
-        }}
-      >
-        {shift.crew_name ?? (
-          <span style={{ color: "var(--io-text-muted)" }}>—</span>
-        )}
-      </td>
-      <td
-        style={{
-          padding: "12px 16px",
-          color: "var(--io-text-secondary)",
-          fontSize: 13,
-        }}
-      >
-        {formatDateTime(shift.start_time)}
-      </td>
-      <td
-        style={{
-          padding: "12px 16px",
-          color: "var(--io-text-secondary)",
-          fontSize: 13,
-        }}
-      >
-        {formatDateTime(shift.end_time)}
-      </td>
-      <td
-        style={{
-          padding: "12px 16px",
-          color: "var(--io-text-muted)",
-          fontSize: 13,
-        }}
-      >
-        {formatDuration(shift.start_time, shift.end_time)}
-      </td>
-      <td style={{ padding: "12px 16px" }}>
-        <StatusBadge status={shift.status} />
-      </td>
-    </tr>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          { label: "Edit Shift", permission: "shifts:write", onClick: () => { closeMenu(); } },
-          { label: "Copy Shift", permission: "shifts:write", onClick: () => { closeMenu(); } },
-          { label: "Delete Shift", danger: true, divider: true, onClick: () => { closeMenu(); } },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
+        <td
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-text-primary)",
+            fontWeight: 500,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {shift.name}
+            <ExternalBadge shift={shift} />
+          </div>
+        </td>
+        <td
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-text-secondary)",
+            fontSize: 13,
+          }}
+        >
+          {shift.crew_name ?? (
+            <span style={{ color: "var(--io-text-muted)" }}>—</span>
+          )}
+        </td>
+        <td
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-text-secondary)",
+            fontSize: 13,
+          }}
+        >
+          {formatDateTime(shift.start_time)}
+        </td>
+        <td
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-text-secondary)",
+            fontSize: 13,
+          }}
+        >
+          {formatDateTime(shift.end_time)}
+        </td>
+        <td
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-text-muted)",
+            fontSize: 13,
+          }}
+        >
+          {formatDuration(shift.start_time, shift.end_time)}
+        </td>
+        <td style={{ padding: "12px 16px" }}>
+          <StatusBadge status={shift.status} />
+        </td>
+      </tr>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Edit Shift",
+              permission: "shifts:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Copy Shift",
+              permission: "shifts:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete Shift",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                closeMenu();
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </>
   );
 }

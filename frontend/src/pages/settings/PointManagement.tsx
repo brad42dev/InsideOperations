@@ -1383,7 +1383,8 @@ export default function PointManagement() {
 
   // Banner error
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<PointConfig>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<PointConfig>();
 
   // Build query params
   const queryParams = useMemo(() => {
@@ -1936,10 +1937,38 @@ export default function PointManagement() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Configure", permission: "points:configure", onClick: () => { setConfigPoint(menuState.data!); setConfigOpen(true); closeMenu(); } },
-            { label: "View History", onClick: () => { closeMenu(); } },
-            { label: "Export", onClick: () => { closeMenu(); } },
-            { label: "Deactivate", danger: true, divider: true, permission: "points:configure", onClick: () => { setLifecyclePoint(menuState.data!); setLifecycleOpen(true); closeMenu(); } },
+            {
+              label: "Configure",
+              permission: "points:configure",
+              onClick: () => {
+                setConfigPoint(menuState.data!);
+                setConfigOpen(true);
+                closeMenu();
+              },
+            },
+            {
+              label: "View History",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Deactivate",
+              danger: true,
+              divider: true,
+              permission: "points:configure",
+              onClick: () => {
+                setLifecyclePoint(menuState.data!);
+                setLifecycleOpen(true);
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

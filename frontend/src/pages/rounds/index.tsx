@@ -294,7 +294,11 @@ export default function RoundsPage() {
   const [tab, setTab] = useState<TabId>("available");
   const [startingId, setStartingId] = useState<string | null>(null);
   const { isOnline, pendingCount, hasSyncFailures } = useOfflineRounds();
-  const { menuState: tmplMenu, handleContextMenu: openTmplMenu, closeMenu: closeTmplMenu } = useContextMenu<RoundTemplate>();
+  const {
+    menuState: tmplMenu,
+    handleContextMenu: openTmplMenu,
+    closeMenu: closeTmplMenu,
+  } = useContextMenu<RoundTemplate>();
 
   const { data: availableResult, isLoading: loadingAvailable } = useQuery({
     queryKey: ["rounds", "instances", "pending"],
@@ -764,7 +768,11 @@ export default function RoundsPage() {
                 x={tmplMenu.x}
                 y={tmplMenu.y}
                 items={[
-                  { label: "Edit", onClick: () => navigate(`/rounds/templates/${tmplMenu.data!.id}/edit`) },
+                  {
+                    label: "Edit",
+                    onClick: () =>
+                      navigate(`/rounds/templates/${tmplMenu.data!.id}/edit`),
+                  },
                 ]}
                 onClose={closeTmplMenu}
               />

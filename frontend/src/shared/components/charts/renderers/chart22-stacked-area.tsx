@@ -57,7 +57,9 @@ export default function Chart22StackedArea({
   const { data: msiMap } = useQuery({
     queryKey: ["point-msi-batch", pointIds.join(",")],
     queryFn: async () => {
-      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)));
+      const results = await Promise.all(
+        pointIds.map((id) => pointsApi.getMeta(id)),
+      );
       const map = new Map<string, number | null>();
       results.forEach((r, i) => {
         map.set(

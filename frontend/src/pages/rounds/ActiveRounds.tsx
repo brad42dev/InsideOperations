@@ -100,7 +100,8 @@ export default function ActiveRounds() {
 
   const activeInstances = activeData?.success ? activeData.data : [];
   const pendingInstances = pendingData?.success ? pendingData.data : [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundInstance>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<RoundInstance>();
 
   const cardStyle: React.CSSProperties = {
     display: "flex",
@@ -251,7 +252,11 @@ export default function ActiveRounds() {
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {pendingInstances.map((inst) => (
-              <div key={inst.id} onContextMenu={(e) => handleContextMenu(e, inst)} style={{ ...cardStyle, cursor: "default" }}>
+              <div
+                key={inst.id}
+                onContextMenu={(e) => handleContextMenu(e, inst)}
+                style={{ ...cardStyle, cursor: "default" }}
+              >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
@@ -311,9 +316,29 @@ export default function ActiveRounds() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "View", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
-            { label: "Resume", permission: "rounds:execute", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
-            { label: "Abandon", danger: true, divider: true, onClick: () => { closeMenu(); } },
+            {
+              label: "View",
+              onClick: () => {
+                closeMenu();
+                navigate(`/rounds/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Resume",
+              permission: "rounds:execute",
+              onClick: () => {
+                closeMenu();
+                navigate(`/rounds/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Abandon",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

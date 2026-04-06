@@ -202,7 +202,8 @@ function InstanceCard({
   onClick: () => void;
 }) {
   const date = new Date(instance.created_at).toLocaleDateString();
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogInstance>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<LogInstance>();
   return (
     <div
       onClick={onClick}
@@ -255,10 +256,36 @@ function InstanceCard({
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "View", onClick: () => { closeMenu(); onClick(); } },
-            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); onClick(); } },
-            { label: "Export Entry", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); } },
+            {
+              label: "View",
+              onClick: () => {
+                closeMenu();
+                onClick();
+              },
+            },
+            {
+              label: "Edit",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+                onClick();
+              },
+            },
+            {
+              label: "Export Entry",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />
@@ -282,7 +309,11 @@ function TemplatesList({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const { menuState: tmplMenu, handleContextMenu: openTmplMenu, closeMenu: closeTmplMenu } = useContextMenu<LogTemplate>();
+  const {
+    menuState: tmplMenu,
+    handleContextMenu: openTmplMenu,
+    closeMenu: closeTmplMenu,
+  } = useContextMenu<LogTemplate>();
   return (
     <div>
       <div
@@ -405,7 +436,12 @@ function TemplatesList({
           y={tmplMenu.y}
           items={[
             { label: "Edit", onClick: () => onEdit(tmplMenu.data!.id) },
-            { label: "Delete", danger: true, divider: true, onClick: () => onDelete(tmplMenu.data!.id) },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              onClick: () => onDelete(tmplMenu.data!.id),
+            },
           ]}
           onClose={closeTmplMenu}
         />

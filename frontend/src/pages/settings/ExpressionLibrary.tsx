@@ -387,7 +387,8 @@ export default function ExpressionLibrary() {
   const { user } = useAuthStore();
   const canManage =
     user?.permissions.includes("system:expression_manage") ?? false;
-  const isAdmin = user?.permissions.includes("system:expression_manage") ?? false;
+  const isAdmin =
+    user?.permissions.includes("system:expression_manage") ?? false;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editExpr, setEditExpr] = useState<SavedExpression | null>(null);
@@ -399,7 +400,8 @@ export default function ExpressionLibrary() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importProgress, setImportProgress] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<SavedExpression>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<SavedExpression>();
 
   const query = useQuery({
     queryKey: ["expressions", contextFilter],
@@ -441,7 +443,9 @@ export default function ExpressionLibrary() {
       queryClient.invalidateQueries({ queryKey: ["expressions"] });
     },
     onError: (err) => {
-      setBannerError(err instanceof Error ? err.message : "Share toggle failed");
+      setBannerError(
+        err instanceof Error ? err.message : "Share toggle failed",
+      );
     },
   });
 
@@ -503,9 +507,7 @@ export default function ExpressionLibrary() {
           fail++;
         }
       }
-      setImportProgress(
-        `Import complete: ${ok} imported, ${fail} failed.`,
-      );
+      setImportProgress(`Import complete: ${ok} imported, ${fail} failed.`);
       queryClient.invalidateQueries({ queryKey: ["expressions"] });
     } catch {
       setBannerError("Failed to parse import file.");
@@ -890,10 +892,39 @@ export default function ExpressionLibrary() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "system:expression_manage", onClick: () => { setEditExpr(menuState.data!); setEditOpen(true); closeMenu(); } },
-            { label: "Duplicate", permission: "system:expression_manage", onClick: () => { closeMenu(); } },
-            { label: "Export", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "system:expression_manage", onClick: () => { setDeleteExpr(menuState.data!); setDeleteOpen(true); closeMenu(); } },
+            {
+              label: "Edit",
+              permission: "system:expression_manage",
+              onClick: () => {
+                setEditExpr(menuState.data!);
+                setEditOpen(true);
+                closeMenu();
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "system:expression_manage",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "system:expression_manage",
+              onClick: () => {
+                setDeleteExpr(menuState.data!);
+                setDeleteOpen(true);
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

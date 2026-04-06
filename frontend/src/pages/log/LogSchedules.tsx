@@ -313,7 +313,8 @@ export default function LogSchedules() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<LogSchedule | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LogSchedule | null>(null);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogSchedule>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<LogSchedule>();
 
   // Queries
   const { data: schedData, isLoading: schedLoading } = useQuery({
@@ -678,10 +679,38 @@ export default function LogSchedules() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); setEditTarget(menuState.data!); } },
-            { label: "Run Now", permission: "log:write", onClick: () => { closeMenu(); } },
-            { label: "Toggle Enable/Disable", permission: "log:write", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); setDeleteTarget(menuState.data!); } },
+            {
+              label: "Edit",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+                setEditTarget(menuState.data!);
+              },
+            },
+            {
+              label: "Run Now",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Toggle Enable/Disable",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+                setDeleteTarget(menuState.data!);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

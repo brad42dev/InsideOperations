@@ -52,7 +52,9 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
   const { data: msiMap } = useQuery({
     queryKey: ["point-msi-batch", pointIds.join(",")],
     queryFn: async () => {
-      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)));
+      const results = await Promise.all(
+        pointIds.map((id) => pointsApi.getMeta(id)),
+      );
       const map = new Map<string, number | null>();
       results.forEach((r, i) => {
         map.set(
@@ -287,17 +289,17 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
             ))}
           </div>
         )}
-      {menuPos && (
-        <ContextMenu
-          x={menuPos.x}
-          y={menuPos.y}
-          items={[
-            { label: "Toggle Grid Lines", onClick: () => setMenuPos(null) },
-            { label: "Reset Zoom", onClick: () => setMenuPos(null) },
-          ]}
-          onClose={() => setMenuPos(null)}
-        />
-      )}
+        {menuPos && (
+          <ContextMenu
+            x={menuPos.x}
+            y={menuPos.y}
+            items={[
+              { label: "Toggle Grid Lines", onClick: () => setMenuPos(null) },
+              { label: "Reset Zoom", onClick: () => setMenuPos(null) },
+            ]}
+            onClose={() => setMenuPos(null)}
+          />
+        )}
       </div>
     </ChartLegendLayout>
   );

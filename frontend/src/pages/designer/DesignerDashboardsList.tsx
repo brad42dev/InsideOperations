@@ -81,7 +81,8 @@ const DashboardCard = memo(function DashboardCard({
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Dashboard>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<Dashboard>();
 
   return (
     <div
@@ -252,10 +253,40 @@ const DashboardCard = memo(function DashboardCard({
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Open", onClick: () => { closeMenu(); onEdit(dashboard.id); } },
-            { label: "Open in New Tab", onClick: () => { closeMenu(); window.open(`/designer/dashboards/${dashboard.id}/edit`, "_blank"); } },
-            { label: "Duplicate", permission: "designer:write", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, disabled: dashboard.is_system, onClick: () => { closeMenu(); onDelete(dashboard.id); } },
+            {
+              label: "Open",
+              onClick: () => {
+                closeMenu();
+                onEdit(dashboard.id);
+              },
+            },
+            {
+              label: "Open in New Tab",
+              onClick: () => {
+                closeMenu();
+                window.open(
+                  `/designer/dashboards/${dashboard.id}/edit`,
+                  "_blank",
+                );
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "designer:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              disabled: dashboard.is_system,
+              onClick: () => {
+                closeMenu();
+                onDelete(dashboard.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

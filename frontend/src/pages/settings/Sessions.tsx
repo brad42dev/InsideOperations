@@ -158,234 +158,255 @@ function AllSessionsTab() {
 
   return (
     <>
-    <div>
-      {bannerError && <ErrorBanner message={bannerError} />}
+      <div>
+        {bannerError && <ErrorBanner message={bannerError} />}
 
-      <div
-        style={{
-          background: "var(--io-surface-secondary)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "8px",
-          overflow: "hidden",
-        }}
-      >
-        {isLoading && (
-          <div
-            style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "var(--io-text-muted)",
-              fontSize: "14px",
-            }}
-          >
-            Loading sessions…
-          </div>
-        )}
-        {isError && (
-          <div style={{ padding: "20px" }}>
-            <ErrorBanner
-              message={(error as Error)?.message ?? "Failed to load sessions"}
-            />
-          </div>
-        )}
-        {!isLoading && !isError && (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid var(--io-border)",
-                  background: "var(--io-surface-primary)",
-                }}
-              >
-                {[
-                  "User",
-                  "IP Address",
-                  "Browser",
-                  "Last Active",
-                  "Expires In",
-                  "Actions",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    style={{
-                      padding: "10px 14px",
-                      textAlign: "left",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.length === 0 && (
-                <EmptyState message="No active sessions" />
-              )}
-              {sessions.map((s, i) => (
-                <tr
-                  key={s.id}
-                  onContextMenu={(e) => handleContextMenu(e, s)}
-                  style={{
-                    borderBottom:
-                      i < sessions.length - 1
-                        ? "1px solid var(--io-border-subtle)"
-                        : undefined,
-                    cursor: "context-menu",
-                  }}
-                >
-                  <td style={cellStyle}>
-                    <div
-                      style={{
-                        fontWeight: 500,
-                        color: "var(--io-text-primary)",
-                      }}
-                    >
-                      {s.username}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--io-text-muted)",
-                        marginTop: "2px",
-                      }}
-                    >
-                      {s.email}
-                    </div>
-                  </td>
-                  <td style={cellStyle}>
-                    <code
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--io-text-primary)",
-                      }}
-                    >
-                      {s.ip_address ?? "—"}
-                    </code>
-                  </td>
-                  <td style={cellStyle}>{parseAgent(s.user_agent)}</td>
-                  <td style={cellStyle}>
-                    {formatRelative(s.last_accessed_at)}
-                  </td>
-                  <td style={cellStyle}>
-                    <span
-                      style={{
-                        color: "var(--io-text-muted)",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {formatExpiry(s.expires_at)}
-                    </span>
-                  </td>
-                  <td style={cellStyle}>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button
-                        style={btnDanger}
-                        disabled={revokeMutation.isPending}
-                        onClick={() => revokeMutation.mutate(s.id)}
-                        title="Revoke this session"
-                      >
-                        Revoke
-                      </button>
-                      <button
-                        style={btnDanger}
-                        disabled={revokeAllMutation.isPending}
-                        onClick={() => revokeAllMutation.mutate(s.user_id)}
-                        title={`Revoke all sessions for ${s.username}`}
-                      >
-                        Kick All
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Pagination */}
-      {pagination && pagination.total > 0 && (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginTop: "16px",
-            fontSize: "13px",
-            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "8px",
+            overflow: "hidden",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span>
-              {(page - 1) * limit + 1}–
-              {Math.min(page * limit, pagination.total)} of {pagination.total}{" "}
-              sessions
-            </span>
-            <label
-              style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          {isLoading && (
+            <div
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: "var(--io-text-muted)",
+                fontSize: "14px",
+              }}
             >
-              Rows:
-              <select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
-                  setPage(1);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  background: "var(--io-surface-sunken)",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: "var(--io-radius)",
-                  color: "var(--io-text-primary)",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
+              Loading sessions…
+            </div>
+          )}
+          {isError && (
+            <div style={{ padding: "20px" }}>
+              <ErrorBanner
+                message={(error as Error)?.message ?? "Failed to load sessions"}
+              />
+            </div>
+          )}
+          {!isLoading && !isError && (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--io-border)",
+                    background: "var(--io-surface-primary)",
+                  }}
+                >
+                  {[
+                    "User",
+                    "IP Address",
+                    "Browser",
+                    "Last Active",
+                    "Expires In",
+                    "Actions",
+                  ].map((col) => (
+                    <th
+                      key={col}
+                      style={{
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--io-text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.length === 0 && (
+                  <EmptyState message="No active sessions" />
+                )}
+                {sessions.map((s, i) => (
+                  <tr
+                    key={s.id}
+                    onContextMenu={(e) => handleContextMenu(e, s)}
+                    style={{
+                      borderBottom:
+                        i < sessions.length - 1
+                          ? "1px solid var(--io-border-subtle)"
+                          : undefined,
+                      cursor: "context-menu",
+                    }}
+                  >
+                    <td style={cellStyle}>
+                      <div
+                        style={{
+                          fontWeight: 500,
+                          color: "var(--io-text-primary)",
+                        }}
+                      >
+                        {s.username}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--io-text-muted)",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {s.email}
+                      </div>
+                    </td>
+                    <td style={cellStyle}>
+                      <code
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--io-text-primary)",
+                        }}
+                      >
+                        {s.ip_address ?? "—"}
+                      </code>
+                    </td>
+                    <td style={cellStyle}>{parseAgent(s.user_agent)}</td>
+                    <td style={cellStyle}>
+                      {formatRelative(s.last_accessed_at)}
+                    </td>
+                    <td style={cellStyle}>
+                      <span
+                        style={{
+                          color: "var(--io-text-muted)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {formatExpiry(s.expires_at)}
+                      </span>
+                    </td>
+                    <td style={cellStyle}>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          style={btnDanger}
+                          disabled={revokeMutation.isPending}
+                          onClick={() => revokeMutation.mutate(s.id)}
+                          title="Revoke this session"
+                        >
+                          Revoke
+                        </button>
+                        <button
+                          style={btnDanger}
+                          disabled={revokeAllMutation.isPending}
+                          onClick={() => revokeAllMutation.mutate(s.user_id)}
+                          title={`Revoke all sessions for ${s.username}`}
+                        >
+                          Kick All
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </select>
-            </label>
-          </div>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button
-              style={btnSecondary}
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              ← Prev
-            </button>
-            <button
-              style={btnSecondary}
-              disabled={page >= pagination.pages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next →
-            </button>
-          </div>
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {/* Pagination */}
+        {pagination && pagination.total > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: "16px",
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span>
+                {(page - 1) * limit + 1}–
+                {Math.min(page * limit, pagination.total)} of {pagination.total}{" "}
+                sessions
+              </span>
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                Rows:
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  style={{
+                    padding: "3px 6px",
+                    background: "var(--io-surface-sunken)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "var(--io-radius)",
+                    color: "var(--io-text-primary)",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {[10, 25, 50, 100].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                style={btnSecondary}
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ← Prev
+              </button>
+              <button
+                style={btnSecondary}
+                disabled={page >= pagination.pages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "View Details",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Revoke Session",
+              danger: true,
+              permission: "users:manage",
+              onClick: () => {
+                closeMenu();
+                void revokeMutation.mutate(menuState.data!.id);
+              },
+            },
+            {
+              label: "Revoke All for User",
+              danger: true,
+              permission: "users:manage",
+              onClick: () => {
+                closeMenu();
+                void revokeAllMutation.mutate(menuState.data!.user_id);
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
-    </div>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          { label: "View Details", onClick: () => { closeMenu(); } },
-          { label: "Revoke Session", danger: true, permission: "users:manage", onClick: () => { closeMenu(); void revokeMutation.mutate(menuState.data!.id); } },
-          { label: "Revoke All for User", danger: true, permission: "users:manage", onClick: () => { closeMenu(); void revokeAllMutation.mutate(menuState.data!.user_id); } },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
     </>
   );
 }

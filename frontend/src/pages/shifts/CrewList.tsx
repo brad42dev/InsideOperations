@@ -109,7 +109,8 @@ function CrewMemberRow({
   onRemoved: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ShiftCrewMember>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ShiftCrewMember>();
 
   const removeMutation = useMutation({
     mutationFn: async () => {
@@ -121,108 +122,127 @@ function CrewMemberRow({
 
   return (
     <>
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 16px",
-        borderBottom: "1px solid var(--io-border)",
-      }}
-      onContextMenu={(e) => handleContextMenu(e, member)}
-    >
-      <Avatar name={member.display_name} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            color: "var(--io-text-primary)",
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          {member.display_name ?? member.email ?? "Unknown"}
-        </div>
-        {member.email && (
-          <div style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
-            {member.email}
-          </div>
-        )}
-      </div>
-      {member.role_label && (
-        <span
-          style={{
-            fontSize: 11,
-            padding: "2px 8px",
-            borderRadius: 100,
-            background: "var(--io-surface-secondary)",
-            color: "var(--io-text-secondary)",
-            border: "1px solid var(--io-border)",
-          }}
-        >
-          {member.role_label}
-        </span>
-      )}
-      {confirming ? (
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={() => removeMutation.mutate()}
-            disabled={removeMutation.isPending}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 16px",
+          borderBottom: "1px solid var(--io-border)",
+        }}
+        onContextMenu={(e) => handleContextMenu(e, member)}
+      >
+        <Avatar name={member.display_name} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
             style={{
-              padding: "4px 10px",
-              borderRadius: 5,
-              border: "none",
-              background: "#ef4444",
-              color: "#fff",
-              cursor: "pointer",
-              fontSize: 12,
+              color: "var(--io-text-primary)",
+              fontSize: 13,
+              fontWeight: 500,
             }}
           >
-            {removeMutation.isPending ? "…" : "Remove"}
-          </button>
+            {member.display_name ?? member.email ?? "Unknown"}
+          </div>
+          {member.email && (
+            <div style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
+              {member.email}
+            </div>
+          )}
+        </div>
+        {member.role_label && (
+          <span
+            style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 100,
+              background: "var(--io-surface-secondary)",
+              color: "var(--io-text-secondary)",
+              border: "1px solid var(--io-border)",
+            }}
+          >
+            {member.role_label}
+          </span>
+        )}
+        {confirming ? (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => removeMutation.mutate()}
+              disabled={removeMutation.isPending}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 5,
+                border: "none",
+                background: "#ef4444",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              {removeMutation.isPending ? "…" : "Remove"}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 5,
+                border: "1px solid var(--io-border)",
+                background: "transparent",
+                color: "var(--io-text-secondary)",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
           <button
-            onClick={() => setConfirming(false)}
+            onClick={() => setConfirming(true)}
             style={{
               padding: "4px 10px",
               borderRadius: 5,
               border: "1px solid var(--io-border)",
               background: "transparent",
-              color: "var(--io-text-secondary)",
+              color: "var(--io-text-muted)",
               cursor: "pointer",
               fontSize: 12,
             }}
           >
-            Cancel
+            Remove
           </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setConfirming(true)}
-          style={{
-            padding: "4px 10px",
-            borderRadius: 5,
-            border: "1px solid var(--io-border)",
-            background: "transparent",
-            color: "var(--io-text-muted)",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          Remove
-        </button>
+        )}
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "View Profile",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Edit",
+              permission: "shifts:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Remove from Crew",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                closeMenu();
+                setConfirming(true);
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
-    </div>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          { label: "View Profile", onClick: () => { closeMenu(); } },
-          { label: "Edit", permission: "shifts:write", onClick: () => { closeMenu(); } },
-          { label: "Remove from Crew", danger: true, divider: true, onClick: () => { closeMenu(); setConfirming(true); } },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
     </>
   );
 }

@@ -918,7 +918,11 @@ export function GroupsTab() {
   const [deleteGroup, setDeleteGroup] = useState<Group | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [bannerError, _setBannerError] = useState<string | null>(null);
-  const { menuState: groupMenu, handleContextMenu: openGroupMenu, closeMenu: closeGroupMenu } = useContextMenu<Group>();
+  const {
+    menuState: groupMenu,
+    handleContextMenu: openGroupMenu,
+    closeMenu: closeGroupMenu,
+  } = useContextMenu<Group>();
 
   function handleAddMembers(group: Group) {
     // Open the group edit dialog which contains the MemberPanel
@@ -1129,9 +1133,21 @@ export function GroupsTab() {
           x={groupMenu.x}
           y={groupMenu.y}
           items={[
-            { label: "Add Members", onClick: () => handleAddMembers(groupMenu.data!) },
-            { label: "Manage Roles", onClick: () => handleManageRoles(groupMenu.data!) },
-            { label: "Delete", danger: true, divider: true, disabled: groupMenu.data!.member_count > 0, onClick: () => handleDelete(groupMenu.data!) },
+            {
+              label: "Add Members",
+              onClick: () => handleAddMembers(groupMenu.data!),
+            },
+            {
+              label: "Manage Roles",
+              onClick: () => handleManageRoles(groupMenu.data!),
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              disabled: groupMenu.data!.member_count > 0,
+              onClick: () => handleDelete(groupMenu.data!),
+            },
           ]}
           onClose={closeGroupMenu}
         />

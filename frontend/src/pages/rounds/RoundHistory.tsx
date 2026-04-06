@@ -59,7 +59,8 @@ export default function RoundHistory() {
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const [from, setFrom] = useState(weekAgo.toISOString().slice(0, 10));
   const [to, setTo] = useState(today.toISOString().slice(0, 10));
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundHistoryEntry>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<RoundHistoryEntry>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["rounds", "history", from, to],
@@ -316,10 +317,36 @@ export default function RoundHistory() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "View", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
-            { label: "Print", permission: "rounds:read", onClick: () => { closeMenu(); } },
-            { label: "Export", permission: "rounds:read", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+            {
+              label: "View",
+              onClick: () => {
+                closeMenu();
+                navigate(`/rounds/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Print",
+              permission: "rounds:read",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Export",
+              permission: "rounds:read",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

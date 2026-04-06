@@ -76,7 +76,11 @@ export default function StateTimelineChart({ config }: RendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const slotLabel = makeSlotLabeler(config);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number; rowLabel?: string } | null>(null);
+  const [menuPos, setMenuPos] = useState<{
+    x: number;
+    y: number;
+    rowLabel?: string;
+  } | null>(null);
 
   const itemSlots = config.points.filter((p) => p.role === "item");
   const durationMinutes = config.durationMinutes ?? 60;
@@ -346,13 +350,18 @@ export default function StateTimelineChart({ config }: RendererProps) {
           y={menuPos.y}
           items={[
             menuPos.rowLabel
-              ? { label: `Row: ${menuPos.rowLabel}`, disabled: true, onClick: () => {} }
+              ? {
+                  label: `Row: ${menuPos.rowLabel}`,
+                  disabled: true,
+                  onClick: () => {},
+                }
               : { label: "State Timeline", disabled: true, onClick: () => {} },
             {
               label: "Copy Row Label",
               onClick: () => {
                 setMenuPos(null);
-                if (menuPos.rowLabel) void navigator.clipboard.writeText(menuPos.rowLabel);
+                if (menuPos.rowLabel)
+                  void navigator.clipboard.writeText(menuPos.rowLabel);
               },
               disabled: !menuPos.rowLabel,
             },

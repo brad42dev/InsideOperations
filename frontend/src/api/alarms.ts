@@ -1,4 +1,9 @@
-import { api, queryString, type ApiResult, type PaginatedResult } from "./client";
+import {
+  api,
+  queryString,
+  type ApiResult,
+  type PaginatedResult,
+} from "./client";
 
 export type AlarmPriority = "critical" | "high" | "medium" | "advisory";
 

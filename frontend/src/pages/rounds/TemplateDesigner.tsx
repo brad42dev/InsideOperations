@@ -298,7 +298,8 @@ function CheckpointEditor({
   onMoveDown: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<EditableCheckpoint>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<EditableCheckpoint>();
 
   function set<K extends keyof EditableCheckpoint>(
     key: K,
@@ -1069,11 +1070,47 @@ function CheckpointEditor({
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "rounds:write", onClick: () => { closeMenu(); setExpanded(true); } },
-            { label: "Duplicate", permission: "rounds:write", onClick: () => { closeMenu(); } },
-            { label: "Move Up", permission: "rounds:write", onClick: () => { closeMenu(); onMoveUp(); } },
-            { label: "Move Down", permission: "rounds:write", onClick: () => { closeMenu(); onMoveDown(); } },
-            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); onRemove(); } },
+            {
+              label: "Edit",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                setExpanded(true);
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Move Up",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                onMoveUp();
+              },
+            },
+            {
+              label: "Move Down",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                onMoveDown();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                onRemove();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

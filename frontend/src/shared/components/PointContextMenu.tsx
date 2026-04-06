@@ -272,7 +272,6 @@ export default function PointContextMenu({
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-
     </DropdownMenu.Root>
   );
 }

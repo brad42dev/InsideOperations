@@ -367,7 +367,8 @@ export default function PlaylistManager({ onClose }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showNewForm, setShowNewForm] = useState(false);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Playlist>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<Playlist>();
 
   const playlistsQuery = useQuery({
     queryKey: ["playlists"],
@@ -420,259 +421,288 @@ export default function PlaylistManager({ onClose }: Props) {
 
   return (
     <>
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--io-modal-backdrop)",
-        zIndex: 200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
       <div
         style={{
-          background: "var(--io-surface-elevated)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "var(--io-radius)",
-          width: "560px",
-          maxHeight: "80vh",
+          position: "fixed",
+          inset: 0,
+          background: "var(--io-modal-backdrop)",
+          zIndex: 200,
           display: "flex",
-          flexDirection: "column",
-          boxShadow: "var(--io-shadow-lg)",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {/* Header */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "14px 16px",
-            borderBottom: "1px solid var(--io-border)",
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Playlists
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--io-text-muted)",
-              cursor: "pointer",
-              fontSize: "18px",
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "16px",
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            width: "560px",
+            maxHeight: "80vh",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            boxShadow: "var(--io-shadow-lg)",
           }}
         >
-          {playlistsQuery.isLoading && (
-            <div
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 16px",
+              borderBottom: "1px solid var(--io-border)",
+              flexShrink: 0,
+            }}
+          >
+            <span
               style={{
-                color: "var(--io-text-muted)",
-                fontSize: "13px",
-                textAlign: "center",
-                padding: "20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
               }}
             >
-              Loading playlists...
-            </div>
-          )}
+              Playlists
+            </span>
+            <button
+              onClick={onClose}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
 
-          {!playlistsQuery.isLoading &&
-            playlists.map((playlist) => (
-              <div
-                key={playlist.id}
-                onContextMenu={(e) => handleContextMenu(e, playlist)}
-                style={{
-                  background: "var(--io-surface-secondary)",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: "var(--io-radius)",
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "var(--io-text-primary)",
-                      marginBottom: "2px",
-                    }}
-                  >
-                    {playlist.name}
-                  </div>
-                  <div
-                    style={{ fontSize: "12px", color: "var(--io-text-muted)" }}
-                  >
-                    {playlist.items.length} dashboard
-                    {playlist.items.length !== 1 ? "s" : ""}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                  <button
-                    onClick={() => {
-                      onClose();
-                      navigate(
-                        `/dashboards/playlist/${playlist.id}?kiosk=true`,
-                      );
-                    }}
-                    style={{
-                      padding: "5px 10px",
-                      background: "var(--io-accent)",
-                      border: "none",
-                      borderRadius: "var(--io-radius)",
-                      color: "var(--io-btn-text)",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    ▶ Play
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (
-                        window.confirm(`Delete playlist "${playlist.name}"?`)
-                      ) {
-                        deleteMutation.mutate(playlist.id);
-                      }
-                    }}
-                    style={{
-                      padding: "5px 8px",
-                      background: "none",
-                      border: "1px solid var(--io-border)",
-                      borderRadius: "var(--io-radius)",
-                      color: "var(--io-danger)",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-
-          {!playlistsQuery.isLoading &&
-            playlists.length === 0 &&
-            !showNewForm && (
+          {/* Content */}
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {playlistsQuery.isLoading && (
               <div
                 style={{
-                  textAlign: "center",
-                  padding: "24px",
                   color: "var(--io-text-muted)",
                   fontSize: "13px",
+                  textAlign: "center",
+                  padding: "20px",
                 }}
               >
-                No playlists yet. Create one to auto-advance dashboards in kiosk
-                mode.
+                Loading playlists...
               </div>
             )}
 
-          {showNewForm ? (
-            <NewPlaylistForm
-              dashboards={dashboards}
-              onSave={(name, items) => createMutation.mutate({ name, items })}
-              onCancel={() => setShowNewForm(false)}
-            />
-          ) : (
-            <button
-              onClick={() => setShowNewForm(true)}
-              style={{
-                padding: "9px",
-                background: "none",
-                border: "1px dashed var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                color: "var(--io-text-muted)",
-                cursor: "pointer",
-                fontSize: "13px",
-                transition: "border-color 0.1s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor =
-                  "var(--io-accent)";
-                (e.currentTarget as HTMLButtonElement).style.color =
-                  "var(--io-accent)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor =
-                  "var(--io-border)";
-                (e.currentTarget as HTMLButtonElement).style.color =
-                  "var(--io-text-muted)";
-              }}
-            >
-              + New Playlist
-            </button>
-          )}
-        </div>
+            {!playlistsQuery.isLoading &&
+              playlists.map((playlist) => (
+                <div
+                  key={playlist.id}
+                  onContextMenu={(e) => handleContextMenu(e, playlist)}
+                  style={{
+                    background: "var(--io-surface-secondary)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "var(--io-radius)",
+                    padding: "12px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--io-text-primary)",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      {playlist.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
+                      {playlist.items.length} dashboard
+                      {playlist.items.length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        navigate(
+                          `/dashboards/playlist/${playlist.id}?kiosk=true`,
+                        );
+                      }}
+                      style={{
+                        padding: "5px 10px",
+                        background: "var(--io-accent)",
+                        border: "none",
+                        borderRadius: "var(--io-radius)",
+                        color: "var(--io-btn-text)",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ▶ Play
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (
+                          window.confirm(`Delete playlist "${playlist.name}"?`)
+                        ) {
+                          deleteMutation.mutate(playlist.id);
+                        }
+                      }}
+                      style={{
+                        padding: "5px 8px",
+                        background: "none",
+                        border: "1px solid var(--io-border)",
+                        borderRadius: "var(--io-radius)",
+                        color: "var(--io-danger)",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
 
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: "1px solid var(--io-border)",
-            display: "flex",
-            justifyContent: "flex-end",
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={onClose}
+            {!playlistsQuery.isLoading &&
+              playlists.length === 0 &&
+              !showNewForm && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "24px",
+                    color: "var(--io-text-muted)",
+                    fontSize: "13px",
+                  }}
+                >
+                  No playlists yet. Create one to auto-advance dashboards in
+                  kiosk mode.
+                </div>
+              )}
+
+            {showNewForm ? (
+              <NewPlaylistForm
+                dashboards={dashboards}
+                onSave={(name, items) => createMutation.mutate({ name, items })}
+                onCancel={() => setShowNewForm(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowNewForm(true)}
+                style={{
+                  padding: "9px",
+                  background: "none",
+                  border: "1px dashed var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-muted)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  transition: "border-color 0.1s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor =
+                    "var(--io-accent)";
+                  (e.currentTarget as HTMLButtonElement).style.color =
+                    "var(--io-accent)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor =
+                    "var(--io-border)";
+                  (e.currentTarget as HTMLButtonElement).style.color =
+                    "var(--io-text-muted)";
+                }}
+              >
+                + New Playlist
+              </button>
+            )}
+          </div>
+
+          <div
             style={{
-              padding: "7px 16px",
-              background: "none",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              color: "var(--io-text-secondary)",
-              cursor: "pointer",
-              fontSize: "13px",
+              padding: "12px 16px",
+              borderTop: "1px solid var(--io-border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              flexShrink: 0,
             }}
           >
-            Close
-          </button>
+            <button
+              onClick={onClose}
+              style={{
+                padding: "7px 16px",
+                background: "none",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-secondary)",
+                cursor: "pointer",
+                fontSize: "13px",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          { label: "Edit", permission: "dashboards:write", onClick: () => { closeMenu(); } },
-          { label: "Duplicate", permission: "dashboards:write", onClick: () => { closeMenu(); } },
-          { label: "Reorder", permission: "dashboards:write", onClick: () => { closeMenu(); } },
-          { label: "Delete", danger: true, divider: true, permission: "dashboards:write", onClick: () => { closeMenu(); } },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Edit",
+              permission: "dashboards:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "dashboards:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Reorder",
+              permission: "dashboards:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "dashboards:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </>
   );
 }

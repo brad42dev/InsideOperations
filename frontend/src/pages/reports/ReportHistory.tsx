@@ -104,7 +104,8 @@ export default function ReportHistory() {
   });
 
   const jobs: ReportJob[] = query.data ?? [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportJob>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ReportJob>();
 
   const columns: ColumnDef<ReportJob>[] = [
     {
@@ -304,11 +305,47 @@ export default function ReportHistory() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "View Report", onClick: () => { closeMenu(); navigate(`/reports/view/${menuState.data!.id}`); } },
-            { label: "Download PDF", permission: "reports:read", onClick: () => { closeMenu(); window.open(reportsApi.getDownloadUrl(menuState.data!.id), "_blank"); } },
-            { label: "Download CSV", permission: "reports:read", onClick: () => { closeMenu(); } },
-            { label: "Re-run", permission: "reports:write", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "reports:write", onClick: () => { closeMenu(); } },
+            {
+              label: "View Report",
+              onClick: () => {
+                closeMenu();
+                navigate(`/reports/view/${menuState.data!.id}`);
+              },
+            },
+            {
+              label: "Download PDF",
+              permission: "reports:read",
+              onClick: () => {
+                closeMenu();
+                window.open(
+                  reportsApi.getDownloadUrl(menuState.data!.id),
+                  "_blank",
+                );
+              },
+            },
+            {
+              label: "Download CSV",
+              permission: "reports:read",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Re-run",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

@@ -33,14 +33,11 @@ export interface ContextMenuState<T = undefined> {
 export function useContextMenu<T = undefined>() {
   const [menuState, setMenuState] = useState<ContextMenuState<T> | null>(null);
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent, data?: T) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setMenuState({ x: e.clientX, y: e.clientY, data });
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((e: React.MouseEvent, data?: T) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuState({ x: e.clientX, y: e.clientY, data });
+  }, []);
 
   const closeMenu = useCallback(() => setMenuState(null), []);
 

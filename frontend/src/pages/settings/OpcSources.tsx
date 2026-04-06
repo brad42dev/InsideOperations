@@ -115,7 +115,6 @@ function TableSkeleton({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Client certificate API (GET /api/certificates?type=client)
 // ---------------------------------------------------------------------------
@@ -2625,7 +2624,11 @@ export default function OpcSourcesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [detailSource, setDetailSource] = useState<PointSource | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const { menuState: opcMenu, handleContextMenu: openOpcMenu, closeMenu: closeOpcMenu } = useContextMenu<PointSource>();
+  const {
+    menuState: opcMenu,
+    handleContextMenu: openOpcMenu,
+    closeMenu: closeOpcMenu,
+  } = useContextMenu<PointSource>();
 
   const sourcesQuery = useQuery({
     queryKey: ["point-sources"],
@@ -2682,7 +2685,6 @@ export default function OpcSourcesPage() {
       pointSourcesApi.update(src.id, { enabled: !src.enabled }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["point-sources"] }),
   });
-
 
   async function handleTestConnection(src: PointSource) {
     try {
@@ -2984,10 +2986,30 @@ export default function OpcSourcesPage() {
           x={opcMenu.x}
           y={opcMenu.y}
           items={[
-            { label: "Edit", onClick: () => { setEditSource(opcMenu.data!); setEditOpen(true); } },
-            { label: opcMenu.data!.enabled ? "Disable Source" : "Enable Source", onClick: () => toggleEnabledMutation.mutate(opcMenu.data!) },
-            { label: "Test Connection", onClick: () => handleTestConnection(opcMenu.data!) },
-            { label: "Delete", danger: true, divider: true, onClick: () => { if (confirm(`Delete "${opcMenu.data!.name}"?`)) deleteMutation.mutate(opcMenu.data!.id); } },
+            {
+              label: "Edit",
+              onClick: () => {
+                setEditSource(opcMenu.data!);
+                setEditOpen(true);
+              },
+            },
+            {
+              label: opcMenu.data!.enabled ? "Disable Source" : "Enable Source",
+              onClick: () => toggleEnabledMutation.mutate(opcMenu.data!),
+            },
+            {
+              label: "Test Connection",
+              onClick: () => handleTestConnection(opcMenu.data!),
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              onClick: () => {
+                if (confirm(`Delete "${opcMenu.data!.name}"?`))
+                  deleteMutation.mutate(opcMenu.data!.id);
+              },
+            },
           ]}
           onClose={closeOpcMenu}
         />

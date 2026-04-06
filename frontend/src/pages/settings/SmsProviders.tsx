@@ -78,7 +78,7 @@ const WEBHOOK_FIELDS: ConfigField[] = [
     label: "Webhook URL",
     type: "text",
     placeholder: "https://api.example.com/sms/send",
-    hint: "I/O will POST { \"to\": \"+15551234567\", \"message\": \"...\" } to this URL",
+    hint: 'I/O will POST { "to": "+15551234567", "message": "..." } to this URL',
     gridSpan: 12,
   },
   {
@@ -114,8 +114,8 @@ const WEBHOOK_GUIDES: Record<WebhookGuideKey, SetupGuide> = {
     steps: [
       "Sign in to `dashboard.nexmo.com`. From the top-right menu go to `Account → Settings` and copy your `API key` and `API secret`.",
       "Purchase a virtual number: go to `Numbers → Buy numbers`, filter by country and `SMS` capability, and click the cart icon to purchase.",
-      "Create a small bridge endpoint (Node.js, Python, etc.) that receives I/O's payload `{ \"to\", \"message\" }` and calls the Vonage SMS REST API: `POST https://rest.nexmo.com/sms/json` with params `api_key`, `api_secret`, `from` (your Vonage number), `to`, and `text`.",
-      "Deploy your bridge and enter its URL here. Add an authentication header in Custom Headers (e.g. `{\"X-Bridge-Secret\": \"your-secret\"}`) and validate it in your bridge for security.",
+      'Create a small bridge endpoint (Node.js, Python, etc.) that receives I/O\'s payload `{ "to", "message" }` and calls the Vonage SMS REST API: `POST https://rest.nexmo.com/sms/json` with params `api_key`, `api_secret`, `from` (your Vonage number), `to`, and `text`.',
+      'Deploy your bridge and enter its URL here. Add an authentication header in Custom Headers (e.g. `{"X-Bridge-Secret": "your-secret"}`) and validate it in your bridge for security.',
       "Click `Test` to verify end-to-end delivery. Confirm the outbound message in `Vonage → Logs → SMS` in the dashboard.",
     ],
   },
@@ -124,7 +124,7 @@ const WEBHOOK_GUIDES: Record<WebhookGuideKey, SetupGuide> = {
     steps: [
       "Sign in to `dashboard.sinch.com`. Go to `SMS → REST APIs` and note your `Service Plan ID` and `API Token` from the API settings page.",
       "Get a Sinch sending number: go to `Numbers → Your numbers` or purchase a new one. Note the number in E.164 format.",
-      "Create a bridge endpoint that receives I/O's payload `{ \"to\", \"message\" }` and forwards it to Sinch: `POST https://us.sms.api.sinch.com/xms/v1/{servicePlanId}/batches` with body `{ \"from\": \"YOUR_NUMBER\", \"to\": [\"to\"], \"body\": \"message\" }` and header `Authorization: Bearer {apiToken}`.",
+      'Create a bridge endpoint that receives I/O\'s payload `{ "to", "message" }` and forwards it to Sinch: `POST https://us.sms.api.sinch.com/xms/v1/{servicePlanId}/batches` with body `{ "from": "YOUR_NUMBER", "to": ["to"], "body": "message" }` and header `Authorization: Bearer {apiToken}`.',
       "Set the Webhook URL to your bridge endpoint URL here. Add any authentication headers your bridge requires.",
       "Click `Test` to verify. Confirm delivery in `Sinch → SMS → Message Logs`.",
     ],
@@ -134,7 +134,7 @@ const WEBHOOK_GUIDES: Record<WebhookGuideKey, SetupGuide> = {
     steps: [
       "Sign in to `console.plivo.com`. Copy your `Auth ID` and `Auth Token` from the dashboard Overview under `API Credentials`.",
       "Purchase a Plivo number: go to `Phone Numbers → Buy Numbers`, filter by `SMS`, choose a number, and complete the purchase.",
-      "Create a bridge endpoint receiving I/O's `{ \"to\", \"message\" }` payload. It should call Plivo: `POST https://api.plivo.com/v1/Account/{AUTH_ID}/Message/` with Basic Auth (`AUTH_ID:AUTH_TOKEN`) and body `{ \"src\": \"PLIVO_NUMBER\", \"dst\": to, \"text\": message }`.",
+      'Create a bridge endpoint receiving I/O\'s `{ "to", "message" }` payload. It should call Plivo: `POST https://api.plivo.com/v1/Account/{AUTH_ID}/Message/` with Basic Auth (`AUTH_ID:AUTH_TOKEN`) and body `{ "src": "PLIVO_NUMBER", "dst": to, "text": message }`.',
       "Set the Webhook URL to your bridge URL. Add authentication headers as needed.",
       "Click `Test` to verify. Check `Plivo → Logs → Message Logs` to confirm delivery.",
     ],
@@ -146,16 +146,16 @@ const WEBHOOK_GUIDES: Record<WebhookGuideKey, SetupGuide> = {
       "Ensure SNS SMS is enabled in your AWS region: go to `SNS → Text messaging (SMS)` and verify the monthly spend limit is set to a non-zero value.",
       "Create an AWS Lambda function (Node.js/Python). Add an `API Gateway HTTP` trigger to expose it as a public URL. The Lambda should read `event.body` for `{ to, message }` and call the AWS SDK: `sns.publish({ PhoneNumber: to, Message: message })`.",
       "Set the Lambda function's execution role to include `sns:Publish`. In I/O, set the Webhook URL to your Lambda API Gateway endpoint URL.",
-      "Secure the endpoint by checking a custom header in your Lambda (e.g. `X-Api-Key`). Add the matching header in Custom Headers here: `{\"X-Api-Key\": \"your-secret\"}`.",
+      'Secure the endpoint by checking a custom header in your Lambda (e.g. `X-Api-Key`). Add the matching header in Custom Headers here: `{"X-Api-Key": "your-secret"}`.',
       "Click `Test` to verify end-to-end delivery. Check `CloudWatch → Log groups → /aws/lambda/{your-function}` for delivery logs.",
     ],
   },
   custom: {
     title: "Custom Webhook",
     steps: [
-      "I/O sends a `POST` request with `Content-Type: application/json` and body: `{ \"to\": \"+15551234567\", \"message\": \"Your code is 123456\" }`. The `to` field is always E.164 format.",
+      'I/O sends a `POST` request with `Content-Type: application/json` and body: `{ "to": "+15551234567", "message": "Your code is 123456" }`. The `to` field is always E.164 format.',
       "Your endpoint must return a `2xx` HTTP status code to indicate success. Any non-2xx response is treated as a delivery failure and the attempt is logged.",
-      "To secure the endpoint, add a secret in the `Custom Headers` field — for example `{\"Authorization\": \"Bearer your-secret\"}` — and validate it server-side before forwarding the SMS.",
+      'To secure the endpoint, add a secret in the `Custom Headers` field — for example `{"Authorization": "Bearer your-secret"}` — and validate it server-side before forwarding the SMS.',
       "If your SMS provider uses a different request format, create a thin bridge script that maps I/O's `{ to, message }` payload into your provider's required format before forwarding.",
       "Click `Test` to verify I/O can reach your endpoint and that it returns a 2xx response for a live delivery.",
     ],
@@ -999,8 +999,8 @@ export default function SmsProvidersPage() {
             fontStyle: "italic",
           }}
         >
-          No SMS providers configured. Add one to enable SMS-based MFA and
-          alert notifications.
+          No SMS providers configured. Add one to enable SMS-based MFA and alert
+          notifications.
         </p>
       ) : (
         <div

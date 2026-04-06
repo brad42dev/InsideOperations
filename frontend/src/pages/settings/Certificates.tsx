@@ -71,7 +71,6 @@ const textareaStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-
 // ---------------------------------------------------------------------------
 // Upload modal
 // ---------------------------------------------------------------------------
@@ -299,7 +298,11 @@ export default function CertificatesPage() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const { menuState: certMenu, handleContextMenu: openCertMenu, closeMenu: closeCertMenu } = useContextMenu<CertInfo>();
+  const {
+    menuState: certMenu,
+    handleContextMenu: openCertMenu,
+    closeMenu: closeCertMenu,
+  } = useContextMenu<CertInfo>();
   const [certDetail, setCertDetail] = useState<CertInfo | null>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -584,9 +587,25 @@ export default function CertificatesPage() {
           x={certMenu.x}
           y={certMenu.y}
           items={[
-            { label: "View Details", onClick: () => setCertDetail(certMenu.data!) },
-            { label: "Download Certificate", onClick: () => { const base = import.meta.env.VITE_API_URL ?? ""; window.location.href = `${base}/api/certificates/${encodeURIComponent(certMenu.data!.name)}/download`; } },
-            { label: "Copy Fingerprint", onClick: () => { navigator.clipboard.writeText(certMenu.data!.subject).catch(() => {}); } },
+            {
+              label: "View Details",
+              onClick: () => setCertDetail(certMenu.data!),
+            },
+            {
+              label: "Download Certificate",
+              onClick: () => {
+                const base = import.meta.env.VITE_API_URL ?? "";
+                window.location.href = `${base}/api/certificates/${encodeURIComponent(certMenu.data!.name)}/download`;
+              },
+            },
+            {
+              label: "Copy Fingerprint",
+              onClick: () => {
+                navigator.clipboard
+                  .writeText(certMenu.data!.subject)
+                  .catch(() => {});
+              },
+            },
           ]}
           onClose={closeCertMenu}
         />
@@ -594,21 +613,75 @@ export default function CertificatesPage() {
 
       {certDetail && (
         <div
-          style={{ position: "fixed", inset: 0, background: "var(--io-modal-backdrop)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "var(--io-modal-backdrop)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+          }}
           onClick={() => setCertDetail(null)}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="cert-detail-title"
-            style={{ background: "var(--io-surface-elevated)", border: "1px solid var(--io-border)", borderRadius: "var(--io-radius)", padding: "24px", width: "480px", maxWidth: "calc(100vw - 32px)", maxHeight: "80vh", overflowY: "auto" }}
+            style={{
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              padding: "24px",
+              width: "480px",
+              maxWidth: "calc(100vw - 32px)",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-              <h3 id="cert-detail-title" style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--io-text-primary)" }}>Certificate Details</h3>
-              <button aria-label="Close" onClick={() => setCertDetail(null)} style={{ background: "none", border: "none", color: "var(--io-text-muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}>x</button>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "20px",
+              }}
+            >
+              <h3
+                id="cert-detail-title"
+                style={{
+                  margin: 0,
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "var(--io-text-primary)",
+                }}
+              >
+                Certificate Details
+              </h3>
+              <button
+                aria-label="Close"
+                onClick={() => setCertDetail(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--io-text-muted)",
+                  cursor: "pointer",
+                  fontSize: "18px",
+                  lineHeight: 1,
+                }}
+              >
+                x
+              </button>
             </div>
-            <dl style={{ margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+            <dl
+              style={{
+                margin: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
               {[
                 ["Name", certDetail.name],
                 ["Subject", certDetail.subject],
@@ -616,17 +689,53 @@ export default function CertificatesPage() {
                 ["Valid From", formatDate(certDetail.not_before)],
                 ["Valid Until", formatDate(certDetail.not_after)],
                 ["Status", statusLabel(certDetail)],
-                ["Days Remaining", certDetail.is_expired ? "Expired" : `${certDetail.days_remaining} days`],
-                ...(certDetail.sans.length > 0 ? [["SANs", certDetail.sans.join(", ")]] : []),
+                [
+                  "Days Remaining",
+                  certDetail.is_expired
+                    ? "Expired"
+                    : `${certDetail.days_remaining} days`,
+                ],
+                ...(certDetail.sans.length > 0
+                  ? [["SANs", certDetail.sans.join(", ")]]
+                  : []),
               ].map(([label, value]) => (
                 <div key={label} style={{ display: "flex", gap: "12px" }}>
-                  <dt style={{ fontSize: "12px", fontWeight: 600, color: "var(--io-text-muted)", width: "120px", flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</dt>
-                  <dd style={{ margin: 0, fontSize: "13px", color: "var(--io-text-primary)", wordBreak: "break-all" }}>{value}</dd>
+                  <dt
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "var(--io-text-muted)",
+                      width: "120px",
+                      flexShrink: 0,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {label}
+                  </dt>
+                  <dd
+                    style={{
+                      margin: 0,
+                      fontSize: "13px",
+                      color: "var(--io-text-primary)",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-              <button onClick={() => setCertDetail(null)} style={btnSecondary}>Close</button>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "20px",
+              }}
+            >
+              <button onClick={() => setCertDetail(null)} style={btnSecondary}>
+                Close
+              </button>
             </div>
           </div>
         </div>

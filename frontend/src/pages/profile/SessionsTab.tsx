@@ -59,7 +59,8 @@ export default function SessionsTab() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<MySession>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<MySession>();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["my-sessions"],
@@ -253,7 +254,14 @@ export default function SessionsTab() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Sign Out This Device", danger: true, onClick: () => { closeMenu(); revokeMutation.mutate(menuState.data!.id); } },
+            {
+              label: "Sign Out This Device",
+              danger: true,
+              onClick: () => {
+                closeMenu();
+                revokeMutation.mutate(menuState.data!.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

@@ -120,7 +120,10 @@ interface ColThreshold {
 
 export default function ScorecardTableChart({ config }: RendererProps) {
   const metricSlots = config.points.filter((p) => p.role === "metric");
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{ period: string; value: string }>();
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{
+    period: string;
+    value: string;
+  }>();
   const durationMinutes = config.durationMinutes ?? 60 * 24;
 
   const tableMode = (config.extras?.tableMode as string) ?? "scorecard";
@@ -348,7 +351,10 @@ export default function ScorecardTableChart({ config }: RendererProps) {
             {rows.map((row, ri) => (
               <tr
                 key={ri}
-                style={{ borderBottom: "1px solid var(--io-border)", cursor: "context-menu" }}
+                style={{
+                  borderBottom: "1px solid var(--io-border)",
+                  cursor: "context-menu",
+                }}
                 onContextMenu={(e) =>
                   handleContextMenu(e, {
                     period: periodLabel(periodStarts[ri], bucketMs),
@@ -409,7 +415,9 @@ export default function ScorecardTableChart({ config }: RendererProps) {
               label: "Copy Period",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(menuState.data?.period ?? "");
+                void navigator.clipboard.writeText(
+                  menuState.data?.period ?? "",
+                );
               },
             },
             {

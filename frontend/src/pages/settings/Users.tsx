@@ -731,7 +731,6 @@ function TableSkeleton({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // UsersTab
 // ---------------------------------------------------------------------------
@@ -746,7 +745,11 @@ export function UsersTab() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
-  const { menuState: userMenu, handleContextMenu: openUserMenu, closeMenu: closeUserMenu } = useContextMenu<User>();
+  const {
+    menuState: userMenu,
+    handleContextMenu: openUserMenu,
+    closeMenu: closeUserMenu,
+  } = useContextMenu<User>();
 
   const usersQuery = useQuery({
     queryKey: ["users", page, limit],
@@ -808,7 +811,6 @@ export function UsersTab() {
     setConfirmUser(user);
     setConfirmOpen(true);
   }
-
 
   const pagination = usersQuery.data?.pagination;
   const users = usersQuery.data?.data ?? [];
@@ -1121,10 +1123,29 @@ export function UsersTab() {
           items={[
             { label: "Edit", onClick: () => handleEdit(userMenu.data!) },
             userMenu.data!.enabled
-              ? { label: "Disable Account", danger: true, divider: true, onClick: () => handleDisable(userMenu.data!) }
-              : { label: "Enable Account", divider: true, onClick: () => enableMutation.mutate(userMenu.data!) },
-            { label: "View Sessions", onClick: () => setDetailUserId(userMenu.data!.id) },
-            { label: "Copy Username", onClick: () => { navigator.clipboard.writeText(userMenu.data!.username).catch(() => {}); } },
+              ? {
+                  label: "Disable Account",
+                  danger: true,
+                  divider: true,
+                  onClick: () => handleDisable(userMenu.data!),
+                }
+              : {
+                  label: "Enable Account",
+                  divider: true,
+                  onClick: () => enableMutation.mutate(userMenu.data!),
+                },
+            {
+              label: "View Sessions",
+              onClick: () => setDetailUserId(userMenu.data!.id),
+            },
+            {
+              label: "Copy Username",
+              onClick: () => {
+                navigator.clipboard
+                  .writeText(userMenu.data!.username)
+                  .catch(() => {});
+              },
+            },
           ]}
           onClose={closeUserMenu}
         />

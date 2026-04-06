@@ -34,10 +34,7 @@ import type {
 } from "../../types/expression";
 import { expressionToString } from "./preview";
 import { tilesToAst } from "./ast";
-import {
-  EXPRESSION_TEMPLATES,
-  type ExpressionTemplate,
-} from "./templates";
+import { EXPRESSION_TEMPLATES, type ExpressionTemplate } from "./templates";
 import { useAuthStore } from "../../../store/auth";
 import { api } from "../../../api/client";
 import type { PointMeta } from "../../../api/points";
@@ -709,7 +706,11 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, -1));
-    } else if (e.key === "Enter" && selectedIndex >= 0 && results[selectedIndex]) {
+    } else if (
+      e.key === "Enter" &&
+      selectedIndex >= 0 &&
+      results[selectedIndex]
+    ) {
       onSelect(results[selectedIndex]);
     }
   }
@@ -769,7 +770,10 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
               cursor: "pointer",
               fontSize: "13px",
               color: "var(--io-text-primary)",
-              background: idx === selectedIndex ? "var(--io-surface-secondary)" : "transparent",
+              background:
+                idx === selectedIndex
+                  ? "var(--io-surface-secondary)"
+                  : "transparent",
             }}
             onMouseEnter={() => setSelectedIndex(idx)}
             onMouseLeave={() => setSelectedIndex(-1)}
@@ -2943,7 +2947,9 @@ export function ExpressionBuilder({
                       {PALETTE_GROUP_DESCRIPTIONS[group]}
                     </div>
                   )}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}
+                  >
                     {paletteItems
                       .filter((p) => p.group === group)
                       .map((item) => (
@@ -2971,9 +2977,8 @@ export function ExpressionBuilder({
               >
                 Click a template to load it into the workspace.
               </div>
-              {EXPRESSION_TEMPLATES.filter(
-                (t: ExpressionTemplate) =>
-                  t.contexts.includes(context),
+              {EXPRESSION_TEMPLATES.filter((t: ExpressionTemplate) =>
+                t.contexts.includes(context),
               ).map((tmpl: ExpressionTemplate) => (
                 <button
                   key={tmpl.id}
@@ -3369,7 +3374,9 @@ export function ExpressionBuilder({
                   setServerResult(res.data.result);
                 } else {
                   setServerError(
-                    "error" in res ? String(res.error) : "Server evaluation failed",
+                    "error" in res
+                      ? String(res.error)
+                      : "Server evaluation failed",
                   );
                 }
               }}
@@ -3382,12 +3389,15 @@ export function ExpressionBuilder({
                 <span style={{ color: "var(--io-text-muted)" }}>
                   Server result:{" "}
                 </span>
-                <span style={{ color: "var(--io-text-primary)", fontWeight: 600 }}>
+                <span
+                  style={{ color: "var(--io-text-primary)", fontWeight: 600 }}
+                >
                   {serverResult}
                 </span>
                 {benchmarkResult !== null &&
                   benchmarkResult !== "timeout" &&
-                  Math.abs(serverResult - (benchmarkResult as number)) > 1e-9 && (
+                  Math.abs(serverResult - (benchmarkResult as number)) >
+                    1e-9 && (
                     <span
                       style={{
                         marginLeft: "10px",

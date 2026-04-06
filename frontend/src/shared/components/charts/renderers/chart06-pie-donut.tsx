@@ -182,7 +182,10 @@ export default function PieDonutChart({ config }: RendererProps) {
                 label: "Export Chart Image",
                 onClick: () => {
                   setMenuPos(null);
-                  const url = chartRef.current?.getDataURL({ type: "png", pixelRatio: 2 });
+                  const url = chartRef.current?.getDataURL({
+                    type: "png",
+                    pixelRatio: 2,
+                  });
                   if (url) {
                     const a = document.createElement("a");
                     a.href = url;

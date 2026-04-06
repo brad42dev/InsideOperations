@@ -12,7 +12,8 @@ export default function LogTemplates() {
   // React-state confirmation instead of window.confirm — avoids native dialogs
   // that crash Playwright and are blocked in some browser security contexts.
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogTemplate>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<LogTemplate>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["log", "templates", "all"],
@@ -245,9 +246,31 @@ export default function LogTemplates() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); navigate(`/log/templates/${menuState.data!.id}/edit`); } },
-            { label: "Duplicate", permission: "log:write", onClick: () => { closeMenu(); } },
-            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); setConfirmDeleteId(menuState.data!.id); } },
+            {
+              label: "Edit",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+                navigate(`/log/templates/${menuState.data!.id}/edit`);
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "log:write",
+              onClick: () => {
+                closeMenu();
+                setConfirmDeleteId(menuState.data!.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

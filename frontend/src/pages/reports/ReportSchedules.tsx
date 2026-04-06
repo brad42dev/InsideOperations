@@ -594,7 +594,8 @@ export default function ReportSchedules() {
   });
 
   const schedules: ReportSchedule[] = schedulesQuery.data ?? [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportSchedule>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ReportSchedule>();
 
   const columns: ColumnDef<ReportSchedule>[] = [
     {
@@ -862,10 +863,41 @@ export default function ReportSchedules() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "reports:write", onClick: () => { closeMenu(); } },
-            { label: "Run Now", permission: "reports:write", onClick: () => { closeMenu(); } },
-            { label: "Toggle Enable/Disable", permission: "reports:write", onClick: () => { closeMenu(); toggleMutation.mutate({ id: menuState.data!.id, enabled: !menuState.data!.enabled }); } },
-            { label: "Delete", danger: true, divider: true, permission: "reports:write", onClick: () => { closeMenu(); deleteMutation.mutate(menuState.data!.id); } },
+            {
+              label: "Edit",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Run Now",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Toggle Enable/Disable",
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+                toggleMutation.mutate({
+                  id: menuState.data!.id,
+                  enabled: !menuState.data!.enabled,
+                });
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "reports:write",
+              onClick: () => {
+                closeMenu();
+                deleteMutation.mutate(menuState.data!.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

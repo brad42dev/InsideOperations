@@ -66,89 +66,113 @@ function AlertRow({
   onClick?: () => void;
 }) {
   const hasMuster = msg.severity === "emergency" || msg.severity === "critical";
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<NotificationMessage>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<NotificationMessage>();
   return (
     <>
-    <div
-      onClick={hasMuster && onClick ? onClick : undefined}
-      onContextMenu={(e) => handleContextMenu(e, msg)}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "120px 1fr 160px 120px 80px",
-        gap: 12,
-        alignItems: "center",
-        padding: "12px 16px",
-        borderBottom: "1px solid var(--io-border)",
-        cursor: hasMuster ? "pointer" : "default",
-        transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => {
-        if (hasMuster)
-          (e.currentTarget as HTMLDivElement).style.background =
-            "var(--io-surface-secondary)";
-      }}
-      onMouseLeave={(e) => {
-        if (hasMuster)
-          (e.currentTarget as HTMLDivElement).style.background = "";
-      }}
-    >
-      <SeverityBadge severity={msg.severity} />
-      <div>
-        <div
-          style={{
-            color: "var(--io-text-primary)",
-            fontWeight: 500,
-            fontSize: 14,
-          }}
-        >
-          {msg.title}
-        </div>
-        <div
-          style={{
-            color: "var(--io-text-muted)",
-            fontSize: 12,
-            marginTop: 2,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {msg.body.length > 80 ? msg.body.slice(0, 80) + "…" : msg.body}
-        </div>
-      </div>
-      <div style={{ color: "var(--io-text-secondary)", fontSize: 12 }}>
-        {formatTime(msg.sent_at)}
-      </div>
-      <div style={{ fontSize: 16, letterSpacing: 2 }}>
-        {msg.channels.map((ch) => (
-          <span key={ch} title={ch}>
-            {CHANNEL_ICONS[ch]}
-          </span>
-        ))}
-      </div>
       <div
+        onClick={hasMuster && onClick ? onClick : undefined}
+        onContextMenu={(e) => handleContextMenu(e, msg)}
         style={{
-          color: "var(--io-text-secondary)",
-          fontSize: 13,
-          textAlign: "right",
+          display: "grid",
+          gridTemplateColumns: "120px 1fr 160px 120px 80px",
+          gap: 12,
+          alignItems: "center",
+          padding: "12px 16px",
+          borderBottom: "1px solid var(--io-border)",
+          cursor: hasMuster ? "pointer" : "default",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          if (hasMuster)
+            (e.currentTarget as HTMLDivElement).style.background =
+              "var(--io-surface-secondary)";
+        }}
+        onMouseLeave={(e) => {
+          if (hasMuster)
+            (e.currentTarget as HTMLDivElement).style.background = "";
         }}
       >
-        {msg.recipient_count} rcpt
+        <SeverityBadge severity={msg.severity} />
+        <div>
+          <div
+            style={{
+              color: "var(--io-text-primary)",
+              fontWeight: 500,
+              fontSize: 14,
+            }}
+          >
+            {msg.title}
+          </div>
+          <div
+            style={{
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+              marginTop: 2,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {msg.body.length > 80 ? msg.body.slice(0, 80) + "…" : msg.body}
+          </div>
+        </div>
+        <div style={{ color: "var(--io-text-secondary)", fontSize: 12 }}>
+          {formatTime(msg.sent_at)}
+        </div>
+        <div style={{ fontSize: 16, letterSpacing: 2 }}>
+          {msg.channels.map((ch) => (
+            <span key={ch} title={ch}>
+              {CHANNEL_ICONS[ch]}
+            </span>
+          ))}
+        </div>
+        <div
+          style={{
+            color: "var(--io-text-secondary)",
+            fontSize: 13,
+            textAlign: "right",
+          }}
+        >
+          {msg.recipient_count} rcpt
+        </div>
       </div>
-    </div>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          { label: "Acknowledge", permission: "alerts:acknowledge", onClick: () => { closeMenu(); } },
-          { label: "Shelve", permission: "alerts:shelve", onClick: () => { closeMenu(); } },
-          { label: "Investigate Alarm", permission: "forensics:write", onClick: () => { closeMenu(); } },
-          { label: "View History", onClick: () => { closeMenu(); } },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Acknowledge",
+              permission: "alerts:acknowledge",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Shelve",
+              permission: "alerts:shelve",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Investigate Alarm",
+              permission: "forensics:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "View History",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </>
   );
 }

@@ -48,7 +48,9 @@ function TestEmailDialog({
       } else {
         setResult({
           ok: false,
-          message: res.success ? "Provider reported a failure." : res.error.message,
+          message: res.success
+            ? "Provider reported a failure."
+            : res.error.message,
         });
       }
     },
@@ -438,8 +440,21 @@ const SECRET_KEYS = new Set([
 
 const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
   smtp: [
-    { key: "host", label: "SMTP Host", type: "text", placeholder: "smtp.example.com", gridSpan: 9 },
-    { key: "port", label: "Port", type: "number", defaultValue: "587", placeholder: "587", gridSpan: 3 },
+    {
+      key: "host",
+      label: "SMTP Host",
+      type: "text",
+      placeholder: "smtp.example.com",
+      gridSpan: 9,
+    },
+    {
+      key: "port",
+      label: "Port",
+      type: "number",
+      defaultValue: "587",
+      placeholder: "587",
+      gridSpan: 3,
+    },
     {
       key: "tls_mode",
       label: "TLS Mode",
@@ -498,7 +513,14 @@ const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
       placeholder: "smtp.office365.com",
       gridSpan: 9,
     },
-    { key: "port", label: "Port", type: "number", defaultValue: "587", placeholder: "587", gridSpan: 3 },
+    {
+      key: "port",
+      label: "Port",
+      type: "number",
+      defaultValue: "587",
+      placeholder: "587",
+      gridSpan: 3,
+    },
     {
       key: "tls_mode",
       label: "TLS Mode",
@@ -510,15 +532,33 @@ const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
         { value: "implicit_tls", label: "Implicit TLS" },
       ],
     },
-    { key: "username", label: "Username (sender email)", type: "text", placeholder: "sender@yourdomain.com", gridSpan: 8 },
+    {
+      key: "username",
+      label: "Username (sender email)",
+      type: "text",
+      placeholder: "sender@yourdomain.com",
+      gridSpan: 8,
+    },
     {
       key: "token_endpoint",
       label: "Token Endpoint",
       type: "text",
-      placeholder: "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
+      placeholder:
+        "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
     },
-    { key: "client_id", label: "Client ID (Application ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 7 },
-    { key: "client_secret", label: "Client Secret", type: "password", gridSpan: 5 },
+    {
+      key: "client_id",
+      label: "Client ID (Application ID)",
+      type: "text",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      gridSpan: 7,
+    },
+    {
+      key: "client_secret",
+      label: "Client Secret",
+      type: "password",
+      gridSpan: 5,
+    },
     {
       key: "scope",
       label: "Scope",
@@ -528,27 +568,86 @@ const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
     },
   ],
   ms_graph: [
-    { key: "tenant_id", label: "Tenant ID (Directory ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 6 },
-    { key: "client_id", label: "Client ID (Application ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 6 },
-    { key: "client_secret", label: "Client Secret", type: "password", gridSpan: 5 },
-    { key: "send_as_user", label: "Send-As User (UPN)", type: "text", placeholder: "noreply@yourdomain.com", gridSpan: 7 },
-    { key: "save_to_sent", label: "Save to Sent Items", type: "checkbox", defaultValue: "true", gridSpan: 4 },
+    {
+      key: "tenant_id",
+      label: "Tenant ID (Directory ID)",
+      type: "text",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      gridSpan: 6,
+    },
+    {
+      key: "client_id",
+      label: "Client ID (Application ID)",
+      type: "text",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      gridSpan: 6,
+    },
+    {
+      key: "client_secret",
+      label: "Client Secret",
+      type: "password",
+      gridSpan: 5,
+    },
+    {
+      key: "send_as_user",
+      label: "Send-As User (UPN)",
+      type: "text",
+      placeholder: "noreply@yourdomain.com",
+      gridSpan: 7,
+    },
+    {
+      key: "save_to_sent",
+      label: "Save to Sent Items",
+      type: "checkbox",
+      defaultValue: "true",
+      gridSpan: 4,
+    },
   ],
   gmail: [
     {
       key: "service_account_key",
       label: "Service Account Key (JSON)",
       type: "textarea",
-      placeholder: '{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}',
+      placeholder:
+        '{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}',
       hint: "Paste the entire contents of the downloaded JSON key file.",
     },
-    { key: "send_as_user", label: "Send-As User", type: "text", placeholder: "noreply@yourdomain.com", gridSpan: 7 },
-    { key: "domain", label: "Google Workspace Domain", type: "text", placeholder: "yourdomain.com", gridSpan: 5 },
+    {
+      key: "send_as_user",
+      label: "Send-As User",
+      type: "text",
+      placeholder: "noreply@yourdomain.com",
+      gridSpan: 7,
+    },
+    {
+      key: "domain",
+      label: "Google Workspace Domain",
+      type: "text",
+      placeholder: "yourdomain.com",
+      gridSpan: 5,
+    },
   ],
   ses: [
-    { key: "access_key_id", label: "Access Key ID", type: "text", placeholder: "AKIAIOSFODNN7EXAMPLE", gridSpan: 7 },
-    { key: "secret_access_key", label: "Secret Access Key", type: "password", gridSpan: 5 },
-    { key: "region", label: "AWS Region", type: "text", placeholder: "us-east-1", gridSpan: 4 },
+    {
+      key: "access_key_id",
+      label: "Access Key ID",
+      type: "text",
+      placeholder: "AKIAIOSFODNN7EXAMPLE",
+      gridSpan: 7,
+    },
+    {
+      key: "secret_access_key",
+      label: "Secret Access Key",
+      type: "password",
+      gridSpan: 5,
+    },
+    {
+      key: "region",
+      label: "AWS Region",
+      type: "text",
+      placeholder: "us-east-1",
+      gridSpan: 4,
+    },
     {
       key: "configuration_set",
       label: "Configuration Set",
@@ -560,7 +659,12 @@ const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
     },
   ],
   webhook: [
-    { key: "url", label: "Webhook URL", type: "text", placeholder: "https://hooks.example.com/..." },
+    {
+      key: "url",
+      label: "Webhook URL",
+      type: "text",
+      placeholder: "https://hooks.example.com/...",
+    },
     {
       key: "method",
       label: "HTTP Method",
@@ -613,7 +717,13 @@ const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
   ],
 };
 
-type SmtpHelpKey = "microsoft365" | "gmail_app_password" | "sendgrid" | "mailgun" | "postmark" | "other";
+type SmtpHelpKey =
+  | "microsoft365"
+  | "gmail_app_password"
+  | "sendgrid"
+  | "mailgun"
+  | "postmark"
+  | "other";
 type WebhookHelpKey = "slack" | "teams" | "pagerduty" | "other";
 
 const SMTP_GUIDES: Record<SmtpHelpKey, SetupGuide> = {
@@ -688,7 +798,7 @@ const WEBHOOK_GUIDES: Record<WebhookHelpKey, SetupGuide> = {
       "In the app's left sidebar, click Incoming Webhooks. Toggle Activate Incoming Webhooks to On.",
       "Click Add New Webhook to Workspace, choose the channel to post alerts to, and click Allow. Copy the webhook URL shown.",
       "In I/O, paste the webhook URL in the Webhook URL field. Set Auth Type to `None` — Slack embeds auth in the URL itself.",
-      "Optional — customize the payload: Slack expects a JSON body with a `text` field, e.g. `{\"text\": \"{{ subject }}\\n{{ body_text }}\"}`. Enter this in the Payload Template field.",
+      'Optional — customize the payload: Slack expects a JSON body with a `text` field, e.g. `{"text": "{{ subject }}\\n{{ body_text }}"}`. Enter this in the Payload Template field.',
     ],
   },
   teams: {
@@ -795,7 +905,8 @@ function renderStep(text: string) {
             style={{
               fontFamily: "monospace",
               fontSize: "11px",
-              background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+              background:
+                "color-mix(in srgb, var(--io-accent) 12%, transparent)",
               color: "var(--io-accent)",
               padding: "1px 5px",
               borderRadius: "3px",
@@ -804,7 +915,7 @@ function renderStep(text: string) {
           >
             {part}
           </code>
-        )
+        ),
       )}
     </>
   );
@@ -850,12 +961,11 @@ function ProviderDialog({
     return result;
   }
 
-  const [configFields, setConfigFields] = useState<Record<string, string>>(
-    () =>
-      buildInitialFields(
-        provider?.provider_type ?? "smtp",
-        (provider?.config as Record<string, unknown>) ?? {},
-      ),
+  const [configFields, setConfigFields] = useState<Record<string, string>>(() =>
+    buildInitialFields(
+      provider?.provider_type ?? "smtp",
+      (provider?.config as Record<string, unknown>) ?? {},
+    ),
   );
 
   const [helpKey, setHelpKey] = useState("");
@@ -965,579 +1075,622 @@ function ProviderDialog({
   );
 
   const sectionLabel =
-    providerType === "smtp" ? "SMTP Settings" :
-    providerType === "smtp_xoauth2" ? "OAuth2 / XOAUTH2 Settings" :
-    providerType === "ms_graph" ? "Azure AD App Settings" :
-    providerType === "gmail" ? "Service Account Settings" :
-    providerType === "ses" ? "AWS Credentials" :
-    "Webhook Settings";
+    providerType === "smtp"
+      ? "SMTP Settings"
+      : providerType === "smtp_xoauth2"
+        ? "OAuth2 / XOAUTH2 Settings"
+        : providerType === "ms_graph"
+          ? "Azure AD App Settings"
+          : providerType === "gmail"
+            ? "Service Account Settings"
+            : providerType === "ses"
+              ? "AWS Credentials"
+              : "Webhook Settings";
 
   return (
     <>
-    <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "var(--io-modal-backdrop)",
-            zIndex: 100,
-          }}
-        />
-        <Dialog.Content
-          aria-describedby={undefined}
-          style={{
-            position: "fixed",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "var(--io-surface)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            padding: "24px",
-            width: "min(1400px, 94vw)",
-            maxHeight: "90vh",
-            overflowY: "auto",
-            zIndex: 101,
-          }}
-        >
-          <Dialog.Title
+      <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay
             style={{
-              margin: "0 0 20px",
-              fontSize: "16px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
+              position: "fixed",
+              inset: 0,
+              background: "var(--io-modal-backdrop)",
+              zIndex: 100,
+            }}
+          />
+          <Dialog.Content
+            aria-describedby={undefined}
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              padding: "24px",
+              width: "min(1400px, 94vw)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              zIndex: 101,
             }}
           >
-            {isEdit ? "Edit Provider" : "Add Provider"}
-          </Dialog.Title>
+            <Dialog.Title
+              style={{
+                margin: "0 0 20px",
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
+              {isEdit ? "Edit Provider" : "Add Provider"}
+            </Dialog.Title>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: showGuide && guide ? "1fr 360px" : "1fr",
-              gap: "28px",
-              alignItems: "start",
-            }}
-          >
-            {/* LEFT COLUMN: configuration form */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {/* Name */}
-            <div>
-              <label style={labelStyle}>Name</label>
-              <input
-                style={inputStyle}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-
-            {/* Provider type */}
-            <div>
-              <label style={labelStyle}>Provider Type</label>
-              <select
-                style={inputStyle}
-                value={providerType}
-                onChange={(e) => handleTypeChange(e.target.value)}
-              >
-                <option value="smtp">SMTP</option>
-                <option value="smtp_xoauth2">SMTP + XOAUTH2 (Microsoft OAuth)</option>
-                <option value="ms_graph">Microsoft Graph API</option>
-                <option value="gmail">Gmail (Service Account)</option>
-                <option value="ses">Amazon SES</option>
-                <option value="webhook">Webhook</option>
-              </select>
-            </div>
-
-            {/* From address / name */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "12px",
+                gridTemplateColumns: showGuide && guide ? "1fr 360px" : "1fr",
+                gap: "28px",
+                alignItems: "start",
               }}
             >
-              <div>
-                <label style={labelStyle}>From Address</label>
-                <input
-                  style={inputStyle}
-                  value={fromAddress}
-                  onChange={(e) => setFromAddress(e.target.value)}
-                  placeholder="noreply@yourdomain.com"
+              {/* LEFT COLUMN: configuration form */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "14px",
+                }}
+              >
+                {/* Name */}
+                <div>
+                  <label style={labelStyle}>Name</label>
+                  <input
+                    style={inputStyle}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+
+                {/* Provider type */}
+                <div>
+                  <label style={labelStyle}>Provider Type</label>
+                  <select
+                    style={inputStyle}
+                    value={providerType}
+                    onChange={(e) => handleTypeChange(e.target.value)}
+                  >
+                    <option value="smtp">SMTP</option>
+                    <option value="smtp_xoauth2">
+                      SMTP + XOAUTH2 (Microsoft OAuth)
+                    </option>
+                    <option value="ms_graph">Microsoft Graph API</option>
+                    <option value="gmail">Gmail (Service Account)</option>
+                    <option value="ses">Amazon SES</option>
+                    <option value="webhook">Webhook</option>
+                  </select>
+                </div>
+
+                {/* From address / name */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "12px",
+                  }}
+                >
+                  <div>
+                    <label style={labelStyle}>From Address</label>
+                    <input
+                      style={inputStyle}
+                      value={fromAddress}
+                      onChange={(e) => setFromAddress(e.target.value)}
+                      placeholder="noreply@yourdomain.com"
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>
+                      From Name{" "}
+                      <span
+                        style={{
+                          fontWeight: 400,
+                          color: "var(--io-text-muted)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        optional
+                      </span>
+                    </label>
+                    <input
+                      style={inputStyle}
+                      value={fromName}
+                      onChange={(e) => setFromName(e.target.value)}
+                      placeholder="Inside/Operations"
+                    />
+                  </div>
+                </div>
+
+                {/* Section divider */}
+                <div
+                  style={{
+                    borderTop: "1px solid var(--io-border)",
+                    margin: "2px 0",
+                  }}
                 />
-              </div>
-              <div>
-                <label style={labelStyle}>
-                  From Name{" "}
-                  <span
+
+                {/* Config section label + guide toggle */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div
                     style={{
-                      fontWeight: 400,
-                      color: "var(--io-text-muted)",
                       fontSize: "11px",
+                      fontWeight: 600,
+                      color: "var(--io-text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
                     }}
                   >
-                    optional
-                  </span>
-                </label>
-                <input
-                  style={inputStyle}
-                  value={fromName}
-                  onChange={(e) => setFromName(e.target.value)}
-                  placeholder="Inside/Operations"
+                    {sectionLabel}
+                  </div>
+                  {guide && (
+                    <button
+                      type="button"
+                      style={{
+                        background: showGuide
+                          ? "var(--io-accent)"
+                          : "color-mix(in srgb, var(--io-accent) 15%, transparent)",
+                        border: "1px solid var(--io-accent)",
+                        borderRadius: "var(--io-radius)",
+                        padding: "5px 14px",
+                        cursor: "pointer",
+                        color: showGuide ? "white" : "var(--io-accent)",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        whiteSpace: "nowrap",
+                      }}
+                      onClick={() => setShowGuide((v) => !v)}
+                    >
+                      <span
+                        style={{
+                          fontSize: "15px",
+                          lineHeight: 1,
+                          fontWeight: 800,
+                        }}
+                      >
+                        ?
+                      </span>
+                      {showGuide ? "Hide Guide" : "Setup Guide"}
+                    </button>
+                  )}
+                </div>
+
+                {/* Sub-provider selector (smtp / webhook only — determines which guide is shown) */}
+                {(providerType === "smtp" || providerType === "webhook") && (
+                  <div>
+                    <label style={labelStyle}>
+                      {providerType === "smtp"
+                        ? "Which email service are you using?"
+                        : "Which platform are you connecting to?"}
+                    </label>
+                    <select
+                      style={{ ...inputStyle, maxWidth: "300px" }}
+                      value={helpKey}
+                      onChange={(e) => {
+                        setHelpKey(e.target.value);
+                        if (e.target.value) setShowGuide(true);
+                      }}
+                    >
+                      {providerType === "smtp" ? (
+                        <>
+                          <option value="">Select a provider…</option>
+                          <option value="microsoft365">Microsoft 365</option>
+                          <option value="gmail_app_password">
+                            Gmail (App Password)
+                          </option>
+                          <option value="sendgrid">SendGrid</option>
+                          <option value="mailgun">Mailgun</option>
+                          <option value="postmark">Postmark</option>
+                          <option value="other">Other / Generic SMTP</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="">Select a platform…</option>
+                          <option value="slack">Slack</option>
+                          <option value="teams">Microsoft Teams</option>
+                          <option value="pagerduty">PagerDuty</option>
+                          <option value="other">Other</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {/* Per-type config fields — 12-col grid, fields declare their own span */}
+                {!showRaw && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(12, 1fr)",
+                      gap: "14px 12px",
+                      alignItems: "start",
+                    }}
+                  >
+                    {visibleFields.map((f) => (
+                      <div
+                        key={f.key}
+                        style={{ gridColumn: `span ${f.gridSpan ?? 12}` }}
+                      >
+                        {f.type !== "checkbox" && (
+                          <label style={labelStyle}>
+                            {f.label}
+                            {f.optional && (
+                              <span
+                                style={{
+                                  marginLeft: "6px",
+                                  fontWeight: 400,
+                                  color: "var(--io-text-muted)",
+                                  fontSize: "11px",
+                                }}
+                              >
+                                optional
+                              </span>
+                            )}
+                          </label>
+                        )}
+                        {f.type === "select" ? (
+                          <select
+                            style={inputStyle}
+                            value={configFields[f.key] ?? f.defaultValue ?? ""}
+                            onChange={(e) => setField(f.key, e.target.value)}
+                          >
+                            {f.options!.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : f.type === "textarea" ? (
+                          <textarea
+                            style={{
+                              ...inputStyle,
+                              height:
+                                f.key === "service_account_key"
+                                  ? "120px"
+                                  : "80px",
+                              resize: "vertical",
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                            }}
+                            value={configFields[f.key] ?? ""}
+                            onChange={(e) => setField(f.key, e.target.value)}
+                            placeholder={f.placeholder}
+                          />
+                        ) : f.type === "checkbox" ? (
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={configFields[f.key] === "true"}
+                              onChange={(e) =>
+                                setField(
+                                  f.key,
+                                  e.target.checked ? "true" : "false",
+                                )
+                              }
+                            />
+                            {f.label}
+                          </label>
+                        ) : (
+                          <input
+                            style={inputStyle}
+                            type={
+                              f.type === "password"
+                                ? "password"
+                                : f.type === "number"
+                                  ? "number"
+                                  : "text"
+                            }
+                            value={configFields[f.key] ?? ""}
+                            onChange={(e) => setField(f.key, e.target.value)}
+                            placeholder={
+                              isEdit && SECRET_KEYS.has(f.key)
+                                ? "Leave blank to keep current value"
+                                : (f.placeholder ?? "")
+                            }
+                          />
+                        )}
+                        {f.hint && (
+                          <p
+                            style={{
+                              margin: "3px 0 0",
+                              fontSize: "11px",
+                              color: "var(--io-text-muted)",
+                            }}
+                          >
+                            {f.hint}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div
+                  style={{
+                    borderTop: "1px solid var(--io-border)",
+                    margin: "2px 0",
+                  }}
                 />
+
+                {/* Default / Enabled */}
+                <div style={{ display: "flex", gap: "24px" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isDefault}
+                      onChange={(e) => setIsDefault(e.target.checked)}
+                    />
+                    Default provider
+                  </label>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => setEnabled(e.target.checked)}
+                    />
+                    Enabled
+                  </label>
+                </div>
+
+                {/* Advanced: raw JSON */}
+                <div>
+                  <button
+                    type="button"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      color: "var(--io-text-muted)",
+                      fontSize: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                    onClick={() => {
+                      if (showRaw) {
+                        // Closing raw mode: sync edits back into form fields
+                        try {
+                          const parsed = JSON.parse(rawJson) as Record<
+                            string,
+                            unknown
+                          >;
+                          const updated: Record<string, string> = {
+                            ...configFields,
+                          };
+                          for (const f of PROVIDER_FIELDS[providerType] ?? []) {
+                            if (parsed[f.key] !== undefined) {
+                              updated[f.key] = String(parsed[f.key]);
+                            }
+                          }
+                          setConfigFields(updated);
+                        } catch {
+                          /* leave configFields as-is if JSON is invalid */
+                        }
+                      } else {
+                        try {
+                          setRawJson(JSON.stringify(buildConfig(), null, 2));
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+                      setShowRaw((v) => !v);
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        transform: showRaw ? "rotate(90deg)" : "rotate(0deg)",
+                        transition: "transform 0.15s",
+                        fontSize: "9px",
+                      }}
+                    >
+                      ▶
+                    </span>
+                    {showRaw ? "Hide" : "Edit"} raw JSON config
+                  </button>
+                  {showRaw && (
+                    <textarea
+                      style={{
+                        ...inputStyle,
+                        marginTop: "8px",
+                        height: "120px",
+                        resize: "vertical",
+                        fontFamily: "monospace",
+                        fontSize: "12px",
+                      }}
+                      value={rawJson}
+                      onChange={(e) => setRawJson(e.target.value)}
+                    />
+                  )}
+                </div>
               </div>
+
+              {/* RIGHT COLUMN: setup guide panel */}
+              {showGuide && guide && (
+                <div
+                  style={{
+                    background: "var(--io-surface-secondary)",
+                    border: "1px solid var(--io-border)",
+                    borderLeft: "3px solid var(--io-accent)",
+                    borderRadius: "var(--io-radius)",
+                    padding: "18px 16px",
+                    overflowY: "auto",
+                    maxHeight: "calc(90vh - 200px)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "var(--io-accent)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Setup Guide
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "var(--io-text-primary)",
+                      marginBottom: "18px",
+                      lineHeight: 1.4,
+                      paddingBottom: "12px",
+                      borderBottom: "1px solid var(--io-border)",
+                    }}
+                  >
+                    {guide.title}
+                  </div>
+                  <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                    {guide.steps.map((step, i) => (
+                      <li
+                        key={i}
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          marginBottom: "14px",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            width: "22px",
+                            height: "22px",
+                            borderRadius: "50%",
+                            background: "var(--io-accent)",
+                            color: "white",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginTop: "1px",
+                          }}
+                        >
+                          {i + 1}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--io-text-secondary)",
+                            lineHeight: 1.65,
+                          }}
+                        >
+                          {renderStep(step)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
 
-            {/* Section divider */}
-            <div
-              style={{ borderTop: "1px solid var(--io-border)", margin: "2px 0" }}
-            />
+            {error && (
+              <p
+                style={{
+                  color: "var(--io-danger)",
+                  fontSize: "13px",
+                  marginTop: "12px",
+                }}
+              >
+                {error}
+              </p>
+            )}
 
-            {/* Config section label + guide toggle */}
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                marginTop: "20px",
               }}
             >
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "var(--io-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
-                }}
-              >
-                {sectionLabel}
-              </div>
-              {guide && (
-                <button
-                  type="button"
-                  style={{
-                    background: showGuide
-                      ? "var(--io-accent)"
-                      : "color-mix(in srgb, var(--io-accent) 15%, transparent)",
-                    border: "1px solid var(--io-accent)",
-                    borderRadius: "var(--io-radius)",
-                    padding: "5px 14px",
-                    cursor: "pointer",
-                    color: showGuide ? "white" : "var(--io-accent)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    whiteSpace: "nowrap",
-                  }}
-                  onClick={() => setShowGuide((v) => !v)}
-                >
-                  <span style={{ fontSize: "15px", lineHeight: 1, fontWeight: 800 }}>?</span>
-                  {showGuide ? "Hide Guide" : "Setup Guide"}
-                </button>
-              )}
-            </div>
-
-            {/* Sub-provider selector (smtp / webhook only — determines which guide is shown) */}
-            {(providerType === "smtp" || providerType === "webhook") && (
               <div>
-                <label style={labelStyle}>
-                  {providerType === "smtp"
-                    ? "Which email service are you using?"
-                    : "Which platform are you connecting to?"}
-                </label>
-                <select
-                  style={{ ...inputStyle, maxWidth: "300px" }}
-                  value={helpKey}
-                  onChange={(e) => {
-                    setHelpKey(e.target.value);
-                    if (e.target.value) setShowGuide(true);
-                  }}
-                >
-                  {providerType === "smtp" ? (
-                    <>
-                      <option value="">Select a provider…</option>
-                      <option value="microsoft365">Microsoft 365</option>
-                      <option value="gmail_app_password">Gmail (App Password)</option>
-                      <option value="sendgrid">SendGrid</option>
-                      <option value="mailgun">Mailgun</option>
-                      <option value="postmark">Postmark</option>
-                      <option value="other">Other / Generic SMTP</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="">Select a platform…</option>
-                      <option value="slack">Slack</option>
-                      <option value="teams">Microsoft Teams</option>
-                      <option value="pagerduty">PagerDuty</option>
-                      <option value="other">Other</option>
-                    </>
-                  )}
-                </select>
+                {isEdit && (
+                  <button
+                    type="button"
+                    style={btnSecondary}
+                    onClick={() => setShowTestDialog(true)}
+                  >
+                    Send Test Email
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* Per-type config fields — 12-col grid, fields declare their own span */}
-            {!showRaw && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(12, 1fr)",
-                  gap: "14px 12px",
-                  alignItems: "start",
-                }}
-              >
-              {visibleFields.map((f) => (
-                <div key={f.key} style={{ gridColumn: `span ${f.gridSpan ?? 12}` }}>
-                  {f.type !== "checkbox" && (
-                    <label style={labelStyle}>
-                      {f.label}
-                      {f.optional && (
-                        <span
-                          style={{
-                            marginLeft: "6px",
-                            fontWeight: 400,
-                            color: "var(--io-text-muted)",
-                            fontSize: "11px",
-                          }}
-                        >
-                          optional
-                        </span>
-                      )}
-                    </label>
-                  )}
-                  {f.type === "select" ? (
-                    <select
-                      style={inputStyle}
-                      value={configFields[f.key] ?? f.defaultValue ?? ""}
-                      onChange={(e) => setField(f.key, e.target.value)}
-                    >
-                      {f.options!.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : f.type === "textarea" ? (
-                    <textarea
-                      style={{
-                        ...inputStyle,
-                        height: f.key === "service_account_key" ? "120px" : "80px",
-                        resize: "vertical",
-                        fontFamily: "monospace",
-                        fontSize: "12px",
-                      }}
-                      value={configFields[f.key] ?? ""}
-                      onChange={(e) => setField(f.key, e.target.value)}
-                      placeholder={f.placeholder}
-                    />
-                  ) : f.type === "checkbox" ? (
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={configFields[f.key] === "true"}
-                        onChange={(e) =>
-                          setField(f.key, e.target.checked ? "true" : "false")
-                        }
-                      />
-                      {f.label}
-                    </label>
-                  ) : (
-                    <input
-                      style={inputStyle}
-                      type={
-                        f.type === "password"
-                          ? "password"
-                          : f.type === "number"
-                            ? "number"
-                            : "text"
-                      }
-                      value={configFields[f.key] ?? ""}
-                      onChange={(e) => setField(f.key, e.target.value)}
-                      placeholder={
-                        isEdit && SECRET_KEYS.has(f.key)
-                          ? "Leave blank to keep current value"
-                          : (f.placeholder ?? "")
-                      }
-                    />
-                  )}
-                  {f.hint && (
-                    <p
-                      style={{
-                        margin: "3px 0 0",
-                        fontSize: "11px",
-                        color: "var(--io-text-muted)",
-                      }}
-                    >
-                      {f.hint}
-                    </p>
-                  )}
-                </div>
-              ))}
-              </div>
-            )}
-
-            {/* Divider */}
-            <div
-              style={{ borderTop: "1px solid var(--io-border)", margin: "2px 0" }}
-            />
-
-            {/* Default / Enabled */}
-            <div style={{ display: "flex", gap: "24px" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
-                />
-                Default provider
-              </label>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(e) => setEnabled(e.target.checked)}
-                />
-                Enabled
-              </label>
-            </div>
-
-            {/* Advanced: raw JSON */}
-            <div>
-              <button
-                type="button"
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  color: "var(--io-text-muted)",
-                  fontSize: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                }}
-                onClick={() => {
-                  if (showRaw) {
-                    // Closing raw mode: sync edits back into form fields
-                    try {
-                      const parsed = JSON.parse(rawJson) as Record<string, unknown>;
-                      const updated: Record<string, string> = { ...configFields };
-                      for (const f of PROVIDER_FIELDS[providerType] ?? []) {
-                        if (parsed[f.key] !== undefined) {
-                          updated[f.key] = String(parsed[f.key]);
-                        }
-                      }
-                      setConfigFields(updated);
-                    } catch {
-                      /* leave configFields as-is if JSON is invalid */
-                    }
-                  } else {
-                    try {
-                      setRawJson(JSON.stringify(buildConfig(), null, 2));
-                    } catch {
-                      /* ignore */
-                    }
-                  }
-                  setShowRaw((v) => !v);
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-block",
-                    transform: showRaw ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: "transform 0.15s",
-                    fontSize: "9px",
-                  }}
-                >
-                  ▶
-                </span>
-                {showRaw ? "Hide" : "Edit"} raw JSON config
-              </button>
-              {showRaw && (
-                <textarea
-                  style={{
-                    ...inputStyle,
-                    marginTop: "8px",
-                    height: "120px",
-                    resize: "vertical",
-                    fontFamily: "monospace",
-                    fontSize: "12px",
-                  }}
-                  value={rawJson}
-                  onChange={(e) => setRawJson(e.target.value)}
-                />
-              )}
-            </div>
-            </div>
-
-            {/* RIGHT COLUMN: setup guide panel */}
-            {showGuide && guide && (
-              <div
-                style={{
-                  background: "var(--io-surface-secondary)",
-                  border: "1px solid var(--io-border)",
-                  borderLeft: "3px solid var(--io-accent)",
-                  borderRadius: "var(--io-radius)",
-                  padding: "18px 16px",
-                  overflowY: "auto",
-                  maxHeight: "calc(90vh - 200px)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    color: "var(--io-accent)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Setup Guide
-                </div>
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    color: "var(--io-text-primary)",
-                    marginBottom: "18px",
-                    lineHeight: 1.4,
-                    paddingBottom: "12px",
-                    borderBottom: "1px solid var(--io-border)",
-                  }}
-                >
-                  {guide.title}
-                </div>
-                <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                  {guide.steps.map((step, i) => (
-                    <li
-                      key={i}
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        marginBottom: "14px",
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <span
-                        style={{
-                          flexShrink: 0,
-                          width: "22px",
-                          height: "22px",
-                          borderRadius: "50%",
-                          background: "var(--io-accent)",
-                          color: "white",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginTop: "1px",
-                        }}
-                      >
-                        {i + 1}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--io-text-secondary)",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        {renderStep(step)}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <p
-              style={{
-                color: "var(--io-danger)",
-                fontSize: "13px",
-                marginTop: "12px",
-              }}
-            >
-              {error}
-            </p>
-          )}
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: "20px",
-            }}
-          >
-            <div>
-              {isEdit && (
-                <button
-                  type="button"
-                  style={btnSecondary}
-                  onClick={() => setShowTestDialog(true)}
-                >
-                  Send Test Email
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button style={btnSecondary} onClick={onClose}>
+                  Cancel
                 </button>
-              )}
+                <button
+                  style={btnPrimary}
+                  onClick={handleSave}
+                  disabled={isPending}
+                >
+                  {isPending ? "Saving…" : "Save"}
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button style={btnSecondary} onClick={onClose}>
-                Cancel
-              </button>
-              <button
-                style={btnPrimary}
-                onClick={handleSave}
-                disabled={isPending}
-              >
-                {isPending ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
-    {isEdit && showTestDialog && (
-      <TestEmailDialog
-        providerId={provider!.id}
-        providerName={provider!.name}
-        onClose={() => {
-          setShowTestDialog(false);
-          qc.invalidateQueries({ queryKey: ["email-providers"] });
-        }}
-      />
-    )}
-  </>
+      {isEdit && showTestDialog && (
+        <TestEmailDialog
+          providerId={provider!.id}
+          providerName={provider!.name}
+          onClose={() => {
+            setShowTestDialog(false);
+            qc.invalidateQueries({ queryKey: ["email-providers"] });
+          }}
+        />
+      )}
+    </>
   );
 }
 

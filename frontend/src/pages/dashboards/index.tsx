@@ -143,7 +143,8 @@ const DashboardCard = memo(function DashboardCard({
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<UnifiedDashboardItem>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<UnifiedDashboardItem>();
 
   return (
     <div
@@ -431,13 +432,69 @@ const DashboardCard = memo(function DashboardCard({
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Open", onClick: () => { closeMenu(); onEdit(dashboard.id); } },
-            { label: "Edit", permission: "dashboards:write", disabled: dashboard.is_system, onClick: () => { closeMenu(); onEdit(dashboard.id); } },
-            { label: "Open in New Window", onClick: () => { closeMenu(); window.open(`/detached/dashboard/${dashboard.id}`, "_blank", "noopener,noreferrer,width=1400,height=900"); } },
-            { label: "Duplicate", permission: "dashboards:write", onClick: () => { closeMenu(); onDuplicate(dashboard.id); } },
-            { label: "Export", onClick: () => { closeMenu(); } },
-            ...(dashboard.source === "legacy" && !dashboard.is_system ? [{ label: "Convert to Designer", onClick: () => { closeMenu(); onConvert(dashboard.id); } }] : []),
-            { label: "Delete", danger: true, divider: true, permission: "dashboards:write", disabled: dashboard.is_system, onClick: () => { closeMenu(); onDelete(dashboard.id); } },
+            {
+              label: "Open",
+              onClick: () => {
+                closeMenu();
+                onEdit(dashboard.id);
+              },
+            },
+            {
+              label: "Edit",
+              permission: "dashboards:write",
+              disabled: dashboard.is_system,
+              onClick: () => {
+                closeMenu();
+                onEdit(dashboard.id);
+              },
+            },
+            {
+              label: "Open in New Window",
+              onClick: () => {
+                closeMenu();
+                window.open(
+                  `/detached/dashboard/${dashboard.id}`,
+                  "_blank",
+                  "noopener,noreferrer,width=1400,height=900",
+                );
+              },
+            },
+            {
+              label: "Duplicate",
+              permission: "dashboards:write",
+              onClick: () => {
+                closeMenu();
+                onDuplicate(dashboard.id);
+              },
+            },
+            {
+              label: "Export",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            ...(dashboard.source === "legacy" && !dashboard.is_system
+              ? [
+                  {
+                    label: "Convert to Designer",
+                    onClick: () => {
+                      closeMenu();
+                      onConvert(dashboard.id);
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "dashboards:write",
+              disabled: dashboard.is_system,
+              onClick: () => {
+                closeMenu();
+                onDelete(dashboard.id);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

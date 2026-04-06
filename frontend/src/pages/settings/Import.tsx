@@ -667,7 +667,11 @@ function ConnectionsTab() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editConn, setEditConn] = useState<ImportConnection | null>(null);
   const canManageConnections = usePermission("system:import_connections");
-  const { menuState: connMenu, handleContextMenu: openConnMenu, closeMenu: closeConnMenu } = useContextMenu<ImportConnection>();
+  const {
+    menuState: connMenu,
+    handleContextMenu: openConnMenu,
+    closeMenu: closeConnMenu,
+  } = useContextMenu<ImportConnection>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["import-connections"],
@@ -882,14 +886,28 @@ function ConnectionsTab() {
           x={connMenu.x}
           y={connMenu.y}
           items={[
-            { label: "Test Connection", onClick: () => testMutation.mutate(connMenu.data!.id) },
-            { label: connMenu.data!.enabled ? "Disable" : "Enable", onClick: () => toggleConnMutation.mutate({ id: connMenu.data!.id, enabled: !connMenu.data!.enabled }) },
+            {
+              label: "Test Connection",
+              onClick: () => testMutation.mutate(connMenu.data!.id),
+            },
+            {
+              label: connMenu.data!.enabled ? "Disable" : "Enable",
+              onClick: () =>
+                toggleConnMutation.mutate({
+                  id: connMenu.data!.id,
+                  enabled: !connMenu.data!.enabled,
+                }),
+            },
             {
               label: "Delete",
               danger: true,
               divider: true,
               disabled: definitionCountForConnection(connMenu.data!.id) > 0,
-              onClick: () => { if (confirm(`Delete connection "${connMenu.data!.name}"?`)) { deleteMutation.mutate(connMenu.data!.id); } },
+              onClick: () => {
+                if (confirm(`Delete connection "${connMenu.data!.name}"?`)) {
+                  deleteMutation.mutate(connMenu.data!.id);
+                }
+              },
             },
           ]}
           onClose={closeConnMenu}
@@ -2512,7 +2530,11 @@ function DefinitionsTab() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const canManageDefinitions = usePermission("system:import_definitions");
   const canExecute = usePermission("system:import_execute");
-  const { menuState: defMenu, handleContextMenu: openDefMenu, closeMenu: closeDefMenu } = useContextMenu<ImportDefinition>();
+  const {
+    menuState: defMenu,
+    handleContextMenu: openDefMenu,
+    closeMenu: closeDefMenu,
+  } = useContextMenu<ImportDefinition>();
 
   const { data: defsResult, isLoading } = useQuery({
     queryKey: ["import-definitions"],
@@ -2732,9 +2754,26 @@ function DefinitionsTab() {
           x={defMenu.x}
           y={defMenu.y}
           items={[
-            { label: "Run Now", onClick: () => runMutation.mutate({ id: defMenu.data!.id, dry_run: false }) },
-            { label: "View Run History", onClick: () => { window.location.href = "/settings/imports/history"; } },
-            { label: defMenu.data!.enabled ? "Disable" : "Enable", divider: true, onClick: () => toggleMutation.mutate({ id: defMenu.data!.id, enabled: !defMenu.data!.enabled }) },
+            {
+              label: "Run Now",
+              onClick: () =>
+                runMutation.mutate({ id: defMenu.data!.id, dry_run: false }),
+            },
+            {
+              label: "View Run History",
+              onClick: () => {
+                window.location.href = "/settings/imports/history";
+              },
+            },
+            {
+              label: defMenu.data!.enabled ? "Disable" : "Enable",
+              divider: true,
+              onClick: () =>
+                toggleMutation.mutate({
+                  id: defMenu.data!.id,
+                  enabled: !defMenu.data!.enabled,
+                }),
+            },
           ]}
           onClose={closeDefMenu}
         />

@@ -93,7 +93,8 @@ export default function RoundSchedules() {
 
   const schedules = schedulesData?.success ? schedulesData.data : [];
   const templates = templatesData?.success ? templatesData.data : [];
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundSchedule>();
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<RoundSchedule>();
 
   const inputStyle: React.CSSProperties = {
     padding: "8px 10px",
@@ -439,10 +440,40 @@ export default function RoundSchedules() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: "Edit", permission: "rounds:write", onClick: () => { closeMenu(); } },
-            { label: "Run Now", permission: "rounds:write", onClick: () => { closeMenu(); } },
-            { label: "Toggle Enable/Disable", permission: "rounds:write", onClick: () => { closeMenu(); toggleMutation.mutate({ id: menuState.data!.id, active: !menuState.data!.is_active }); } },
-            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+            {
+              label: "Edit",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Run Now",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
+            {
+              label: "Toggle Enable/Disable",
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+                toggleMutation.mutate({
+                  id: menuState.data!.id,
+                  active: !menuState.data!.is_active,
+                });
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "rounds:write",
+              onClick: () => {
+                closeMenu();
+              },
+            },
           ]}
           onClose={closeMenu}
         />

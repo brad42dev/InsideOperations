@@ -73,7 +73,6 @@ function SectionCard({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Service Status Card
 // ---------------------------------------------------------------------------
@@ -177,7 +176,11 @@ function ModelsSection() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const { menuState: modelMenu, handleContextMenu: openModelMenu, closeMenu: closeModelMenu } = useContextMenu<ModelInfo>();
+  const {
+    menuState: modelMenu,
+    handleContextMenu: openModelMenu,
+    closeMenu: closeModelMenu,
+  } = useContextMenu<ModelInfo>();
   const [detailModel, setDetailModel] = useState<ModelInfo | null>(null);
 
   const { data: models, isLoading } = useQuery({
@@ -430,9 +433,21 @@ function ModelsSection() {
           x={modelMenu.x}
           y={modelMenu.y}
           items={[
-            { label: "View Details", onClick: () => setDetailModel(modelMenu.data!) },
-            { label: "Set as Active", disabled: modelMenu.data!.loaded, onClick: () => setActiveMutation.mutate(modelMenu.data!.id) },
-            { label: "View Feedback History", onClick: () => { window.location.href = "/settings/recognition"; } },
+            {
+              label: "View Details",
+              onClick: () => setDetailModel(modelMenu.data!),
+            },
+            {
+              label: "Set as Active",
+              disabled: modelMenu.data!.loaded,
+              onClick: () => setActiveMutation.mutate(modelMenu.data!.id),
+            },
+            {
+              label: "View Feedback History",
+              onClick: () => {
+                window.location.href = "/settings/recognition";
+              },
+            },
           ]}
           onClose={closeModelMenu}
         />

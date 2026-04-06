@@ -115,7 +115,9 @@ export default function ContextMenu({
           next?.focus();
         } else if (e.key === "ArrowUp") {
           const prev =
-            idx > 0 ? focusableItems[idx - 1] : focusableItems[focusableItems.length - 1];
+            idx > 0
+              ? focusableItems[idx - 1]
+              : focusableItems[focusableItems.length - 1];
           prev?.focus();
         } else if (e.key === "Home") {
           focusableItems[0]?.focus();
@@ -220,7 +222,8 @@ function MenuItemRow({
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
     if (item.disabled) return;
-    (e.currentTarget as HTMLElement).style.background = "var(--io-accent-subtle)";
+    (e.currentTarget as HTMLElement).style.background =
+      "var(--io-accent-subtle)";
     (e.currentTarget as HTMLElement).focus();
     if (hasSubmenu) {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
