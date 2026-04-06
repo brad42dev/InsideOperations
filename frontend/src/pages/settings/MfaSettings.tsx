@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { settingsApi } from "../../api/settings";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
@@ -72,20 +72,21 @@ function MfaMethodsTab() {
   } | null>(null);
 
   // Try to hydrate from settings API
-  useQuery({
+  const { data: settingsResult } = useQuery({
     queryKey: ["settings"],
     queryFn: () => settingsApi.list(),
-    select: (result) => {
-      if (!result.success) return;
-      const settings = result.data;
-      setMethods((prev) =>
-        prev.map((m) => {
-          const s = settings.find((st) => st.key === `mfa.${m.id}.enabled`);
-          return s != null ? { ...m, enabled: Boolean(s.value) } : m;
-        }),
-      );
-    },
   });
+
+  useEffect(() => {
+    if (!settingsResult?.success) return;
+    const settings = settingsResult.data;
+    setMethods((prev) =>
+      prev.map((m) => {
+        const s = settings.find((st) => st.key === `mfa.${m.id}.enabled`);
+        return s != null ? { ...m, enabled: Boolean(s.value) } : m;
+      }),
+    );
+  }, [settingsResult]);
 
   const handleToggle = (id: MfaMethod["id"]) => {
     const method = methods.find((m) => m.id === id);
