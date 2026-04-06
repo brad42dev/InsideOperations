@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sessionsApi, MySession } from "../../api/sessions";
 import { useAuthStore } from "../../store/auth";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -57,6 +59,7 @@ export default function SessionsTab() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<MySession>();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["my-sessions"],
@@ -196,11 +199,13 @@ export default function SessionsTab() {
               {sessions.map((s, i) => (
                 <tr
                   key={s.id}
+                  onContextMenu={(e) => handleContextMenu(e, s)}
                   style={{
                     borderBottom:
                       i < sessions.length - 1
                         ? "1px solid var(--io-border-subtle)"
                         : undefined,
+                    cursor: "context-menu",
                   }}
                 >
                   <td style={cellStyle}>
@@ -243,6 +248,16 @@ export default function SessionsTab() {
           </table>
         )}
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Sign Out This Device", danger: true, onClick: () => { closeMenu(); revokeMutation.mutate(menuState.data!.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

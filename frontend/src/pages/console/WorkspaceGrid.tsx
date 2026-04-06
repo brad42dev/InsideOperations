@@ -12,7 +12,7 @@ import "react-resizable/css/styles.css";
 import "./WorkspaceGrid.css";
 import PaneWrapper from "./PaneWrapper";
 import { ErrorBoundary } from "../../shared/components/ErrorBoundary";
-import type { ConsoleDragItem } from "./ConsolePalette";
+import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from "./ConsolePalette";
 import type { WorkspaceLayout, PaneConfig, GridItem } from "./types";
 import {
   GRID_COLS,
@@ -77,6 +77,8 @@ export interface WorkspaceGridProps {
   onBrowserFullscreen?: () => void;
   /** Called when pin state changes on a pane */
   onPinToggle?: (paneId: string, pinned: boolean) => void;
+  /** Called when a palette item is dropped onto empty grid space (not on any pane) */
+  onGridBackgroundDrop?: (item: ConsoleDragItem) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +104,7 @@ export default function WorkspaceGrid({
   onReplace,
   onBrowserFullscreen,
   onPinToggle,
+  onGridBackgroundDrop,
 }: WorkspaceGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
@@ -632,6 +635,37 @@ export default function WorkspaceGrid({
     [onWorkspaceContextMenu],
   );
 
+  const handleGridDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (!onGridBackgroundDrop) return;
+      if (!e.dataTransfer.types.includes(CONSOLE_DRAG_KEY)) return;
+      // Only accept drops on empty background (not on a pane)
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-pane-id]")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [onGridBackgroundDrop],
+  );
+
+  const handleGridDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (!onGridBackgroundDrop) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-pane-id]")) return;
+      const raw = e.dataTransfer.getData(CONSOLE_DRAG_KEY);
+      if (!raw) return;
+      try {
+        const item: ConsoleDragItem = JSON.parse(raw);
+        e.preventDefault();
+        onGridBackgroundDrop(item);
+      } catch {
+        // malformed payload — ignore
+      }
+    },
+    [onGridBackgroundDrop],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -645,6 +679,8 @@ export default function WorkspaceGrid({
       onPointerMove={handleGridPointerMove}
       onPointerUp={handleGridPointerUp}
       onContextMenu={handleGridContextMenu}
+      onDragOver={handleGridDragOver}
+      onDrop={handleGridDrop}
     >
       <GridLayout
         layout={layoutWithConstraints}
@@ -748,6 +784,7 @@ export default function WorkspaceGrid({
                   onReplace={onReplace}
                   onPinToggle={onPinToggle}
                   workspaceId={workspace.id}
+                  onWorkspaceContextMenu={onWorkspaceContextMenu}
                 />
               </ErrorBoundary>
             </div>

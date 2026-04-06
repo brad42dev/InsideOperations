@@ -600,6 +600,33 @@ function _clamp(item: GridItem, cols: number, rows: number): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Find the first free rectangle of size targetW × targetH in the grid,
+ * scanning left-to-right then top-to-bottom in MIN_W/MIN_H steps.
+ * Returns null when every candidate position overlaps an existing item.
+ */
+export function findFreeSlot(
+  items: GridItem[],
+  targetW: number,
+  targetH: number,
+  cols: number = GRID_COLS,
+  rows: number = GRID_ROWS,
+): { x: number; y: number; w: number; h: number } | null {
+  for (let y = 0; y + targetH <= rows; y += MIN_H) {
+    for (let x = 0; x + targetW <= cols; x += MIN_W) {
+      const overlaps = items.some(
+        (it) =>
+          x < it.x + it.w &&
+          x + targetW > it.x &&
+          y < it.y + it.h &&
+          y + targetH > it.y,
+      );
+      if (!overlaps) return { x, y, w: targetW, h: targetH };
+    }
+  }
+  return null;
+}
+
+/**
  * Migrate GridItems from old 12-unit coordinates to 288-unit coordinates.
  * Idempotent: items already in 288-unit space (any coord > 12) pass through.
  */

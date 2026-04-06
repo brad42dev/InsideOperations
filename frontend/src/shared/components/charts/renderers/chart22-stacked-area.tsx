@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import EChart from "../EChart";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import {
@@ -21,6 +22,7 @@ import {
   getEChartsClickKey,
   getEChartsClickMulti,
 } from "../chart-highlight-utils";
+import { pointsApi } from "../../../../api/points";
 
 interface RendererProps {
   config: ChartConfig;
@@ -52,6 +54,24 @@ export default function Chart22StackedArea({
   const { highlighted, toggle } = useHighlight();
   const pointIds = seriesSlots.map((p) => p.pointId);
 
+  const { data: msiMap } = useQuery({
+    queryKey: ["point-msi-batch", pointIds.join(",")],
+    queryFn: async () => {
+      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)));
+      const map = new Map<string, number | null>();
+      results.forEach((r, i) => {
+        map.set(
+          pointIds[i],
+          r.success ? (r.data.minimum_sampling_interval_ms ?? null) : null,
+        );
+      });
+      return map;
+    },
+    enabled: pointIds.length > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
   const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
     bufferKey,
     pointIds,
@@ -59,6 +79,7 @@ export default function Chart22StackedArea({
     interpolation: config.interpolation ?? "linear",
     bucketSeconds: config.aggregateSize,
     aggregateType: config.aggregateType,
+    msiMap,
   });
 
   const useStack = (config.extras?.stacked as boolean) ?? true; // default stacked; toggle via Options
@@ -76,12 +97,22 @@ export default function Chart22StackedArea({
       (slot, i) => {
         const color = slot.color ?? autoColor(i);
         const data = seriesData.get(slot.pointId) ?? [];
+        const msi = msiMap?.get(slot.pointId) ?? null;
+        const isSlowUpdate = msi !== null && msi >= 5000;
+        // Slow-update tags (GC analyzers etc.) are forward-filled by the buffer
+        // hook and rendered as step/hold-last-value; other series follow the
+        // chart-level interpolation setting.
+        const stepMode = isSlowUpdate
+          ? "end"
+          : config.interpolation === "step"
+            ? "end"
+            : false;
         return {
           name: slotLabel(slot),
           type: "line",
           data: xData.map((ts, idx) => [ts, data[idx] ?? null]),
-          smooth: config.interpolation !== "step",
-          step: config.interpolation === "step" ? "end" : false,
+          smooth: !isSlowUpdate && config.interpolation !== "step",
+          step: stepMode,
           symbol: "none",
           lineStyle: { color, width: 1.5 },
           itemStyle: { color },
@@ -184,6 +215,7 @@ export default function Chart22StackedArea({
     useStack,
     showGrid,
     durationMinutes,
+    msiMap,
   ]);
 
   const displayOption = useMemo(

@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { roundsApi, type RoundInstance } from "../../api/rounds";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 function statusBadge(status: RoundInstance["status"]) {
   const map: Record<string, { bg: string; text: string }> = {
@@ -98,6 +100,7 @@ export default function ActiveRounds() {
 
   const activeInstances = activeData?.success ? activeData.data : [];
   const pendingInstances = pendingData?.success ? pendingData.data : [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundInstance>();
 
   const cardStyle: React.CSSProperties = {
     display: "flex",
@@ -180,6 +183,7 @@ export default function ActiveRounds() {
               <div
                 key={inst.id}
                 onClick={() => navigate(`/rounds/${inst.id}`)}
+                onContextMenu={(e) => handleContextMenu(e, inst)}
                 style={cardStyle}
                 onMouseEnter={(e) =>
                   (e.currentTarget.style.borderColor = "var(--io-accent)")
@@ -247,7 +251,7 @@ export default function ActiveRounds() {
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {pendingInstances.map((inst) => (
-              <div key={inst.id} style={{ ...cardStyle, cursor: "default" }}>
+              <div key={inst.id} onContextMenu={(e) => handleContextMenu(e, inst)} style={{ ...cardStyle, cursor: "default" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
@@ -301,6 +305,18 @@ export default function ActiveRounds() {
             ))}
           </div>
         </section>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "View", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
+            { label: "Resume", permission: "rounds:execute", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
+            { label: "Abandon", danger: true, divider: true, onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

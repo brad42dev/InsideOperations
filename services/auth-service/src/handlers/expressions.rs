@@ -58,11 +58,17 @@ pub struct ExpressionRow {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    /// Serialized as `"ast"` to match the frontend `SavedExpression.ast` field.
+    #[serde(rename = "ast")]
     pub expression: JsonValue,
     pub output_type: String,
     pub output_precision: Option<i32>,
+    /// Serialized as `"context"` to match the frontend `SavedExpression.context` field.
+    #[serde(rename = "context")]
     pub expression_context: String,
     pub created_by: Uuid,
+    /// Serialized as `"is_shared"` to match the frontend `SavedExpression.is_shared` field.
+    #[serde(rename = "is_shared")]
     pub shared: bool,
     pub referenced_point_ids: Vec<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -96,9 +102,12 @@ fn map_row(r: &sqlx::postgres::PgRow) -> Result<ExpressionRow, sqlx::Error> {
 pub struct CreateExpressionRequest {
     pub name: String,
     pub description: Option<String>,
-    /// Expression context: conversion | calculated_value | alarm_condition | custom
+    /// Expression context — accepts both backend names (conversion, calculated_value, …)
+    /// and frontend ExpressionContext values (point_config, alarm_definition, …).
+    #[serde(alias = "context")]
     pub expression_context: Option<String>,
-    /// The ExpressionAst JSON stored as JSONB.
+    /// The ExpressionAst JSON stored as JSONB. Frontend sends field name "ast".
+    #[serde(alias = "ast")]
     pub expression: JsonValue,
     pub output_type: Option<String>,
     pub output_precision: Option<i32>,
@@ -110,6 +119,8 @@ pub struct CreateExpressionRequest {
 pub struct UpdateExpressionRequest {
     pub name: Option<String>,
     pub description: Option<String>,
+    /// Frontend sends "ast"; backend column is "expression".
+    #[serde(alias = "ast")]
     pub expression: Option<JsonValue>,
     pub output_type: Option<String>,
     pub output_precision: Option<i32>,
@@ -264,14 +275,22 @@ pub async fn create_expression(
         .expression_context
         .unwrap_or_else(|| "custom".to_string());
     let valid_contexts = [
+        // Legacy backend context names (kept for backwards compatibility)
         "conversion",
         "calculated_value",
         "alarm_condition",
         "custom",
+        // Frontend ExpressionContext values
+        "point_config",
+        "alarm_definition",
+        "rounds_checkpoint",
+        "log_segment",
+        "widget",
+        "forensics",
     ];
     if !valid_contexts.contains(&context.as_str()) {
         return Err(IoError::BadRequest(
-            "expression_context must be one of: conversion, calculated_value, alarm_condition, custom".into(),
+            "expression_context must be one of: conversion, calculated_value, alarm_condition, custom, point_config, alarm_definition, rounds_checkpoint, log_segment, widget, forensics".into(),
         ));
     }
 
@@ -318,6 +337,14 @@ pub async fn create_expression(
     .await?;
 
     let expr = map_row(&row).map_err(IoError::Database)?;
+
+    // Notify data-broker to reload this expression.
+    sqlx::query("SELECT pg_notify('expression_changed', $1)")
+        .bind(format!("{new_id}:created"))
+        .execute(&state.db)
+        .await
+        .ok();
+
     Ok((StatusCode::CREATED, Json(ApiResponse::ok(expr))))
 }
 
@@ -422,6 +449,13 @@ pub async fn update_expression(
         .await?;
     }
 
+    // Notify data-broker to reload this expression.
+    sqlx::query("SELECT pg_notify('expression_changed', $1)")
+        .bind(format!("{id}:updated"))
+        .execute(&state.db)
+        .await
+        .ok();
+
     get_expression(State(state), headers, Path(id)).await
 }
 
@@ -460,7 +494,92 @@ pub async fn delete_expression(
         return Err(IoError::NotFound(format!("Expression {id} not found")));
     }
 
+    // Notify data-broker to remove this expression.
+    sqlx::query("SELECT pg_notify('expression_changed', $1)")
+        .bind(format!("{id}:deleted"))
+        .execute(&state.db)
+        .await
+        .ok();
+
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------------------------------------------------------------------------
+// GET /expressions/by-context/:ctx
+// ---------------------------------------------------------------------------
+
+pub async fn list_expressions_by_context(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(ctx): Path<String>,
+) -> IoResult<impl IntoResponse> {
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
+
+    let rows = sqlx::query(
+        "SELECT id, name, description, expression, output_type, output_precision,
+                expression_context, created_by, shared, referenced_point_ids,
+                created_at, updated_at
+         FROM custom_expressions
+         WHERE expression_context = $1
+           AND (created_by = $2 OR shared = true)
+         ORDER BY name ASC",
+    )
+    .bind(&ctx)
+    .bind(caller)
+    .fetch_all(&state.db)
+    .await?;
+
+    let items: Vec<ExpressionRow> = rows
+        .iter()
+        .filter_map(|r| match map_row(r) {
+            Ok(e) => Some(e),
+            Err(e) => {
+                tracing::warn!(error = %e, "skipping malformed expression row");
+                None
+            }
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::ok(items)))
+}
+
+// ---------------------------------------------------------------------------
+// GET /expressions/by-point/:point_id
+// ---------------------------------------------------------------------------
+
+pub async fn list_expressions_by_point(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(point_id): Path<Uuid>,
+) -> IoResult<impl IntoResponse> {
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
+
+    let rows = sqlx::query(
+        "SELECT id, name, description, expression, output_type, output_precision,
+                expression_context, created_by, shared, referenced_point_ids,
+                created_at, updated_at
+         FROM custom_expressions
+         WHERE $1::uuid = ANY(referenced_point_ids)
+           AND (created_by = $2 OR shared = true)
+         ORDER BY name ASC",
+    )
+    .bind(point_id)
+    .bind(caller)
+    .fetch_all(&state.db)
+    .await?;
+
+    let items: Vec<ExpressionRow> = rows
+        .iter()
+        .filter_map(|r| match map_row(r) {
+            Ok(e) => Some(e),
+            Err(e) => {
+                tracing::warn!(error = %e, "skipping malformed expression row");
+                None
+            }
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::ok(items)))
 }
 
 // ---------------------------------------------------------------------------

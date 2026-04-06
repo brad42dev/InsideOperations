@@ -8,6 +8,8 @@ import { useQueries } from "@tanstack/react-query";
 import { useWebSocket } from "../../../hooks/useWebSocket";
 import { pointsApi } from "../../../../api/points";
 import { type ChartConfig } from "../chart-config-types";
+import { useContextMenu } from "../../../hooks/useContextMenu";
+import ContextMenu from "../../ContextMenu";
 
 interface RendererProps {
   config: ChartConfig;
@@ -41,6 +43,7 @@ export default function Chart15DataTable({ config }: RendererProps) {
   const pointIds = seriesSlots.map((s) => s.pointId);
 
   const { values } = useWebSocket(pointIds);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{ tagName: string; displayValue: string }>();
 
   // Fetch metadata for all points — useQueries handles dynamic array of queries
   // without violating Rules of Hooks (unlike calling useQuery in a loop).
@@ -124,7 +127,11 @@ export default function Chart15DataTable({ config }: RendererProps) {
                   : "#F59E0B";
 
             return (
-              <tr key={slot.pointId} style={{ background: rowBg }}>
+              <tr
+                key={slot.pointId}
+                style={{ background: rowBg, cursor: "context-menu" }}
+                onContextMenu={(e) => handleContextMenu(e, { tagName, displayValue })}
+              >
                 <td
                   style={{
                     ...CELL,
@@ -168,6 +175,29 @@ export default function Chart15DataTable({ config }: RendererProps) {
           })}
         </tbody>
       </table>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Copy Tag Name",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(menuState.data?.tagName ?? "");
+              },
+            },
+            {
+              label: "Copy Value",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(menuState.data?.displayValue ?? "");
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

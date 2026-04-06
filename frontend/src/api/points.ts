@@ -55,6 +55,15 @@ export interface PointMeta {
   /** OPC UA AnalogItemType.EURange.high — engineering maximum (from OPC UA metadata crawl) */
   eu_range_high: number | null;
   point_category: "analog" | "boolean" | "discrete_enum";
+  /**
+   * OPC UA MinimumSamplingInterval (AttributeId 11) in milliseconds.
+   * Null = unknown (treat as 1000 ms). Values from SimBLAH:
+   *   1000      — normal 1 Hz process tag
+   *   300000    — GC analyzer (5-minute cycle)
+   *   3600000   — lab/quality analyzer (1-hour cycle)
+   * Tags with interval ≥ 5000 ms should use step/hold-last-value rendering.
+   */
+  minimum_sampling_interval_ms: number | null;
 }
 
 export interface HistoryRow {
@@ -98,6 +107,7 @@ export interface PointDetail {
   eu_range_high: number | null;
   point_category: "analog" | "boolean" | "discrete_enum";
   enum_labels: EnumLabel[];
+  minimum_sampling_interval_ms: number | null;
 }
 
 /**

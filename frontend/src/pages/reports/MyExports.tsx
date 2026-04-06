@@ -8,6 +8,8 @@ import {
 } from "../../api/exports";
 import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,6 +174,7 @@ export default function MyExports() {
   });
 
   const jobs: ExportJob[] = query.data ?? [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ExportJob>();
 
   async function handleClearCompleted() {
     const toDelete = jobs.filter(
@@ -521,7 +524,19 @@ export default function MyExports() {
           rowHeight={48}
           loading={query.isLoading}
           emptyMessage="No exports yet. Use the Export button on any data table to generate an export."
+          onRowContextMenu={(e, row) => handleContextMenu(e, row)}
         />
+        {menuState && (
+          <ContextMenu
+            x={menuState.x}
+            y={menuState.y}
+            items={[
+              { label: "Download", onClick: () => { closeMenu(); if (menuState.data!.status === "completed") window.open(exportsApi.getDownloadUrl(menuState.data!.id), "_blank"); } },
+              { label: "Delete", danger: true, divider: true, onClick: () => { closeMenu(); deleteMutation.mutate(menuState.data!.id); } },
+            ]}
+            onClose={closeMenu}
+          />
+        )}
       </div>
 
       <style>{`

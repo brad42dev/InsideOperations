@@ -332,6 +332,150 @@ pub async fn create_sms_provider(
 }
 
 // ---------------------------------------------------------------------------
+// PUT /auth/sms-providers/:id  (requires system:configure)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSmsProviderBody {
+    pub name: Option<String>,
+    pub provider_type: Option<String>,
+    pub enabled: Option<bool>,
+    pub is_default: Option<bool>,
+    pub config: Option<serde_json::Value>,
+}
+
+pub async fn update_sms_provider(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateSmsProviderBody>,
+) -> IoResult<impl IntoResponse> {
+    if !has_system_configure(&headers) {
+        return Err(IoError::Forbidden("system:configure required".to_string()));
+    }
+
+    // If config contains auth_token = "***", preserve the existing value
+    let config_to_save = if let Some(mut config) = body.config.clone() {
+        if let Some(obj) = config.as_object_mut() {
+            if obj.get("auth_token").and_then(|v| v.as_str()) == Some("***") {
+                let existing_row = sqlx::query("SELECT config FROM sms_providers WHERE id = $1")
+                    .bind(id)
+                    .fetch_optional(&state.db)
+                    .await?;
+                if let Some(row) = existing_row {
+                    if let Ok(ec) = row.try_get::<serde_json::Value, _>("config") {
+                        if let Some(existing_token) = ec.get("auth_token") {
+                            obj.insert("auth_token".to_string(), existing_token.clone());
+                        }
+                    }
+                }
+            }
+        }
+        Some(config)
+    } else {
+        None
+    };
+
+    sqlx::query(
+        "UPDATE sms_providers SET
+            name = COALESCE($2, name),
+            provider_type = COALESCE($3, provider_type),
+            enabled = COALESCE($4, enabled),
+            is_default = COALESCE($5, is_default),
+            config = COALESCE($6, config),
+            updated_at = now()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(&body.name)
+    .bind(&body.provider_type)
+    .bind(body.enabled)
+    .bind(body.is_default)
+    .bind(&config_to_save)
+    .execute(&state.db)
+    .await?;
+
+    let row = sqlx::query(
+        "SELECT id::text, name, provider_type, enabled, is_default, config, last_tested_at, last_test_ok
+         FROM sms_providers WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let mut config: serde_json::Value = row.try_get("config").unwrap_or_default();
+    if let Some(obj) = config.as_object_mut() {
+        if obj.contains_key("auth_token") {
+            obj.insert("auth_token".to_string(), serde_json::Value::String("***".to_string()));
+        }
+    }
+
+    Ok(Json(ApiResponse::ok(serde_json::json!({
+        "id":            row.try_get::<String, _>("id").unwrap_or_default(),
+        "name":          row.try_get::<String, _>("name").unwrap_or_default(),
+        "provider_type": row.try_get::<String, _>("provider_type").unwrap_or_default(),
+        "enabled":       row.try_get::<bool, _>("enabled").unwrap_or(false),
+        "is_default":    row.try_get::<bool, _>("is_default").unwrap_or(false),
+        "config":        config,
+        "last_tested_at": row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_tested_at").ok().flatten(),
+        "last_test_ok":  row.try_get::<Option<bool>, _>("last_test_ok").ok().flatten(),
+    }))))
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/sms-providers/:id/test  (requires system:configure)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct TestSmsProviderBody {
+    pub to_number: String,
+}
+
+pub async fn test_sms_provider(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<TestSmsProviderBody>,
+) -> IoResult<impl IntoResponse> {
+    if !has_system_configure(&headers) {
+        return Err(IoError::Forbidden("system:configure required".to_string()));
+    }
+
+    let row = sqlx::query(
+        "SELECT id::text, provider_type, config FROM sms_providers WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| IoError::NotFound("SMS provider not found".to_string()))?;
+
+    let provider = crate::sms::SmsProvider {
+        id: row.try_get("id").unwrap_or_default(),
+        provider_type: row.try_get("provider_type").unwrap_or_default(),
+        config: row.try_get("config").unwrap_or_default(),
+    };
+
+    let message = "This is a test message from I/O — SMS provider connectivity confirmed.";
+    let result = crate::sms::send_sms(&state.http, &provider, &body.to_number, message).await;
+    let ok = result.is_ok();
+    let error_msg = result.err().map(|e| e.to_string());
+
+    sqlx::query(
+        "UPDATE sms_providers SET last_tested_at = now(), last_test_ok = $2 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(ok)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(ApiResponse::ok(serde_json::json!({
+        "tested": true,
+        "ok": ok,
+        "error": error_msg,
+    }))))
+}
+
+// ---------------------------------------------------------------------------
 // DELETE /auth/sms-providers/:id  (requires system:configure)
 // ---------------------------------------------------------------------------
 

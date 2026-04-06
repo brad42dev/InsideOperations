@@ -4,6 +4,7 @@ use axum::{
 };
 use cache::ShadowCache;
 use dashmap::DashMap;
+use expression_registry::ExpressionRegistry;
 use fanout::{LastFanoutMap, PendingMap};
 use registry::SubscriptionRegistry;
 use state::AppState;
@@ -18,6 +19,8 @@ use tracing::info;
 mod broadcast;
 mod cache;
 mod config;
+mod expression_eval;
+mod expression_registry;
 mod fanout;
 mod notify;
 mod publish;
@@ -54,6 +57,10 @@ async fn main() -> anyhow::Result<()> {
     let shadow_cache = Arc::new(ShadowCache::new());
     warm_cache(&shadow_cache, &db).await;
 
+    // Load expression registry — expressions with at least one referenced point.
+    let expression_registry = ExpressionRegistry::new();
+    load_expression_registry(&expression_registry, &db).await;
+
     let registry = Arc::new(SubscriptionRegistry::new());
     let connections: Arc<DashMap<_, _>> = Arc::new(DashMap::new());
     let user_connections: Arc<DashMap<uuid::Uuid, HashSet<uuid::Uuid>>> = Arc::new(DashMap::new());
@@ -88,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
         let p = Arc::clone(&pending);
         let db = cfg.fanout_deadband;
         let ts = Arc::clone(&throttle_states);
-        tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db, ts));
+        let er = Arc::clone(&expression_registry);
+        tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db, ts, er));
     }
 
     // Spawn NOTIFY/LISTEN listener (point_updates fallback + export_complete).
@@ -101,8 +109,9 @@ async fn main() -> anyhow::Result<()> {
         let cx = Arc::clone(&connections);
         let uc = Arc::clone(&user_connections);
         let ts = Arc::clone(&throttle_states);
+        let er = Arc::clone(&expression_registry);
         tokio::spawn(notify::run_notify_listener(
-            db2, c, r, p, db_val, cx, uc, ts,
+            db2, c, r, p, db_val, cx, uc, ts, er,
         ));
     }
 
@@ -235,6 +244,47 @@ async fn graceful_shutdown(
     // Give clients up to 5 seconds to receive and act on the message.
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     tracing::info!("Graceful shutdown drain complete");
+}
+
+/// Load all expressions that reference at least one OPC point into the registry.
+async fn load_expression_registry(registry: &ExpressionRegistry, db: &io_db::DbPool) {
+    use sqlx::Row;
+
+    let result = sqlx::query(
+        "SELECT id, expression, referenced_point_ids
+         FROM custom_expressions
+         WHERE array_length(referenced_point_ids, 1) > 0",
+    )
+    .fetch_all(db)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let mut count = 0usize;
+            for row in &rows {
+                let id: uuid::Uuid = match row.try_get("id") {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let ast: serde_json::Value = match row.try_get("expression") {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let point_ids: Vec<uuid::Uuid> = row
+                    .try_get::<Vec<uuid::Uuid>, _>("referenced_point_ids")
+                    .unwrap_or_default();
+                registry.load_expression(id, ast, point_ids);
+                count += 1;
+            }
+            info!(count, "Expression registry loaded");
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Failed to load expression registry — expression fanout disabled"
+            );
+        }
+    }
 }
 
 /// Read all rows from `points_current` and populate the shadow cache.

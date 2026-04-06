@@ -35,14 +35,46 @@ const MAX_OPS: u64 = 100_000;
 ///
 /// `point_values` maps point_id strings (or the special key `"current_point"`)
 /// to f64 values. Returns the numeric result or a descriptive error string.
+///
+/// Supports two AST formats:
+/// - **Tree format** (current frontend): `{ "version": 1, "context": "...", "root": {...}, "output": {...} }`
+/// - **Flat tiles format** (legacy): `{ "tiles": [...] }`
 pub fn evaluate_expression(
     ast: &Value,
     point_values: &HashMap<String, f64>,
 ) -> Result<f64, String> {
+    if let Some(root) = ast.get("root") {
+        // New ExprNode tree format from the frontend
+        let script = expr_node_to_rhai(root, point_values)?;
+        if script.trim().is_empty() {
+            return Err("Expression produces no value".to_string());
+        }
+        let engine = make_engine();
+        let mut scope = Scope::new();
+        for (key, &val) in point_values {
+            let var_name = sanitize_identifier(key);
+            scope.push(var_name, val);
+        }
+        let result: rhai::Dynamic = engine
+            .eval_with_scope::<rhai::Dynamic>(&mut scope, &script)
+            .map_err(|e| format!("Rhai evaluation error: {e}"))?;
+        if let Ok(v) = result.as_float() {
+            return Ok(v);
+        }
+        if let Ok(v) = result.as_int() {
+            return Ok(v as f64);
+        }
+        return Err(format!(
+            "Expression result is not numeric: {}",
+            result.type_name()
+        ));
+    }
+
+    // Legacy flat tiles format
     let tiles = ast
         .get("tiles")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| "Expression AST missing 'tiles' array".to_string())?;
+        .ok_or_else(|| "Expression AST missing 'root' or 'tiles' key".to_string())?;
 
     let script = tiles_to_rhai(tiles, point_values)?;
     if script.trim().is_empty() {
@@ -65,6 +97,180 @@ pub fn evaluate_expression(
         "Expression result is not numeric: {}",
         result.type_name()
     ))
+}
+
+// ---------------------------------------------------------------------------
+// ExprNode tree → Rhai conversion (current frontend format)
+// ---------------------------------------------------------------------------
+
+/// Sanitise a string into a valid Rhai variable/function identifier.
+fn sanitize_identifier(s: &str) -> String {
+    let mut out: String = s
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .collect();
+    if out.starts_with(|c: char| c.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    if out.is_empty() {
+        out = "_".to_string();
+    }
+    out
+}
+
+/// Recursively convert an ExprNode JSON object to a Rhai expression string.
+///
+/// ExprNode types (from frontend `shared/types/expression.ts`):
+/// - `literal`     — `{ type, value }`
+/// - `point_ref`   — `{ type, ref_type, point_id, tagname }`
+/// - `field_ref`   — `{ type, field_name }`
+/// - `unary`       — `{ type, op, operand }`
+/// - `binary`      — `{ type, op, left, right }`
+/// - `function`    — `{ type, name, args, params }`
+/// - `conditional` — `{ type, condition, then, else_branch }`
+/// - `group`       — `{ type, child }`
+pub(crate) fn expr_node_to_rhai(
+    node: &Value,
+    point_values: &HashMap<String, f64>,
+) -> Result<String, String> {
+    let node_type = node
+        .get("type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "ExprNode missing 'type' field".to_string())?;
+
+    match node_type {
+        "literal" => {
+            let v = node.get("value").unwrap_or(&Value::Null);
+            match v {
+                Value::Number(n) => {
+                    if let Some(f) = n.as_f64() {
+                        Ok(format_f64(f))
+                    } else {
+                        Ok("0.0".to_string())
+                    }
+                }
+                Value::Bool(b) => Ok(b.to_string()),
+                _ => Ok("0.0".to_string()),
+            }
+        }
+
+        "point_ref" => {
+            let ref_type = node.get("ref_type").and_then(|v| v.as_str()).unwrap_or("");
+            let point_id = node
+                .get("point_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let lookup_key = if ref_type == "current" || point_id.is_empty() {
+                "current_point"
+            } else {
+                point_id
+            };
+            let val = point_values.get(lookup_key).copied().unwrap_or(f64::NAN);
+            Ok(format_f64(val))
+        }
+
+        "field_ref" => {
+            let field = node
+                .get("field_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("field");
+            Ok(sanitize_identifier(field))
+        }
+
+        "unary" => {
+            let op = node
+                .get("op")
+                .and_then(|v| v.as_str())
+                .unwrap_or("negate");
+            let operand = node
+                .get("operand")
+                .ok_or_else(|| "unary node missing 'operand'".to_string())?;
+            let inner = expr_node_to_rhai(operand, point_values)?;
+            match op {
+                "negate" | "-" => Ok(format!("(-({inner}))")),
+                "abs"          => Ok(format!("({inner} as f64).abs()")),
+                "square"       => Ok(format!("(({inner}) * ({inner}))")),
+                "cube"         => Ok(format!("(({inner}) * ({inner}) * ({inner}))")),
+                "not" | "!"    => Ok(format!("(!({inner}))")),
+                other          => Err(format!("Unknown unary op: '{other}'")),
+            }
+        }
+
+        "binary" => {
+            let op = node.get("op").and_then(|v| v.as_str()).unwrap_or("+");
+            let left  = node.get("left").ok_or_else(|| "binary node missing 'left'".to_string())?;
+            let right = node.get("right").ok_or_else(|| "binary node missing 'right'".to_string())?;
+            let l = expr_node_to_rhai(left, point_values)?;
+            let r = expr_node_to_rhai(right, point_values)?;
+            let rhai_op = match op {
+                "and" => "&&",
+                "or"  => "||",
+                other => other,
+            };
+            Ok(format!("(({l}) {rhai_op} ({r}))"))
+        }
+
+        "function" => {
+            let name = node
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let args = node
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|a| a.as_slice())
+                .unwrap_or(&[]);
+            let params = node.get("params");
+
+            // Special-case: round(x, precision)
+            if name == "round" {
+                let precision = params
+                    .and_then(|p| p.get("precision"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                let arg = args
+                    .first()
+                    .map(|a| expr_node_to_rhai(a, point_values))
+                    .unwrap_or(Ok("0.0".to_string()))?;
+                if precision <= 0 {
+                    return Ok(format!("({arg} as f64).round()"));
+                }
+                let factor = 10_f64.powi(precision as i32);
+                return Ok(format!("(({arg}) * {factor:.1}).round() / {factor:.1}"));
+            }
+
+            let mut arg_strs = Vec::with_capacity(args.len());
+            for a in args {
+                arg_strs.push(expr_node_to_rhai(a, point_values)?);
+            }
+            Ok(format!("{}({})", sanitize_identifier(name), arg_strs.join(", ")))
+        }
+
+        "conditional" => {
+            let cond  = node.get("condition").ok_or_else(|| "conditional missing 'condition'".to_string())?;
+            let then  = node.get("then").ok_or_else(|| "conditional missing 'then'".to_string())?;
+            // Frontend field is "else_branch"
+            let els   = node.get("else_branch")
+                .or_else(|| node.get("else"))
+                .ok_or_else(|| "conditional missing 'else_branch'".to_string())?;
+            let c = expr_node_to_rhai(cond, point_values)?;
+            let t = expr_node_to_rhai(then, point_values)?;
+            let e = expr_node_to_rhai(els, point_values)?;
+            Ok(format!("if ({c}) {{ {t} }} else {{ {e} }}"))
+        }
+
+        "group" => {
+            // Frontend field is "child"
+            let child = node
+                .get("child")
+                .or_else(|| node.get("inner"))
+                .ok_or_else(|| "group node missing 'child'".to_string())?;
+            let inner = expr_node_to_rhai(child, point_values)?;
+            Ok(format!("({inner})"))
+        }
+
+        other => Err(format!("Unknown ExprNode type: '{other}'")),
+    }
 }
 
 // ---------------------------------------------------------------------------

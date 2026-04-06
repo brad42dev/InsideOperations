@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { roundsApi } from "../../api/rounds";
+import { roundsApi, type RoundTemplate } from "../../api/rounds";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import { ExportButton } from "../../shared/components/ExportDialog";
 import { PrintDialog } from "./PrintDialog";
 
@@ -21,6 +23,7 @@ export default function RoundTemplates() {
   });
 
   const templates = data?.success ? data.data : [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundTemplate>();
 
   const btnStyle = (primary?: boolean): React.CSSProperties => ({
     padding: "6px 14px",
@@ -121,6 +124,7 @@ export default function RoundTemplates() {
                 border: "1px solid var(--io-border)",
                 borderRadius: "8px",
               }}
+              onContextMenu={(e) => handleContextMenu(e, t)}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
@@ -192,6 +196,20 @@ export default function RoundTemplates() {
             </div>
           ))}
         </div>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); navigate(`/rounds/templates/${menuState.data!.id}`); } },
+            { label: "Edit", permission: "rounds:write", onClick: () => { closeMenu(); navigate(`/rounds/templates/${menuState.data!.id}/edit`); } },
+            { label: "Duplicate", permission: "rounds:write", onClick: () => { closeMenu(); } },
+            { label: "Print", permission: "rounds:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

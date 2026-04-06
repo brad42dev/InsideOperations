@@ -535,11 +535,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/sessions/mine/:id", delete(proxy_auth))
         // Expression library (proxied to auth-service)
         .route("/api/expressions", get(proxy_auth).post(proxy_auth))
-        // IMPORTANT: static sub-paths (/evaluate) must be before parameterised (/:id) routes.
+        // IMPORTANT: static sub-paths (/evaluate, /by-context, /by-point) must be before parameterised (/:id) routes.
         .route(
             "/api/expressions/evaluate",
             post(handlers::expressions::evaluate_expression_handler),
         )
+        .route("/api/expressions/by-context/:ctx", get(proxy_auth))
+        .route("/api/expressions/by-point/:point_id", get(proxy_auth))
         .route(
             "/api/expressions/:id",
             get(proxy_auth).put(proxy_auth).delete(proxy_auth),
@@ -547,6 +549,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/expressions/:id/evaluate",
             post(handlers::expressions::evaluate_saved_expression_handler),
+        )
+        .route(
+            "/api/expressions/:id/evaluate-batch",
+            post(handlers::expressions::evaluate_batch_handler),
         )
         // Alarm definitions (proxied to auth-service)
         .route("/api/alarm-definitions", get(proxy_auth).post(proxy_auth))
@@ -807,7 +813,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/mfa/sms/verify", post(proxy_auth))
         // SMS provider management (JWT-authenticated, system:configure enforced in handler)
         .route("/api/auth/sms-providers", get(proxy_auth).post(proxy_auth))
-        .route("/api/auth/sms-providers/:id", delete(proxy_auth))
+        .route(
+            "/api/auth/sms-providers/:id",
+            put(proxy_auth).delete(proxy_auth),
+        )
+        .route("/api/auth/sms-providers/:id/test", post(proxy_auth))
         // Notifications (Alerts Module — human-initiated, Phase 14)
         // IMPORTANT: static routes (channels/enabled) registered BEFORE parameterized routes (:id)
         // to ensure they have highest priority and are matched on cold start (Axum route precedence)

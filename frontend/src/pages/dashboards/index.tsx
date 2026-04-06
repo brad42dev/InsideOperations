@@ -6,6 +6,8 @@ import { graphicsApi, type DesignObjectSummary } from "../../api/graphics";
 import { convertDashboardToGraphicDocument } from "./dashboardConverter";
 import PlaylistManager from "./PlaylistManager";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Unified dashboard item (legacy dashboards table + Designer design_objects)
@@ -141,6 +143,7 @@ const DashboardCard = memo(function DashboardCard({
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<UnifiedDashboardItem>();
 
   return (
     <div
@@ -154,6 +157,7 @@ const DashboardCard = memo(function DashboardCard({
         position: "relative",
       }}
       onClick={() => navigate(`/dashboards/${dashboard.id}`)}
+      onContextMenu={(e) => handleContextMenu(e, dashboard)}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.borderColor =
           "var(--io-accent)";
@@ -422,6 +426,22 @@ const DashboardCard = memo(function DashboardCard({
           </p>
         )}
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); onEdit(dashboard.id); } },
+            { label: "Edit", permission: "dashboards:write", disabled: dashboard.is_system, onClick: () => { closeMenu(); onEdit(dashboard.id); } },
+            { label: "Open in New Window", onClick: () => { closeMenu(); window.open(`/detached/dashboard/${dashboard.id}`, "_blank", "noopener,noreferrer,width=1400,height=900"); } },
+            { label: "Duplicate", permission: "dashboards:write", onClick: () => { closeMenu(); onDuplicate(dashboard.id); } },
+            { label: "Export", onClick: () => { closeMenu(); } },
+            ...(dashboard.source === "legacy" && !dashboard.is_system ? [{ label: "Convert to Designer", onClick: () => { closeMenu(); onConvert(dashboard.id); } }] : []),
+            { label: "Delete", danger: true, divider: true, permission: "dashboards:write", disabled: dashboard.is_system, onClick: () => { closeMenu(); onDelete(dashboard.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 });

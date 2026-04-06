@@ -1,4 +1,6 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useRef } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { recognitionApi, type ModelInfo } from "../../api/recognition";
@@ -71,121 +73,6 @@ function SectionCard({
   );
 }
 
-// ---------------------------------------------------------------------------
-// RecognitionModelContextMenu — right-click context menu for model table rows
-// ---------------------------------------------------------------------------
-interface ContextMenuPos {
-  x: number;
-  y: number;
-}
-
-function RecognitionModelContextMenu({
-  model,
-  pos,
-  onClose,
-  onViewDetails,
-  onSetActive,
-  onViewFeedback,
-}: {
-  model: ModelInfo;
-  pos: ContextMenuPos;
-  onClose: () => void;
-  onViewDetails: (m: ModelInfo) => void;
-  onSetActive: (m: ModelInfo) => void;
-  onViewFeedback: (m: ModelInfo) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  const menuStyle: React.CSSProperties = {
-    position: "fixed",
-    top: pos.y,
-    left: pos.x,
-    zIndex: 500,
-    background: "var(--io-surface-elevated)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "var(--io-radius)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    minWidth: "190px",
-    overflow: "hidden",
-    padding: "4px 0",
-  };
-
-  const itemStyle: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    padding: "7px 14px",
-    background: "transparent",
-    border: "none",
-    textAlign: "left",
-    fontSize: "13px",
-    color: "var(--io-text-secondary)",
-    cursor: "pointer",
-  };
-
-  const disabledItemStyle: React.CSSProperties = {
-    ...itemStyle,
-    color: "var(--io-text-muted)",
-    cursor: "not-allowed",
-    opacity: 0.55,
-  };
-
-  function menuItem(label: string, action: () => void) {
-    return (
-      <button
-        style={itemStyle}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "var(--io-surface-secondary)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "transparent";
-        }}
-        onClick={() => {
-          action();
-          onClose();
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
-  return (
-    <div ref={ref} style={menuStyle}>
-      {menuItem("View Details", () => onViewDetails(model))}
-      {model.loaded ? (
-        <button
-          style={disabledItemStyle}
-          title="This model is already active"
-          disabled
-        >
-          Set as Active
-        </button>
-      ) : (
-        menuItem("Set as Active", () => onSetActive(model))
-      )}
-      {menuItem("View Feedback History", () => onViewFeedback(model))}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Service Status Card
@@ -290,16 +177,8 @@ function ModelsSection() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{
-    model: ModelInfo;
-    pos: ContextMenuPos;
-  } | null>(null);
+  const { menuState: modelMenu, handleContextMenu: openModelMenu, closeMenu: closeModelMenu } = useContextMenu<ModelInfo>();
   const [detailModel, setDetailModel] = useState<ModelInfo | null>(null);
-
-  function handleContextMenu(e: React.MouseEvent, model: ModelInfo) {
-    e.preventDefault();
-    setContextMenu({ model, pos: { x: e.clientX, y: e.clientY } });
-  }
 
   const { data: models, isLoading } = useQuery({
     queryKey: ["recognition", "models"],
@@ -460,7 +339,7 @@ function ModelsSection() {
                 <tr
                   key={m.id}
                   style={{ borderBottom: "1px solid var(--io-border-subtle)" }}
-                  onContextMenu={(e) => handleContextMenu(e, m)}
+                  onContextMenu={(e) => openModelMenu(e, m)}
                 >
                   <td
                     style={{
@@ -546,20 +425,16 @@ function ModelsSection() {
         </div>
       )}
 
-      {contextMenu && (
-        <RecognitionModelContextMenu
-          model={contextMenu.model}
-          pos={contextMenu.pos}
-          onClose={() => setContextMenu(null)}
-          onViewDetails={(m) => {
-            setDetailModel(m);
-          }}
-          onSetActive={(m) => {
-            setActiveMutation.mutate(m.id);
-          }}
-          onViewFeedback={(_m) => {
-            window.location.href = "/settings/recognition";
-          }}
+      {modelMenu && (
+        <ContextMenu
+          x={modelMenu.x}
+          y={modelMenu.y}
+          items={[
+            { label: "View Details", onClick: () => setDetailModel(modelMenu.data!) },
+            { label: "Set as Active", disabled: modelMenu.data!.loaded, onClick: () => setActiveMutation.mutate(modelMenu.data!.id) },
+            { label: "View Feedback History", onClick: () => { window.location.href = "/settings/recognition"; } },
+          ]}
+          onClose={closeModelMenu}
         />
       )}
 

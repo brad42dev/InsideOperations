@@ -4,7 +4,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePermission } from "../../shared/hooks/usePermission";
 
 import WorkspaceGrid, { presetToGridItems } from "./WorkspaceGrid";
-import { migrateGridItems } from "./layout-utils";
+import {
+  migrateGridItems,
+  GRID_SCALE,
+  GRID_COLS,
+  GRID_ROWS,
+  findFreeSlot,
+  scanLineCompact,
+  defaultSlots,
+} from "./layout-utils";
 import type { GridItem } from "./types";
 import ConsolePalette, { type ConsoleDragItem } from "./ConsolePalette";
 import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
@@ -224,6 +232,208 @@ const LAYOUT_PRESETS: { value: LayoutPreset; label: string }[] = [
   { value: "featured-sidebar", label: "Featured + Sidebar" },
   { value: "side-by-side-unequal", label: "Side by Side Unequal" },
 ];
+
+// ---------------------------------------------------------------------------
+// LayoutIcon — SVG thumbnail of a layout preset in 16:9 ratio
+// ---------------------------------------------------------------------------
+
+function LayoutIcon({
+  preset,
+  size = 48,
+  active = false,
+}: {
+  preset: LayoutPreset;
+  size?: number;
+  active?: boolean;
+}) {
+  const slots = defaultSlots(preset);
+  const G = 12 * GRID_SCALE; // 288 — coordinate space of defaultSlots
+  const W = 16;
+  const H = 9;
+  const gap = 0.28;
+  return (
+    <svg
+      width={size}
+      height={Math.round(size * 9 / 16)}
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ display: "block" }}
+    >
+      <rect x={0} y={0} width={W} height={H} fill="var(--io-surface-elevated)" rx={0.5} />
+      {slots.map((slot, i) => (
+        <rect
+          key={i}
+          x={slot.x / G * W + gap}
+          y={slot.y / G * H + gap}
+          width={slot.w / G * W - gap * 2}
+          height={slot.h / G * H - gap * 2}
+          fill={active ? "var(--io-accent)" : "var(--io-text-muted)"}
+          opacity={active ? 0.75 : 0.45}
+          rx={0.25}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LayoutPickerButton — replaces the <select> with a visual icon grid
+// ---------------------------------------------------------------------------
+
+const LAYOUT_GROUPS: { label: string; presets: LayoutPreset[] }[] = [
+  {
+    label: "Even Grid",
+    presets: [
+      "1x1",
+      "2x1", "1x2", "2x2",
+      "3x1", "1x3", "3x2", "2x3", "3x3",
+      "4x1", "1x4", "4x2", "2x4", "4x3", "3x4", "4x4",
+    ],
+  },
+  {
+    label: "Asymmetric",
+    presets: [
+      "big-left-3-right", "big-right-3-left",
+      "big-top-3-bottom", "big-bottom-3-top",
+      "featured-sidebar", "side-by-side-unequal",
+      "2-big-4-small", "pip",
+    ],
+  },
+];
+
+function LayoutPickerButton({
+  value,
+  onChange,
+}: {
+  value: LayoutPreset;
+  onChange: (v: LayoutPreset) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const currentLabel =
+    LAYOUT_PRESETS.find((lp) => lp.value === value)?.label ?? value;
+
+  return (
+    <div ref={containerRef} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title={`Layout: ${currentLabel}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 7px 3px 5px",
+          background: open
+            ? "var(--io-surface-elevated)"
+            : "var(--io-surface-secondary)",
+          border: "1px solid var(--io-border)",
+          borderRadius: 6,
+          cursor: "pointer",
+          color: "var(--io-text)",
+        }}
+      >
+        <LayoutIcon preset={value} size={34} active />
+        <svg
+          width={10}
+          height={10}
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="var(--io-text-muted)"
+          strokeWidth={1.5}
+        >
+          <path d="M2 3.5 5 6.5 8 3.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 200,
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
+            borderRadius: 8,
+            padding: "10px 10px 8px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            minWidth: 260,
+          }}
+        >
+          {LAYOUT_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.07em",
+                  textTransform: "uppercase",
+                  color: "var(--io-text-muted)",
+                  marginBottom: 6,
+                }}
+              >
+                {group.label}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 4,
+                }}
+              >
+                {group.presets.map((preset) => {
+                  const label =
+                    LAYOUT_PRESETS.find((lp) => lp.value === preset)?.label ??
+                    preset;
+                  const isActive = preset === value;
+                  return (
+                    <button
+                      key={preset}
+                      title={label}
+                      onClick={() => {
+                        onChange(preset);
+                        setOpen(false);
+                      }}
+                      style={{
+                        padding: 4,
+                        border: "1px solid",
+                        borderColor: isActive
+                          ? "var(--io-accent)"
+                          : "var(--io-border)",
+                        borderRadius: 5,
+                        background: isActive
+                          ? "var(--io-accent-subtle, rgba(74,158,255,0.12))"
+                          : "transparent",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <LayoutIcon preset={preset} size={52} active={isActive} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // ConsolePage — API-backed workspace persistence with localStorage fallback
@@ -1004,6 +1214,19 @@ export default function ConsolePage() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Never intercept keystrokes when focus is inside a text input, textarea,
+      // select, or contenteditable — backspace/delete would delete panes while
+      // the user is editing a field value (e.g. the duration input).
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       const ctrl = e.ctrlKey || e.metaKey;
       // Ctrl+S — explicit save active workspace
       if (ctrl && e.key === "s") {
@@ -1082,9 +1305,9 @@ export default function ConsolePage() {
         clearSelection();
         return;
       }
-      // Delete / Backspace — remove selected panes (when unlocked)
+      // Delete or Ctrl+Backspace — remove selected panes (when unlocked)
       if (
-        (e.key === "Delete" || e.key === "Backspace") &&
+        (e.key === "Delete" || (e.key === "Backspace" && ctrl)) &&
         !isLocked &&
         activeId
       ) {
@@ -1372,7 +1595,7 @@ export default function ConsolePage() {
           return {
             ...w,
             panes: [firstPane],
-            gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12, h: 8 }],
+            gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12 * GRID_SCALE, h: 8 * GRID_SCALE }],
           };
         }
 
@@ -1402,17 +1625,31 @@ export default function ConsolePage() {
           };
         }
 
-        // Priority 3: add new pane appended to grid
+        // Priority 3: place new pane in free space; compact if grid is full
         const np = newPane();
-        const maxRow = Math.max(
-          0,
-          ...(w.gridItems ?? []).map((gi) => gi.y + gi.h),
-        );
-        const newGridItem = { i: np.id, x: 0, y: maxRow, w: 6, h: 6 };
+        const currentItems = w.gridItems?.length
+          ? w.gridItems
+          : presetToGridItems(w.layout, w.panes);
+        const halfW = Math.round(GRID_COLS / 2);
+        const halfH = Math.round(GRID_ROWS / 2);
+        const freeSlot = findFreeSlot(currentItems, halfW, halfH);
+        let newGridItems: GridItem[];
+        if (freeSlot) {
+          newGridItems = [...currentItems, { i: np.id, ...freeSlot }];
+        } else {
+          const tentative = { i: np.id, x: 0, y: 0, w: halfW, h: halfH };
+          const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+          newGridItems = scanLineCompact(
+            [...currentItems, tentative],
+            tentative.i,
+            pinnedSet,
+            currentItems,
+          );
+        }
         return {
           ...w,
           panes: [...w.panes, np],
-          gridItems: [...(w.gridItems ?? []), newGridItem],
+          gridItems: newGridItems,
         };
       });
       const ws = useWorkspaceStore
@@ -1421,6 +1658,84 @@ export default function ConsolePage() {
       if (ws) scheduleSave(ws);
     },
     [activeId, updateWorkspace, selectedPaneIds, scheduleSave],
+  );
+
+  // ---- Drop-to-add: always creates a new pane (skips replace priorities) ----
+  // Used by PaneWrapper.onPaletteAdd and WorkspaceGrid.onGridBackgroundDrop so
+  // that dragging any palette item onto the workspace always adds a new pane
+  // (findFreeSlot / scanLineCompact), never replaces an existing one.
+
+  const handleDropAdd = useCallback(
+    (item: ConsoleDragItem) => {
+      if (!activeId) return;
+      updateWorkspace(activeId, (w) => {
+        const applyItem = (p: PaneConfig): PaneConfig => {
+          switch (item.itemType) {
+            case "chart":
+              return {
+                ...p,
+                type: "trend" as const,
+                chartConfig: item.chartConfig ?? p.chartConfig,
+                trendPointIds: item.chartConfig ? [] : (item.pointIds ?? []),
+                title: item.label ?? p.title,
+                promptConfig:
+                  !item.chartConfig && !item.pointIds?.length
+                    ? true
+                    : undefined,
+              };
+            case "graphic":
+              return {
+                ...p,
+                type: "graphic" as const,
+                graphicId: item.graphicId,
+                title: item.label ?? p.title,
+              };
+            default:
+              return p;
+          }
+        };
+
+        const np: PaneConfig = applyItem({ id: uuidv4(), type: "blank" as const });
+
+        if (w.panes.length === 0) {
+          return {
+            ...w,
+            panes: [np],
+            gridItems: [{ i: np.id, x: 0, y: 0, w: 12 * GRID_SCALE, h: 8 * GRID_SCALE }],
+          };
+        }
+
+        const currentItems = w.gridItems?.length
+          ? w.gridItems
+          : presetToGridItems(w.layout, w.panes);
+        const halfW = Math.round(GRID_COLS / 2);
+        const halfH = Math.round(GRID_ROWS / 2);
+        const freeSlot = findFreeSlot(currentItems, halfW, halfH);
+        let newGridItems: GridItem[];
+        if (freeSlot) {
+          newGridItems = [...currentItems, { i: np.id, ...freeSlot }];
+        } else {
+          const tentative = { i: np.id, x: 0, y: 0, w: halfW, h: halfH };
+          const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+          newGridItems = scanLineCompact(
+            [...currentItems, tentative],
+            tentative.i,
+            pinnedSet,
+            currentItems,
+          );
+        }
+        return {
+          ...w,
+          panes: [...w.panes, np],
+          gridItems: newGridItems,
+        };
+      });
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
+    },
+    [activeId, updateWorkspace, scheduleSave],
   );
 
   // ---- Configuring pane object --------------------------------------------
@@ -1732,28 +2047,10 @@ export default function ConsolePage() {
               </button>
 
               {/* Layout selector */}
-              <select
+              <LayoutPickerButton
                 value={activeWorkspace.layout}
-                onChange={(e) =>
-                  handleChangeLayout(e.target.value as LayoutPreset)
-                }
-                style={{
-                  background: "var(--io-surface-secondary)",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: 6,
-                  padding: "4px 8px",
-                  fontSize: 12,
-                  color: "var(--io-text-primary)",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-              >
-                {LAYOUT_PRESETS.map((lp) => (
-                  <option key={lp.value} value={lp.value}>
-                    {lp.label}
-                  </option>
-                ))}
-              </select>
+                onChange={handleChangeLayout}
+              />
 
               {/* Clear Grid button */}
               <button
@@ -2548,6 +2845,7 @@ export default function ConsolePage() {
               onRemovePane={handleRemovePane}
               onSelectPane={handlePaneSelect}
               onPaletteDrop={handlePaletteDrop}
+              onGridBackgroundDrop={handleDropAdd}
               onGridLayoutChange={handleGridLayoutChange}
               onWorkspaceContextMenu={handleWorkspaceContextMenu}
               swapModeSourceId={swapModeSourceId}
@@ -2602,17 +2900,33 @@ export default function ConsolePage() {
               label: "Add Pane",
               onClick: () => {
                 if (activeId) {
-                  updateWorkspace(activeId, (w) => ({
-                    ...w,
-                    panes: [
-                      ...w.panes,
-                      {
-                        id: `pane-${Date.now()}`,
-                        type: "blank" as const,
-                        title: "New Pane",
-                      },
-                    ],
-                  }));
+                  updateWorkspace(activeId, (w) => {
+                    const newId = `pane-${Date.now()}`;
+                    const currentItems = w.gridItems?.length
+                      ? w.gridItems
+                      : presetToGridItems(w.layout, w.panes);
+                    const halfW = Math.round(GRID_COLS / 2);
+                    const halfH = Math.round(GRID_ROWS / 2);
+                    const freeSlot = findFreeSlot(currentItems, halfW, halfH);
+                    let newGridItems: GridItem[];
+                    if (freeSlot) {
+                      newGridItems = [...currentItems, { i: newId, ...freeSlot }];
+                    } else {
+                      const tentative = { i: newId, x: 0, y: 0, w: halfW, h: halfH };
+                      const pinnedSet = new Set(w.panes.filter((p) => p.pinned).map((p) => p.id));
+                      newGridItems = scanLineCompact(
+                        [...currentItems, tentative],
+                        tentative.i,
+                        pinnedSet,
+                        currentItems,
+                      );
+                    }
+                    return {
+                      ...w,
+                      panes: [...w.panes, { id: newId, type: "blank" as const }],
+                      gridItems: newGridItems,
+                    };
+                  });
                   const ws = useWorkspaceStore
                     .getState()
                     .workspaces.find((w) => w.id === activeId);
@@ -2802,6 +3116,14 @@ export default function ConsolePage() {
                 {
                   label: "Duplicate",
                   onClick: () => duplicateWorkspace(ws.id),
+                },
+                {
+                  label: ws.locked ? "Unlock Workspace" : "Lock Workspace",
+                  divider: true,
+                  onClick: () => {
+                    toggleLocked(ws.id);
+                    setTabContextMenu(null);
+                  },
                 },
                 {
                   label: "Save and Close",

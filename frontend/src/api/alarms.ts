@@ -1,4 +1,4 @@
-import { api, queryString, type ApiResult } from "./client";
+import { api, queryString, type ApiResult, type PaginatedResult } from "./client";
 
 export type AlarmPriority = "critical" | "high" | "medium" | "advisory";
 
@@ -40,6 +40,78 @@ function mapHistoryItem(item: AlarmHistoryItem): AlarmEvent {
     message,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Alarm definition types
+// ---------------------------------------------------------------------------
+
+export type AlarmDefinitionType = "threshold" | "expression";
+export type AlarmDefinitionPriority =
+  | "urgent"
+  | "high"
+  | "medium"
+  | "low"
+  | "diagnostic";
+
+export interface AlarmDefinition {
+  id: string;
+  name: string;
+  description: string | null;
+  point_id: string | null;
+  definition_type: AlarmDefinitionType;
+  threshold_config: Record<string, unknown> | null;
+  expression_id: string | null;
+  priority: AlarmDefinitionPriority;
+  enabled: boolean;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAlarmDefinitionBody {
+  name: string;
+  description?: string;
+  point_id?: string;
+  definition_type: AlarmDefinitionType;
+  threshold_config?: Record<string, unknown>;
+  expression_id?: string;
+  priority?: AlarmDefinitionPriority;
+  enabled?: boolean;
+}
+
+export interface UpdateAlarmDefinitionBody {
+  name?: string;
+  description?: string;
+  point_id?: string;
+  definition_type?: AlarmDefinitionType;
+  threshold_config?: Record<string, unknown>;
+  expression_id?: string;
+  priority?: AlarmDefinitionPriority;
+  enabled?: boolean;
+}
+
+export const alarmDefinitionsApi = {
+  list: (): Promise<ApiResult<PaginatedResult<AlarmDefinition>>> =>
+    api.get<PaginatedResult<AlarmDefinition>>("/api/alarm-definitions"),
+
+  get: (id: string): Promise<ApiResult<AlarmDefinition>> =>
+    api.get<AlarmDefinition>(`/api/alarm-definitions/${id}`),
+
+  create: (
+    body: CreateAlarmDefinitionBody,
+  ): Promise<ApiResult<AlarmDefinition>> =>
+    api.post<AlarmDefinition>("/api/alarm-definitions", body),
+
+  update: (
+    id: string,
+    body: UpdateAlarmDefinitionBody,
+  ): Promise<ApiResult<AlarmDefinition>> =>
+    api.put<AlarmDefinition>(`/api/alarm-definitions/${id}`, body),
+
+  delete: (id: string): Promise<ApiResult<void>> =>
+    api.delete<void>(`/api/alarm-definitions/${id}`),
+};
 
 export const alarmsApi = {
   /**

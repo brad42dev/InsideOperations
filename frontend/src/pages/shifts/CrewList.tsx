@@ -7,6 +7,8 @@ import {
   type ShiftCrewMember,
   type CreateCrewPayload,
 } from "../../api/shifts";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -107,6 +109,7 @@ function CrewMemberRow({
   onRemoved: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ShiftCrewMember>();
 
   const removeMutation = useMutation({
     mutationFn: async () => {
@@ -117,6 +120,7 @@ function CrewMemberRow({
   });
 
   return (
+    <>
     <div
       style={{
         display: "flex",
@@ -125,6 +129,7 @@ function CrewMemberRow({
         padding: "10px 16px",
         borderBottom: "1px solid var(--io-border)",
       }}
+      onContextMenu={(e) => handleContextMenu(e, member)}
     >
       <Avatar name={member.display_name} />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -206,6 +211,19 @@ function CrewMemberRow({
         </button>
       )}
     </div>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          { label: "View Profile", onClick: () => { closeMenu(); } },
+          { label: "Edit", permission: "shifts:write", onClick: () => { closeMenu(); } },
+          { label: "Remove from Crew", danger: true, divider: true, onClick: () => { closeMenu(); setConfirming(true); } },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }
 

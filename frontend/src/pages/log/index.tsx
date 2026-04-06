@@ -8,6 +8,8 @@ import {
   type SearchResult,
 } from "../../api/logs";
 import { useAuthStore } from "../../store/auth";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import { ExportButton } from "../../shared/components/ExportDialog";
 import { SkeletonBlock } from "../../shared/components/Skeleton";
 
@@ -200,6 +202,7 @@ function InstanceCard({
   onClick: () => void;
 }) {
   const date = new Date(instance.created_at).toLocaleDateString();
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogInstance>();
   return (
     <div
       onClick={onClick}
@@ -211,6 +214,7 @@ function InstanceCard({
         cursor: "pointer",
         transition: "border-color 0.15s",
       }}
+      onContextMenu={(e) => handleContextMenu(e, instance)}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.borderColor =
           "var(--io-accent)";
@@ -246,6 +250,19 @@ function InstanceCard({
         </div>
         <StatusBadge status={instance.status} />
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "View", onClick: () => { closeMenu(); onClick(); } },
+            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); onClick(); } },
+            { label: "Export Entry", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }
@@ -265,6 +282,7 @@ function TemplatesList({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { menuState: tmplMenu, handleContextMenu: openTmplMenu, closeMenu: closeTmplMenu } = useContextMenu<LogTemplate>();
   return (
     <div>
       <div
@@ -314,6 +332,7 @@ function TemplatesList({
                 alignItems: "center",
                 justifyContent: "space-between",
               }}
+              onContextMenu={(e) => openTmplMenu(e, t)}
             >
               <div>
                 <span
@@ -379,6 +398,17 @@ function TemplatesList({
             </div>
           ))}
         </div>
+      )}
+      {tmplMenu && (
+        <ContextMenu
+          x={tmplMenu.x}
+          y={tmplMenu.y}
+          items={[
+            { label: "Edit", onClick: () => onEdit(tmplMenu.data!.id) },
+            { label: "Delete", danger: true, divider: true, onClick: () => onDelete(tmplMenu.data!.id) },
+          ]}
+          onClose={closeTmplMenu}
+        />
       )}
     </div>
   );

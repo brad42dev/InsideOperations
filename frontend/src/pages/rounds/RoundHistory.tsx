@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { roundsApi } from "../../api/rounds";
+import { roundsApi, type RoundHistoryEntry } from "../../api/rounds";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import { useNavigate } from "react-router-dom";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 function statusBadge(status: string) {
   const map: Record<string, { bg: string; text: string }> = {
@@ -51,10 +54,12 @@ const HISTORY_COLUMNS = [
 ];
 
 export default function RoundHistory() {
+  const navigate = useNavigate();
   const today = new Date();
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const [from, setFrom] = useState(weekAgo.toISOString().slice(0, 10));
   const [to, setTo] = useState(today.toISOString().slice(0, 10));
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundHistoryEntry>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["rounds", "history", from, to],
@@ -234,11 +239,13 @@ export default function RoundHistory() {
               entries.map((entry, i) => (
                 <tr
                   key={entry.id}
+                  onContextMenu={(e) => handleContextMenu(e, entry)}
                   style={{
                     background:
                       i % 2 === 0
                         ? "transparent"
                         : "var(--io-surface-secondary)",
+                    cursor: "context-menu",
                   }}
                 >
                   <td
@@ -304,6 +311,19 @@ export default function RoundHistory() {
           </tbody>
         </table>
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "View", onClick: () => { closeMenu(); navigate(`/rounds/${menuState.data!.id}`); } },
+            { label: "Print", permission: "rounds:read", onClick: () => { closeMenu(); } },
+            { label: "Export", permission: "rounds:read", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

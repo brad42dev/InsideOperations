@@ -760,6 +760,33 @@ pub async fn deactivate_removed_points(
     Ok(result.rows_affected())
 }
 
+/// Bulk-update `minimum_sampling_interval_ms` for a batch of points.
+/// Accepts parallel arrays of (point_id, interval_ms) pairs.
+pub async fn update_minimum_sampling_intervals(
+    db: &DbPool,
+    point_ids: &[Uuid],
+    intervals_ms: &[f64],
+) -> anyhow::Result<()> {
+    if point_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        r#"
+        UPDATE points_metadata pm
+        SET minimum_sampling_interval_ms = u.interval_ms,
+            updated_at = NOW()
+        FROM UNNEST($1::uuid[], $2::float8[]) AS u(id, interval_ms)
+        WHERE pm.id = u.id
+        "#,
+    )
+    .bind(point_ids)
+    .bind(intervals_ms)
+    .execute(db)
+    .await
+    .context("update_minimum_sampling_intervals: query failed")?;
+    Ok(())
+}
+
 /// Bulk-update `last_seen_at = NOW()` for the given tagnames under a source.
 pub async fn touch_last_seen_at(
     db: &DbPool,
@@ -782,6 +809,33 @@ pub async fn touch_last_seen_at(
     .await
     .context("touch_last_seen_at: query failed")?;
     Ok(())
+}
+
+/// Returns true if `points_history_raw` contains at least one row older than
+/// `min_age` for any point belonging to `source_id`.  Used to gate startup
+/// history recovery — if the table has less than an hour of data the system
+/// is likely freshly installed and there is nothing useful to recover.
+pub async fn has_history_older_than(
+    db: &DbPool,
+    source_id: Uuid,
+    min_age: chrono::Duration,
+) -> anyhow::Result<bool> {
+    let threshold = chrono::Utc::now() - min_age;
+    let exists: bool = sqlx::query_scalar(
+        r#"SELECT EXISTS(
+             SELECT 1
+             FROM points_history_raw phr
+             JOIN points_metadata pm ON pm.id = phr.point_id
+             WHERE pm.source_id = $1
+               AND phr.timestamp < $2
+           )"#,
+    )
+    .bind(source_id)
+    .bind(threshold)
+    .fetch_one(db)
+    .await
+    .context("has_history_older_than")?;
+    Ok(exists)
 }
 
 /// Returns true if there is at least one pending recovery job for this source.

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { shiftsApi, type Shift } from "../../api/shifts";
 import { showToast } from "../../shared/components/Toast";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Pattern Wizard — pre-built shift pattern templates (doc 30 §Pattern Templates)
@@ -509,10 +511,13 @@ function StatusBadge({ status }: { status: Shift["status"] }) {
 
 function ShiftRow({ shift }: { shift: Shift }) {
   const navigate = useNavigate();
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Shift>();
 
   return (
+    <>
     <tr
       onClick={() => navigate(`/shifts/schedule/${shift.id}`)}
+      onContextMenu={(e) => handleContextMenu(e, shift)}
       style={{ cursor: "pointer", borderBottom: "1px solid var(--io-border)" }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLTableRowElement).style.background =
@@ -577,6 +582,19 @@ function ShiftRow({ shift }: { shift: Shift }) {
         <StatusBadge status={shift.status} />
       </td>
     </tr>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          { label: "Edit Shift", permission: "shifts:write", onClick: () => { closeMenu(); } },
+          { label: "Copy Shift", permission: "shifts:write", onClick: () => { closeMenu(); } },
+          { label: "Delete Shift", danger: true, divider: true, onClick: () => { closeMenu(); } },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }
 

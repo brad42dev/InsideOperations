@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
@@ -16,6 +17,7 @@ import {
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import type { EnumLabel } from "../../../../api/points";
+import { pointsApi } from "../../../../api/points";
 
 interface RendererProps {
   config: ChartConfig;
@@ -35,6 +37,24 @@ export default function Chart04StepChart({
   const seriesSlots = config.points.filter((p) => p.role === "series");
   const pointIds = seriesSlots.map((p) => p.pointId);
 
+  const { data: msiMap } = useQuery({
+    queryKey: ["point-msi-batch", pointIds.join(",")],
+    queryFn: async () => {
+      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)));
+      const map = new Map<string, number | null>();
+      results.forEach((r, i) => {
+        map.set(
+          pointIds[i],
+          r.success ? (r.data.minimum_sampling_interval_ms ?? null) : null,
+        );
+      });
+      return map;
+    },
+    enabled: pointIds.length > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
   // Step charts always force step interpolation regardless of config.interpolation.
   const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
     bufferKey,
@@ -43,6 +63,7 @@ export default function Chart04StepChart({
     interpolation: "step",
     bucketSeconds: config.aggregateSize,
     aggregateType: config.aggregateType,
+    msiMap,
   });
 
   const xRangeRef = useRef<{ min: number; max: number }>({ min: 0, max: 0 });
@@ -50,11 +71,14 @@ export default function Chart04StepChart({
   xRangeRef.current.min = nowSec - durationMinutes * 60;
   xRangeRef.current.max = nowSec;
 
+  // Step chart type — always render as step; MSI in msiMap drives boundary fill
+  // in useTimeSeriesBuffer for slow-update tags (GC analyzers etc.)
   const series: Series[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
     data: seriesData.get(slot.pointId) ?? [],
     color: slot.color ?? autoColor(i),
     strokeWidth: 1.5,
+    step: true,
   }));
 
   const seriesScales = resolveSeriesScales(

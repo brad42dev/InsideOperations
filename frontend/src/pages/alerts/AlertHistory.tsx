@@ -3,9 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   notificationsApi,
   type NotificationSeverity,
+  type NotificationMessage,
 } from "../../api/notifications";
 import { exportsApi, type ExportFormat } from "../../api/exports";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 const SEVERITY_COLOR: Record<NotificationSeverity, string> = {
   emergency: "#ef4444",
@@ -98,6 +101,7 @@ export default function AlertHistory() {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const canExport = usePermission("alerts:read");
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<NotificationMessage>();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["notifications", "messages", page, severity],
@@ -400,6 +404,7 @@ export default function AlertHistory() {
         {messages.map((msg) => (
           <div
             key={msg.id}
+            onContextMenu={(e) => handleContextMenu(e, msg)}
             style={{
               display: "grid",
               gridTemplateColumns: "120px 1fr 150px 160px 80px 90px",
@@ -479,6 +484,18 @@ export default function AlertHistory() {
           Next
         </button>
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "View Details", onClick: () => { closeMenu(); } },
+            { label: "Investigate Alarm", permission: "forensics:write", onClick: () => { closeMenu(); } },
+            { label: "Export", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

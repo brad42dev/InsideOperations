@@ -5,7 +5,8 @@
 // Fetches historian data for each point and paints transitions as colored rects.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
+import ContextMenu from "../../ContextMenu";
 import { useQuery } from "@tanstack/react-query";
 import { type ChartConfig, makeSlotLabeler } from "../chart-config-types";
 import { usePlaybackStore } from "../../../../store/playback";
@@ -75,6 +76,7 @@ export default function StateTimelineChart({ config }: RendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const slotLabel = makeSlotLabeler(config);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number; rowLabel?: string } | null>(null);
 
   const itemSlots = config.points.filter((p) => p.role === "item");
   const durationMinutes = config.durationMinutes ?? 60;
@@ -327,7 +329,37 @@ export default function StateTimelineChart({ config }: RendererProps) {
       <canvas
         ref={canvasRef}
         style={{ display: "block", width: "100%", height: canvasHeight }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const offsetY = e.clientY - rect.top;
+          const rowIdx = Math.floor(offsetY / rowHeight);
+          const row = rowSegments[rowIdx];
+          setMenuPos({ x: e.clientX, y: e.clientY, rowLabel: row?.label });
+        }}
       />
+      {menuPos && (
+        <ContextMenu
+          x={menuPos.x}
+          y={menuPos.y}
+          items={[
+            menuPos.rowLabel
+              ? { label: `Row: ${menuPos.rowLabel}`, disabled: true, onClick: () => {} }
+              : { label: "State Timeline", disabled: true, onClick: () => {} },
+            {
+              label: "Copy Row Label",
+              onClick: () => {
+                setMenuPos(null);
+                if (menuPos.rowLabel) void navigator.clipboard.writeText(menuPos.rowLabel);
+              },
+              disabled: !menuPos.rowLabel,
+            },
+          ]}
+          onClose={() => setMenuPos(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { dashboardsApi, type DashboardVariable } from "../../api/dashboards";
+import { dashboardsApi, type DashboardVariable, type WidgetConfig } from "../../api/dashboards";
 import { useAuthStore } from "../../store/auth";
 import { useUiStore } from "../../store/ui";
 import WidgetContainer from "./widgets/WidgetContainer";
 import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Variable bar
@@ -314,6 +316,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
   }
 
   const widgets = dashboard.widgets ?? [];
+  const { menuState: widgetMenuState, handleContextMenu: handleWidgetContextMenu, closeMenu: closeWidgetMenu } = useContextMenu<WidgetConfig>();
 
   return (
     <div
@@ -548,6 +551,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
           {widgets.map((widget) => (
             <div
               key={widget.id}
+              onContextMenu={(e) => handleWidgetContextMenu(e, widget)}
               style={{
                 gridColumn: `${widget.x + 1} / span ${widget.w}`,
                 gridRow: `${widget.y + 1} / span ${widget.h}`,
@@ -560,6 +564,18 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
               />
             </div>
           ))}
+          {widgetMenuState && (
+            <ContextMenu
+              x={widgetMenuState.x}
+              y={widgetMenuState.y}
+              items={[
+                { label: "Refresh Widget", onClick: () => { closeWidgetMenu(); } },
+                { label: "Export Data", onClick: () => { closeWidgetMenu(); } },
+                { label: "Full Screen", onClick: () => { closeWidgetMenu(); } },
+              ]}
+              onClose={closeWidgetMenu}
+            />
+          )}
 
           {widgets.length === 0 && (
             <div

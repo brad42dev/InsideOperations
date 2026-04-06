@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { logsApi } from "../../api/logs";
 import type { LogTemplate } from "../../api/logs";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 export default function LogTemplates() {
   const navigate = useNavigate();
@@ -10,6 +12,7 @@ export default function LogTemplates() {
   // React-state confirmation instead of window.confirm — avoids native dialogs
   // that crash Playwright and are blocked in some browser security contexts.
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogTemplate>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["log", "templates", "all"],
@@ -113,6 +116,7 @@ export default function LogTemplates() {
           {templates.map((t) => (
             <div
               key={t.id}
+              onContextMenu={(e) => handleContextMenu(e, t)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -235,6 +239,18 @@ export default function LogTemplates() {
             </div>
           ))}
         </div>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); navigate(`/log/templates/${menuState.data!.id}/edit`); } },
+            { label: "Duplicate", permission: "log:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); setConfirmDeleteId(menuState.data!.id); } },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

@@ -7,6 +7,8 @@ import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 import { showToast } from "../../shared/components/Toast";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Cron helpers
@@ -592,6 +594,7 @@ export default function ReportSchedules() {
   });
 
   const schedules: ReportSchedule[] = schedulesQuery.data ?? [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportSchedule>();
 
   const columns: ColumnDef<ReportSchedule>[] = [
     {
@@ -852,7 +855,21 @@ export default function ReportSchedules() {
         rowHeight={44}
         loading={schedulesQuery.isLoading}
         emptyMessage="No schedules configured yet."
+        onRowContextMenu={(e, row) => handleContextMenu(e, row)}
       />
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Edit", permission: "reports:write", onClick: () => { closeMenu(); } },
+            { label: "Run Now", permission: "reports:write", onClick: () => { closeMenu(); } },
+            { label: "Toggle Enable/Disable", permission: "reports:write", onClick: () => { closeMenu(); toggleMutation.mutate({ id: menuState.data!.id, enabled: !menuState.data!.enabled }); } },
+            { label: "Delete", danger: true, divider: true, permission: "reports:write", onClick: () => { closeMenu(); deleteMutation.mutate(menuState.data!.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
 
       <AddScheduleModal
         open={addOpen}

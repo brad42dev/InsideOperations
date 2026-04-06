@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -729,116 +731,6 @@ function TableSkeleton({
   );
 }
 
-// ---------------------------------------------------------------------------
-// UserContextMenu — right-click context menu for user table rows
-// ---------------------------------------------------------------------------
-interface ContextMenuPos {
-  x: number;
-  y: number;
-}
-
-function UserContextMenu({
-  user,
-  pos,
-  onClose,
-  onEdit,
-  onDisable,
-  onEnable,
-  onViewSessions,
-  onCopyUsername,
-}: {
-  user: User;
-  pos: ContextMenuPos;
-  onClose: () => void;
-  onEdit: (u: User) => void;
-  onDisable: (u: User) => void;
-  onEnable: (u: User) => void;
-  onViewSessions: (u: User) => void;
-  onCopyUsername: (u: User) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  const menuStyle: React.CSSProperties = {
-    position: "fixed",
-    top: pos.y,
-    left: pos.x,
-    zIndex: 500,
-    background: "var(--io-surface-elevated)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "var(--io-radius)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    minWidth: "180px",
-    overflow: "hidden",
-    padding: "4px 0",
-  };
-
-  const itemStyle: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    padding: "7px 14px",
-    background: "transparent",
-    border: "none",
-    textAlign: "left",
-    fontSize: "13px",
-    color: "var(--io-text-secondary)",
-    cursor: "pointer",
-  };
-
-  const dangerItemStyle: React.CSSProperties = {
-    ...itemStyle,
-    color: "var(--io-danger)",
-  };
-
-  function menuItem(label: string, action: () => void, danger = false) {
-    return (
-      <button
-        style={danger ? dangerItemStyle : itemStyle}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "var(--io-surface-secondary)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "transparent";
-        }}
-        onClick={() => {
-          action();
-          onClose();
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
-  return (
-    <div ref={ref} style={menuStyle}>
-      {menuItem("Edit", () => onEdit(user))}
-      {user.enabled
-        ? menuItem("Disable Account", () => onDisable(user), true)
-        : menuItem("Enable Account", () => onEnable(user))}
-      {menuItem("View Sessions", () => onViewSessions(user))}
-      {menuItem("Copy Username", () => onCopyUsername(user))}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // UsersTab
@@ -854,10 +746,7 @@ export function UsersTab() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    user: User;
-    pos: ContextMenuPos;
-  } | null>(null);
+  const { menuState: userMenu, handleContextMenu: openUserMenu, closeMenu: closeUserMenu } = useContextMenu<User>();
 
   const usersQuery = useQuery({
     queryKey: ["users", page, limit],
@@ -920,10 +809,6 @@ export function UsersTab() {
     setConfirmOpen(true);
   }
 
-  function handleContextMenu(e: React.MouseEvent, user: User) {
-    e.preventDefault();
-    setContextMenu({ user, pos: { x: e.clientX, y: e.clientY } });
-  }
 
   const pagination = usersQuery.data?.pagination;
   const users = usersQuery.data?.data ?? [];
@@ -1033,7 +918,7 @@ export function UsersTab() {
                         ? "1px solid var(--io-border-subtle)"
                         : undefined,
                   }}
-                  onContextMenu={(e) => handleContextMenu(e, user)}
+                  onContextMenu={(e) => openUserMenu(e, user)}
                 >
                   <td style={cellStyle}>
                     <span
@@ -1229,26 +1114,19 @@ export function UsersTab() {
         }}
       />
 
-      {contextMenu && (
-        <UserContextMenu
-          user={contextMenu.user}
-          pos={contextMenu.pos}
-          onClose={() => setContextMenu(null)}
-          onEdit={(u) => {
-            handleEdit(u);
-          }}
-          onDisable={(u) => {
-            handleDisable(u);
-          }}
-          onEnable={(u) => {
-            enableMutation.mutate(u);
-          }}
-          onViewSessions={(u) => {
-            setDetailUserId(u.id);
-          }}
-          onCopyUsername={(u) => {
-            navigator.clipboard.writeText(u.username).catch(() => {});
-          }}
+      {userMenu && (
+        <ContextMenu
+          x={userMenu.x}
+          y={userMenu.y}
+          items={[
+            { label: "Edit", onClick: () => handleEdit(userMenu.data!) },
+            userMenu.data!.enabled
+              ? { label: "Disable Account", danger: true, divider: true, onClick: () => handleDisable(userMenu.data!) }
+              : { label: "Enable Account", divider: true, onClick: () => enableMutation.mutate(userMenu.data!) },
+            { label: "View Sessions", onClick: () => setDetailUserId(userMenu.data!.id) },
+            { label: "Copy Username", onClick: () => { navigator.clipboard.writeText(userMenu.data!.username).catch(() => {}); } },
+          ]}
+          onClose={closeUserMenu}
         />
       )}
 

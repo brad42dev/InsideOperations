@@ -28,6 +28,7 @@ uuid.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
 rmp-serde.workspace = true
+rhai.workspace = true
 reqwest.workspace = true
 once_cell.workspace = true
 sqlx.workspace = true

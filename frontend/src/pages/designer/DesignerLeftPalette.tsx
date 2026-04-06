@@ -166,7 +166,7 @@ const cmContentStyle: React.CSSProperties = {
   minWidth: 160,
   overflow: "hidden",
   fontSize: 12,
-  zIndex: 1000,
+  zIndex: 1800,
 };
 
 const cmItemStyle: React.CSSProperties = {

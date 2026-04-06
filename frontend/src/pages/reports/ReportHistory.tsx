@@ -4,6 +4,8 @@ import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 import { useNavigate } from "react-router-dom";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,6 +104,7 @@ export default function ReportHistory() {
   });
 
   const jobs: ReportJob[] = query.data ?? [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportJob>();
 
   const columns: ColumnDef<ReportJob>[] = [
     {
@@ -294,7 +297,22 @@ export default function ReportHistory() {
         rowHeight={40}
         loading={query.isLoading}
         emptyMessage="No report jobs yet. Generate a report from the Templates tab."
+        onRowContextMenu={(e, row) => handleContextMenu(e, row)}
       />
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "View Report", onClick: () => { closeMenu(); navigate(`/reports/view/${menuState.data!.id}`); } },
+            { label: "Download PDF", permission: "reports:read", onClick: () => { closeMenu(); window.open(reportsApi.getDownloadUrl(menuState.data!.id), "_blank"); } },
+            { label: "Download CSV", permission: "reports:read", onClick: () => { closeMenu(); } },
+            { label: "Re-run", permission: "reports:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "reports:write", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

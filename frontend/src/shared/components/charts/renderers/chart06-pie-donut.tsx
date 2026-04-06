@@ -3,10 +3,12 @@
 // One slice per series point. Live via WebSocket, fallback to batch-latest.
 // ---------------------------------------------------------------------------
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import * as echarts from "echarts";
 import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
+import ContextMenu from "../../ContextMenu";
 import {
   type ChartConfig,
   autoColor,
@@ -37,6 +39,8 @@ export default function PieDonutChart({ config }: RendererProps) {
   const seriesSlots = config.points.filter((p) => p.role === "series");
   const pointIds = seriesSlots.map((p) => p.pointId);
   const { highlighted, toggle } = useHighlight();
+  const chartRef = useRef<echarts.ECharts | null>(null);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   const isDonut = config.extras?.donut === true;
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
@@ -148,6 +152,10 @@ export default function PieDonutChart({ config }: RendererProps) {
     >
       <div
         style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenuPos({ x: e.clientX, y: e.clientY });
+        }}
       >
         {isLoading && (
           <div
@@ -164,7 +172,30 @@ export default function PieDonutChart({ config }: RendererProps) {
             Loading…
           </div>
         )}
-        <EChart option={option} onEvents={onEvents} />
+        <EChart option={option} onEvents={onEvents} chartRef={chartRef} />
+        {menuPos && (
+          <ContextMenu
+            x={menuPos.x}
+            y={menuPos.y}
+            items={[
+              {
+                label: "Export Chart Image",
+                onClick: () => {
+                  setMenuPos(null);
+                  const url = chartRef.current?.getDataURL({ type: "png", pixelRatio: 2 });
+                  if (url) {
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "chart.png";
+                    a.click();
+                  }
+                },
+              },
+              { label: "Toggle Legend", onClick: () => setMenuPos(null) },
+            ]}
+            onClose={() => setMenuPos(null)}
+          />
+        )}
       </div>
     </ChartLegendLayout>
   );

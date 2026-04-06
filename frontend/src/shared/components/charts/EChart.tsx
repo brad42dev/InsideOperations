@@ -14,6 +14,8 @@ export interface EChartProps {
   width?: number;
   className?: string;
   onEvents?: Record<string, (params: unknown) => void>;
+  /** Exposed chart instance ref for external use (e.g. getDataURL export) */
+  chartRef?: React.MutableRefObject<echarts.ECharts | null>;
 }
 
 const DEFAULT_HEIGHT = "100%";
@@ -34,9 +36,10 @@ export default function EChart({
   width,
   className,
   onEvents,
+  chartRef,
 }: EChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.ECharts | null>(null);
+  const instanceRef = useRef<echarts.ECharts | null>(null);
   const prevOptionJson = useRef<string>("");
   const prevEventsRef = useRef<Record<string, (params: unknown) => void>>({});
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0);
@@ -83,14 +86,15 @@ export default function EChart({
     if (!el) return;
 
     // Dispose any existing instance before creating a new one
-    if (chartRef.current) {
-      chartRef.current.dispose();
-      chartRef.current = null;
+    if (instanceRef.current) {
+      instanceRef.current.dispose();
+      instanceRef.current = null;
       prevOptionJson.current = "";
     }
 
     const chart = echarts.init(el, echartsThemeName);
-    chartRef.current = chart;
+    instanceRef.current = chart;
+    if (chartRef) chartRef.current = chart;
 
     // Apply the current option immediately after init so the correct theme colors
     // are baked in before the separate option effect runs. notMerge: true ensures
@@ -101,7 +105,8 @@ export default function EChart({
 
     return () => {
       chart.dispose();
-      chartRef.current = null;
+      instanceRef.current = null;
+      if (chartRef) chartRef.current = null;
       prevOptionJson.current = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +114,7 @@ export default function EChart({
 
   // Update option when it changes (JSON-equality guard to avoid infinite loops)
   useEffect(() => {
-    const chart = chartRef.current;
+    const chart = instanceRef.current;
     if (!chart) return;
     const json = JSON.stringify(option);
     if (json === prevOptionJson.current) return;
@@ -119,7 +124,7 @@ export default function EChart({
 
   // Register / update event handlers
   useEffect(() => {
-    const chart = chartRef.current;
+    const chart = instanceRef.current;
     if (!chart) return;
 
     // Unbind previous handlers
@@ -137,7 +142,7 @@ export default function EChart({
   // Directly update splitLine color on theme change without waiting for chart reinit.
   // setOption with notMerge:false targets only the grid lines; everything else is unchanged.
   useEffect(() => {
-    const chart = chartRef.current;
+    const chart = instanceRef.current;
     if (!chart) return;
     chart.setOption(
       {
@@ -150,7 +155,7 @@ export default function EChart({
 
   // Resize when dimensions change
   useEffect(() => {
-    const chart = chartRef.current;
+    const chart = instanceRef.current;
     if (!chart) return;
     chart.resize();
   }, [containerWidth, containerHeight, height]);

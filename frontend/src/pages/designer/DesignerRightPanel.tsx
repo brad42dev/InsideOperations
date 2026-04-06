@@ -3619,7 +3619,7 @@ const layerCtxMenuContent: React.CSSProperties = {
   minWidth: 160,
   overflow: "hidden",
   fontSize: 12,
-  zIndex: 1000,
+  zIndex: 1800,
   padding: "3px 0",
 };
 

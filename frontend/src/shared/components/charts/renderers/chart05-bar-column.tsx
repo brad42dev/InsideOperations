@@ -4,10 +4,12 @@
 // combo line overlay, and error bars (±stddev or min/max range per bar).
 // ---------------------------------------------------------------------------
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import * as echarts from "echarts";
 import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
+import ContextMenu from "../../ContextMenu";
 import {
   type ChartConfig,
   autoColor,
@@ -43,6 +45,8 @@ export default function BarColumnChart({ config }: RendererProps) {
   }));
 
   const { highlighted, toggle } = useHighlight();
+  const chartRef = useRef<echarts.ECharts | null>(null);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   const onEvents = useMemo(
     () => ({
@@ -330,6 +334,10 @@ export default function BarColumnChart({ config }: RendererProps) {
     >
       <div
         style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenuPos({ x: e.clientX, y: e.clientY });
+        }}
       >
         {isLoading && (
           <div
@@ -346,7 +354,31 @@ export default function BarColumnChart({ config }: RendererProps) {
             Loading…
           </div>
         )}
-        <EChart option={option} onEvents={onEvents} />
+        <EChart option={option} onEvents={onEvents} chartRef={chartRef} />
+        {menuPos && (
+          <ContextMenu
+            x={menuPos.x}
+            y={menuPos.y}
+            items={[
+              {
+                label: "Export Chart Image",
+                onClick: () => {
+                  setMenuPos(null);
+                  const url = chartRef.current?.getDataURL({ type: "png", pixelRatio: 2 });
+                  if (url) {
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "chart.png";
+                    a.click();
+                  }
+                },
+              },
+              { label: "Toggle Legend", onClick: () => setMenuPos(null) },
+              { label: "Reset Zoom", onClick: () => { setMenuPos(null); chartRef.current?.dispatchAction({ type: "dataZoom", start: 0, end: 100 }); } },
+            ]}
+            onClose={() => setMenuPos(null)}
+          />
+        )}
       </div>
     </ChartLegendLayout>
   );

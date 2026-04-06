@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { graphicsApi } from "../../api/graphics";
 import type { GraphicSummary } from "../../shared/types/graphics";
 import { useAuthStore } from "../../store/auth";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import { showToast } from "../../shared/components/Toast";
 
 // ---------------------------------------------------------------------------
@@ -234,6 +236,7 @@ interface GraphicCardProps {
 function GraphicCard({ graphic, onDelete, canDelete }: GraphicCardProps) {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<GraphicSummary>();
 
   const scopeColor = SCOPE_COLORS[graphic.graphicScope] ?? {
     bg: "rgba(156,163,175,0.12)",
@@ -249,6 +252,7 @@ function GraphicCard({ graphic, onDelete, canDelete }: GraphicCardProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => navigate(`/designer/graphics/${graphic.id}/edit`)}
+      onContextMenu={(e) => handleContextMenu(e, graphic)}
       style={{
         background: "var(--io-surface)",
         border: `1px solid ${hovered ? "var(--io-accent)" : "var(--io-border)"}`,
@@ -408,6 +412,21 @@ function GraphicCard({ graphic, onDelete, canDelete }: GraphicCardProps) {
           {relativeTime(graphic.updatedAt)}
         </div>
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); navigate(`/designer/graphics/${menuState.data!.id}/edit`); } },
+            { label: "Open in New Tab", onClick: () => { closeMenu(); window.open(`/designer/graphics/${menuState.data!.id}/edit`, "_blank"); } },
+            { label: "Edit", onClick: () => { closeMenu(); navigate(`/designer/graphics/${menuState.data!.id}/edit`); } },
+            { label: "Duplicate", permission: "designer:write", onClick: () => { closeMenu(); } },
+            { label: "Export (.iographic)", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, disabled: !canDelete, onClick: () => { closeMenu(); onDelete(menuState.data!.id, menuState.data!.name); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

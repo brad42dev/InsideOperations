@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { roundsApi } from "../../api/rounds";
+import { roundsApi, type RoundSchedule } from "../../api/rounds";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 type RecurrenceType = "per_shift" | "daily" | "interval" | "weekly" | "custom";
 
@@ -91,6 +93,7 @@ export default function RoundSchedules() {
 
   const schedules = schedulesData?.success ? schedulesData.data : [];
   const templates = templatesData?.success ? templatesData.data : [];
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<RoundSchedule>();
 
   const inputStyle: React.CSSProperties = {
     padding: "8px 10px",
@@ -357,6 +360,7 @@ export default function RoundSchedules() {
           {schedules.map((s) => (
             <div
               key={s.id}
+              onContextMenu={(e) => handleContextMenu(e, s)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -429,6 +433,19 @@ export default function RoundSchedules() {
             </div>
           ))}
         </div>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Edit", permission: "rounds:write", onClick: () => { closeMenu(); } },
+            { label: "Run Now", permission: "rounds:write", onClick: () => { closeMenu(); } },
+            { label: "Toggle Enable/Disable", permission: "rounds:write", onClick: () => { closeMenu(); toggleMutation.mutate({ id: menuState.data!.id, active: !menuState.data!.is_active }); } },
+            { label: "Delete", danger: true, divider: true, permission: "rounds:write", onClick: () => { closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

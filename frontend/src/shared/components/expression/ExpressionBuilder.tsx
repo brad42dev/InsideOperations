@@ -34,6 +34,10 @@ import type {
 } from "../../types/expression";
 import { expressionToString } from "./preview";
 import { tilesToAst } from "./ast";
+import {
+  EXPRESSION_TEMPLATES,
+  type ExpressionTemplate,
+} from "./templates";
 import { useAuthStore } from "../../../store/auth";
 import { api } from "../../../api/client";
 import type { PointMeta } from "../../../api/points";
@@ -356,7 +360,8 @@ type Action =
   | { type: "SET_SHARE"; value: boolean }
   | { type: "COPY_SELECTION" }
   | { type: "CUT_SELECTION" }
-  | { type: "PASTE" };
+  | { type: "PASTE" }
+  | { type: "RESET_TILES"; tiles: ExpressionTile[] };
 
 const MAX_HISTORY = 50;
 
@@ -639,6 +644,18 @@ function exprReducer(
       };
     }
 
+    case "RESET_TILES": {
+      return {
+        ...state,
+        tiles: action.tiles,
+        selectedIds: [],
+        cursorParentId: null,
+        cursorIndex: action.tiles.length,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+      };
+    }
+
     default:
       return state;
   }
@@ -657,6 +674,7 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PointMeta[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -664,6 +682,7 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
   }, []);
 
   useEffect(() => {
+    setSelectedIndex(-1);
     if (query.length < 1) {
       setResults([]);
       return;
@@ -671,15 +690,29 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
     setLoading(true);
     const timeout = setTimeout(async () => {
       const res = await api.get<{ data: PointMeta[] }>(
-        `/api/points?q=${encodeURIComponent(query)}&limit=20`,
+        `/api/points?search=${encodeURIComponent(query)}&limit=20`,
       );
       setLoading(false);
       if (res.success) {
-        setResults((res.data as unknown as PointMeta[]) ?? []);
+        setResults((res.data as unknown as { data: PointMeta[] }).data ?? []);
       }
-    }, 250);
+    }, 300);
     return () => clearTimeout(timeout);
   }, [query]);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      onClose();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter" && selectedIndex >= 0 && results[selectedIndex]) {
+      onSelect(results[selectedIndex]);
+    }
+  }
 
   return (
     <div
@@ -700,6 +733,7 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
         ref={inputRef}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="Search points..."
         style={{
           width: "100%",
@@ -725,7 +759,7 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
         </div>
       )}
       <div style={{ maxHeight: "200px", overflowY: "auto", marginTop: "4px" }}>
-        {results.map((p) => (
+        {results.map((p, idx) => (
           <div
             key={p.id}
             onClick={() => onSelect(p)}
@@ -735,20 +769,20 @@ function PointSearchPopover({ onSelect, onClose }: PointSearchPopoverProps) {
               cursor: "pointer",
               fontSize: "13px",
               color: "var(--io-text-primary)",
+              background: idx === selectedIndex ? "var(--io-surface-secondary)" : "transparent",
             }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background =
-                "var(--io-surface-secondary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background =
-                "transparent";
-            }}
+            onMouseEnter={() => setSelectedIndex(idx)}
+            onMouseLeave={() => setSelectedIndex(-1)}
           >
             <div style={{ fontWeight: 500 }}>{p.tagname}</div>
             {p.display_name && (
               <div style={{ fontSize: "11px", color: "var(--io-text-muted)" }}>
                 {p.display_name}
+              </div>
+            )}
+            {p.unit && (
+              <div style={{ fontSize: "11px", color: "var(--io-text-muted)" }}>
+                {p.unit}
               </div>
             )}
           </div>
@@ -2057,11 +2091,21 @@ export function ExpressionBuilder({
     clipboard: null,
   });
 
+  const [leftPanelTab, setLeftPanelTab] = useState<"palette" | "templates">(
+    "palette",
+  );
+  const [templateConfirmId, setTemplateConfirmId] = useState<string | null>(
+    null,
+  );
+
   const [showTest, setShowTest] = useState(false);
   const [testValues, setTestValues] = useState<Record<string, string>>({});
   const [showPreview, setShowPreview] = useState(true);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [benchmarkRunning, setBenchmarkRunning] = useState(false);
+  const [serverChecking, setServerChecking] = useState(false);
+  const [serverResult, setServerResult] = useState<number | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // Cancel-confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -2110,6 +2154,17 @@ export function ExpressionBuilder({
 
   const paletteItems = getPaletteItems(context);
   const paletteGroups = [...new Set(paletteItems.map((p) => p.group))];
+
+  const PALETTE_GROUP_DESCRIPTIONS: Record<string, string> = {
+    Values: "Data inputs — point references and constants",
+    Operators: "Arithmetic operations",
+    Functions: "Math transforms and wrappers",
+    Compare: "Comparison operators (return 1.0 or 0.0)",
+    Boolean: "Logical operators (alarm context only)",
+    Control: "Conditional branching",
+    Time: "Time-based functions (server-evaluated)",
+    Aggregation: "Statistical aggregates over point history",
+  };
 
   const previewStr = expressionToString(state.tiles);
   const pointRefs = collectPointRefs(state.tiles);
@@ -2813,42 +2868,171 @@ export function ExpressionBuilder({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Palette */}
+        {/* Left panel: Palette / Templates tabs */}
         <div
           style={{
             background: "var(--io-surface-secondary)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
-            padding: "10px 12px",
+            overflow: "hidden",
           }}
         >
-          {paletteGroups.map((group) => (
-            <div key={group} style={{ marginBottom: "8px" }}>
-              <div
+          {/* Tab bar */}
+          <div
+            style={{
+              display: "flex",
+              borderBottom: "1px solid var(--io-border)",
+            }}
+          >
+            {(["palette", "templates"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setLeftPanelTab(tab)}
                 style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  color: "var(--io-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: "5px",
+                  flex: 1,
+                  padding: "6px 0",
+                  background:
+                    leftPanelTab === tab
+                      ? "var(--io-surface-elevated)"
+                      : "transparent",
+                  border: "none",
+                  borderBottom:
+                    leftPanelTab === tab
+                      ? "2px solid var(--io-accent)"
+                      : "2px solid transparent",
+                  color:
+                    leftPanelTab === tab
+                      ? "var(--io-accent)"
+                      : "var(--io-text-muted)",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
                 }}
               >
-                {group}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                {paletteItems
-                  .filter((p) => p.group === group)
-                  .map((item) => (
-                    <PaletteTile
-                      key={item.type}
-                      item={item}
-                      onClickAdd={handleAddFromPalette}
-                    />
-                  ))}
-              </div>
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Palette panel */}
+          {leftPanelTab === "palette" && (
+            <div style={{ padding: "10px 12px" }}>
+              {paletteGroups.map((group) => (
+                <div key={group} style={{ marginBottom: "8px" }}>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "var(--io-text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    {group}
+                  </div>
+                  {PALETTE_GROUP_DESCRIPTIONS[group] && (
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--io-text-muted)",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      {PALETTE_GROUP_DESCRIPTIONS[group]}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                    {paletteItems
+                      .filter((p) => p.group === group)
+                      .map((item) => (
+                        <PaletteTile
+                          key={item.type}
+                          item={item}
+                          onClickAdd={handleAddFromPalette}
+                        />
+                      ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Templates panel */}
+          {leftPanelTab === "templates" && (
+            <div style={{ padding: "8px 10px" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "var(--io-text-muted)",
+                  marginBottom: "8px",
+                }}
+              >
+                Click a template to load it into the workspace.
+              </div>
+              {EXPRESSION_TEMPLATES.filter(
+                (t: ExpressionTemplate) =>
+                  t.contexts.includes(context),
+              ).map((tmpl: ExpressionTemplate) => (
+                <button
+                  key={tmpl.id}
+                  onClick={() => {
+                    if (state.tiles.length > 0) {
+                      setTemplateConfirmId(tmpl.id);
+                    } else {
+                      dispatch({
+                        type: "RESET_TILES",
+                        tiles: reassignIds(tmpl.tiles),
+                      });
+                      setLeftPanelTab("palette");
+                    }
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "7px 10px",
+                    marginBottom: "4px",
+                    background: "var(--io-surface-elevated)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "var(--io-radius)",
+                    cursor: "pointer",
+                    color: "var(--io-text-primary)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      marginBottom: "2px",
+                    }}
+                  >
+                    {tmpl.name}
+                  </div>
+                  <div
+                    style={{ fontSize: "11px", color: "var(--io-text-muted)" }}
+                  >
+                    {tmpl.description}
+                  </div>
+                </button>
+              ))}
+              {EXPRESSION_TEMPLATES.filter((t: ExpressionTemplate) =>
+                t.contexts.includes(context),
+              ).length === 0 && (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--io-text-muted)",
+                    textAlign: "center",
+                    padding: "12px 0",
+                  }}
+                >
+                  No templates for this context.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Breadcrumb navigation — shows nesting path when cursor is inside a container */}
@@ -3150,6 +3334,84 @@ export function ExpressionBuilder({
               </span>
             </div>
           )}
+
+          {/* Server Check */}
+          <div
+            style={{
+              marginTop: "12px",
+              paddingTop: "12px",
+              borderTop: "1px solid var(--io-border)",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              style={{
+                ...btnSecondary,
+                padding: "5px 14px",
+                fontSize: "12px",
+                opacity: validation.valid && !serverChecking ? 1 : 0.5,
+              }}
+              disabled={!validation.valid || serverChecking}
+              onClick={async () => {
+                setServerChecking(true);
+                setServerResult(null);
+                setServerError(null);
+                const astNode = tilesToAst(state.tiles, context);
+                const res = await expressionsApi.evaluateInline({
+                  ast: astNode as unknown as Record<string, unknown>,
+                  values: testNumericValues,
+                });
+                setServerChecking(false);
+                if (res.success) {
+                  setServerResult(res.data.result);
+                } else {
+                  setServerError(
+                    "error" in res ? String(res.error) : "Server evaluation failed",
+                  );
+                }
+              }}
+              title="Evaluate this expression on the server using Rhai"
+            >
+              {serverChecking ? "Checking…" : "Server Check"}
+            </button>
+            {serverResult !== null && (
+              <span style={{ fontSize: "13px" }}>
+                <span style={{ color: "var(--io-text-muted)" }}>
+                  Server result:{" "}
+                </span>
+                <span style={{ color: "var(--io-text-primary)", fontWeight: 600 }}>
+                  {serverResult}
+                </span>
+                {benchmarkResult !== null &&
+                  benchmarkResult !== "timeout" &&
+                  Math.abs(serverResult - (benchmarkResult as number)) > 1e-9 && (
+                    <span
+                      style={{
+                        marginLeft: "10px",
+                        color: "var(--io-warning, #d4a017)",
+                        fontWeight: 600,
+                        fontSize: "12px",
+                      }}
+                    >
+                      ⚠ Client and server results differ
+                    </span>
+                  )}
+              </span>
+            )}
+            {serverError && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-danger)",
+                }}
+              >
+                Server error: {serverError}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -3731,6 +3993,103 @@ export function ExpressionBuilder({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {/* ---- Template replace confirmation dialog ---- */}
+      {templateConfirmId !== null && (
+        <Dialog.Root
+          open={templateConfirmId !== null}
+          onOpenChange={(open) => {
+            if (!open) setTemplateConfirmId(null);
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "var(--io-overlay, rgba(0,0,0,0.5))",
+                zIndex: 400,
+              }}
+            />
+            <Dialog.Content
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%,-50%)",
+                background: "var(--io-surface-elevated)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "10px",
+                padding: "24px",
+                width: "380px",
+                maxWidth: "95vw",
+                zIndex: 401,
+                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+              }}
+              aria-describedby="tmpl-confirm-desc"
+            >
+              <Dialog.Title
+                style={{
+                  margin: "0 0 12px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "var(--io-text-primary)",
+                }}
+              >
+                Replace Expression?
+              </Dialog.Title>
+              <Dialog.Description
+                id="tmpl-confirm-desc"
+                style={{
+                  fontSize: "14px",
+                  color: "var(--io-text-secondary)",
+                  marginBottom: "20px",
+                }}
+              >
+                This will replace your current expression with the selected
+                template. Continue?
+              </Dialog.Description>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  style={btnSecondary}
+                  onClick={() => setTemplateConfirmId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={{
+                    ...btnSecondary,
+                    background: "var(--io-accent)",
+                    color: "#fff",
+                    borderColor: "var(--io-accent)",
+                  }}
+                  onClick={() => {
+                    const tmpl = EXPRESSION_TEMPLATES.find(
+                      (t) => t.id === templateConfirmId,
+                    );
+                    if (tmpl) {
+                      dispatch({
+                        type: "RESET_TILES",
+                        tiles: reassignIds(tmpl.tiles),
+                      });
+                      setLeftPanelTab("palette");
+                    }
+                    setTemplateConfirmId(null);
+                  }}
+                >
+                  Replace
+                </button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
     </div>
   );
 }

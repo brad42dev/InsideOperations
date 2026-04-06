@@ -63,6 +63,15 @@ export interface UseTimeSeriesBufferOptions {
   bucketSeconds?: number;
   /** Aggregate function sent to the archive API. Defaults to 'avg'. */
   aggregateType?: AggregateType;
+  /**
+   * OPC UA MinimumSamplingInterval (ms) per point. Points with MSI ≥ 5000 ms
+   * are treated as slow-update (step/hold-last-value) series:
+   *   - Window boundaries are injected into the timestamps array so the line
+   *     always extends to both edges of the chart.
+   *   - Nulls are forward-filled within 2× MSI; gaps beyond that stay null
+   *     (shown as stale in the tooltip).
+   */
+  msiMap?: Map<string, number | null>;
 }
 
 export interface UseTimeSeriesBufferResult {
@@ -79,6 +88,7 @@ export function useTimeSeriesBuffer({
   interpolation = "linear",
   bucketSeconds,
   aggregateType,
+  msiMap,
 }: UseTimeSeriesBufferOptions): UseTimeSeriesBufferResult {
   const buffers = useRef(getBuffers(bufferKey));
   const lastTs = useRef(getLastTs(bufferKey));
@@ -299,7 +309,23 @@ export function useTimeSeriesBuffer({
   const sourceMap: Map<string, RingEntry[]> =
     isHistorical && historicalData ? historicalData : buffers.current;
 
+  // Inject window boundary timestamps for step (slow-update) series so the
+  // forward-fill can reach both the left and right edges of the chart.
+  const hasStepPoints = msiMap
+    ? pointIds.some((id) => (msiMap.get(id) ?? 0)! >= 5000)
+    : false;
+  const windowStartTs = isHistorical
+    ? Math.round(timeRange.start / 1000)
+    : Math.floor(Date.now() / 1000 - durationMinutes * 60);
+  const windowEndTs = isHistorical
+    ? Math.round(timeRange.end / 1000)
+    : Math.floor(Date.now() / 1000);
+
   const allTs = new Set<number>();
+  if (hasStepPoints) {
+    allTs.add(windowStartTs);
+    allTs.add(windowEndTs);
+  }
   pointIds.forEach((id) => {
     const buf = sourceMap.get(id) ?? [];
     buf.forEach((e) => allTs.add(e.ts));
@@ -310,10 +336,36 @@ export function useTimeSeriesBuffer({
   pointIds.forEach((id) => {
     const buf = sourceMap.get(id) ?? [];
     const bufMap = new Map(buf.map((e) => [e.ts, e.v]));
-    seriesData.set(
-      id,
-      timestamps.map((ts) => bufMap.get(ts) ?? null),
+    const msi = msiMap?.get(id) ?? null;
+    const isStep = msi !== null && msi >= 5000;
+
+    let data: (number | null)[] = timestamps.map(
+      (ts) => bufMap.get(ts) ?? null,
     );
+
+    if (isStep && buf.length > 0) {
+      // Forward-fill within 2× MSI. Seed carry with buf[0].v so the line
+      // extends backward to the window start. Positions beyond 2× MSI of the
+      // last real reading return null (tooltip shows stale/grey).
+      const staleWindowSec = (msi * 2) / 1000;
+      let carry: number | null = !isNaN(buf[0].v) ? buf[0].v : null;
+      let carryTs: number = buf[0].ts;
+
+      data = data.map((v, i) => {
+        if (v !== null && !isNaN(v)) {
+          carry = v;
+          carryTs = timestamps[i];
+        }
+        if (carry === null) return null;
+        const dt = timestamps[i] - carryTs;
+        // dt < 0: before first reading → backward-extend to window start
+        // dt >= 0: forward-fill within 2× MSI
+        if (dt <= staleWindowSec) return carry;
+        return null;
+      });
+    }
+
+    seriesData.set(id, data);
   });
 
   // tick is read here to ensure callers re-render when buffers change

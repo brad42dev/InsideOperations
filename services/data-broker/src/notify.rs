@@ -1,5 +1,6 @@
 use crate::{
     cache::ShadowCache,
+    expression_registry::ExpressionRegistry,
     fanout::{fanout_batch, PendingMap},
     registry::{ClientId, SubscriptionRegistry},
     throttle::ThrottleLevel,
@@ -11,6 +12,7 @@ use io_bus::{
     WsServerMessage,
 };
 use io_db::DbPool;
+use sqlx::Row;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -34,6 +36,7 @@ pub async fn run_notify_listener(
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
     user_connections: Arc<DashMap<Uuid, HashSet<ClientId>>>,
     throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
+    expression_registry: Arc<ExpressionRegistry>,
 ) {
     let mut listener: sqlx::postgres::PgListener =
         match sqlx::postgres::PgListener::connect_with(&db).await {
@@ -59,7 +62,12 @@ pub async fn run_notify_listener(
         warn!(error = %e, "Failed to LISTEN on alarm_state_changed channel — alarm broadcasts disabled");
     }
 
-    info!("NOTIFY/LISTEN active on channels 'point_updates', 'export_complete', 'alarm_state_changed'");
+    if let Err(e) = listener.listen("expression_changed").await {
+        // Non-fatal: expression registry won't live-update, but startup load still works.
+        warn!(error = %e, "Failed to LISTEN on expression_changed channel — live expression updates disabled");
+    }
+
+    info!("NOTIFY/LISTEN active on channels 'point_updates', 'export_complete', 'alarm_state_changed', 'expression_changed'");
 
     loop {
         match listener.recv().await {
@@ -80,6 +88,15 @@ pub async fn run_notify_listener(
                                 deadband,
                                 &throttle_states,
                             );
+                            // Evaluate expressions affected by updated points.
+                            for update in &batch.points {
+                                expression_registry.eval_affected_for_update(
+                                    &update.point_id,
+                                    &cache,
+                                    &registry,
+                                    &pending,
+                                );
+                            }
                         }
                         Err(e) => {
                             warn!(error = %e, payload = %payload, "Failed to deserialize point_updates NOTIFY payload");
@@ -90,6 +107,9 @@ pub async fn run_notify_listener(
                     }
                     "alarm_state_changed" => {
                         broadcast_alarm_state_changed(payload, &connections);
+                    }
+                    "expression_changed" => {
+                        handle_expression_changed(payload, &db, &expression_registry).await;
                     }
                     other => {
                         warn!(channel = %other, "Received NOTIFY on unexpected channel — ignoring");
@@ -217,6 +237,81 @@ fn broadcast_alarm_state_changed(
         clients = sent,
         "alarm_state_changed broadcast"
     );
+}
+
+/// Handle a notification on the `expression_changed` channel.
+///
+/// Payload format: `"<uuid>:created"`, `"<uuid>:updated"`, or `"<uuid>:deleted"`.
+/// On created/updated: reload the expression from the DB and update the registry.
+/// On deleted: remove from the registry.
+async fn handle_expression_changed(
+    payload: &str,
+    db: &DbPool,
+    expression_registry: &ExpressionRegistry,
+) {
+    let (id_str, action) = match payload.find(':') {
+        Some(pos) => (&payload[..pos], &payload[pos + 1..]),
+        None => {
+            warn!(payload = %payload, "expression_changed NOTIFY payload malformed — ignoring");
+            return;
+        }
+    };
+
+    let id: Uuid = match id_str.parse() {
+        Ok(u) => u,
+        Err(_) => {
+            warn!(id = %id_str, "expression_changed: invalid UUID — ignoring");
+            return;
+        }
+    };
+
+    match action {
+        "deleted" => {
+            expression_registry.remove_expression(&id);
+            info!(%id, "Expression removed from registry");
+        }
+        "created" | "updated" => {
+            // Re-fetch from DB.
+            let row = sqlx::query(
+                "SELECT expression, referenced_point_ids FROM custom_expressions WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(db)
+            .await;
+
+            match row {
+                Ok(Some(row)) => {
+                    let ast: serde_json::Value = match row.try_get("expression") {
+                        Ok(v) => v,
+                        Err(e) => {
+                            warn!(error = %e, %id, "expression_changed: failed to read expression column");
+                            return;
+                        }
+                    };
+                    let point_ids: Vec<Uuid> = row
+                        .try_get::<Vec<Uuid>, _>("referenced_point_ids")
+                        .unwrap_or_default();
+                    if !point_ids.is_empty() {
+                        expression_registry.load_expression(id, ast, point_ids);
+                        info!(%id, action, "Expression registry updated");
+                    } else {
+                        // No referenced points — remove from registry (evaluation not possible).
+                        expression_registry.remove_expression(&id);
+                    }
+                }
+                Ok(None) => {
+                    // Expression was deleted between notify and fetch.
+                    expression_registry.remove_expression(&id);
+                }
+                Err(e) => {
+                    warn!(error = %e, %id, "expression_changed: DB fetch failed");
+                }
+            }
+        }
+        other => {
+            warn!(action = %other, %id, "expression_changed: unknown action — ignoring");
+        }
+    }
 }
 
 /// Convert a `NotifyPointUpdates` message into the `UdsPointBatch` shape so

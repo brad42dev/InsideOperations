@@ -149,10 +149,11 @@ export const emailApi = {
 
   testProvider: (
     id: string,
+    toAddress: string,
   ): Promise<ApiResult<{ tested: boolean; ok: boolean }>> =>
     api.post<{ tested: boolean; ok: boolean }>(
       `/api/email/providers/${id}/test`,
-      {},
+      { to_address: toAddress },
     ),
 
   // Templates

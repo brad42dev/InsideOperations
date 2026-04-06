@@ -38,7 +38,7 @@ const menuContentStyle: React.CSSProperties = {
   boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
   padding: "4px",
   minWidth: 180,
-  zIndex: 2500,
+  zIndex: 1800,
   animation: "io-dropdown-in 0.1s ease",
 };
 
@@ -273,12 +273,6 @@ export default function PointContextMenu({
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
 
-      <style>{`
-        @keyframes io-dropdown-in {
-          from { opacity: 0; transform: scale(0.96) translateY(-4px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
     </DropdownMenu.Root>
   );
 }

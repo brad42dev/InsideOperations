@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { reportsApi, type ReportTemplate } from "../../api/reports";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Category badge colors
@@ -53,6 +55,7 @@ function ReportTemplateRow({
   onDelete: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ReportTemplate>();
   const formattedDate = new Date(template.created_at).toLocaleDateString(
     undefined,
     {
@@ -80,6 +83,7 @@ function ReportTemplateRow({
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLDivElement).style.background = "transparent";
       }}
+      onContextMenu={(e) => handleContextMenu(e, template)}
     >
       {/* Name + description */}
       <div style={{ minWidth: 0 }}>
@@ -220,6 +224,19 @@ function ReportTemplateRow({
           </>
         )}
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); onEdit(template.id); } },
+            { label: "Open in New Tab", onClick: () => { closeMenu(); window.open(`/designer/reports/${template.id}/edit`, "_blank"); } },
+            { label: "Duplicate", permission: "designer:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, disabled: template.is_system_template, onClick: () => { closeMenu(); onDelete(template.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

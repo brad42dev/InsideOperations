@@ -133,6 +133,12 @@ impl EbrFilter {
     /// Heartbeat: flush pending values whose last-written time is older than
     /// heartbeat_secs. Call on every flush tick to guarantee regularity in the DB
     /// even for signals that hold steady for long periods.
+    ///
+    /// Uses wall-clock `now` as the written timestamp (not the OPC source timestamp).
+    /// OPC servers only advance source_timestamp when the value changes, so for stable
+    /// signals the source timestamp never moves — using it would cause every heartbeat
+    /// write to produce the same (point_id, timestamp) pair and be silently discarded
+    /// by the ON CONFLICT DO NOTHING constraint in write_history_batch.
     fn heartbeat_flush(&mut self, now: chrono::DateTime<chrono::Utc>) -> Vec<PointUpdate> {
         if self.heartbeat_secs == 0 {
             return Vec::new();
@@ -143,15 +149,18 @@ impl EbrFilter {
         for (&point_id, state) in self.state.iter_mut() {
             if let Some(ref p) = state.pending {
                 if state.last_written_ts <= cutoff {
+                    // Use wall-clock now as the timestamp so each heartbeat write lands
+                    // at a unique, advancing timestamp regardless of whether the OPC server
+                    // is repeating the same source_timestamp for an unchanged value.
                     out.push(PointUpdate {
                         point_id,
                         value: p.value,
                         quality: p.quality.clone(),
-                        timestamp: p.timestamp,
+                        timestamp: now,
                     });
                     state.last_written_value = p.value;
                     state.last_written_quality = p.quality.clone();
-                    state.last_written_ts = p.timestamp;
+                    state.last_written_ts = now;
                     state.pending = None;
                 }
             }
@@ -579,6 +588,11 @@ async fn run_source_once(
     // client-side in flush_loop; we no longer apply PercentDeadband at the OPC level.
     harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
 
+    // --- Harvest MinimumSamplingInterval (AttributeId 11) for all variable nodes ---
+    // Declares the OPC server's per-tag update rate (e.g. 1000ms, 300000ms for GC analyzers).
+    // Stored in points_metadata and used by the frontend for step rendering and staleness.
+    harvest_minimum_sampling_intervals(source, db, &session, &node_map).await;
+
     // --- Harvest discrete-type metadata (EnumStrings, TrueState/FalseState) ---
     // Opportunistic — failures are non-fatal.
     harvest_discrete_metadata(source, db, &session, &discrete_nodes).await;
@@ -609,11 +623,23 @@ async fn run_source_once(
             }
         }
 
-        // Step 2: Create new jobs only if nothing is already queued.
+        // Step 2: Create new jobs only if:
+        //   a) nothing is already queued, AND
+        //   b) the raw history table already has data older than 1 hour — meaning
+        //      this is not a first-time startup with an empty DB.  On a fresh install
+        //      there is nothing to recover and the initial 6-hour backfill would just
+        //      pull OPC server history that may not exist.
         let already_queued = db::has_pending_recovery_jobs(db, source.id)
             .await
             .unwrap_or(false);
-        if !already_queued {
+        let has_established_history = db::has_history_older_than(
+            db,
+            source.id,
+            chrono::Duration::hours(1),
+        )
+        .await
+        .unwrap_or(false);
+        if !already_queued && has_established_history {
             let point_ids: Vec<Uuid> = node_map.values().copied().collect();
             let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {
                 Ok(Some(last_ts)) => {
@@ -1256,6 +1282,83 @@ async fn harvest_analog_metadata(
     }
 }
 
+/// Read the `MinimumSamplingInterval` attribute (AttributeId 11) for every variable node
+/// and persist it to `points_metadata.minimum_sampling_interval_ms`.
+///
+/// This attribute is the OPC UA standard mechanism for a server to declare how often a
+/// tag produces a meaningful new value — e.g. 1000 ms for 1 Hz process tags, 300 000 ms
+/// for GC analyzer tags, 3 600 000 ms for hourly lab analyzers.  The frontend uses it to
+/// select step/hold-last-value rendering and to set the per-tag staleness window.
+async fn harvest_minimum_sampling_intervals(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<Session>,
+    node_map: &HashMap<NodeId, Uuid>,
+) {
+    const BATCH: usize = 200;
+    let nodes: Vec<(NodeId, Uuid)> = node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
+    let mut updated = 0usize;
+
+    for chunk in nodes.chunks(BATCH) {
+        let read_requests: Vec<ReadValueId> = chunk
+            .iter()
+            .map(|(node_id, _)| ReadValueId {
+                node_id: node_id.clone(),
+                attribute_id: AttributeId::MinimumSamplingInterval as u32,
+                index_range: NumericRange::None,
+                data_encoding: QualifiedName::null(),
+            })
+            .collect();
+
+        let results = match session
+            .read(&read_requests, TimestampsToReturn::Neither, 0.0)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(
+                    source = %source.name,
+                    error = %e,
+                    "Failed to read MinimumSamplingInterval batch — skipping"
+                );
+                continue;
+            }
+        };
+
+        let mut ids: Vec<uuid::Uuid> = Vec::new();
+        let mut intervals: Vec<f64> = Vec::new();
+
+        for ((_, point_id), dv) in chunk.iter().zip(results.iter()) {
+            if let Some(opcua::types::Variant::Double(ms)) = &dv.value {
+                if *ms > 0.0 {
+                    ids.push(*point_id);
+                    intervals.push(*ms);
+                }
+            }
+        }
+
+        if !ids.is_empty() {
+            match db::update_minimum_sampling_intervals(db, &ids, &intervals).await {
+                Ok(()) => updated += ids.len(),
+                Err(e) => warn!(
+                    source = %source.name,
+                    error = %e,
+                    "Failed to write MinimumSamplingInterval batch"
+                ),
+            }
+        }
+    }
+
+    if updated > 0 {
+        info!(
+            source = %source.name,
+            updated,
+            total = node_map.len(),
+            "MinimumSamplingInterval harvested from OPC server"
+        );
+    }
+}
+
 /// Build (category, labels) from the JSON returned by read_discrete_properties_simblah.
 fn extract_discrete_labels(
     type_name: &str,
@@ -1811,6 +1914,30 @@ async fn create_subscriptions(
                 bad_count = item_results.iter().filter(|r| !r.result.status_code.is_good()).count(),
                 first_bad = %bad_items.join(", "),
                 "Some monitored items returned non-Good status codes"
+            );
+        }
+
+        // Log any items where the server revised the sampling interval significantly
+        // above what we requested — these nodes will update less frequently than expected.
+        let revised_slow: Vec<String> = chunk
+            .iter()
+            .zip(item_results.iter())
+            .filter(|(_, r)| {
+                r.result.status_code.is_good()
+                    && r.result.revised_sampling_interval > (publishing_ms as f64 * 2.0)
+            })
+            .map(|((node_id, _), r)| {
+                format!("{} → {:.0}ms", node_id, r.result.revised_sampling_interval)
+            })
+            .collect();
+        if !revised_slow.is_empty() {
+            warn!(
+                source = %source.name,
+                chunk = chunk_idx,
+                count = revised_slow.len(),
+                items = %revised_slow.join(", "),
+                requested_ms = publishing_ms,
+                "Server revised sampling interval above requested rate for some nodes"
             );
         }
 

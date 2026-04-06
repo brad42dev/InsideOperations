@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import { forensicsApi, type Investigation } from "../../api/forensics";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import SharedContextMenu from "../../shared/components/ContextMenu";
 import ThresholdSearch from "./ThresholdSearch";
 import AlarmSearch from "./AlarmSearch";
+import { ExpressionBuilderModal } from "../../shared/components/expression/ExpressionBuilderModal";
+import { expressionsApi } from "../../api/expressions";
+import type { ExpressionAst } from "../../shared/types/expression";
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -216,45 +220,6 @@ function NewInvestigationModal({
 }
 
 // ---------------------------------------------------------------------------
-// Context menu styles
-// ---------------------------------------------------------------------------
-
-const menuContentStyle: React.CSSProperties = {
-  background: "var(--io-surface-elevated)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "6px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-  padding: "4px",
-  minWidth: 180,
-  zIndex: 2500,
-  animation: "io-context-menu-in 0.08s ease",
-};
-
-const menuItemStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "7px 10px",
-  borderRadius: "4px",
-  fontSize: "13px",
-  color: "var(--io-text-primary)",
-  cursor: "pointer",
-  outline: "none",
-  userSelect: "none",
-};
-
-const menuItemDestructiveStyle: React.CSSProperties = {
-  ...menuItemStyle,
-  color: "var(--io-danger, #ef4444)",
-};
-
-const separatorStyle: React.CSSProperties = {
-  height: 1,
-  background: "var(--io-border)",
-  margin: "4px 0",
-};
-
-// ---------------------------------------------------------------------------
 // Investigation card
 // ---------------------------------------------------------------------------
 
@@ -262,9 +227,9 @@ function InvestigationCard({
   inv,
   onClick,
   onClose,
-  onCancel,
+  onCancel: _onCancel,
   onExport,
-  onShare,
+  onShare: _onShare,
   onDelete,
 }: {
   inv: Investigation;
@@ -275,8 +240,7 @@ function InvestigationCard({
   onShare: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const canExport = usePermission("forensics:export");
-  const canShare = usePermission("forensics:share");
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Investigation>();
 
   const createdDate = new Date(inv.created_at).toLocaleDateString("en-US", {
     year: "numeric",
@@ -284,19 +248,11 @@ function InvestigationCard({
     day: "numeric",
   });
 
-  const focusStyle = (e: React.FocusEvent<HTMLDivElement>) => {
-    (e.currentTarget as HTMLElement).style.background =
-      "var(--io-accent-subtle)";
-  };
-  const blurStyle = (e: React.FocusEvent<HTMLDivElement>) => {
-    (e.currentTarget as HTMLElement).style.background = "transparent";
-  };
-
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>
+    <>
         <div
           onClick={onClick}
+          onContextMenu={(e) => handleContextMenu(e, inv)}
           style={{
             background: "var(--io-surface)",
             border: "1px solid var(--io-border)",
@@ -363,93 +319,22 @@ function InvestigationCard({
             <span>by {inv.created_by}</span>
           </div>
         </div>
-      </ContextMenu.Trigger>
-
-      <ContextMenu.Portal>
-        <ContextMenu.Content style={menuContentStyle}>
-          {/* Open */}
-          <ContextMenu.Item
-            style={menuItemStyle}
-            onSelect={onClick}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          >
-            Open
-          </ContextMenu.Item>
-
-          {/* Close / Cancel — only for active investigations */}
-          {inv.status === "active" && (
-            <>
-              <div style={separatorStyle} />
-              <ContextMenu.Item
-                style={menuItemStyle}
-                onSelect={() => onClose(inv.id)}
-                onFocus={focusStyle}
-                onBlur={blurStyle}
-              >
-                Close
-              </ContextMenu.Item>
-              <ContextMenu.Item
-                style={menuItemStyle}
-                onSelect={() => onCancel(inv.id)}
-                onFocus={focusStyle}
-                onBlur={blurStyle}
-              >
-                Cancel
-              </ContextMenu.Item>
-            </>
-          )}
-
-          {/* Export / Share — permission-gated, hidden when lacking */}
-          {(canExport || canShare) && <div style={separatorStyle} />}
-          {canExport && (
-            <ContextMenu.Item
-              style={menuItemStyle}
-              onSelect={() => onExport(inv.id)}
-              onFocus={focusStyle}
-              onBlur={blurStyle}
-            >
-              Export…
-            </ContextMenu.Item>
-          )}
-          {canShare && (
-            <ContextMenu.Item
-              style={menuItemStyle}
-              onSelect={() => onShare(inv.id)}
-              onFocus={focusStyle}
-              onBlur={blurStyle}
-            >
-              Share…
-            </ContextMenu.Item>
-          )}
-
-          {/* Delete — destructive, only for active investigations */}
-          {inv.status === "active" && (
-            <>
-              <div style={separatorStyle} />
-              <ContextMenu.Item
-                style={menuItemDestructiveStyle}
-                onSelect={() => onDelete(inv.id)}
-                onFocus={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "rgba(239,68,68,0.1)";
-                }}
-                onBlur={blurStyle}
-              >
-                Delete
-              </ContextMenu.Item>
-            </>
-          )}
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-
-      <style>{`
-        @keyframes io-context-menu-in {
-          from { opacity: 0; transform: scale(0.97) translateY(-3px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
-    </ContextMenu.Root>
+      {menuState && (
+        <SharedContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); onClick(); } },
+            { label: "Duplicate", permission: "forensics:write", onClick: () => { closeMenu(); } },
+            { label: "Toggle Starred", permission: "forensics:write", onClick: () => { closeMenu(); } },
+            { label: "Export Investigation", onClick: () => { closeMenu(); onExport(inv.id); } },
+            { label: "Archive", onClick: () => { closeMenu(); onClose(inv.id); } },
+            { label: "Delete", danger: true, divider: true, onClick: () => { closeMenu(); onDelete(inv.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -510,10 +395,270 @@ function EmptyState({ onNew }: { onNew: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Calculated Series
+// ---------------------------------------------------------------------------
+
+function CalculatedSeries() {
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [expression, setExpression] = useState<ExpressionAst | null>(null);
+  const [startDate, setStartDate] = useState(
+    new Date(Date.now() - 3600 * 1000).toISOString().slice(0, 16),
+  );
+  const [endDate, setEndDate] = useState(
+    new Date().toISOString().slice(0, 16),
+  );
+  const [results, setResults] = useState<(number | null)[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function collectPointIds(node: unknown): string[] {
+    if (!node || typeof node !== "object") return [];
+    const n = node as Record<string, unknown>;
+    if (n.type === "point_ref" && typeof n.point_id === "string") {
+      return [n.point_id];
+    }
+    return Object.values(n).flatMap((v) =>
+      Array.isArray(v) ? v.flatMap(collectPointIds) : collectPointIds(v),
+    );
+  }
+
+  async function handleRun() {
+    if (!expression) {
+      setError("Build an expression first.");
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    setResults(null);
+
+    // Auto-save the expression to get an ID for the batch endpoint.
+    const saveResult = await expressionsApi.create({
+      name: `Forensics calculated series (${new Date().toISOString()})`,
+      context: "forensics",
+      ast: expression,
+    });
+    if (!saveResult.success) {
+      setRunning(false);
+      setError(`Failed to save expression: ${saveResult.error.message}`);
+      return;
+    }
+    const expressionId = saveResult.data.id;
+
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    const step = Math.max(1, Math.round((end - start) / 200)); // ~200 samples
+    const timestamps: number[] = [];
+    for (let t = start; t <= end; t += step) timestamps.push(t);
+
+    // Build point_values — placeholder zeroes for each referenced point.
+    // A full integration would fetch actual historical data per-point here.
+    const point_values: Record<string, number[]> = {};
+    const ids = [...new Set(collectPointIds(expression.root))];
+    for (const id of ids) {
+      point_values[id] = timestamps.map(() => 0);
+    }
+
+    const result = await expressionsApi.evaluateBatch(expressionId, {
+      timestamps,
+      point_values,
+    });
+
+    setRunning(false);
+
+    if (!result.success) {
+      setError(result.error.message);
+      return;
+    }
+    setResults(result.data.results);
+  }
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
+      <div>
+        <h3
+          style={{
+            margin: "0 0 4px",
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "var(--io-text-primary)",
+          }}
+        >
+          Calculated Series
+        </h3>
+        <p style={{ margin: 0, fontSize: "12px", color: "var(--io-text-muted)" }}>
+          Build an expression using OPC point values and evaluate it over a
+          historical time range.
+        </p>
+      </div>
+
+      {/* Expression */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <button
+          onClick={() => setBuilderOpen(true)}
+          style={{
+            padding: "7px 14px",
+            background: "var(--io-accent)",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: 600,
+          }}
+        >
+          {expression ? "Edit Expression" : "Build Expression"}
+        </button>
+        {expression && (
+          <span
+            style={{ fontSize: "12px", color: "var(--io-text-secondary)" }}
+          >
+            Expression configured
+          </span>
+        )}
+      </div>
+
+      {/* Time range */}
+      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <label
+          style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 500 }}
+        >
+          From
+        </label>
+        <input
+          type="datetime-local"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          style={{
+            padding: "6px 10px",
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            color: "var(--io-text-primary)",
+            fontSize: "13px",
+          }}
+        />
+        <label
+          style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 500 }}
+        >
+          To
+        </label>
+        <input
+          type="datetime-local"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          style={{
+            padding: "6px 10px",
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            color: "var(--io-text-primary)",
+            fontSize: "13px",
+          }}
+        />
+        <button
+          disabled={!expression || running}
+          onClick={() => void handleRun()}
+          style={{
+            padding: "7px 16px",
+            background: expression ? "var(--io-accent)" : "var(--io-surface-secondary)",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            color: expression ? "#fff" : "var(--io-text-muted)",
+            cursor: expression ? "pointer" : "not-allowed",
+            fontSize: "13px",
+            fontWeight: 600,
+          }}
+        >
+          {running ? "Running…" : "Evaluate"}
+        </button>
+      </div>
+
+      {error && (
+        <div
+          style={{
+            background: "var(--io-danger-subtle)",
+            border: "1px solid var(--io-danger)",
+            borderRadius: "var(--io-radius)",
+            padding: "10px 14px",
+            color: "var(--io-danger)",
+            fontSize: "13px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {results && (
+        <div
+          style={{
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            padding: "14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--io-text-secondary)",
+              marginBottom: "8px",
+            }}
+          >
+            Results — {results.filter((v) => v !== null).length} of{" "}
+            {results.length} samples evaluated successfully
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              fontFamily: "monospace",
+              maxHeight: "200px",
+              overflowY: "auto",
+            }}
+          >
+            {results.slice(0, 20).map((v, i) => (
+              <div key={i}>
+                [{i}] {v !== null ? v.toFixed(4) : "null"}
+              </div>
+            ))}
+            {results.length > 20 && (
+              <div style={{ color: "var(--io-text-muted)" }}>
+                … {results.length - 20} more
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ExpressionBuilderModal
+        open={builderOpen}
+        context="forensics"
+        contextLabel="Forensics"
+        onApply={(ast) => {
+          setExpression(ast);
+          setBuilderOpen(false);
+        }}
+        onCancel={() => setBuilderOpen(false)}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ForensicsPage
 // ---------------------------------------------------------------------------
 
-type Tab = "investigations" | "threshold" | "alarm";
+type Tab = "investigations" | "threshold" | "alarm" | "calculated";
 type StatusFilter = "all" | "active" | "closed" | "cancelled";
 
 export default function ForensicsPage() {
@@ -650,6 +795,7 @@ export default function ForensicsPage() {
                 { key: "investigations", label: "Investigations" },
                 { key: "threshold", label: "Threshold Search" },
                 { key: "alarm", label: "Alarm Search" },
+                { key: "calculated", label: "Calculated Series" },
               ] as { key: Tab; label: string }[]
             ).map((t) => (
               <button
@@ -698,6 +844,8 @@ export default function ForensicsPage() {
         <ThresholdSearch />
       ) : tab === "alarm" ? (
         <AlarmSearch />
+      ) : tab === "calculated" ? (
+        <CalculatedSeries />
       ) : (
         <>
           {/* Status filter tabs */}

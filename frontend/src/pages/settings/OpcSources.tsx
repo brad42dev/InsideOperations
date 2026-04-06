@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -113,114 +115,6 @@ function TableSkeleton({
   );
 }
 
-// ---------------------------------------------------------------------------
-// OpcSourceContextMenu — right-click context menu for OPC source table rows
-// ---------------------------------------------------------------------------
-interface ContextMenuPos {
-  x: number;
-  y: number;
-}
-
-function OpcSourceContextMenu({
-  source,
-  pos,
-  onClose,
-  onEdit,
-  onToggleEnabled,
-  onTestConnection,
-  onDelete,
-}: {
-  source: PointSource;
-  pos: ContextMenuPos;
-  onClose: () => void;
-  onEdit: (s: PointSource) => void;
-  onToggleEnabled: (s: PointSource) => void;
-  onTestConnection: (s: PointSource) => void;
-  onDelete: (s: PointSource) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  const menuStyle: React.CSSProperties = {
-    position: "fixed",
-    top: pos.y,
-    left: pos.x,
-    zIndex: 500,
-    background: "var(--io-surface-elevated)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "var(--io-radius)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    minWidth: "180px",
-    overflow: "hidden",
-    padding: "4px 0",
-  };
-
-  const itemStyle: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    padding: "7px 14px",
-    background: "transparent",
-    border: "none",
-    textAlign: "left",
-    fontSize: "13px",
-    color: "var(--io-text-secondary)",
-    cursor: "pointer",
-  };
-
-  const dangerItemStyle: React.CSSProperties = {
-    ...itemStyle,
-    color: "var(--io-danger)",
-  };
-
-  function menuItem(label: string, action: () => void, danger = false) {
-    return (
-      <button
-        style={danger ? dangerItemStyle : itemStyle}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "var(--io-surface-secondary)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "transparent";
-        }}
-        onClick={() => {
-          action();
-          onClose();
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
-  return (
-    <div ref={ref} style={menuStyle}>
-      {menuItem("Edit", () => onEdit(source))}
-      {source.enabled
-        ? menuItem("Disable Source", () => onToggleEnabled(source))
-        : menuItem("Enable Source", () => onToggleEnabled(source))}
-      {menuItem("Test Connection", () => onTestConnection(source))}
-      {menuItem("Delete", () => onDelete(source), true)}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Client certificate API (GET /api/certificates?type=client)
@@ -2731,10 +2625,7 @@ export default function OpcSourcesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [detailSource, setDetailSource] = useState<PointSource | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{
-    source: PointSource;
-    pos: ContextMenuPos;
-  } | null>(null);
+  const { menuState: opcMenu, handleContextMenu: openOpcMenu, closeMenu: closeOpcMenu } = useContextMenu<PointSource>();
 
   const sourcesQuery = useQuery({
     queryKey: ["point-sources"],
@@ -2792,11 +2683,6 @@ export default function OpcSourcesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["point-sources"] }),
   });
 
-  function handleContextMenu(e: React.MouseEvent, src: PointSource) {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ source: src, pos: { x: e.clientX, y: e.clientY } });
-  }
 
   async function handleTestConnection(src: PointSource) {
     try {
@@ -2930,7 +2816,7 @@ export default function OpcSourcesPage() {
                         : undefined,
                     cursor: "pointer",
                   }}
-                  onContextMenu={(e) => handleContextMenu(e, src)}
+                  onContextMenu={(e) => openOpcMenu(e, src)}
                   onClick={() => {
                     setDetailSource(src);
                     setDetailOpen(true);
@@ -3093,24 +2979,17 @@ export default function OpcSourcesPage() {
         reconnecting={reconnectMutation.isPending}
       />
 
-      {contextMenu && (
-        <OpcSourceContextMenu
-          source={contextMenu.source}
-          pos={contextMenu.pos}
-          onClose={() => setContextMenu(null)}
-          onEdit={(s) => {
-            setEditSource(s);
-            setEditOpen(true);
-          }}
-          onToggleEnabled={(s) => {
-            toggleEnabledMutation.mutate(s);
-          }}
-          onTestConnection={(s) => {
-            handleTestConnection(s);
-          }}
-          onDelete={(s) => {
-            if (confirm(`Delete "${s.name}"?`)) deleteMutation.mutate(s.id);
-          }}
+      {opcMenu && (
+        <ContextMenu
+          x={opcMenu.x}
+          y={opcMenu.y}
+          items={[
+            { label: "Edit", onClick: () => { setEditSource(opcMenu.data!); setEditOpen(true); } },
+            { label: opcMenu.data!.enabled ? "Disable Source" : "Enable Source", onClick: () => toggleEnabledMutation.mutate(opcMenu.data!) },
+            { label: "Test Connection", onClick: () => handleTestConnection(opcMenu.data!) },
+            { label: "Delete", danger: true, divider: true, onClick: () => { if (confirm(`Delete "${opcMenu.data!.name}"?`)) deleteMutation.mutate(opcMenu.data!.id); } },
+          ]}
+          onClose={closeOpcMenu}
         />
       )}
     </div>

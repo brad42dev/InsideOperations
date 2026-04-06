@@ -288,7 +288,7 @@ const ctxMenuContentStyle: React.CSSProperties = {
   minWidth: 200,
   paddingTop: 4,
   paddingBottom: 4,
-  zIndex: 2000,
+  zIndex: 1800,
   animation: "io-context-menu-in 0.08s ease",
 };
 

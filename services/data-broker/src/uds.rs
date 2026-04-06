@@ -1,5 +1,6 @@
 use crate::{
     cache::ShadowCache,
+    expression_registry::ExpressionRegistry,
     fanout::{fanout_batch, PendingMap},
     registry::{ClientId, SubscriptionRegistry},
     throttle::ThrottleLevel,
@@ -25,6 +26,7 @@ pub async fn run_uds_server(
     pending: PendingMap,
     deadband: f64,
     throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
+    expression_registry: Arc<ExpressionRegistry>,
 ) {
     // Ensure parent directory exists.
     if let Some(parent) = std::path::Path::new(&sock_path).parent() {
@@ -56,6 +58,7 @@ pub async fn run_uds_server(
                 let connections = Arc::clone(&connections);
                 let pending = Arc::clone(&pending);
                 let ts = Arc::clone(&throttle_states);
+                let er = Arc::clone(&expression_registry);
                 tokio::spawn(handle_uds_connection(
                     stream,
                     cache,
@@ -64,6 +67,7 @@ pub async fn run_uds_server(
                     pending,
                     deadband,
                     ts,
+                    er,
                 ));
             }
             Err(e) => {
@@ -81,6 +85,7 @@ async fn handle_uds_connection(
     pending: PendingMap,
     deadband: f64,
     throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
+    expression_registry: Arc<ExpressionRegistry>,
 ) {
     let mut buf: Vec<u8> = Vec::with_capacity(65_536);
     let mut read_buf = [0u8; 16_384];
@@ -112,6 +117,7 @@ async fn handle_uds_connection(
                         &pending,
                         deadband,
                         &throttle_states,
+                        &expression_registry,
                     )
                     .await;
                     buf.drain(..consumed);
@@ -135,6 +141,7 @@ async fn dispatch_frame(
     pending: &PendingMap,
     deadband: f64,
     throttle_states: &DashMap<ClientId, ThrottleLevel>,
+    expression_registry: &ExpressionRegistry,
 ) {
     match frame {
         UdsFrame::Data(batch) => {
@@ -147,6 +154,15 @@ async fn dispatch_frame(
                 deadband,
                 throttle_states,
             );
+            // Evaluate any expressions that reference updated points.
+            for update in &batch.points {
+                expression_registry.eval_affected_for_update(
+                    &update.point_id,
+                    cache,
+                    registry,
+                    pending,
+                );
+            }
         }
         UdsFrame::Status(status) => {
             let now = Utc::now().to_rfc3339();

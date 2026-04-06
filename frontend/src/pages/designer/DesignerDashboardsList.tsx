@@ -6,6 +6,8 @@ import { useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { dashboardsApi, type Dashboard } from "../../api/dashboards";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Thumbnail
@@ -79,6 +81,7 @@ const DashboardCard = memo(function DashboardCard({
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Dashboard>();
 
   return (
     <div
@@ -92,6 +95,7 @@ const DashboardCard = memo(function DashboardCard({
         position: "relative",
       }}
       onClick={() => navigate(`/designer/dashboards/${dashboard.id}/edit`)}
+      onContextMenu={(e) => handleContextMenu(e, dashboard)}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.borderColor =
           "var(--io-accent)";
@@ -243,6 +247,19 @@ const DashboardCard = memo(function DashboardCard({
           </p>
         )}
       </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Open", onClick: () => { closeMenu(); onEdit(dashboard.id); } },
+            { label: "Open in New Tab", onClick: () => { closeMenu(); window.open(`/designer/dashboards/${dashboard.id}/edit`, "_blank"); } },
+            { label: "Duplicate", permission: "designer:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, disabled: dashboard.is_system, onClick: () => { closeMenu(); onDelete(dashboard.id); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 });

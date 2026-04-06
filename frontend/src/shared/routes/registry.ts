@@ -119,7 +119,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     path: "/dashboards",
     component: "DashboardsModule",
     permission: "dashboards:read",
-    sidebar_group: "analysis",
+    sidebar_group: "monitoring",
     sidebar_label: "Dashboards",
     sidebar_icon: "LayoutDashboard",
     g_key: "G B",
@@ -182,16 +182,28 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     breadcrumb_root: "Alerts",
     mobile: false,
   },
-  // Management
+  // Operations (continued)
   {
     path: "/shifts",
     component: "ShiftsModule",
     permission: "shifts:read",
-    sidebar_group: "management",
+    sidebar_group: "operations",
     sidebar_label: "Shifts",
     sidebar_icon: "Users",
     g_key: "G H",
     breadcrumb_root: "Shifts",
+    mobile: false,
+  },
+  // Management
+  {
+    path: "/designer",
+    component: "DesignerModule",
+    permission: "designer:read",
+    sidebar_group: "management",
+    sidebar_label: "Designer",
+    sidebar_icon: "PenTool",
+    g_key: "G D",
+    breadcrumb_root: "Designer",
     mobile: false,
   },
   {
@@ -203,17 +215,6 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     sidebar_icon: "Settings",
     g_key: "G S",
     breadcrumb_root: "Settings",
-    mobile: false,
-  },
-  {
-    path: "/designer",
-    component: "DesignerModule",
-    permission: "designer:read",
-    sidebar_group: "management",
-    sidebar_label: "Designer",
-    sidebar_icon: "PenTool",
-    g_key: "G D",
-    breadcrumb_root: "Designer",
     mobile: false,
   },
 ];

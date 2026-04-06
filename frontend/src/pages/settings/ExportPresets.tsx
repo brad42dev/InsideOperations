@@ -7,6 +7,8 @@ import type { ColumnDef } from "../../shared/components/DataTable";
 import { showToast } from "../../shared/components/Toast";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 import SettingsPageLayout from "./SettingsPageLayout";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,6 +32,7 @@ export default function ExportPresets() {
 
   const [deletePreset, setDeletePreset] = useState<ExportPreset | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<ExportPreset>();
 
   // We need to fetch presets across all templates.
   // The API is per-template, so we first fetch all templates, then their presets.
@@ -227,6 +230,7 @@ export default function ExportPresets() {
         rowHeight={40}
         loading={isLoading}
         emptyMessage="No export presets saved yet. Save a preset from the Reports module configuration panel."
+        onRowContextMenu={(e, row) => handleContextMenu(e, row)}
       />
 
       <ConfirmDialog
@@ -244,6 +248,18 @@ export default function ExportPresets() {
           if (deletePreset) deleteMutation.mutate(deletePreset.id);
         }}
       />
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Apply to Report", onClick: () => { closeMenu(); navigate(`/reports?preset=${menuState.data!.id}`); } },
+            { label: "Duplicate", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, onClick: () => { setDeletePreset(menuState.data!); setDeleteOpen(true); closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </SettingsPageLayout>
   );
 }

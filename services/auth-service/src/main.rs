@@ -351,6 +351,15 @@ async fn main() -> anyhow::Result<()> {
             "/expressions/evaluate",
             post(handlers::expressions::evaluate_expression_inline),
         )
+        // NOTE: by-context and by-point must also be before /:id
+        .route(
+            "/expressions/by-context/:ctx",
+            get(handlers::expressions::list_expressions_by_context),
+        )
+        .route(
+            "/expressions/by-point/:point_id",
+            get(handlers::expressions::list_expressions_by_point),
+        )
         .route(
             "/expressions/:id",
             get(handlers::expressions::get_expression),
@@ -544,7 +553,12 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/auth/sms-providers/:id",
-            delete(handlers::sms_mfa::delete_sms_provider),
+            put(handlers::sms_mfa::update_sms_provider)
+                .delete(handlers::sms_mfa::delete_sms_provider),
+        )
+        .route(
+            "/auth/sms-providers/:id/test",
+            post(handlers::sms_mfa::test_sms_provider),
         )
         // SCIM 2.0 (own Bearer auth inside handlers — bypass JWT middleware at gateway)
         .route(

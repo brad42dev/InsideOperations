@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sessionsApi, Session } from "../../api/sessions";
 import type { PaginatedResult } from "../../api/client";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -112,6 +114,7 @@ function AllSessionsTab() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Session>();
 
   const {
     data: result,
@@ -154,6 +157,7 @@ function AllSessionsTab() {
   });
 
   return (
+    <>
     <div>
       {bannerError && <ErrorBanner message={bannerError} />}
 
@@ -226,11 +230,13 @@ function AllSessionsTab() {
               {sessions.map((s, i) => (
                 <tr
                   key={s.id}
+                  onContextMenu={(e) => handleContextMenu(e, s)}
                   style={{
                     borderBottom:
                       i < sessions.length - 1
                         ? "1px solid var(--io-border-subtle)"
                         : undefined,
+                    cursor: "context-menu",
                   }}
                 >
                   <td style={cellStyle}>
@@ -368,6 +374,19 @@ function AllSessionsTab() {
         </div>
       )}
     </div>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          { label: "View Details", onClick: () => { closeMenu(); } },
+          { label: "Revoke Session", danger: true, permission: "users:manage", onClick: () => { closeMenu(); void revokeMutation.mutate(menuState.data!.id); } },
+          { label: "Revoke All for User", danger: true, permission: "users:manage", onClick: () => { closeMenu(); void revokeAllMutation.mutate(menuState.data!.user_id); } },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }
 

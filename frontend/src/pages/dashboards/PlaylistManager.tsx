@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import {
   DndContext,
   PointerSensor,
@@ -365,6 +367,7 @@ export default function PlaylistManager({ onClose }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showNewForm, setShowNewForm] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<Playlist>();
 
   const playlistsQuery = useQuery({
     queryKey: ["playlists"],
@@ -416,6 +419,7 @@ export default function PlaylistManager({ onClose }: Props) {
   const dashboards: Dashboard[] = dashboardsQuery.data ?? [];
 
   return (
+    <>
     <div
       style={{
         position: "fixed",
@@ -502,6 +506,7 @@ export default function PlaylistManager({ onClose }: Props) {
             playlists.map((playlist) => (
               <div
                 key={playlist.id}
+                onContextMenu={(e) => handleContextMenu(e, playlist)}
                 style={{
                   background: "var(--io-surface-secondary)",
                   border: "1px solid var(--io-border)",
@@ -655,5 +660,19 @@ export default function PlaylistManager({ onClose }: Props) {
         </div>
       </div>
     </div>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          { label: "Edit", permission: "dashboards:write", onClick: () => { closeMenu(); } },
+          { label: "Duplicate", permission: "dashboards:write", onClick: () => { closeMenu(); } },
+          { label: "Reorder", permission: "dashboards:write", onClick: () => { closeMenu(); } },
+          { label: "Delete", danger: true, divider: true, permission: "dashboards:write", onClick: () => { closeMenu(); } },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }

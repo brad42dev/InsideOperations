@@ -611,6 +611,7 @@ export default function ProcessPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const canExport = usePermission("process:export");
+  const canExportGraphic = usePermission("designer:export");
 
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((v) => {
@@ -2094,11 +2095,37 @@ export default function ProcessPage() {
                 },
                 {
                   label: "Open in Designer",
+                  divider: true,
                   onClick: () => {
                     if (selectedId)
                       navigate(`/designer/graphics/${selectedId}/edit`);
                   },
                 },
+                ...(canExportGraphic && selectedId
+                  ? [
+                      {
+                        label: "Export Graphic…",
+                        onClick: async () => {
+                          setCanvasCtxMenu(null);
+                          try {
+                            const blob =
+                              await graphicsApi.exportIographic(selectedId);
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${selectedId}.iographic`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch (err) {
+                            console.error(
+                              "[Process] Export graphic failed",
+                              err,
+                            );
+                          }
+                        },
+                      },
+                    ]
+                  : []),
               ]}
             />
           )}

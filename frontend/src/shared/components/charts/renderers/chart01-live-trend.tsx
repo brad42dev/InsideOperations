@@ -7,7 +7,9 @@
 // Saved configs with chartType 2 or 3 are remapped here by ChartRenderer.
 // ---------------------------------------------------------------------------
 
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import ContextMenu from "../../ContextMenu";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
@@ -19,6 +21,7 @@ import {
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { usePlaybackStore } from "../../../../store/playback";
+import { pointsApi } from "../../../../api/points";
 
 interface RendererProps {
   config: ChartConfig;
@@ -35,9 +38,34 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
   const pointIds = seriesSlots.map((p) => p.pointId);
 
   const [viewMode, setViewMode] = useState<ViewMode>("combined");
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
 
   const { mode: playbackMode, timeRange } = usePlaybackStore();
   const isHistorical = playbackMode === "historical";
+
+  // Fetch per-point MSI metadata once (cached forever — tag hardware doesn't change).
+  // Used to detect slow-update tags (GC analyzers etc.) that need step rendering.
+  const { data: msiMap } = useQuery({
+    queryKey: ["point-msi-batch", pointIds.join(",")],
+    queryFn: async () => {
+      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)));
+      const map = new Map<string, number | null>();
+      results.forEach((r, i) => {
+        map.set(
+          pointIds[i],
+          r.success ? (r.data.minimum_sampling_interval_ms ?? null) : null,
+        );
+      });
+      return map;
+    },
+    enabled: pointIds.length > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
 
   const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
     bufferKey,
@@ -46,6 +74,7 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
     interpolation: config.interpolation ?? "linear",
     bucketSeconds: config.aggregateSize,
     aggregateType: config.aggregateType,
+    msiMap,
   });
 
   // Live mode: auto-scrolling window anchored to now.
@@ -62,12 +91,16 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
     ? { min: timeRange.start / 1000, max: timeRange.end / 1000 }
     : liveXRangeRef.current;
 
-  const allSeries: Series[] = seriesSlots.map((slot, i) => ({
-    label: slotLabel(slot),
-    data: seriesData.get(slot.pointId) ?? [],
-    color: slot.color ?? autoColor(i),
-    strokeWidth: 1.5,
-  }));
+  const allSeries: Series[] = seriesSlots.map((slot, i) => {
+    const msi = msiMap?.get(slot.pointId) ?? null;
+    return {
+      label: slotLabel(slot),
+      data: seriesData.get(slot.pointId) ?? [],
+      color: slot.color ?? autoColor(i),
+      strokeWidth: 1.5,
+      ...(msi !== null && msi >= 5000 ? { step: true } : {}),
+    };
+  });
 
   const seriesScales = resolveSeriesScales(
     config.scaling,
@@ -94,6 +127,7 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
           minHeight: 0,
           position: "relative",
         }}
+        onContextMenu={handleContextMenu}
       >
         {/* Toolbar — only shown when there are series to display */}
         {pointIds.length > 0 && (
@@ -253,6 +287,17 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
             ))}
           </div>
         )}
+      {menuPos && (
+        <ContextMenu
+          x={menuPos.x}
+          y={menuPos.y}
+          items={[
+            { label: "Toggle Grid Lines", onClick: () => setMenuPos(null) },
+            { label: "Reset Zoom", onClick: () => setMenuPos(null) },
+          ]}
+          onClose={() => setMenuPos(null)}
+        />
+      )}
       </div>
     </ChartLegendLayout>
   );

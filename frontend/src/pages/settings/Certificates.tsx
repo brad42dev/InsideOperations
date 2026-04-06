@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, getStoredToken } from "../../api/client";
 import type { PaginatedResult } from "../../api/client";
@@ -69,236 +71,6 @@ const textareaStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-// ---------------------------------------------------------------------------
-// CertificateContextMenu — right-click context menu for certificate table rows
-// ---------------------------------------------------------------------------
-interface ContextMenuPos {
-  x: number;
-  y: number;
-}
-
-function CertificateContextMenu({
-  cert,
-  pos,
-  onClose,
-}: {
-  cert: CertInfo;
-  pos: ContextMenuPos;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  const menuStyle: React.CSSProperties = {
-    position: "fixed",
-    top: pos.y,
-    left: pos.x,
-    zIndex: 500,
-    background: "var(--io-surface-elevated)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "var(--io-radius)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    minWidth: "200px",
-    overflow: "hidden",
-    padding: "4px 0",
-  };
-
-  const itemStyle: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    padding: "7px 14px",
-    background: "transparent",
-    border: "none",
-    textAlign: "left",
-    fontSize: "13px",
-    color: "var(--io-text-secondary)",
-    cursor: "pointer",
-  };
-
-  const [detailOpen, setDetailOpen] = useState(false);
-
-  function menuItem(label: string, action: () => void) {
-    return (
-      <button
-        style={itemStyle}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "var(--io-surface-secondary)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background =
-            "transparent";
-        }}
-        onClick={() => {
-          action();
-          onClose();
-        }}
-      >
-        {label}
-      </button>
-    );
-  }
-
-  const API_BASE = import.meta.env.VITE_API_URL ?? "";
-
-  return (
-    <>
-      <div ref={ref} style={menuStyle}>
-        {menuItem("View Details", () => setDetailOpen(true))}
-        {menuItem("Download Certificate", () => {
-          window.location.href = `${API_BASE}/api/certificates/${encodeURIComponent(cert.name)}/download`;
-        })}
-        {menuItem("Copy Fingerprint", () => {
-          // Fingerprint: use subject as identifier since CertInfo doesn't expose fingerprint directly
-          navigator.clipboard.writeText(cert.subject).catch(() => {});
-        })}
-      </div>
-      {detailOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "var(--io-modal-backdrop)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setDetailOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cert-detail-title"
-            style={{
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              padding: "24px",
-              width: "480px",
-              maxWidth: "calc(100vw - 32px)",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "20px",
-              }}
-            >
-              <h3
-                id="cert-detail-title"
-                style={{
-                  margin: 0,
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  color: "var(--io-text-primary)",
-                }}
-              >
-                Certificate Details
-              </h3>
-              <button
-                aria-label="Close"
-                onClick={() => setDetailOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--io-text-muted)",
-                  cursor: "pointer",
-                  fontSize: "18px",
-                  lineHeight: 1,
-                }}
-              >
-                x
-              </button>
-            </div>
-            <dl
-              style={{
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-              }}
-            >
-              {[
-                ["Name", cert.name],
-                ["Subject", cert.subject],
-                ["Issuer", cert.issuer],
-                ["Valid From", formatDate(cert.not_before)],
-                ["Valid Until", formatDate(cert.not_after)],
-                ["Status", statusLabel(cert)],
-                [
-                  "Days Remaining",
-                  cert.is_expired ? "Expired" : `${cert.days_remaining} days`,
-                ],
-                ...(cert.sans.length > 0
-                  ? [["SANs", cert.sans.join(", ")]]
-                  : []),
-              ].map(([label, value]) => (
-                <div key={label} style={{ display: "flex", gap: "12px" }}>
-                  <dt
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      width: "120px",
-                      flexShrink: 0,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    {label}
-                  </dt>
-                  <dd
-                    style={{
-                      margin: 0,
-                      fontSize: "13px",
-                      color: "var(--io-text-primary)",
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: "20px",
-              }}
-            >
-              <button onClick={() => setDetailOpen(false)} style={btnSecondary}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Upload modal
@@ -527,15 +299,8 @@ export default function CertificatesPage() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    cert: CertInfo;
-    pos: ContextMenuPos;
-  } | null>(null);
-
-  function handleContextMenu(e: React.MouseEvent, cert: CertInfo) {
-    e.preventDefault();
-    setContextMenu({ cert, pos: { x: e.clientX, y: e.clientY } });
-  }
+  const { menuState: certMenu, handleContextMenu: openCertMenu, closeMenu: closeCertMenu } = useContextMenu<CertInfo>();
+  const [certDetail, setCertDetail] = useState<CertInfo | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["certificates"],
@@ -666,7 +431,7 @@ export default function CertificatesPage() {
                     borderBottom:
                       "1px solid var(--io-border-subtle, var(--io-border))",
                   }}
-                  onContextMenu={(e) => handleContextMenu(e, cert)}
+                  onContextMenu={(e) => openCertMenu(e, cert)}
                 >
                   {/* Name */}
                   <td
@@ -814,12 +579,57 @@ export default function CertificatesPage() {
         />
       )}
 
-      {contextMenu && (
-        <CertificateContextMenu
-          cert={contextMenu.cert}
-          pos={contextMenu.pos}
-          onClose={() => setContextMenu(null)}
+      {certMenu && (
+        <ContextMenu
+          x={certMenu.x}
+          y={certMenu.y}
+          items={[
+            { label: "View Details", onClick: () => setCertDetail(certMenu.data!) },
+            { label: "Download Certificate", onClick: () => { const base = import.meta.env.VITE_API_URL ?? ""; window.location.href = `${base}/api/certificates/${encodeURIComponent(certMenu.data!.name)}/download`; } },
+            { label: "Copy Fingerprint", onClick: () => { navigator.clipboard.writeText(certMenu.data!.subject).catch(() => {}); } },
+          ]}
+          onClose={closeCertMenu}
         />
+      )}
+
+      {certDetail && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "var(--io-modal-backdrop)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}
+          onClick={() => setCertDetail(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cert-detail-title"
+            style={{ background: "var(--io-surface-elevated)", border: "1px solid var(--io-border)", borderRadius: "var(--io-radius)", padding: "24px", width: "480px", maxWidth: "calc(100vw - 32px)", maxHeight: "80vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h3 id="cert-detail-title" style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--io-text-primary)" }}>Certificate Details</h3>
+              <button aria-label="Close" onClick={() => setCertDetail(null)} style={{ background: "none", border: "none", color: "var(--io-text-muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}>x</button>
+            </div>
+            <dl style={{ margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+              {[
+                ["Name", certDetail.name],
+                ["Subject", certDetail.subject],
+                ["Issuer", certDetail.issuer],
+                ["Valid From", formatDate(certDetail.not_before)],
+                ["Valid Until", formatDate(certDetail.not_after)],
+                ["Status", statusLabel(certDetail)],
+                ["Days Remaining", certDetail.is_expired ? "Expired" : `${certDetail.days_remaining} days`],
+                ...(certDetail.sans.length > 0 ? [["SANs", certDetail.sans.join(", ")]] : []),
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: "flex", gap: "12px" }}>
+                  <dt style={{ fontSize: "12px", fontWeight: 600, color: "var(--io-text-muted)", width: "120px", flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</dt>
+                  <dd style={{ margin: 0, fontSize: "13px", color: "var(--io-text-primary)", wordBreak: "break-all" }}>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
+              <button onClick={() => setCertDetail(null)} style={btnSecondary}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* OPC UA Server Certificates section */}

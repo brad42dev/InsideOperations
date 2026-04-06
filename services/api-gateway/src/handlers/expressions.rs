@@ -33,17 +33,27 @@ use crate::state::AppState;
 pub enum ExprNode {
     /// Numeric or boolean literal: `{ "type": "literal", "value": 42.0 }`
     Literal { value: Value },
-    /// Reference to an OPC point by ID: `{ "type": "point_ref", "point_id": "...", "alias": "x" }`
+    /// Reference to an OPC point by ID.
+    /// Frontend sends `{ "type": "point_ref", "ref_type": "current"|"specific", "point_id": "<uuid>|null" }`.
     PointRef {
-        point_id: String,
-        /// Variable name used in the expression scope (default: the point_id)
+        /// Null/empty when ref_type is "current".
+        #[serde(default)]
+        point_id: Option<String>,
+        /// "current" or "specific" — determines whether point_id is used.
+        #[serde(default)]
+        ref_type: Option<String>,
+        /// Legacy alias field (kept for backwards compat).
         #[serde(default)]
         alias: Option<String>,
     },
     /// Reference to a field on the enclosing entity (round checkpoint / log segment):
-    /// `{ "type": "field_ref", "field": "reading" }`
-    FieldRef { field: String },
-    /// Unary operation: `{ "type": "unary", "op": "-", "operand": {...} }`
+    /// `{ "type": "field_ref", "field_name": "reading" }`
+    FieldRef {
+        /// Frontend sends "field_name"; keep "field" alias for any legacy data.
+        #[serde(alias = "field")]
+        field_name: String,
+    },
+    /// Unary operation: `{ "type": "unary", "op": "negate"|"abs"|..., "operand": {...} }`
     Unary { op: String, operand: Box<ExprNode> },
     /// Binary operation: `{ "type": "binary", "op": "+", "left": {...}, "right": {...} }`
     Binary {
@@ -51,18 +61,29 @@ pub enum ExprNode {
         left: Box<ExprNode>,
         right: Box<ExprNode>,
     },
-    /// Named function call: `{ "type": "function", "name": "abs", "args": [...] }`
-    Function { name: String, args: Vec<ExprNode> },
-    /// Ternary conditional: `{ "type": "conditional", "condition": {...}, "then": {...}, "else": {...} }`
+    /// Named function call: `{ "type": "function", "name": "abs", "args": [...], "params": {...} }`
+    Function {
+        name: String,
+        args: Vec<ExprNode>,
+        /// Optional extra parameters (e.g. `{ "precision": 2 }` for "round").
+        #[serde(default)]
+        params: Option<serde_json::Map<String, Value>>,
+    },
+    /// Ternary conditional.
+    /// Frontend sends `"else_branch"` for the else arm; accept both forms.
     Conditional {
         condition: Box<ExprNode>,
         #[serde(rename = "then")]
         then_branch: Box<ExprNode>,
-        #[serde(rename = "else")]
+        #[serde(rename = "else", alias = "else_branch")]
         else_branch: Box<ExprNode>,
     },
-    /// Parenthesised group (for display): `{ "type": "group", "inner": {...} }`
-    Group { inner: Box<ExprNode> },
+    /// Parenthesised group (for display).
+    /// Frontend sends `"child"`; accept both "child" and "inner".
+    Group {
+        #[serde(alias = "child")]
+        inner: Box<ExprNode>,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -125,13 +146,26 @@ pub fn ast_to_rhai_string(node: &ExprNode) -> String {
             _ => "0.0".to_string(),
         },
 
-        ExprNode::PointRef { point_id, alias } => {
-            // Use the alias if present, otherwise sanitise the point_id to a valid identifier.
-            let var_name = alias.as_deref().unwrap_or(point_id.as_str());
-            sanitize_identifier(var_name)
+        ExprNode::PointRef {
+            point_id,
+            ref_type,
+            alias,
+        } => {
+            // "current" ref_type means the enclosing entity's own point value.
+            let is_current = ref_type.as_deref() == Some("current")
+                || point_id.as_deref().map(|s| s.is_empty()).unwrap_or(true);
+            if is_current {
+                return "current_point".to_string();
+            }
+            // Use explicit alias if provided, otherwise sanitise the point_id.
+            let raw = alias
+                .as_deref()
+                .or(point_id.as_deref())
+                .unwrap_or("current_point");
+            sanitize_identifier(raw)
         }
 
-        ExprNode::FieldRef { field } => sanitize_identifier(field),
+        ExprNode::FieldRef { field_name } => sanitize_identifier(field_name),
 
         ExprNode::Unary { op, operand } => {
             let inner = ast_to_rhai_string(operand);
@@ -158,7 +192,21 @@ pub fn ast_to_rhai_string(node: &ExprNode) -> String {
             format!("(({l}) {rhai_op} ({r}))")
         }
 
-        ExprNode::Function { name, args } => {
+        ExprNode::Function { name, args, params } => {
+            // Special-case: round(x, precision) uses params.precision
+            if name == "round" {
+                let precision = params
+                    .as_ref()
+                    .and_then(|p| p.get("precision"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                let arg = args.first().map(ast_to_rhai_string).unwrap_or_else(|| "0.0".to_string());
+                if precision <= 0 {
+                    return format!("({arg} as f64).round()");
+                }
+                let factor = 10_f64.powi(precision as i32);
+                return format!("(({arg}) * {factor:.1}).round() / {factor:.1}");
+            }
             let args_str: Vec<String> = args.iter().map(ast_to_rhai_string).collect();
             format!("{}({})", sanitize_identifier(name), args_str.join(", "))
         }
@@ -270,7 +318,7 @@ pub async fn evaluate_saved_expression_handler(
     Json(body): Json<EvalByIdRequest>,
 ) -> impl IntoResponse {
     // Fetch the saved expression record.
-    let row = sqlx::query("SELECT ast FROM expressions WHERE id = $1")
+    let row = sqlx::query("SELECT expression FROM custom_expressions WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db)
         .await;
@@ -286,10 +334,10 @@ pub async fn evaluate_saved_expression_handler(
     };
 
     // Parse the stored AST JSON.
-    let ast_value: serde_json::Value = match row.try_get("ast") {
+    let ast_value: serde_json::Value = match row.try_get("expression") {
         Ok(v) => v,
         Err(e) => {
-            return IoError::Internal(format!("failed to read AST column: {e}")).into_response();
+            return IoError::Internal(format!("failed to read expression column: {e}")).into_response();
         }
     };
 
@@ -317,6 +365,99 @@ pub async fn evaluate_saved_expression_handler(
         )
             .into_response(),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Batch evaluation handler
+// ---------------------------------------------------------------------------
+
+/// Request body for batch evaluation of a saved expression over a time series.
+#[derive(Debug, Deserialize)]
+pub struct EvalBatchRequest {
+    /// Unix millisecond timestamps (one per sample).
+    pub timestamps: Vec<i64>,
+    /// Point values keyed by point UUID. Each entry must have the same length
+    /// as `timestamps`.
+    pub point_values: std::collections::HashMap<String, Vec<f64>>,
+}
+
+/// `POST /api/expressions/:id/evaluate-batch`
+///
+/// Evaluate a saved expression over a historical time series.
+/// The caller supplies parallel arrays of timestamps and per-point values;
+/// the expression is evaluated independently for each sample index.
+pub async fn evaluate_batch_handler(
+    State(state): State<AppState>,
+    _claims: axum::Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<EvalBatchRequest>,
+) -> impl IntoResponse {
+    // Validate that all value arrays have the same length as timestamps.
+    let n = body.timestamps.len();
+    for (key, vals) in &body.point_values {
+        if vals.len() != n {
+            return (
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error": format!(
+                        "point_values[{key}] has {} entries but timestamps has {n}",
+                        vals.len()
+                    )
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    // Fetch the saved expression AST from the database.
+    let row = sqlx::query("SELECT expression FROM custom_expressions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("expression {id}")).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let ast_value: serde_json::Value = match row.try_get("expression") {
+        Ok(v) => v,
+        Err(e) => {
+            return IoError::Internal(format!("failed to read expression column: {e}")).into_response()
+        }
+    };
+
+    let ast: ExprNode = match serde_json::from_value(ast_value) {
+        Ok(a) => a,
+        Err(e) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("AST parse error: {e}") })),
+            )
+                .into_response()
+        }
+    };
+
+    let expr_str = ast_to_rhai_string(&ast);
+
+    // Evaluate expression for each sample index.
+    let results: Vec<Option<f64>> = (0..n)
+        .map(|i| {
+            let mut values: std::collections::HashMap<String, f64> =
+                std::collections::HashMap::new();
+            for (key, vals) in &body.point_values {
+                values.insert(key.clone(), vals[i]);
+            }
+            evaluate_expression(&expr_str, &values).ok()
+        })
+        .collect();
+
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({ "results": results })),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -348,7 +489,8 @@ mod tests {
     #[test]
     fn point_ref_alias() {
         let node = ExprNode::PointRef {
-            point_id: "tag.PV".to_string(),
+            point_id: Some("tag.PV".to_string()),
+            ref_type: Some("specific".to_string()),
             alias: Some("pv".to_string()),
         };
         assert_eq!(ast_to_rhai_string(&node), "pv");
@@ -357,7 +499,8 @@ mod tests {
     #[test]
     fn point_ref_no_alias_sanitises() {
         let node = ExprNode::PointRef {
-            point_id: "ns=2;s=Tank.Level".to_string(),
+            point_id: Some("ns=2;s=Tank.Level".to_string()),
+            ref_type: Some("specific".to_string()),
             alias: None,
         };
         // Semicolons and dots should be replaced with underscores
@@ -392,6 +535,7 @@ mod tests {
         let node = ExprNode::Function {
             name: "abs".to_string(),
             args: vec![lit(-1.0)],
+            params: None,
         };
         let s = ast_to_rhai_string(&node);
         assert!(s.starts_with("abs("));

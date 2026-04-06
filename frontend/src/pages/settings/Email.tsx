@@ -22,6 +22,154 @@ import {
 } from "../../api/email";
 
 // ---------------------------------------------------------------------------
+// Test email dialog
+// ---------------------------------------------------------------------------
+
+function TestEmailDialog({
+  providerId,
+  providerName,
+  onClose,
+}: {
+  providerId: string;
+  providerName: string;
+  onClose: () => void;
+}) {
+  const [toAddress, setToAddress] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
+  const testMutation = useMutation({
+    mutationFn: (addr: string) => emailApi.testProvider(providerId, addr),
+    onSuccess: (res) => {
+      if (res.success && res.data.ok) {
+        setResult({ ok: true, message: "Test email sent successfully." });
+      } else {
+        setResult({
+          ok: false,
+          message: res.success ? "Provider reported a failure." : res.error.message,
+        });
+      }
+    },
+    onError: (e: Error) => setResult({ ok: false, message: e.message }),
+  });
+
+  return (
+    <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "var(--io-modal-backdrop)",
+            zIndex: 200,
+          }}
+        />
+        <Dialog.Content
+          aria-describedby={undefined}
+          style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            padding: "24px",
+            width: "400px",
+            zIndex: 201,
+          }}
+        >
+          <Dialog.Title
+            style={{
+              margin: "0 0 6px",
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
+            Send Test Email
+          </Dialog.Title>
+          <p
+            style={{
+              margin: "0 0 18px",
+              fontSize: "13px",
+              color: "var(--io-text-secondary)",
+            }}
+          >
+            Sends a test message through{" "}
+            <strong style={{ color: "var(--io-text-primary)" }}>
+              {providerName}
+            </strong>{" "}
+            to verify connectivity and credentials.
+          </p>
+
+          <div>
+            <label style={labelStyle}>Recipient address</label>
+            <input
+              style={inputStyle}
+              type="email"
+              value={toAddress}
+              onChange={(e) => {
+                setToAddress(e.target.value);
+                setResult(null);
+              }}
+              placeholder="you@example.com"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && toAddress.trim())
+                  testMutation.mutate(toAddress.trim());
+              }}
+              autoFocus
+            />
+          </div>
+
+          {result && (
+            <div
+              style={{
+                marginTop: "14px",
+                padding: "10px 12px",
+                borderRadius: "var(--io-radius)",
+                background: result.ok
+                  ? "color-mix(in srgb, var(--io-success) 12%, transparent)"
+                  : "color-mix(in srgb, var(--io-danger) 12%, transparent)",
+                border: `1px solid ${result.ok ? "var(--io-success)" : "var(--io-danger)"}`,
+                color: result.ok ? "var(--io-success)" : "var(--io-danger)",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              {result.ok ? "✓ " : "✗ "}
+              {result.message}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "10px",
+              marginTop: "20px",
+            }}
+          >
+            <button style={btnSecondary} onClick={onClose}>
+              Close
+            </button>
+            <button
+              style={btnPrimary}
+              onClick={() => testMutation.mutate(toAddress.trim())}
+              disabled={testMutation.isPending || !toAddress.trim()}
+            >
+              {testMutation.isPending ? "Sending…" : "Send Test Email"}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
 
@@ -67,6 +215,10 @@ function ProvidersTab() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editProvider, setEditProvider] = useState<EmailProvider | null>(null);
+  const [testTarget, setTestTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
     name: string;
@@ -83,11 +235,6 @@ function ProvidersTab() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => emailApi.deleteProvider(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-providers"] }),
-  });
-
-  const testMutation = useMutation({
-    mutationFn: (id: string) => emailApi.testProvider(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["email-providers"] }),
   });
 
@@ -195,8 +342,7 @@ function ProvidersTab() {
                 <td style={{ ...cellStyle, display: "flex", gap: "8px" }}>
                   <button
                     style={btnSecondary}
-                    onClick={() => testMutation.mutate(p.id)}
-                    disabled={testMutation.isPending}
+                    onClick={() => setTestTarget({ id: p.id, name: p.name })}
                   >
                     Test
                   </button>
@@ -229,6 +375,17 @@ function ProvidersTab() {
         />
       )}
 
+      {testTarget && (
+        <TestEmailDialog
+          providerId={testTarget.id}
+          providerName={testTarget.name}
+          onClose={() => {
+            setTestTarget(null);
+            qc.invalidateQueries({ queryKey: ["email-providers"] });
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={!!deleteConfirm}
         onOpenChange={(open) => {
@@ -248,6 +405,415 @@ function ProvidersTab() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Provider config field definitions
+// ---------------------------------------------------------------------------
+
+interface ConfigField {
+  key: string;
+  label: string;
+  type: "text" | "password" | "number" | "select" | "textarea" | "checkbox";
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  defaultValue?: string;
+  optional?: boolean;
+  hint?: string;
+  showWhen?: (f: Record<string, string>) => boolean;
+  /** Column span out of 12. Defaults to 12 (full row). */
+  gridSpan?: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 12;
+}
+
+interface SetupGuide {
+  title: string;
+  steps: string[];
+}
+
+const SECRET_KEYS = new Set([
+  "password",
+  "client_secret",
+  "secret_access_key",
+  "service_account_key",
+  "auth_value",
+]);
+
+const PROVIDER_FIELDS: Record<string, ConfigField[]> = {
+  smtp: [
+    { key: "host", label: "SMTP Host", type: "text", placeholder: "smtp.example.com", gridSpan: 9 },
+    { key: "port", label: "Port", type: "number", defaultValue: "587", placeholder: "587", gridSpan: 3 },
+    {
+      key: "tls_mode",
+      label: "TLS Mode",
+      type: "select",
+      defaultValue: "starttls",
+      gridSpan: 6,
+      options: [
+        { value: "starttls", label: "STARTTLS (port 587)" },
+        { value: "implicit_tls", label: "Implicit TLS / SSL (port 465)" },
+        { value: "none", label: "None — plaintext (not recommended)" },
+      ],
+    },
+    {
+      key: "auth_method",
+      label: "Auth Method",
+      type: "select",
+      defaultValue: "plain",
+      gridSpan: 6,
+      options: [
+        { value: "plain", label: "PLAIN" },
+        { value: "login", label: "LOGIN" },
+        { value: "none", label: "None (unauthenticated relay)" },
+      ],
+    },
+    {
+      key: "username",
+      label: "Username",
+      type: "text",
+      placeholder: "user@example.com",
+      gridSpan: 7,
+      showWhen: (f) => f.auth_method !== "none",
+    },
+    {
+      key: "password",
+      label: "Password",
+      type: "password",
+      gridSpan: 5,
+      showWhen: (f) => f.auth_method !== "none",
+    },
+    {
+      key: "connection_pool_size",
+      label: "Connection Pool Size",
+      type: "number",
+      placeholder: "5",
+      optional: true,
+      gridSpan: 4,
+      hint: "Leave blank to use the default.",
+    },
+  ],
+  smtp_xoauth2: [
+    {
+      key: "host",
+      label: "SMTP Host",
+      type: "text",
+      defaultValue: "smtp.office365.com",
+      placeholder: "smtp.office365.com",
+      gridSpan: 9,
+    },
+    { key: "port", label: "Port", type: "number", defaultValue: "587", placeholder: "587", gridSpan: 3 },
+    {
+      key: "tls_mode",
+      label: "TLS Mode",
+      type: "select",
+      defaultValue: "starttls",
+      gridSpan: 4,
+      options: [
+        { value: "starttls", label: "STARTTLS" },
+        { value: "implicit_tls", label: "Implicit TLS" },
+      ],
+    },
+    { key: "username", label: "Username (sender email)", type: "text", placeholder: "sender@yourdomain.com", gridSpan: 8 },
+    {
+      key: "token_endpoint",
+      label: "Token Endpoint",
+      type: "text",
+      placeholder: "https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token",
+    },
+    { key: "client_id", label: "Client ID (Application ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 7 },
+    { key: "client_secret", label: "Client Secret", type: "password", gridSpan: 5 },
+    {
+      key: "scope",
+      label: "Scope",
+      type: "text",
+      defaultValue: "https://outlook.office365.com/.default",
+      placeholder: "https://outlook.office365.com/.default",
+    },
+  ],
+  ms_graph: [
+    { key: "tenant_id", label: "Tenant ID (Directory ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 6 },
+    { key: "client_id", label: "Client ID (Application ID)", type: "text", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", gridSpan: 6 },
+    { key: "client_secret", label: "Client Secret", type: "password", gridSpan: 5 },
+    { key: "send_as_user", label: "Send-As User (UPN)", type: "text", placeholder: "noreply@yourdomain.com", gridSpan: 7 },
+    { key: "save_to_sent", label: "Save to Sent Items", type: "checkbox", defaultValue: "true", gridSpan: 4 },
+  ],
+  gmail: [
+    {
+      key: "service_account_key",
+      label: "Service Account Key (JSON)",
+      type: "textarea",
+      placeholder: '{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}',
+      hint: "Paste the entire contents of the downloaded JSON key file.",
+    },
+    { key: "send_as_user", label: "Send-As User", type: "text", placeholder: "noreply@yourdomain.com", gridSpan: 7 },
+    { key: "domain", label: "Google Workspace Domain", type: "text", placeholder: "yourdomain.com", gridSpan: 5 },
+  ],
+  ses: [
+    { key: "access_key_id", label: "Access Key ID", type: "text", placeholder: "AKIAIOSFODNN7EXAMPLE", gridSpan: 7 },
+    { key: "secret_access_key", label: "Secret Access Key", type: "password", gridSpan: 5 },
+    { key: "region", label: "AWS Region", type: "text", placeholder: "us-east-1", gridSpan: 4 },
+    {
+      key: "configuration_set",
+      label: "Configuration Set",
+      type: "text",
+      placeholder: "my-config-set",
+      optional: true,
+      gridSpan: 8,
+      hint: "Optional. Use to track sending events (bounces, opens).",
+    },
+  ],
+  webhook: [
+    { key: "url", label: "Webhook URL", type: "text", placeholder: "https://hooks.example.com/..." },
+    {
+      key: "method",
+      label: "HTTP Method",
+      type: "select",
+      defaultValue: "POST",
+      gridSpan: 4,
+      options: [
+        { value: "POST", label: "POST" },
+        { value: "GET", label: "GET" },
+        { value: "PUT", label: "PUT" },
+      ],
+    },
+    {
+      key: "auth_type",
+      label: "Authentication",
+      type: "select",
+      defaultValue: "none",
+      gridSpan: 8,
+      options: [
+        { value: "none", label: "None" },
+        { value: "bearer", label: "Bearer Token" },
+        { value: "basic", label: "Basic Auth (user:password)" },
+        { value: "api_key_header", label: "API Key Header" },
+      ],
+    },
+    {
+      key: "header_name",
+      label: "Header Name",
+      type: "text",
+      placeholder: "X-API-Key",
+      gridSpan: 5,
+      showWhen: (f) => f.auth_type === "api_key_header",
+    },
+    {
+      key: "auth_value",
+      label: "Auth Value",
+      type: "password",
+      gridSpan: 7,
+      showWhen: (f) => f.auth_type !== "none",
+      hint: "Bearer: token value. Basic: user:password. API Key: key value.",
+    },
+    {
+      key: "payload_template",
+      label: "Payload Template (MiniJinja)",
+      type: "textarea",
+      optional: true,
+      placeholder: '{"text": "{{ subject }}"}',
+      hint: "Optional. Override the default payload. Variables: subject, body_text, context_type, context_id.",
+    },
+  ],
+};
+
+type SmtpHelpKey = "microsoft365" | "gmail_app_password" | "sendgrid" | "mailgun" | "postmark" | "other";
+type WebhookHelpKey = "slack" | "teams" | "pagerduty" | "other";
+
+const SMTP_GUIDES: Record<SmtpHelpKey, SetupGuide> = {
+  microsoft365: {
+    title: "Microsoft 365 — SMTP AUTH",
+    steps: [
+      "Sign in to `admin.microsoft.com` (Microsoft 365 Admin Center).",
+      "Go to Settings → Org settings → Services → Modern authentication. Confirm that SMTP AUTH is not globally disabled — if it is, enable it there.",
+      "Enable SMTP AUTH for the sending mailbox: open Exchange Admin Center at `admin.exchange.microsoft.com` → Recipients → Mailboxes → select the mailbox → Manage email apps → toggle on Authenticated SMTP. Save.",
+      "In I/O set: Host `smtp.office365.com` · Port `587` · TLS Mode `STARTTLS`.",
+      "Username: the full mailbox address (e.g. `noreply@contoso.com`). Password: the account password.",
+      "If MFA is enabled on the account: go to `myaccount.microsoft.com` → Security info → App passwords → Add sign-in method → App password. Generate one and use it as the password here instead.",
+    ],
+  },
+  gmail_app_password: {
+    title: "Gmail — App Password",
+    steps: [
+      "Enable 2-Step Verification on the sending account: go to `myaccount.google.com` → Security → How you sign in to Google → 2-Step Verification → Get started.",
+      "Create an App Password: `myaccount.google.com` → Security → How you sign in to Google → App passwords (visible only after 2-Step Verification is on).",
+      "In the App passwords dialog, choose app: Mail and device: Other (custom name). Click Generate. Copy the 16-character password — it won't be shown again.",
+      "In I/O set: Host `smtp.gmail.com` · Port `587` · TLS Mode `STARTTLS`.",
+      "Username: the full Gmail address (e.g. `sender@gmail.com`). Password: the 16-character app password (enter without spaces).",
+      "Note: the legacy 'Less secure apps' setting is deprecated and no longer works. Only App Passwords or XOAUTH2 are supported.",
+    ],
+  },
+  sendgrid: {
+    title: "SendGrid — SMTP Relay",
+    steps: [
+      "Log in to `app.sendgrid.com` and navigate to Settings → API Keys → Create API Key.",
+      "Choose Restricted Access. Under Mail Send, set Full Access. Click Create & View and copy the key immediately — it is only shown once.",
+      "Authenticate your sender domain: go to Settings → Sender Authentication → Authenticate Your Domain. Follow the instructions to add CNAME records in your DNS provider. Delivery rates improve significantly after verification.",
+      "In I/O set: Host `smtp.sendgrid.net` · Port `587` · TLS Mode `STARTTLS`.",
+      "Username: `apikey` (the literal string, not your SendGrid username). Password: the API key value you copied.",
+    ],
+  },
+  mailgun: {
+    title: "Mailgun — SMTP",
+    steps: [
+      "Log in to `app.mailgun.com` and go to Sending → Domains → select or add your sending domain.",
+      "On the domain page, click SMTP credentials to view or create credentials for this domain.",
+      "Verify your domain DNS: Mailgun lists required TXT, MX, and CNAME records. Add them via your domain registrar. Verification can take a few hours.",
+      "In I/O set: Host `smtp.mailgun.org` · Port `587` · TLS `STARTTLS`. For EU region use host `smtp.eu.mailgun.org`.",
+      "Username: your SMTP login from Mailgun (e.g. `postmaster@mg.yourdomain.com`). Password: the password shown in Mailgun's SMTP credentials panel.",
+    ],
+  },
+  postmark: {
+    title: "Postmark — SMTP",
+    steps: [
+      "Log in to `account.postmarkapp.com`. Go to Servers → select or create a server → open the API Tokens tab.",
+      "Copy the Server API Token shown on that page.",
+      "Verify a sender signature or domain: go to Sender Signatures → Add Domain or Signature, enter your from-address domain, and follow the DNS verification steps.",
+      "In I/O set: Host `smtp.postmarkapp.com` · Port `587` · TLS `STARTTLS`.",
+      "Both Username and Password fields are set to your Server API Token — the exact same value in both fields.",
+    ],
+  },
+  other: {
+    title: "Generic SMTP",
+    steps: [
+      "Obtain your SMTP hostname, port, and credentials from your email provider's documentation or hosting control panel.",
+      "Port `587` with STARTTLS is the most common setup for authenticated submission. Port `465` uses Implicit TLS (SSL) — choose based on your provider's instructions.",
+      "For internal relay servers (e.g. a local SMTP relay that trusts your server's IP) you can set Auth Method to None. Only do this on trusted internal networks.",
+      "If your provider requires OAuth2 authentication (common with Microsoft 365 and Google Workspace enterprise accounts), use the SMTP + XOAUTH2 provider type instead of plain SMTP.",
+    ],
+  },
+};
+
+const WEBHOOK_GUIDES: Record<WebhookHelpKey, SetupGuide> = {
+  slack: {
+    title: "Slack — Incoming Webhook",
+    steps: [
+      "Go to `api.slack.com/apps` and click Create New App → From scratch. Give it a name and select your workspace.",
+      "In the app's left sidebar, click Incoming Webhooks. Toggle Activate Incoming Webhooks to On.",
+      "Click Add New Webhook to Workspace, choose the channel to post alerts to, and click Allow. Copy the webhook URL shown.",
+      "In I/O, paste the webhook URL in the Webhook URL field. Set Auth Type to `None` — Slack embeds auth in the URL itself.",
+      "Optional — customize the payload: Slack expects a JSON body with a `text` field, e.g. `{\"text\": \"{{ subject }}\\n{{ body_text }}\"}`. Enter this in the Payload Template field.",
+    ],
+  },
+  teams: {
+    title: "Microsoft Teams — Incoming Webhook",
+    steps: [
+      "In Microsoft Teams, navigate to the channel you want to receive alerts in.",
+      "Click the ⋯ (More options) button next to the channel name → Connectors (or Workflows, depending on your Teams version).",
+      "Find Incoming Webhook in the connectors list and click Configure. Give it a name, optionally upload an image, and click Create.",
+      "Copy the webhook URL shown. Click Done to close the dialog.",
+      "In I/O, paste the URL in the Webhook URL field. Set Auth Type to `None` — Teams uses URL-embedded authentication.",
+      "Note: Microsoft is deprecating classic Office 365 Connectors. If Connectors are unavailable, use the Teams Workflows app to create an incoming webhook instead.",
+    ],
+  },
+  pagerduty: {
+    title: "PagerDuty — Events API v2",
+    steps: [
+      "Log in to PagerDuty and go to Services → Service Directory. Select the service that should receive these alerts (or create a new one).",
+      "Open the Integrations tab for that service and click Add integration. Search for Events API V2 and add it.",
+      "Copy the Integration Key from the integration's detail page.",
+      "In I/O set Webhook URL to `https://events.pagerduty.com/v2/enqueue` and HTTP Method to `POST`.",
+      "Set Auth Type to `Bearer` and paste the Integration Key as the token value.",
+      "Use the Payload Template to format a valid PagerDuty v2 event, including the `routing_key`, `event_action` (e.g. `trigger`), and `payload` object fields.",
+    ],
+  },
+  other: {
+    title: "Generic Webhook",
+    steps: [
+      "Enter the full HTTPS URL of your webhook endpoint in the Webhook URL field.",
+      "Choose the HTTP method — `POST` is standard for virtually all webhook receivers.",
+      "Select the authentication method your endpoint requires: None, Bearer Token, Basic Auth (`user:password`), or API Key Header.",
+      "If using API Key Header: set the Header Name to what your endpoint expects (e.g. `X-API-Key`) and enter the key value in Auth Value.",
+      "Use the Payload Template field (MiniJinja syntax) to shape the request body for your endpoint. Available variables: `subject`, `body_text`, `context_type`, `context_id`.",
+    ],
+  },
+};
+
+const STATIC_GUIDES: Record<string, SetupGuide> = {
+  smtp_xoauth2: {
+    title: "Microsoft 365 — SMTP + OAuth2 (XOAUTH2)",
+    steps: [
+      "Go to `portal.azure.com` → Microsoft Entra ID (or Azure Active Directory) → App registrations → New registration.",
+      "Give the app a name (e.g. `IO-SMTP-OAuth`). Set Supported account types to Accounts in this organizational directory only. Click Register.",
+      "In the app, go to API permissions → Add a permission → APIs my organization uses → search `Office 365 Exchange Online` → Delegated permissions → enable `SMTP.Send`. Click Add permissions.",
+      "Click Grant admin consent for [your tenant] and confirm. The status column should show a green checkmark.",
+      "Go to Certificates & secrets → Client secrets → New client secret. Enter a description, set an expiry, and click Add. Copy the Value column immediately — it is hidden after you navigate away.",
+      "From the app's Overview page, copy the Application (client) ID and Directory (tenant) ID into I/O.",
+      "Token endpoint: `https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token` (replace `{tenant-id}` with your Directory ID).",
+      "Scope: `https://outlook.office365.com/.default`",
+    ],
+  },
+  ms_graph: {
+    title: "Microsoft Graph API — Azure AD App Registration",
+    steps: [
+      "Go to `portal.azure.com` → Microsoft Entra ID → App registrations → New registration.",
+      "Name the app (e.g. `IO-Mail-Send`). Set Supported account types to Accounts in this organizational directory only. Click Register.",
+      "In the app, go to API permissions → Add a permission → Microsoft Graph → Application permissions (not Delegated).",
+      "Search for and enable `Mail.Send`. Click Add permissions, then Grant admin consent for [your tenant] and confirm.",
+      "Go to Certificates & secrets → Client secrets → New client secret. Set a description and expiry, click Add. Copy the Value immediately — it is only shown once.",
+      "From the app Overview, copy the Application (client) ID and the Directory (tenant) ID into I/O.",
+      "Set Send-As User to the UPN (email address) of the mailbox to send from, e.g. `noreply@yourdomain.com`. This mailbox must have an Exchange Online license assigned in Microsoft 365.",
+    ],
+  },
+  gmail: {
+    title: "Gmail API — Google Workspace Service Account",
+    steps: [
+      "Open the Google Cloud Console at `console.cloud.google.com`. Select or create a project for this integration.",
+      "Enable the Gmail API: navigate to APIs & Services → Library → search Gmail API → click Enable.",
+      "Create a service account: go to IAM & Admin → Service Accounts → Create service account. Give it a name and click Done.",
+      "Enable domain-wide delegation: click the service account → Details tab → Advanced settings → Enable G Suite Domain-wide Delegation. Save.",
+      "Create a JSON key: on the service account, go to Keys → Add Key → Create new key → JSON. The file downloads automatically. Keep it secure.",
+      "In the Google Workspace Admin Console at `admin.google.com`: Security → Access and data control → API controls → Domain-wide Delegation → Add new.",
+      "Enter the service account's numeric Client ID (found in the service account details) and add scope `https://mail.google.com/`. Click Authorize.",
+      "Paste the entire contents of the downloaded JSON key file into the Service Account Key field in I/O. Set Send-As User to a Workspace address in your domain.",
+    ],
+  },
+  ses: {
+    title: "Amazon SES",
+    steps: [
+      "Sign in to `console.aws.amazon.com` and navigate to Simple Email Service (SES). Use the region selector in the top-right to choose the region closest to your servers.",
+      "Verify your sending identity: go to Verified identities → Create identity. For production use, verify a domain (requires DNS TXT/MX/DKIM records) rather than a single email address.",
+      "If your account is in the SES sandbox (new accounts can only send to verified addresses): go to Account dashboard → Request production access and fill in the form. AWS typically responds within one business day.",
+      "Create a dedicated IAM user for sending: go to IAM → Users → Create user. On the Permissions step, attach the policy `AmazonSESFullAccess`, or create a custom policy granting `ses:SendEmail` on `arn:aws:ses:*:*:identity/*`.",
+      "Generate access keys: select the IAM user → Security credentials tab → Create access key → Application running outside AWS. Copy both the Access Key ID and Secret Access Key.",
+      "Enter the same AWS region in I/O (e.g. `us-east-1`, `eu-west-1`). This must match the region where your SES identity is verified.",
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Inline code renderer for setup guide steps
+// ---------------------------------------------------------------------------
+
+function renderStep(text: string) {
+  const parts = text.split(/`([^`]+)`/);
+  if (parts.length === 1) return text;
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 0 ? (
+          part
+        ) : (
+          <code
+            key={i}
+            style={{
+              fontFamily: "monospace",
+              fontSize: "11px",
+              background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+              color: "var(--io-accent)",
+              padding: "1px 5px",
+              borderRadius: "3px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {part}
+          </code>
+        )
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Provider Dialog
+// ---------------------------------------------------------------------------
+
 function ProviderDialog({
   provider,
   onClose,
@@ -266,10 +832,87 @@ function ProviderDialog({
   const [fromName, setFromName] = useState(provider?.from_name ?? "");
   const [isDefault, setIsDefault] = useState(provider?.is_default ?? false);
   const [enabled, setEnabled] = useState(provider?.enabled ?? true);
-  const [configStr, setConfigStr] = useState(
+
+  function buildInitialFields(
+    type: string,
+    config: Record<string, unknown>,
+  ): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const f of PROVIDER_FIELDS[type] ?? []) {
+      if (SECRET_KEYS.has(f.key)) {
+        result[f.key] = "";
+      } else if (config[f.key] !== undefined && config[f.key] !== null) {
+        result[f.key] = String(config[f.key]);
+      } else {
+        result[f.key] = f.defaultValue ?? "";
+      }
+    }
+    return result;
+  }
+
+  const [configFields, setConfigFields] = useState<Record<string, string>>(
+    () =>
+      buildInitialFields(
+        provider?.provider_type ?? "smtp",
+        (provider?.config as Record<string, unknown>) ?? {},
+      ),
+  );
+
+  const [helpKey, setHelpKey] = useState("");
+  const [showGuide, setShowGuide] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [rawJson, setRawJson] = useState(
     provider?.config ? JSON.stringify(provider.config, null, 2) : "{}",
   );
   const [error, setError] = useState("");
+
+  function handleTypeChange(t: string) {
+    setProviderType(t);
+    setConfigFields(buildInitialFields(t, {}));
+    setHelpKey("");
+    setShowGuide(false);
+    setRawJson("{}");
+  }
+
+  function setField(key: string, value: string) {
+    setConfigFields((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function buildConfig(): Record<string, unknown> {
+    if (showRaw) {
+      return JSON.parse(rawJson);
+    }
+    const config: Record<string, unknown> = {};
+    for (const f of PROVIDER_FIELDS[providerType] ?? []) {
+      const val = configFields[f.key] ?? "";
+      if (SECRET_KEYS.has(f.key) && val === "") continue;
+      if (f.optional && val === "") continue;
+      if (f.showWhen && !f.showWhen(configFields)) continue;
+      if (f.type === "number") {
+        if (val !== "") config[f.key] = Number(val);
+      } else if (f.type === "checkbox") {
+        config[f.key] = val === "true";
+      } else {
+        config[f.key] = val;
+      }
+    }
+    return config;
+  }
+
+  function getGuide(): SetupGuide | null {
+    if (providerType === "smtp") {
+      const k = (helpKey || "other") as SmtpHelpKey;
+      return SMTP_GUIDES[k] ?? SMTP_GUIDES.other;
+    }
+    if (providerType === "webhook") {
+      const k = (helpKey || "other") as WebhookHelpKey;
+      return WEBHOOK_GUIDES[k] ?? WEBHOOK_GUIDES.other;
+    }
+    return STATIC_GUIDES[providerType] ?? null;
+  }
+
+  const guide = getGuide();
 
   const createMutation = useMutation({
     mutationFn: (data: CreateProviderRequest) => emailApi.createProvider(data),
@@ -294,9 +937,9 @@ function ProviderDialog({
     setError("");
     let config: Record<string, unknown>;
     try {
-      config = JSON.parse(configStr);
+      config = buildConfig();
     } catch {
-      setError("Config must be valid JSON");
+      setError("Raw JSON config is invalid");
       return;
     }
     const payload: CreateProviderRequest = {
@@ -317,7 +960,20 @@ function ProviderDialog({
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  const visibleFields = (PROVIDER_FIELDS[providerType] ?? []).filter(
+    (f) => !f.showWhen || f.showWhen(configFields),
+  );
+
+  const sectionLabel =
+    providerType === "smtp" ? "SMTP Settings" :
+    providerType === "smtp_xoauth2" ? "OAuth2 / XOAUTH2 Settings" :
+    providerType === "ms_graph" ? "Azure AD App Settings" :
+    providerType === "gmail" ? "Service Account Settings" :
+    providerType === "ses" ? "AWS Credentials" :
+    "Webhook Settings";
+
   return (
+    <>
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay
@@ -339,8 +995,8 @@ function ProviderDialog({
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
             padding: "24px",
-            width: "520px",
-            maxHeight: "80vh",
+            width: "min(1400px, 94vw)",
+            maxHeight: "90vh",
             overflowY: "auto",
             zIndex: 101,
           }}
@@ -357,83 +1013,286 @@ function ProviderDialog({
           </Dialog.Title>
 
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: showGuide && guide ? "1fr 360px" : "1fr",
+              gap: "28px",
+              alignItems: "start",
+            }}
           >
+            {/* LEFT COLUMN: configuration form */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            {/* Name */}
             <div>
-              <label htmlFor="email-provider-name" style={labelStyle}>
-                Name
-              </label>
+              <label style={labelStyle}>Name</label>
               <input
-                id="email-provider-name"
                 style={inputStyle}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+
+            {/* Provider type */}
             <div>
-              <label htmlFor="email-provider-type" style={labelStyle}>
-                Type
-              </label>
+              <label style={labelStyle}>Provider Type</label>
               <select
-                id="email-provider-type"
                 style={inputStyle}
                 value={providerType}
-                onChange={(e) => setProviderType(e.target.value)}
+                onChange={(e) => handleTypeChange(e.target.value)}
               >
                 <option value="smtp">SMTP</option>
-                <option value="smtp_xoauth2">SMTP (XOAUTH2)</option>
-                <option value="ms_graph">Microsoft Graph</option>
+                <option value="smtp_xoauth2">SMTP + XOAUTH2 (Microsoft OAuth)</option>
+                <option value="ms_graph">Microsoft Graph API</option>
                 <option value="gmail">Gmail (Service Account)</option>
                 <option value="ses">Amazon SES</option>
                 <option value="webhook">Webhook</option>
               </select>
             </div>
-            <div>
-              <label htmlFor="email-provider-from-addr" style={labelStyle}>
-                From Address
-              </label>
-              <input
-                id="email-provider-from-addr"
-                style={inputStyle}
-                value={fromAddress}
-                onChange={(e) => setFromAddress(e.target.value)}
-              />
+
+            {/* From address / name */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+              }}
+            >
+              <div>
+                <label style={labelStyle}>From Address</label>
+                <input
+                  style={inputStyle}
+                  value={fromAddress}
+                  onChange={(e) => setFromAddress(e.target.value)}
+                  placeholder="noreply@yourdomain.com"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  From Name{" "}
+                  <span
+                    style={{
+                      fontWeight: 400,
+                      color: "var(--io-text-muted)",
+                      fontSize: "11px",
+                    }}
+                  >
+                    optional
+                  </span>
+                </label>
+                <input
+                  style={inputStyle}
+                  value={fromName}
+                  onChange={(e) => setFromName(e.target.value)}
+                  placeholder="Inside/Operations"
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="email-provider-from-name" style={labelStyle}>
-                From Name (optional)
-              </label>
-              <input
-                id="email-provider-from-name"
-                style={inputStyle}
-                value={fromName}
-                onChange={(e) => setFromName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="email-provider-config" style={labelStyle}>
-                Config (JSON) — smtp: {"{host, port, username, password}"} ·
-                smtp_xoauth2:{" "}
-                {"{host, port, username, client_id, client_secret, tenant_id}"}{" "}
-                · ms_graph: {"{tenant_id, client_id, client_secret}"} · gmail:{" "}
-                {"{service_account_key}"} · ses:{" "}
-                {"{region, access_key_id, secret_access_key}"} · webhook:{" "}
-                {"{url}"}
-              </label>
-              <textarea
-                id="email-provider-config"
+
+            {/* Section divider */}
+            <div
+              style={{ borderTop: "1px solid var(--io-border)", margin: "2px 0" }}
+            />
+
+            {/* Config section label + guide toggle */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
                 style={{
-                  ...inputStyle,
-                  height: "120px",
-                  resize: "vertical",
-                  fontFamily: "monospace",
-                  fontSize: "12px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
                 }}
-                value={configStr}
-                onChange={(e) => setConfigStr(e.target.value)}
-              />
+              >
+                {sectionLabel}
+              </div>
+              {guide && (
+                <button
+                  type="button"
+                  style={{
+                    background: showGuide
+                      ? "var(--io-accent)"
+                      : "color-mix(in srgb, var(--io-accent) 15%, transparent)",
+                    border: "1px solid var(--io-accent)",
+                    borderRadius: "var(--io-radius)",
+                    padding: "5px 14px",
+                    cursor: "pointer",
+                    color: showGuide ? "white" : "var(--io-accent)",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    whiteSpace: "nowrap",
+                  }}
+                  onClick={() => setShowGuide((v) => !v)}
+                >
+                  <span style={{ fontSize: "15px", lineHeight: 1, fontWeight: 800 }}>?</span>
+                  {showGuide ? "Hide Guide" : "Setup Guide"}
+                </button>
+              )}
             </div>
-            <div style={{ display: "flex", gap: "16px" }}>
+
+            {/* Sub-provider selector (smtp / webhook only — determines which guide is shown) */}
+            {(providerType === "smtp" || providerType === "webhook") && (
+              <div>
+                <label style={labelStyle}>
+                  {providerType === "smtp"
+                    ? "Which email service are you using?"
+                    : "Which platform are you connecting to?"}
+                </label>
+                <select
+                  style={{ ...inputStyle, maxWidth: "300px" }}
+                  value={helpKey}
+                  onChange={(e) => {
+                    setHelpKey(e.target.value);
+                    if (e.target.value) setShowGuide(true);
+                  }}
+                >
+                  {providerType === "smtp" ? (
+                    <>
+                      <option value="">Select a provider…</option>
+                      <option value="microsoft365">Microsoft 365</option>
+                      <option value="gmail_app_password">Gmail (App Password)</option>
+                      <option value="sendgrid">SendGrid</option>
+                      <option value="mailgun">Mailgun</option>
+                      <option value="postmark">Postmark</option>
+                      <option value="other">Other / Generic SMTP</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="">Select a platform…</option>
+                      <option value="slack">Slack</option>
+                      <option value="teams">Microsoft Teams</option>
+                      <option value="pagerduty">PagerDuty</option>
+                      <option value="other">Other</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            )}
+
+            {/* Per-type config fields — 12-col grid, fields declare their own span */}
+            {!showRaw && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(12, 1fr)",
+                  gap: "14px 12px",
+                  alignItems: "start",
+                }}
+              >
+              {visibleFields.map((f) => (
+                <div key={f.key} style={{ gridColumn: `span ${f.gridSpan ?? 12}` }}>
+                  {f.type !== "checkbox" && (
+                    <label style={labelStyle}>
+                      {f.label}
+                      {f.optional && (
+                        <span
+                          style={{
+                            marginLeft: "6px",
+                            fontWeight: 400,
+                            color: "var(--io-text-muted)",
+                            fontSize: "11px",
+                          }}
+                        >
+                          optional
+                        </span>
+                      )}
+                    </label>
+                  )}
+                  {f.type === "select" ? (
+                    <select
+                      style={inputStyle}
+                      value={configFields[f.key] ?? f.defaultValue ?? ""}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                    >
+                      {f.options!.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : f.type === "textarea" ? (
+                    <textarea
+                      style={{
+                        ...inputStyle,
+                        height: f.key === "service_account_key" ? "120px" : "80px",
+                        resize: "vertical",
+                        fontFamily: "monospace",
+                        fontSize: "12px",
+                      }}
+                      value={configFields[f.key] ?? ""}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                      placeholder={f.placeholder}
+                    />
+                  ) : f.type === "checkbox" ? (
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={configFields[f.key] === "true"}
+                        onChange={(e) =>
+                          setField(f.key, e.target.checked ? "true" : "false")
+                        }
+                      />
+                      {f.label}
+                    </label>
+                  ) : (
+                    <input
+                      style={inputStyle}
+                      type={
+                        f.type === "password"
+                          ? "password"
+                          : f.type === "number"
+                            ? "number"
+                            : "text"
+                      }
+                      value={configFields[f.key] ?? ""}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                      placeholder={
+                        isEdit && SECRET_KEYS.has(f.key)
+                          ? "Leave blank to keep current value"
+                          : (f.placeholder ?? "")
+                      }
+                    />
+                  )}
+                  {f.hint && (
+                    <p
+                      style={{
+                        margin: "3px 0 0",
+                        fontSize: "11px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
+                      {f.hint}
+                    </p>
+                  )}
+                </div>
+              ))}
+              </div>
+            )}
+
+            {/* Divider */}
+            <div
+              style={{ borderTop: "1px solid var(--io-border)", margin: "2px 0" }}
+            />
+
+            {/* Default / Enabled */}
+            <div style={{ display: "flex", gap: "24px" }}>
               <label
                 style={{
                   display: "flex",
@@ -467,6 +1326,157 @@ function ProviderDialog({
                 Enabled
               </label>
             </div>
+
+            {/* Advanced: raw JSON */}
+            <div>
+              <button
+                type="button"
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  color: "var(--io-text-muted)",
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
+                onClick={() => {
+                  if (showRaw) {
+                    // Closing raw mode: sync edits back into form fields
+                    try {
+                      const parsed = JSON.parse(rawJson) as Record<string, unknown>;
+                      const updated: Record<string, string> = { ...configFields };
+                      for (const f of PROVIDER_FIELDS[providerType] ?? []) {
+                        if (parsed[f.key] !== undefined) {
+                          updated[f.key] = String(parsed[f.key]);
+                        }
+                      }
+                      setConfigFields(updated);
+                    } catch {
+                      /* leave configFields as-is if JSON is invalid */
+                    }
+                  } else {
+                    try {
+                      setRawJson(JSON.stringify(buildConfig(), null, 2));
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  setShowRaw((v) => !v);
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    transform: showRaw ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s",
+                    fontSize: "9px",
+                  }}
+                >
+                  ▶
+                </span>
+                {showRaw ? "Hide" : "Edit"} raw JSON config
+              </button>
+              {showRaw && (
+                <textarea
+                  style={{
+                    ...inputStyle,
+                    marginTop: "8px",
+                    height: "120px",
+                    resize: "vertical",
+                    fontFamily: "monospace",
+                    fontSize: "12px",
+                  }}
+                  value={rawJson}
+                  onChange={(e) => setRawJson(e.target.value)}
+                />
+              )}
+            </div>
+            </div>
+
+            {/* RIGHT COLUMN: setup guide panel */}
+            {showGuide && guide && (
+              <div
+                style={{
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderLeft: "3px solid var(--io-accent)",
+                  borderRadius: "var(--io-radius)",
+                  padding: "18px 16px",
+                  overflowY: "auto",
+                  maxHeight: "calc(90vh - 200px)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    color: "var(--io-accent)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Setup Guide
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--io-text-primary)",
+                    marginBottom: "18px",
+                    lineHeight: 1.4,
+                    paddingBottom: "12px",
+                    borderBottom: "1px solid var(--io-border)",
+                  }}
+                >
+                  {guide.title}
+                </div>
+                <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                  {guide.steps.map((step, i) => (
+                    <li
+                      key={i}
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        marginBottom: "14px",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "50%",
+                          background: "var(--io-accent)",
+                          color: "white",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginTop: "1px",
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--io-text-secondary)",
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        {renderStep(step)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -484,25 +1494,50 @@ function ProviderDialog({
           <div
             style={{
               display: "flex",
-              justifyContent: "flex-end",
-              gap: "10px",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginTop: "20px",
             }}
           >
-            <button style={btnSecondary} onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              style={btnPrimary}
-              onClick={handleSave}
-              disabled={isPending}
-            >
-              {isPending ? "Saving…" : "Save"}
-            </button>
+            <div>
+              {isEdit && (
+                <button
+                  type="button"
+                  style={btnSecondary}
+                  onClick={() => setShowTestDialog(true)}
+                >
+                  Send Test Email
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button style={btnSecondary} onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                style={btnPrimary}
+                onClick={handleSave}
+                disabled={isPending}
+              >
+                {isPending ? "Saving…" : "Save"}
+              </button>
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+
+    {isEdit && showTestDialog && (
+      <TestEmailDialog
+        providerId={provider!.id}
+        providerName={provider!.name}
+        onClose={() => {
+          setShowTestDialog(false);
+          qc.invalidateQueries({ queryKey: ["email-providers"] });
+        }}
+      />
+    )}
+  </>
   );
 }
 

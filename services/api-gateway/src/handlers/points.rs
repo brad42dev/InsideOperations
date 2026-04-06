@@ -840,7 +840,7 @@ pub async fn list_points(
     let rows = match sqlx::query(
         r#"SELECT id::text, tagname, description, engineering_units, data_type,
                   source_id::text, active, area, criticality,
-                  min_value, max_value, point_category
+                  min_value, max_value, point_category, minimum_sampling_interval_ms
            FROM points_metadata
            WHERE active = true
              AND ($1::uuid IS NULL OR source_id = $1)
@@ -890,6 +890,7 @@ pub async fn list_points(
                 "eu_range_low": r.get::<Option<f64>, _>("min_value"),
                 "eu_range_high": r.get::<Option<f64>, _>("max_value"),
                 "point_category": r.get::<Option<String>, _>("point_category").unwrap_or_else(|| "analog".to_string()),
+                "minimum_sampling_interval_ms": r.get::<Option<f64>, _>("minimum_sampling_interval_ms"),
             })
         })
         .collect();
@@ -914,7 +915,7 @@ pub async fn get_point(
     let row = match sqlx::query(
         r#"SELECT pm.id::text, pm.tagname, pm.description, pm.engineering_units,
                   pm.data_type, pm.source_id::text, COALESCE(ps.name, '') AS source_name,
-                  pm.min_value, pm.max_value, pm.point_category,
+                  pm.min_value, pm.max_value, pm.point_category, pm.minimum_sampling_interval_ms,
                   COALESCE(
                     json_agg(json_build_object('idx', pel.idx, 'label', pel.label)
                              ORDER BY pel.idx)
@@ -954,6 +955,7 @@ pub async fn get_point(
         "eu_range_high":    row.get::<Option<f64>, _>("max_value"),
         "point_category":   row.get::<Option<String>, _>("point_category").unwrap_or_else(|| "analog".to_string()),
         "enum_labels":      row.get::<serde_json::Value, _>("enum_labels"),
+        "minimum_sampling_interval_ms": row.get::<Option<f64>, _>("minimum_sampling_interval_ms"),
     }))
     .into_response()
 }

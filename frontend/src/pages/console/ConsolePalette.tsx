@@ -688,7 +688,7 @@ function WorkspaceRow({
       <RadixContextMenu.Portal>
         <RadixContextMenu.Content
           style={{
-            zIndex: 2000,
+            zIndex: 1800,
             background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
@@ -968,7 +968,7 @@ function WorkspaceThumbnailCard({
       <RadixContextMenu.Portal>
         <RadixContextMenu.Content
           style={{
-            zIndex: 2000,
+            zIndex: 1800,
             background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
@@ -1531,7 +1531,7 @@ function SavedChartRow({
       <RadixContextMenu.Portal>
         <RadixContextMenu.Content
           style={{
-            zIndex: 2000,
+            zIndex: 1800,
             background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
@@ -1811,7 +1811,7 @@ function GraphicListRow({
       <RadixContextMenu.Portal>
         <RadixContextMenu.Content
           style={{
-            zIndex: 2000,
+            zIndex: 1800,
             background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",

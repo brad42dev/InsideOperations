@@ -7,6 +7,8 @@ import {
   type NotificationChannel,
   type NotificationSeverity,
 } from "../../api/notifications";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 const SEVERITY_COLOR: Record<NotificationSeverity, string> = {
   emergency: "#ef4444",
@@ -64,9 +66,12 @@ function AlertRow({
   onClick?: () => void;
 }) {
   const hasMuster = msg.severity === "emergency" || msg.severity === "critical";
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<NotificationMessage>();
   return (
+    <>
     <div
       onClick={hasMuster && onClick ? onClick : undefined}
+      onContextMenu={(e) => handleContextMenu(e, msg)}
       style={{
         display: "grid",
         gridTemplateColumns: "120px 1fr 160px 120px 80px",
@@ -131,6 +136,20 @@ function AlertRow({
         {msg.recipient_count} rcpt
       </div>
     </div>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          { label: "Acknowledge", permission: "alerts:acknowledge", onClick: () => { closeMenu(); } },
+          { label: "Shelve", permission: "alerts:shelve", onClick: () => { closeMenu(); } },
+          { label: "Investigate Alarm", permission: "forensics:write", onClick: () => { closeMenu(); } },
+          { label: "View History", onClick: () => { closeMenu(); } },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }
 

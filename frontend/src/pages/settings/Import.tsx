@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StreamingSessionsContent } from "./StreamingSessions";
@@ -658,227 +660,6 @@ function SetupConnectionDrawerContent({
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Context menu shared helpers
-// ---------------------------------------------------------------------------
-interface ContextMenuPos {
-  x: number;
-  y: number;
-}
-
-function useContextMenuDismiss(
-  ref: React.RefObject<HTMLDivElement | null>,
-  onClose: () => void,
-) {
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [ref, onClose]);
-}
-
-const cmMenuStyle: React.CSSProperties = {
-  position: "fixed",
-  zIndex: 500,
-  background: "var(--io-surface-elevated)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-  minWidth: "200px",
-  overflow: "hidden",
-  padding: "4px 0",
-};
-
-const cmItemStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "7px 14px",
-  background: "transparent",
-  border: "none",
-  textAlign: "left",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  cursor: "pointer",
-};
-
-const cmDisabledItemStyle: React.CSSProperties = {
-  ...cmItemStyle,
-  color: "var(--io-text-muted)",
-  cursor: "not-allowed",
-  opacity: 0.55,
-};
-
-const cmDangerItemStyle: React.CSSProperties = {
-  ...cmItemStyle,
-  color: "var(--io-danger)",
-};
-
-function CmItem({
-  label,
-  action,
-  danger,
-}: {
-  label: string;
-  action: () => void;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      style={danger ? cmDangerItemStyle : cmItemStyle}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background =
-          "var(--io-surface-secondary)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-      }}
-      onClick={action}
-    >
-      {label}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ImportConnectionContextMenu
-// ---------------------------------------------------------------------------
-function ImportConnectionContextMenu({
-  connection,
-  pos,
-  onClose,
-  onTest,
-  onToggleEnabled,
-  onDelete,
-  definitionCount,
-}: {
-  connection: ImportConnection;
-  pos: ContextMenuPos;
-  onClose: () => void;
-  onTest: (c: ImportConnection) => void;
-  onToggleEnabled: (c: ImportConnection) => void;
-  onDelete: (c: ImportConnection) => void;
-  definitionCount: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useContextMenuDismiss(ref, onClose);
-
-  const hasDefinitions = definitionCount > 0;
-
-  return (
-    <div
-      ref={ref}
-      role="menu"
-      style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}
-    >
-      <CmItem
-        label="Test Connection"
-        action={() => {
-          onTest(connection);
-          onClose();
-        }}
-      />
-      <CmItem
-        label={connection.enabled ? "Disable" : "Enable"}
-        action={() => {
-          onToggleEnabled(connection);
-          onClose();
-        }}
-      />
-      <div
-        style={{
-          height: "1px",
-          background: "var(--io-border)",
-          margin: "4px 0",
-        }}
-      />
-      {hasDefinitions ? (
-        <button
-          style={cmDisabledItemStyle}
-          title="Cannot delete — definitions reference this connection"
-          disabled
-        >
-          Delete
-        </button>
-      ) : (
-        <CmItem
-          label="Delete"
-          action={() => {
-            onDelete(connection);
-            onClose();
-          }}
-          danger
-        />
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ImportDefinitionContextMenu
-// ---------------------------------------------------------------------------
-function ImportDefinitionContextMenu({
-  definition,
-  pos,
-  onClose,
-  onRunNow,
-  onViewRunHistory,
-  onToggleEnabled,
-}: {
-  definition: ImportDefinition;
-  pos: ContextMenuPos;
-  onClose: () => void;
-  onRunNow: (d: ImportDefinition) => void;
-  onViewRunHistory: (d: ImportDefinition) => void;
-  onToggleEnabled: (d: ImportDefinition) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useContextMenuDismiss(ref, onClose);
-
-  return (
-    <div ref={ref} style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}>
-      <CmItem
-        label="Run Now"
-        action={() => {
-          onRunNow(definition);
-          onClose();
-        }}
-      />
-      <CmItem
-        label="View Run History"
-        action={() => {
-          onViewRunHistory(definition);
-          onClose();
-        }}
-      />
-      <div
-        style={{
-          height: "1px",
-          background: "var(--io-border)",
-          margin: "4px 0",
-        }}
-      />
-      <CmItem
-        label={definition.enabled ? "Disable" : "Enable"}
-        action={() => {
-          onToggleEnabled(definition);
-          onClose();
-        }}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ConnectionsTab
 // ---------------------------------------------------------------------------
 function ConnectionsTab() {
@@ -886,18 +667,7 @@ function ConnectionsTab() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editConn, setEditConn] = useState<ImportConnection | null>(null);
   const canManageConnections = usePermission("system:import_connections");
-  const [connContextMenu, setConnContextMenu] = useState<{
-    connection: ImportConnection;
-    pos: ContextMenuPos;
-  } | null>(null);
-
-  function handleConnContextMenu(e: React.MouseEvent, conn: ImportConnection) {
-    e.preventDefault();
-    setConnContextMenu({
-      connection: conn,
-      pos: { x: e.clientX, y: e.clientY },
-    });
-  }
+  const { menuState: connMenu, handleContextMenu: openConnMenu, closeMenu: closeConnMenu } = useContextMenu<ImportConnection>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["import-connections"],
@@ -1015,7 +785,7 @@ function ConnectionsTab() {
                 alignItems: "center",
                 gap: "12px",
               }}
-              onContextMenu={(e) => handleConnContextMenu(e, conn)}
+              onContextMenu={(e) => openConnMenu(e, conn)}
             >
               <div style={{ flex: 1 }}>
                 <div
@@ -1107,23 +877,22 @@ function ConnectionsTab() {
         )}
       </Modal>
 
-      {connContextMenu && (
-        <ImportConnectionContextMenu
-          connection={connContextMenu.connection}
-          pos={connContextMenu.pos}
-          onClose={() => setConnContextMenu(null)}
-          onTest={(c) => testMutation.mutate(c.id)}
-          onToggleEnabled={(c) =>
-            toggleConnMutation.mutate({ id: c.id, enabled: !c.enabled })
-          }
-          onDelete={(c) => {
-            if (confirm(`Delete connection "${c.name}"?`)) {
-              deleteMutation.mutate(c.id);
-            }
-          }}
-          definitionCount={definitionCountForConnection(
-            connContextMenu.connection.id,
-          )}
+      {connMenu && (
+        <ContextMenu
+          x={connMenu.x}
+          y={connMenu.y}
+          items={[
+            { label: "Test Connection", onClick: () => testMutation.mutate(connMenu.data!.id) },
+            { label: connMenu.data!.enabled ? "Disable" : "Enable", onClick: () => toggleConnMutation.mutate({ id: connMenu.data!.id, enabled: !connMenu.data!.enabled }) },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              disabled: definitionCountForConnection(connMenu.data!.id) > 0,
+              onClick: () => { if (confirm(`Delete connection "${connMenu.data!.name}"?`)) { deleteMutation.mutate(connMenu.data!.id); } },
+            },
+          ]}
+          onClose={closeConnMenu}
         />
       )}
     </div>
@@ -2743,15 +2512,7 @@ function DefinitionsTab() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const canManageDefinitions = usePermission("system:import_definitions");
   const canExecute = usePermission("system:import_execute");
-  const [defContextMenu, setDefContextMenu] = useState<{
-    definition: ImportDefinition;
-    pos: ContextMenuPos;
-  } | null>(null);
-
-  function handleDefContextMenu(e: React.MouseEvent, def: ImportDefinition) {
-    e.preventDefault();
-    setDefContextMenu({ definition: def, pos: { x: e.clientX, y: e.clientY } });
-  }
+  const { menuState: defMenu, handleContextMenu: openDefMenu, closeMenu: closeDefMenu } = useContextMenu<ImportDefinition>();
 
   const { data: defsResult, isLoading } = useQuery({
     queryKey: ["import-definitions"],
@@ -2854,7 +2615,7 @@ function DefinitionsTab() {
                   alignItems: "flex-start",
                   gap: "12px",
                 }}
-                onContextMenu={(e) => handleDefContextMenu(e, def)}
+                onContextMenu={(e) => openDefMenu(e, def)}
               >
                 <div style={{ flex: 1 }}>
                   <div
@@ -2966,18 +2727,16 @@ function DefinitionsTab() {
         />
       </Modal>
 
-      {defContextMenu && (
-        <ImportDefinitionContextMenu
-          definition={defContextMenu.definition}
-          pos={defContextMenu.pos}
-          onClose={() => setDefContextMenu(null)}
-          onRunNow={(d) => runMutation.mutate({ id: d.id, dry_run: false })}
-          onViewRunHistory={(_d) => {
-            window.location.href = "/settings/imports/history";
-          }}
-          onToggleEnabled={(d) =>
-            toggleMutation.mutate({ id: d.id, enabled: !d.enabled })
-          }
+      {defMenu && (
+        <ContextMenu
+          x={defMenu.x}
+          y={defMenu.y}
+          items={[
+            { label: "Run Now", onClick: () => runMutation.mutate({ id: defMenu.data!.id, dry_run: false }) },
+            { label: "View Run History", onClick: () => { window.location.href = "/settings/imports/history"; } },
+            { label: defMenu.data!.enabled ? "Disable" : "Enable", divider: true, onClick: () => toggleMutation.mutate({ id: defMenu.data!.id, enabled: !defMenu.data!.enabled }) },
+          ]}
+          onClose={closeDefMenu}
         />
       )}
     </div>

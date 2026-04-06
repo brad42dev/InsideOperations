@@ -11,6 +11,11 @@ export interface Series {
   data: (number | null)[];
   color?: string;
   strokeWidth?: number;
+  /**
+   * When true, renders as a step/hold-last-value chart (left-aligned step).
+   * Use for tags whose MinimumSamplingInterval is ≥ 5000 ms (GC analyzers, lab analyzers).
+   */
+  step?: boolean;
 }
 
 export interface TimeSeriesChartProps {
@@ -248,10 +253,15 @@ export default function TimeSeriesChart({
         .join("|")
     : "";
 
+  // Stable key for step flags — triggers a chart rebuild when any series
+  // switches between linear and step rendering (paths fn is set at build time).
+  const stepKey = series.map((s) => (s.step ? "1" : "0")).join("");
+
   // Build (or rebuild) the uPlot instance.
   // Re-runs when dimensions, theme, or series count changes.
   useEffect(() => {
     if (!containerRef.current || resolvedWidth === 0) return;
+    void stepKey; // dep-only trigger: rebuilds when any series changes step mode
 
     const data = latestDataRef.current;
 
@@ -267,6 +277,11 @@ export default function TimeSeriesChart({
       uniqueScales.set("y", undefined);
     }
 
+    // Build the stepped paths function once — shared across all step series.
+    // uPlot.paths.stepped returns a paths-builder factory; align:1 = hold-left
+    // (the value is held at its recorded level until the next data point arrives).
+    const steppedPaths = uPlot.paths.stepped?.({ align: 1 });
+
     const uplotSeries: uPlot.Series[] = [
       {}, // x axis (time)
       ...series.map((s, i) => ({
@@ -276,6 +291,7 @@ export default function TimeSeriesChart({
         spanGaps: true,
         points: { show: false },
         scale: seriesScales ? seriesScales[i].scaleKey : "y",
+        ...(s.step && steppedPaths ? { paths: steppedPaths } : {}),
       })),
     ];
 
@@ -552,6 +568,7 @@ export default function TimeSeriesChart({
     seriesCount,
     seriesScalesKey,
     enumLabelsKey,
+    stepKey,
   ]);
 
   // Update data without rebuilding the chart (hot path — runs on every tick).

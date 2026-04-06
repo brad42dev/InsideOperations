@@ -1,4 +1,14 @@
-// ISA-18.2 alarm and event configuration — informational page (API arrives in Phase 9)
+// ISA-18.2 alarm and event configuration — informational reference + alarm definitions CRUD
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  alarmDefinitionsApi,
+  type AlarmDefinition,
+  type CreateAlarmDefinitionBody,
+} from "../../api/alarms";
+import { expressionsApi } from "../../api/expressions";
+import { ExpressionBuilderModal } from "../../shared/components/expression/ExpressionBuilderModal";
+import type { ExpressionAst } from "../../shared/types/expression";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -102,6 +112,630 @@ const PRIORITY_ROWS = [
 // Main component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Alarm definitions CRUD — expression condition support
+// ---------------------------------------------------------------------------
+
+type AlarmDialogMode = "create" | "edit";
+
+interface AlarmDialogState {
+  mode: AlarmDialogMode;
+  def: AlarmDefinition | null;
+}
+
+function AlarmDefinitionsSection() {
+  const queryClient = useQueryClient();
+
+  const [dialogState, setDialogState] = useState<AlarmDialogState | null>(
+    null,
+  );
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [pendingExprId, setPendingExprId] = useState<string | null>(null);
+  const [pendingExprName, setPendingExprName] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Form state for create/edit
+  const [form, setForm] = useState<CreateAlarmDefinitionBody>({
+    name: "",
+    definition_type: "threshold",
+    priority: "medium",
+    enabled: true,
+  });
+
+  const listQuery = useQuery({
+    queryKey: ["alarm-definitions"],
+    queryFn: async () => {
+      const result = await alarmDefinitionsApi.list();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.data as AlarmDefinition[];
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (body: CreateAlarmDefinitionBody) =>
+      alarmDefinitionsApi.create(body),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setFormError(result.error.message);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["alarm-definitions"] });
+      setDialogState(null);
+    },
+    onError: (err) => {
+      setFormError(err instanceof Error ? err.message : "Create failed");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: CreateAlarmDefinitionBody }) =>
+      alarmDefinitionsApi.update(id, body),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setFormError(result.error.message);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["alarm-definitions"] });
+      setDialogState(null);
+    },
+    onError: (err) => {
+      setFormError(err instanceof Error ? err.message : "Update failed");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => alarmDefinitionsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alarm-definitions"] });
+      setDeleteId(null);
+    },
+  });
+
+  function openCreate() {
+    setForm({ name: "", definition_type: "threshold", priority: "medium", enabled: true });
+    setPendingExprId(null);
+    setPendingExprName(null);
+    setFormError(null);
+    setDialogState({ mode: "create", def: null });
+  }
+
+  function openEdit(def: AlarmDefinition) {
+    setForm({
+      name: def.name,
+      description: def.description ?? undefined,
+      definition_type: def.definition_type,
+      priority: def.priority,
+      enabled: def.enabled,
+      expression_id: def.expression_id ?? undefined,
+    });
+    setPendingExprId(def.expression_id);
+    setPendingExprName(def.expression_id ? `Expression ${def.expression_id.slice(0, 8)}…` : null);
+    setFormError(null);
+    setDialogState({ mode: "edit", def });
+  }
+
+  async function handleExprApply(ast: ExpressionAst) {
+    // Save the expression to get an ID, then attach it to the form.
+    const saveResult = await expressionsApi.create({
+      name: form.name
+        ? `Alarm: ${form.name}`
+        : "Alarm expression",
+      context: "alarm_definition",
+      ast,
+    });
+    if (saveResult.success) {
+      setPendingExprId(saveResult.data.id);
+      setPendingExprName(saveResult.data.name);
+      setForm((f) => ({ ...f, expression_id: saveResult.data.id }));
+    }
+    setBuilderOpen(false);
+  }
+
+  function handleSave() {
+    if (!form.name.trim()) {
+      setFormError("Name is required.");
+      return;
+    }
+    if (form.definition_type === "expression" && !form.expression_id && !pendingExprId) {
+      setFormError("Configure an expression before saving.");
+      return;
+    }
+    const body: CreateAlarmDefinitionBody = {
+      ...form,
+      expression_id: pendingExprId ?? form.expression_id,
+    };
+    if (dialogState?.mode === "edit" && dialogState.def) {
+      updateMutation.mutate({ id: dialogState.def.id, body });
+    } else {
+      createMutation.mutate(body);
+    }
+  }
+
+  const definitions = listQuery.data ?? [];
+  const isOpen = dialogState !== null;
+
+  return (
+    <div style={{ marginBottom: "var(--io-space-6)" }}>
+      {/* Section header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <div style={SECTION_LABEL}>Alarm Definitions</div>
+        <button
+          onClick={openCreate}
+          style={{
+            padding: "5px 12px",
+            background: "var(--io-accent)",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            color: "#fff",
+            fontSize: "12px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          + New Alarm Definition
+        </button>
+      </div>
+
+      {/* Error / loading */}
+      {listQuery.isError && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "var(--io-danger-subtle)",
+            border: "1px solid var(--io-danger)",
+            borderRadius: "var(--io-radius)",
+            color: "var(--io-danger)",
+            fontSize: "13px",
+            marginBottom: 12,
+          }}
+        >
+          {(listQuery.error as Error).message}
+        </div>
+      )}
+
+      {/* Definitions list */}
+      <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+        {listQuery.isLoading ? (
+          <div style={{ padding: "20px", color: "var(--io-text-muted)", fontSize: "13px" }}>
+            Loading…
+          </div>
+        ) : definitions.length === 0 ? (
+          <div style={{ padding: "20px", color: "var(--io-text-muted)", fontSize: "13px" }}>
+            No alarm definitions yet. Create one to get started.
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: "13px" }}>
+            <thead>
+              <tr>
+                {["Name", "Type", "Priority", "Enabled", "Actions"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left" as const,
+                      padding: "8px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                      color: "var(--io-text-muted)",
+                      fontWeight: 600,
+                      fontSize: "11px",
+                      textTransform: "uppercase" as const,
+                      background: "var(--io-surface-secondary)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {definitions.map((def) => (
+                <tr key={def.id}>
+                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
+                    <div style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
+                      {def.name}
+                    </div>
+                    {def.description && (
+                      <div style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                        {def.description}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "100px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        background:
+                          def.definition_type === "expression"
+                            ? "var(--io-accent-subtle)"
+                            : "var(--io-surface-secondary)",
+                        color:
+                          def.definition_type === "expression"
+                            ? "var(--io-accent)"
+                            : "var(--io-text-secondary)",
+                      }}
+                    >
+                      {def.definition_type}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                      color: "var(--io-text-secondary)",
+                    }}
+                  >
+                    {def.priority}
+                  </td>
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--io-border)",
+                      color: def.enabled ? "var(--io-success)" : "var(--io-text-muted)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    {def.enabled ? "Yes" : "No"}
+                  </td>
+                  <td style={{ padding: "9px 14px", borderBottom: "1px solid var(--io-border)" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => openEdit(def)}
+                        style={{
+                          padding: "3px 10px",
+                          background: "transparent",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: "var(--io-radius)",
+                          color: "var(--io-text-secondary)",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(def.id)}
+                        style={{
+                          padding: "3px 10px",
+                          background: "transparent",
+                          border: "1px solid var(--io-danger)",
+                          borderRadius: "var(--io-radius)",
+                          color: "var(--io-danger)",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Create / Edit dialog */}
+      {isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDialogState(null);
+          }}
+        >
+          <div
+            style={{
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "10px",
+              padding: "24px",
+              width: "min(520px, 95vw)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
+              {dialogState.mode === "create" ? "New Alarm Definition" : "Edit Alarm Definition"}
+            </h3>
+
+            {formError && (
+              <div
+                style={{
+                  padding: "8px 12px",
+                  background: "var(--io-danger-subtle)",
+                  border: "1px solid var(--io-danger)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-danger)",
+                  fontSize: "12px",
+                }}
+              >
+                {formError}
+              </div>
+            )}
+
+            {/* Name */}
+            <div>
+              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+                Name *
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 4,
+                  padding: "7px 10px",
+                  background: "var(--io-surface-sunken)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "13px",
+                  boxSizing: "border-box" as const,
+                }}
+              />
+            </div>
+
+            {/* Type */}
+            <div>
+              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+                Condition Type
+              </label>
+              <select
+                value={form.definition_type}
+                onChange={(e) => {
+                  setForm((f) => ({
+                    ...f,
+                    definition_type: e.target.value as "threshold" | "expression",
+                  }));
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 4,
+                  padding: "7px 10px",
+                  background: "var(--io-surface-sunken)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "13px",
+                }}
+              >
+                <option value="threshold">Threshold</option>
+                <option value="expression">Expression</option>
+              </select>
+            </div>
+
+            {/* Expression condition — shown when type = "expression" */}
+            {form.definition_type === "expression" && (
+              <div
+                style={{
+                  padding: "12px",
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--io-text-secondary)" }}>
+                    Expression Condition
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: 2 }}>
+                    {pendingExprName
+                      ? `Configured: ${pendingExprName}`
+                      : "No expression configured"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setBuilderOpen(true)}
+                  style={{
+                    padding: "6px 14px",
+                    background: "var(--io-accent)",
+                    border: "none",
+                    borderRadius: "var(--io-radius)",
+                    color: "#fff",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  {pendingExprId ? "Edit Expression" : "Configure Expression"}
+                </button>
+              </div>
+            )}
+
+            {/* Priority */}
+            <div>
+              <label style={{ fontSize: "12px", color: "var(--io-text-muted)", fontWeight: 600 }}>
+                Priority
+              </label>
+              <select
+                value={form.priority}
+                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as typeof form.priority }))}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 4,
+                  padding: "7px 10px",
+                  background: "var(--io-surface-sunken)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "13px",
+                }}
+              >
+                {["urgent", "high", "medium", "low", "diagnostic"].map((p) => (
+                  <option key={p} value={p}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Enabled */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={form.enabled ?? true}
+                onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
+              />
+              <span style={{ fontSize: "13px", color: "var(--io-text-secondary)" }}>
+                Enabled
+              </span>
+            </label>
+
+            {/* Actions */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setDialogState(null)}
+                style={{
+                  padding: "7px 16px",
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-secondary)",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={createMutation.isPending || updateMutation.isPending}
+                style={{
+                  padding: "7px 16px",
+                  background: "var(--io-accent)",
+                  border: "none",
+                  borderRadius: "var(--io-radius)",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {createMutation.isPending || updateMutation.isPending ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteId && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteId(null);
+          }}
+        >
+          <div
+            style={{
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "10px",
+              padding: "24px",
+              width: "360px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600 }}>
+              Delete Alarm Definition?
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "var(--io-text-secondary)" }}>
+              This cannot be undone.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setDeleteId(null)}
+                style={{
+                  padding: "7px 14px",
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-secondary)",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteId)}
+                style={{
+                  padding: "7px 14px",
+                  background: "var(--io-danger)",
+                  border: "none",
+                  borderRadius: "var(--io-radius)",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expression Builder Modal */}
+      <ExpressionBuilderModal
+        open={builderOpen}
+        context="alarm_definition"
+        contextLabel="Alarm Definition"
+        onApply={(ast) => void handleExprApply(ast)}
+        onCancel={() => setBuilderOpen(false)}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export default function EventConfig() {
   return (
     <div style={{ padding: "var(--io-space-6)", maxWidth: 800 }}>
@@ -129,6 +763,8 @@ export default function EventConfig() {
           definitions, state machine behavior, and event retention.
         </p>
       </div>
+
+      <AlarmDefinitionsSection />
 
       {/* Coming soon banner */}
       <div

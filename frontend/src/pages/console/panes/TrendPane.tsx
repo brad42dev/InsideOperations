@@ -6,7 +6,7 @@ import {
   lazy,
   Suspense,
 } from "react";
-import { createPortal } from "react-dom";
+import ContextMenu from "../../../shared/components/ContextMenu";
 import { useQuery } from "@tanstack/react-query";
 import { useWebSocket } from "../../../shared/hooks/useWebSocket";
 import { usePlaybackStore } from "../../../store/playback";
@@ -103,6 +103,8 @@ interface PointMeta {
   description: string | null;
   unit: string | null;
   source: string;
+  /** OPC UA MinimumSamplingInterval in ms. ≥5000 → step/hold-last-value rendering. */
+  minimum_sampling_interval_ms: number | null;
 }
 
 function usePointMeta(pointIds: string[]) {
@@ -120,6 +122,8 @@ function usePointMeta(pointIds: string[]) {
             description: r.data.description,
             unit: r.data.engineering_unit,
             source: r.data.source_name,
+            minimum_sampling_interval_ms:
+              r.data.minimum_sampling_interval_ms ?? null,
           });
         } else {
           map.set(pointIds[idx], {
@@ -127,6 +131,7 @@ function usePointMeta(pointIds: string[]) {
             description: null,
             unit: null,
             source: "",
+            minimum_sampling_interval_ms: null,
           });
         }
       });
@@ -456,7 +461,25 @@ export default function TrendPane({
     const sourceMap: Map<string, RingBuffer[]> =
       isHistorical && historicalSeries ? historicalSeries : buffers.current;
 
+    // Inject window boundary timestamps for step series so the forward-fill
+    // can reach both edges of the chart. Without these, uPlot has no data
+    // point at xRange.min or xRange.max, leaving gaps at both ends.
+    const hasStepPoints = pointIds.some((id) => {
+      const msi = metaMap?.get(id)?.minimum_sampling_interval_ms ?? null;
+      return msi !== null && msi >= 5000;
+    });
+    const windowStartTs = isHistorical
+      ? Math.round(timeRange.start / 1000)
+      : Math.floor(Date.now() / 1000 - durationMinutes * 60);
+    const windowEndTs = isHistorical
+      ? Math.round(timeRange.end / 1000)
+      : Math.floor(Date.now() / 1000);
+
     const allTs = new Set<number>();
+    if (hasStepPoints) {
+      allTs.add(windowStartTs);
+      allTs.add(windowEndTs);
+    }
     pointIds.forEach((id) => {
       const buf = sourceMap.get(id) ?? [];
       buf.forEach((e) => allTs.add(e.ts));
@@ -466,11 +489,43 @@ export default function TrendPane({
     const series: Series[] = pointIds.map((id, idx) => {
       const buf = sourceMap.get(id) ?? [];
       const bufMap = new Map(buf.map((e) => [e.ts, e.v]));
-      const data = timestamps.map((ts) => bufMap.get(ts) ?? null);
+      const msi = metaMap?.get(id)?.minimum_sampling_interval_ms ?? null;
+      const isStep = msi !== null && msi >= 5000;
+
+      let data: (number | null)[] = timestamps.map(
+        (ts) => bufMap.get(ts) ?? null,
+      );
+
+      if (isStep && buf.length > 0) {
+        // Forward-fill with 2× MSI staleness window:
+        //   - Positions before the first reading: extend the first reading backward
+        //     to window start (best proxy for what was active before the window).
+        //   - Positions after a reading: carry the value forward until 2× MSI has
+        //     elapsed without a new reading, then return null so the tooltip shows
+        //     the value as stale (grey).
+        const staleWindowSec = (msi! * 2) / 1000;
+        let carry: number | null = !isNaN(buf[0].v) ? buf[0].v : null;
+        let carryTs: number = buf[0].ts;
+
+        data = data.map((v, i) => {
+          if (v !== null && !isNaN(v)) {
+            carry = v;
+            carryTs = timestamps[i];
+          }
+          if (carry === null) return null;
+          const dt = timestamps[i] - carryTs;
+          // dt < 0: position is before the carry timestamp → backward-extend to
+          // window start. dt >= 0: forward-fill only within the stale window.
+          if (dt <= staleWindowSec) return carry;
+          return null;
+        });
+      }
+
       return {
         label: metaMap?.get(id)?.name ?? id,
         data,
         color: SERIES_COLORS[idx % SERIES_COLORS.length],
+        ...(isStep ? { step: true } : {}),
       };
     });
 
@@ -584,85 +639,20 @@ export default function TrendPane({
           </Suspense>
         )}
 
-        {/* Right-click context menu — portalled to body to escape grid transforms */}
-        {ctxMenu &&
-          createPortal(
-            <>
-              <div
-                style={{ position: "fixed", inset: 0, zIndex: 999 }}
-                onClick={() => setCtxMenu(null)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setCtxMenu(null);
-                }}
-              />
-              <div
-                style={{
-                  position: "fixed",
-                  top: ctxMenu.y,
-                  left: ctxMenu.x,
-                  zIndex: 1000,
-                  background: "var(--io-surface-elevated)",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: 6,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                  minWidth: 180,
-                  paddingTop: 4,
-                  paddingBottom: 4,
-                }}
-              >
-                {[
-                  {
-                    label: "Save As…",
-                    onClick: () => {
-                      setCtxMenu(null);
-                      setSaveModal({ publish: false });
-                    },
-                  },
-                  ...(canPublish
-                    ? [
-                        {
-                          label: "Publish…",
-                          onClick: () => {
-                            setCtxMenu(null);
-                            setSaveModal({ publish: true });
-                          },
-                        },
-                      ]
-                    : []),
-                  {
-                    label: "Configure Chart…",
-                    onClick: () => {
-                      setCtxMenu(null);
-                      setShowConfig(true);
-                    },
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    onClick={item.onClick}
-                    style={{
-                      padding: "6px 14px",
-                      fontSize: 13,
-                      color: "var(--io-text)",
-                      cursor: "pointer",
-                      userSelect: "none",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background =
-                        "var(--io-accent-subtle)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                ))}
-              </div>
-            </>,
-            document.body,
-          )}
+        {/* Right-click context menu — ContextMenu is portal-based, escapes grid transforms */}
+        {ctxMenu && (
+          <ContextMenu
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+            items={[
+              { label: "Save As…", onClick: () => { setCtxMenu(null); setSaveModal({ publish: false }); } },
+              ...(canPublish ? [{ label: "Publish…", onClick: () => { setCtxMenu(null); setSaveModal({ publish: true }); } }] : []),
+              { label: "Configure Chart…", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+              { label: "Add Point to Trend", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+            ]}
+            onClose={() => setCtxMenu(null)}
+          />
+        )}
 
         {/* Save / Publish modal (triggered from right-click, independent of config panel) */}
         {saveModal && (
@@ -974,58 +964,18 @@ export default function TrendPane({
         </button>
       )}
 
-      {/* Right-click context menu (legacy path) — portalled to body to escape grid transforms */}
-      {ctxMenu &&
-        createPortal(
-          <>
-            <div
-              style={{ position: "fixed", inset: 0, zIndex: 999 }}
-              onClick={() => setCtxMenu(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setCtxMenu(null);
-              }}
-            />
-            <div
-              style={{
-                position: "fixed",
-                top: ctxMenu.y,
-                left: ctxMenu.x,
-                zIndex: 1000,
-                background: "var(--io-surface-elevated)",
-                border: "1px solid var(--io-border)",
-                borderRadius: 6,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                minWidth: 180,
-                paddingTop: 4,
-                paddingBottom: 4,
-              }}
-            >
-              <div
-                onClick={() => {
-                  setCtxMenu(null);
-                  setShowConfig(true);
-                }}
-                style={{
-                  padding: "6px 14px",
-                  fontSize: 13,
-                  color: "var(--io-text)",
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--io-accent-subtle)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
-              >
-                Configure Chart…
-              </div>
-            </div>
-          </>,
-          document.body,
-        )}
+      {/* Right-click context menu (legacy path) — ContextMenu is portal-based */}
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={[
+            { label: "Configure Chart…", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+            { label: "Add Point to Trend", onClick: () => { setCtxMenu(null); setShowConfig(true); } },
+          ]}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   );
 }

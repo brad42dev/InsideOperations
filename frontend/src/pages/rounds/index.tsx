@@ -12,6 +12,8 @@ import DataTable, { type ColumnDef } from "../../shared/components/DataTable";
 import { ExportButton } from "../../shared/components/ExportDialog";
 import { useOfflineRounds } from "../../shared/hooks/useOfflineRounds";
 import { PrintDialog } from "./PrintDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -292,6 +294,7 @@ export default function RoundsPage() {
   const [tab, setTab] = useState<TabId>("available");
   const [startingId, setStartingId] = useState<string | null>(null);
   const { isOnline, pendingCount, hasSyncFailures } = useOfflineRounds();
+  const { menuState: tmplMenu, handleContextMenu: openTmplMenu, closeMenu: closeTmplMenu } = useContextMenu<RoundTemplate>();
 
   const { data: availableResult, isLoading: loadingAvailable } = useQuery({
     queryKey: ["rounds", "instances", "pending"],
@@ -685,6 +688,7 @@ export default function RoundsPage() {
                   justifyContent: "space-between",
                   gap: "12px",
                 }}
+                onContextMenu={(e) => openTmplMenu(e, tmpl)}
               >
                 <div>
                   <div
@@ -755,6 +759,16 @@ export default function RoundsPage() {
                 </div>
               </div>
             ))}
+            {tmplMenu && (
+              <ContextMenu
+                x={tmplMenu.x}
+                y={tmplMenu.y}
+                items={[
+                  { label: "Edit", onClick: () => navigate(`/rounds/templates/${tmplMenu.data!.id}/edit`) },
+                ]}
+                onClose={closeTmplMenu}
+              />
+            )}
           </div>
         )}
 

@@ -9,6 +9,7 @@ import { PaneErrorBoundary } from "./PaneErrorBoundary";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from "./ConsolePalette";
 import { graphicsApi } from "../../api/graphics";
+import { usePermission } from "../../shared/hooks/usePermission";
 import type { PaneConfig } from "./types";
 
 export interface PaneWrapperProps {
@@ -46,6 +47,9 @@ export interface PaneWrapperProps {
   /** When true, suppresses this pane's title bar in live mode (workspace-level override).
    *  Per-pane showTitle setting is preserved — this only affects rendering. */
   hideTitles?: boolean;
+  /** When provided, right-clicking on a blank pane calls this instead of the per-pane
+   *  context menu — letting users reach "Add Pane" even when the grid is fully occupied. */
+  onWorkspaceContextMenu?: (x: number, y: number) => void;
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -161,8 +165,10 @@ export default function PaneWrapper({
   onPinToggle,
   workspaceId,
   hideTitles = false,
+  onWorkspaceContextMenu,
 }: PaneWrapperProps) {
   const navigate = useNavigate();
+  const canExportGraphic = usePermission("designer:export");
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type;
   const containerRef = useRef<HTMLDivElement>(null);
   const [paneCtxMenu, setPaneCtxMenu] = useState<{
@@ -297,7 +303,13 @@ export default function PaneWrapper({
         if (target.closest("[data-point-id]")) return;
         e.preventDefault();
         e.stopPropagation();
-        setPaneCtxMenu({ x: e.clientX, y: e.clientY });
+        // Blank panes delegate to the workspace background menu so that
+        // "Add Pane" is reachable even when the grid is fully occupied.
+        if (config.type === "blank" && onWorkspaceContextMenu) {
+          onWorkspaceContextMenu(e.clientX, e.clientY);
+        } else {
+          setPaneCtxMenu({ x: e.clientX, y: e.clientY });
+        }
       }}
       style={{
         display: "flex",
@@ -831,6 +843,33 @@ export default function PaneWrapper({
                             );
                           },
                         },
+                        ...(canExportGraphic
+                          ? [
+                              {
+                                label: "Export Graphic…",
+                                onClick: async () => {
+                                  setPaneCtxMenu(null);
+                                  try {
+                                    const blob =
+                                      await graphicsApi.exportIographic(
+                                        config.graphicId!,
+                                      );
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `${config.graphicId}.iographic`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  } catch (err) {
+                                    console.error(
+                                      "[Console] Export graphic failed",
+                                      err,
+                                    );
+                                  }
+                                },
+                              },
+                            ]
+                          : []),
                       ]
                     : []),
                 ]

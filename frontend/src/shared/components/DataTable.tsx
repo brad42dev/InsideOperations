@@ -44,6 +44,7 @@ export interface DataTableProps<T extends object> {
   height?: number;
   rowHeight?: number;
   onRowClick?: (row: T) => void;
+  onRowContextMenu?: (e: React.MouseEvent, row: T) => void;
   loading?: boolean;
   emptyMessage?: string;
   /** Show the export toolbar (default: true) */
@@ -205,6 +206,7 @@ export default function DataTable<T extends object>({
   height = 400,
   rowHeight,
   onRowClick,
+  onRowContextMenu,
   loading = false,
   emptyMessage = "No data available",
   showExport = true,
@@ -733,6 +735,14 @@ export default function DataTable<T extends object>({
                   key={row.id}
                   onClick={
                     onRowClick ? () => onRowClick(row.original) : undefined
+                  }
+                  onContextMenu={
+                    onRowContextMenu
+                      ? (e) => {
+                          e.preventDefault();
+                          onRowContextMenu(e, row.original);
+                        }
+                      : undefined
                   }
                   style={{
                     display: "flex",

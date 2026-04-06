@@ -10,6 +10,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type ChartConfig } from "../chart-config-types";
+import { useContextMenu } from "../../../hooks/useContextMenu";
+import ContextMenu from "../../ContextMenu";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
 
@@ -118,6 +120,7 @@ interface ColThreshold {
 
 export default function ScorecardTableChart({ config }: RendererProps) {
   const metricSlots = config.points.filter((p) => p.role === "metric");
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<{ period: string; value: string }>();
   const durationMinutes = config.durationMinutes ?? 60 * 24;
 
   const tableMode = (config.extras?.tableMode as string) ?? "scorecard";
@@ -345,7 +348,13 @@ export default function ScorecardTableChart({ config }: RendererProps) {
             {rows.map((row, ri) => (
               <tr
                 key={ri}
-                style={{ borderBottom: "1px solid var(--io-border)" }}
+                style={{ borderBottom: "1px solid var(--io-border)", cursor: "context-menu" }}
+                onContextMenu={(e) =>
+                  handleContextMenu(e, {
+                    period: periodLabel(periodStarts[ri], bucketMs),
+                    value: row.map((v) => formatValue(v)).join(", "),
+                  })
+                }
               >
                 <td
                   style={{
@@ -390,6 +399,29 @@ export default function ScorecardTableChart({ config }: RendererProps) {
             ))}
           </tbody>
         </table>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Copy Period",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(menuState.data?.period ?? "");
+              },
+            },
+            {
+              label: "Copy Values",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(menuState.data?.value ?? "");
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

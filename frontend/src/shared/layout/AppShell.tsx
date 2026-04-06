@@ -774,6 +774,18 @@ export default function AppShell() {
   const isKioskRef = useRef(isKiosk);
   isKioskRef.current = isKiosk;
 
+  // Global context menu prevention — the browser's native context menu must
+  // NEVER appear anywhere in the application. This handler fires last (document
+  // level, after all module-level handlers) and calls preventDefault() as a
+  // safety net. Individual components call e.stopPropagation() if needed.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+    document.addEventListener("contextmenu", handler);
+    return () => document.removeEventListener("contextmenu", handler);
+  }, []);
+
   // Persist sidebar state to localStorage whenever it changes.
   // Kiosk mode forces 'hidden' — we do not persist that transient state
   // so that exiting kiosk restores the user's preferred sidebar state.

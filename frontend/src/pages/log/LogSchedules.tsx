@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { logsApi, type LogSchedule } from "../../api/logs";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -311,6 +313,7 @@ export default function LogSchedules() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<LogSchedule | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LogSchedule | null>(null);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<LogSchedule>();
 
   // Queries
   const { data: schedData, isLoading: schedLoading } = useQuery({
@@ -464,6 +467,7 @@ export default function LogSchedules() {
           {schedules.map((s) => (
             <div
               key={s.id}
+              onContextMenu={(e) => handleContextMenu(e, s)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -668,6 +672,19 @@ export default function LogSchedules() {
             </div>
           </div>
         </div>
+      )}
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Edit", permission: "log:write", onClick: () => { closeMenu(); setEditTarget(menuState.data!); } },
+            { label: "Run Now", permission: "log:write", onClick: () => { closeMenu(); } },
+            { label: "Toggle Enable/Disable", permission: "log:write", onClick: () => { closeMenu(); } },
+            { label: "Delete", danger: true, divider: true, permission: "log:write", onClick: () => { closeMenu(); setDeleteTarget(menuState.data!); } },
+          ]}
+          onClose={closeMenu}
+        />
       )}
     </div>
   );

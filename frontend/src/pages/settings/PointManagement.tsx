@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1381,6 +1383,7 @@ export default function PointManagement() {
 
   // Banner error
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu<PointConfig>();
 
   // Build query params
   const queryParams = useMemo(() => {
@@ -1739,6 +1742,7 @@ export default function PointManagement() {
                   return (
                     <tr
                       key={point.id}
+                      onContextMenu={(e) => handleContextMenu(e, point)}
                       style={{
                         borderBottom:
                           i < points.length - 1
@@ -1747,6 +1751,7 @@ export default function PointManagement() {
                         background: selected
                           ? "rgba(var(--io-accent-rgb, 234,179,8),0.05)"
                           : undefined,
+                        cursor: "context-menu",
                       }}
                     >
                       {/* Checkbox */}
@@ -1926,6 +1931,19 @@ export default function PointManagement() {
         }}
         isPending={lifecycleMutation.isPending}
       />
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Configure", permission: "points:configure", onClick: () => { setConfigPoint(menuState.data!); setConfigOpen(true); closeMenu(); } },
+            { label: "View History", onClick: () => { closeMenu(); } },
+            { label: "Export", onClick: () => { closeMenu(); } },
+            { label: "Deactivate", danger: true, divider: true, permission: "points:configure", onClick: () => { setLifecyclePoint(menuState.data!); setLifecycleOpen(true); closeMenu(); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }
