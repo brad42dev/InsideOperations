@@ -2893,6 +2893,7 @@ async fn nightly_full_rediscovery(
 
 /// Returns `true` if the loop exited because the watchdog fired (no updates for
 /// 5 minutes), `false` if the session's update channel closed normally.
+#[allow(clippy::too_many_arguments)]
 async fn flush_loop(
     source: &PointSource,
     db: &DbPool,
