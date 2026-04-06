@@ -262,7 +262,9 @@ function MfaMethodsTab() {
 
       <ConfirmDialog
         open={!!pendingToggle}
-        onOpenChange={(v) => { if (!v) setPendingToggle(null); }}
+        onOpenChange={(v) => {
+          if (!v) setPendingToggle(null);
+        }}
         title={pendingToggle?.title ?? ""}
         description={pendingToggle?.description ?? ""}
         confirmLabel="Confirm"
@@ -519,7 +521,9 @@ function MfaPoliciesTab() {
 
       <ConfirmDialog
         open={!!pendingConfirm}
-        onOpenChange={(v) => { if (!v) setPendingConfirm(null); }}
+        onOpenChange={(v) => {
+          if (!v) setPendingConfirm(null);
+        }}
         title={`Remove MFA requirement for ${pendingConfirm?.roleName ?? ""}?`}
         description="Users in this role will be able to log in without MFA."
         confirmLabel="Remove Requirement"

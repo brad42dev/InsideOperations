@@ -791,7 +791,6 @@ export default function ReportScheduling() {
         )
       }
     >
-
       {!canManage && <LockedNotice />}
 
       {schedulesQuery.isError && (

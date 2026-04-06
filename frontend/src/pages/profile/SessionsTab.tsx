@@ -205,16 +205,26 @@ export default function SessionsTab() {
                 >
                   <td style={cellStyle}>
                     <code
-                      style={{ fontSize: "12px", color: "var(--io-text-primary)" }}
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-primary)",
+                      }}
                     >
                       {s.ip_address ?? "—"}
                     </code>
                   </td>
                   <td style={cellStyle}>{parseAgent(s.user_agent)}</td>
                   <td style={cellStyle}>{formatRelative(s.created_at)}</td>
-                  <td style={cellStyle}>{formatRelative(s.last_accessed_at)}</td>
                   <td style={cellStyle}>
-                    <span style={{ color: "var(--io-text-muted)", fontSize: "12px" }}>
+                    {formatRelative(s.last_accessed_at)}
+                  </td>
+                  <td style={cellStyle}>
+                    <span
+                      style={{
+                        color: "var(--io-text-muted)",
+                        fontSize: "12px",
+                      }}
+                    >
                       {formatExpiry(s.expires_at)}
                     </span>
                   </td>

@@ -1171,15 +1171,11 @@ function AppRoutes() {
             />
             <Route
               path="archive"
-              element={
-                <Navigate to="/settings/system?tab=archive" replace />
-              }
+              element={<Navigate to="/settings/system?tab=archive" replace />}
             />
             <Route
               path="backup"
-              element={
-                <Navigate to="/settings/system?tab=backup" replace />
-              }
+              element={<Navigate to="/settings/system?tab=backup" replace />}
             />
             <Route
               path="expressions"

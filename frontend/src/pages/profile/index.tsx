@@ -36,12 +36,18 @@ export default function ProfilePage() {
         >
           My Profile
         </h2>
-        <p style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}>
+        <p
+          style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}
+        >
           Manage your personal settings and security
         </p>
       </div>
 
-      <SettingsTabs tabs={TABS} activeTab={activeTab} onTabChange={handleTabChange}>
+      <SettingsTabs
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      >
         {activeTab === "profile" && <ProfileTab />}
         {activeTab === "security" && <SecurityTab />}
         {activeTab === "sessions" && <SessionsTab />}

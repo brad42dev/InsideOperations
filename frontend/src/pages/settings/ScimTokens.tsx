@@ -64,7 +64,10 @@ function CreateDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
         reset();
         onCreated(result.data);
       } else {
-        const errResult = result as { success: false; error?: { message: string } };
+        const errResult = result as {
+          success: false;
+          error?: { message: string };
+        };
         setError(errResult.error?.message ?? "Failed to create token");
       }
     },
@@ -205,7 +208,12 @@ function RevealDialog({ result, onClose }: RevealDialogProps) {
   };
 
   return (
-    <Dialog.Root open={!!result} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog.Root
+      open={!!result}
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay
           style={{
@@ -309,7 +317,10 @@ export default function ScimTokensSection() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTokenResult, setNewTokenResult] =
     useState<CreateScimTokenResponse | null>(null);
-  const [confirmRevoke, setConfirmRevoke] = useState<{ id: string; name: string } | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
 
   const { data: listResult, isLoading } = useQuery({
@@ -376,12 +387,22 @@ export default function ScimTokensSection() {
               background: "var(--io-surface-secondary)",
             }}
           />
-          <button onClick={handleCopyEndpoint} style={{ ...btnSmall, whiteSpace: "nowrap" }}>
+          <button
+            onClick={handleCopyEndpoint}
+            style={{ ...btnSmall, whiteSpace: "nowrap" }}
+          >
             {copiedEndpoint ? "Copied!" : "Copy"}
           </button>
         </div>
-        <p style={{ margin: "6px 0 0", fontSize: "12px", color: "var(--io-text-muted)" }}>
-          Provide this URL to your identity provider (Azure AD, Okta) when configuring SCIM provisioning.
+        <p
+          style={{
+            margin: "6px 0 0",
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          Provide this URL to your identity provider (Azure AD, Okta) when
+          configuring SCIM provisioning.
         </p>
       </div>
 
@@ -411,7 +432,8 @@ export default function ScimTokensSection() {
               color: "var(--io-text-secondary)",
             }}
           >
-            Bearer tokens for identity providers to push user changes via SCIM 2.0.
+            Bearer tokens for identity providers to push user changes via SCIM
+            2.0.
           </p>
         </div>
         <button onClick={() => setShowCreate(true)} style={btnPrimary}>
@@ -548,7 +570,9 @@ export default function ScimTokensSection() {
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right" }}>
                     <button
-                      onClick={() => setConfirmRevoke({ id: token.id, name: token.name })}
+                      onClick={() =>
+                        setConfirmRevoke({ id: token.id, name: token.name })
+                      }
                       disabled={deleteMutation.isPending}
                       style={{
                         ...btnSmall,
@@ -579,12 +603,16 @@ export default function ScimTokensSection() {
 
       <ConfirmDialog
         open={!!confirmRevoke}
-        onOpenChange={(v) => { if (!v) setConfirmRevoke(null); }}
+        onOpenChange={(v) => {
+          if (!v) setConfirmRevoke(null);
+        }}
         title={`Revoke "${confirmRevoke?.name ?? ""}"?`}
         description="IdPs using this token will lose access immediately."
         confirmLabel="Revoke"
         variant="danger"
-        onConfirm={() => confirmRevoke && deleteMutation.mutate(confirmRevoke.id)}
+        onConfirm={() =>
+          confirmRevoke && deleteMutation.mutate(confirmRevoke.id)
+        }
       />
     </div>
   );

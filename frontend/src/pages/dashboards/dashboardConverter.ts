@@ -54,7 +54,8 @@ function buildWidgetConfig(
   legacyConfig: Record<string, unknown>,
 ): WidgetConfig {
   const widgetType = mapWidgetType(legacyType);
-  const title = typeof legacyConfig.title === "string" ? legacyConfig.title : "";
+  const title =
+    typeof legacyConfig.title === "string" ? legacyConfig.title : "";
 
   switch (widgetType) {
     case "trend":

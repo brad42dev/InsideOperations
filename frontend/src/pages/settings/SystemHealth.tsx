@@ -698,7 +698,9 @@ function OpcSourcesTab() {
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  background: src.connected ? "var(--io-success)" : "var(--io-danger)",
+                  background: src.connected
+                    ? "var(--io-success)"
+                    : "var(--io-danger)",
                   boxShadow: src.connected ? "0 0 4px #22c55e" : undefined,
                 }}
               />
@@ -794,8 +796,10 @@ function OpcSourcesTab() {
               </div>
               <div
                 style={{
-                  background: "color-mix(in srgb, var(--io-danger) 5%, transparent)",
-                  border: "1px solid color-mix(in srgb, var(--io-danger) 15%, transparent)",
+                  background:
+                    "color-mix(in srgb, var(--io-danger) 5%, transparent)",
+                  border:
+                    "1px solid color-mix(in srgb, var(--io-danger) 15%, transparent)",
                   borderRadius: "6px",
                   padding: "8px 10px",
                   display: "flex",
@@ -1006,16 +1010,28 @@ function JobsTab() {
       <JobSection
         title="Email"
         rows={[
-          { label: "Pending", value: data.email.pending, color: "var(--io-warning)" },
+          {
+            label: "Pending",
+            value: data.email.pending,
+            color: "var(--io-warning)",
+          },
           { label: "Sent", value: data.email.sent, color: "var(--io-success)" },
-          { label: "Failed", value: data.email.failed, color: "var(--io-danger)" },
+          {
+            label: "Failed",
+            value: data.email.failed,
+            color: "var(--io-danger)",
+          },
           { label: "Retry", value: data.email.retry, color: "#fb923c" },
         ]}
       />
       <JobSection
         title="Alerts"
         rows={[
-          { label: "Pending", value: data.alerts.pending, color: "var(--io-warning)" },
+          {
+            label: "Pending",
+            value: data.alerts.pending,
+            color: "var(--io-warning)",
+          },
           { label: "Dispatched", value: data.alerts.dispatched },
           {
             label: "Acknowledged",
@@ -1032,20 +1048,36 @@ function JobsTab() {
       <JobSection
         title="Exports"
         rows={[
-          { label: "Active", value: data.exports.active, color: "var(--io-accent)" },
-          { label: "Queued", value: data.exports.queued, color: "var(--io-warning)" },
+          {
+            label: "Active",
+            value: data.exports.active,
+            color: "var(--io-accent)",
+          },
+          {
+            label: "Queued",
+            value: data.exports.queued,
+            color: "var(--io-warning)",
+          },
           {
             label: "Completed",
             value: data.exports.completed,
             color: "var(--io-success)",
           },
-          { label: "Failed", value: data.exports.failed, color: "var(--io-danger)" },
+          {
+            label: "Failed",
+            value: data.exports.failed,
+            color: "var(--io-danger)",
+          },
         ]}
       />
       <JobSection
         title="Imports"
         rows={[
-          { label: "Running", value: data.imports.running, color: "var(--io-accent)" },
+          {
+            label: "Running",
+            value: data.imports.running,
+            color: "var(--io-accent)",
+          },
           {
             label: "Scheduled",
             value: data.imports.scheduled,
@@ -1056,7 +1088,11 @@ function JobsTab() {
             value: data.imports.completed,
             color: "var(--io-success)",
           },
-          { label: "Failed", value: data.imports.failed, color: "var(--io-danger)" },
+          {
+            label: "Failed",
+            value: data.imports.failed,
+            color: "var(--io-danger)",
+          },
         ]}
       />
     </div>
@@ -1343,87 +1379,90 @@ export default function SystemHealth() {
       action={<StatusBadge status={overallStatus} />}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Summary tiles */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "12px",
-          maxWidth: "480px",
-        }}
-      >
-        {[
-          {
-            label: "Healthy",
-            count: healthyCnt,
-            color: "var(--io-success)",
-            bg: "color-mix(in srgb, var(--io-success) 8%, transparent)",
-            borderColor: "color-mix(in srgb, var(--io-success) 30%, transparent)",
-          },
-          {
-            label: "Degraded",
-            count: degradedCnt,
-            color: "var(--io-warning)",
-            bg: "color-mix(in srgb, var(--io-warning) 8%, transparent)",
-            borderColor: "color-mix(in srgb, var(--io-warning) 30%, transparent)",
-          },
-          {
-            label: "Unhealthy",
-            count: unhealthyCnt,
-            color: "var(--io-danger)",
-            bg: "color-mix(in srgb, var(--io-danger) 8%, transparent)",
-            borderColor: "color-mix(in srgb, var(--io-danger) 30%, transparent)",
-          },
-        ].map((s) => (
-          <div
-            key={s.label}
-            style={{
-              padding: "14px",
-              background: s.bg,
-              border: `1px solid ${s.borderColor}`,
-              borderRadius: "8px",
-              textAlign: "center",
-            }}
-          >
+        {/* Summary tiles */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "12px",
+            maxWidth: "480px",
+          }}
+        >
+          {[
+            {
+              label: "Healthy",
+              count: healthyCnt,
+              color: "var(--io-success)",
+              bg: "color-mix(in srgb, var(--io-success) 8%, transparent)",
+              borderColor:
+                "color-mix(in srgb, var(--io-success) 30%, transparent)",
+            },
+            {
+              label: "Degraded",
+              count: degradedCnt,
+              color: "var(--io-warning)",
+              bg: "color-mix(in srgb, var(--io-warning) 8%, transparent)",
+              borderColor:
+                "color-mix(in srgb, var(--io-warning) 30%, transparent)",
+            },
+            {
+              label: "Unhealthy",
+              count: unhealthyCnt,
+              color: "var(--io-danger)",
+              bg: "color-mix(in srgb, var(--io-danger) 8%, transparent)",
+              borderColor:
+                "color-mix(in srgb, var(--io-danger) 30%, transparent)",
+            },
+          ].map((s) => (
             <div
+              key={s.label}
               style={{
-                fontSize: "26px",
-                fontWeight: 800,
-                color: s.color,
-                lineHeight: 1,
+                padding: "14px",
+                background: s.bg,
+                border: `1px solid ${s.borderColor}`,
+                borderRadius: "8px",
+                textAlign: "center",
               }}
             >
-              {s.count}
+              <div
+                style={{
+                  fontSize: "26px",
+                  fontWeight: 800,
+                  color: s.color,
+                  lineHeight: 1,
+                }}
+              >
+                {s.count}
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: s.color,
+                  fontWeight: 600,
+                  marginTop: "4px",
+                }}
+              >
+                {s.label}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: "11px",
-                color: s.color,
-                fontWeight: 600,
-                marginTop: "4px",
-              }}
-            >
-              {s.label}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Tab navigation */}
-      <SettingsTabs
-        tabs={TABS}
-        activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as TabId)}
-      >
-        <div>
-          {activeTab === "services" && <ServicesTab />}
-          {activeTab === "database" && <DatabaseTab />}
-          {activeTab === "opc" && <OpcSourcesTab />}
-          {activeTab === "websocket" && <WebSocketTab />}
-          {activeTab === "jobs" && <JobsTab />}
-          {activeTab === "metrics" && <MetricsTab />}
+          ))}
         </div>
-      </SettingsTabs>
+
+        {/* Tab navigation */}
+        <SettingsTabs
+          tabs={TABS}
+          activeTab={activeTab}
+          onTabChange={(id) => setActiveTab(id as TabId)}
+        >
+          <div>
+            {activeTab === "services" && <ServicesTab />}
+            {activeTab === "database" && <DatabaseTab />}
+            {activeTab === "opc" && <OpcSourcesTab />}
+            {activeTab === "websocket" && <WebSocketTab />}
+            {activeTab === "jobs" && <JobsTab />}
+            {activeTab === "metrics" && <MetricsTab />}
+          </div>
+        </SettingsTabs>
       </div>
     </SettingsPageLayout>
   );

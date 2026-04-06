@@ -565,7 +565,9 @@ function ModelsSection() {
 
       <Dialog.Root
         open={!!detailModel}
-        onOpenChange={(open) => { if (!open) setDetailModel(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDetailModel(null);
+        }}
       >
         <Dialog.Portal>
           <Dialog.Overlay

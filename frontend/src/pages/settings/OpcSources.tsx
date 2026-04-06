@@ -249,8 +249,6 @@ const clientCertsApi = {
     }),
 };
 
-
-
 // ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
@@ -1529,9 +1527,21 @@ const CERT_STATUS_COLORS: Record<
   string,
   { bg: string; text: string; label: string }
 > = {
-  trusted: { bg: "var(--io-success-subtle)", text: "var(--io-success)", label: "Trusted" },
-  pending: { bg: "var(--io-warning-subtle)", text: "var(--io-warning)", label: "Pending" },
-  rejected: { bg: "var(--io-danger-subtle)", text: "var(--io-danger)", label: "Rejected" },
+  trusted: {
+    bg: "var(--io-success-subtle)",
+    text: "var(--io-success)",
+    label: "Trusted",
+  },
+  pending: {
+    bg: "var(--io-warning-subtle)",
+    text: "var(--io-warning)",
+    label: "Pending",
+  },
+  rejected: {
+    bg: "var(--io-danger-subtle)",
+    text: "var(--io-danger)",
+    label: "Rejected",
+  },
 };
 
 function CertStatusBadge({ status }: { status: string }) {
@@ -1587,7 +1597,10 @@ function ServerCertCard({
         : variant === "danger"
           ? "var(--io-danger)"
           : "transparent",
-    color: variant === "ghost" ? "var(--io-text-secondary)" : "var(--io-text-on-accent)",
+    color:
+      variant === "ghost"
+        ? "var(--io-text-secondary)"
+        : "var(--io-text-on-accent)",
     fontSize: 12,
     fontWeight: 500,
     cursor: loading ? "not-allowed" : "pointer",
@@ -1676,7 +1689,13 @@ function ServerCertCard({
             >
               {value ?? "—"}
               {label === "Valid To" && cert.expired && (
-                <span style={{ marginLeft: 6, color: "var(--io-danger)", fontSize: 11 }}>
+                <span
+                  style={{
+                    marginLeft: 6,
+                    color: "var(--io-danger)",
+                    fontSize: 11,
+                  }}
+                >
                   EXPIRED
                 </span>
               )}

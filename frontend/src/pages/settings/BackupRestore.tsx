@@ -301,7 +301,9 @@ export function BackupTab() {
                 : "var(--io-danger-subtle)",
             border: `1px solid ${toast.type === "success" ? "var(--io-success)" : "var(--io-danger)"}`,
             color:
-              toast.type === "success" ? "var(--io-success)" : "var(--io-danger)",
+              toast.type === "success"
+                ? "var(--io-success)"
+                : "var(--io-danger)",
             fontSize: "13px",
             marginBottom: "16px",
           }}

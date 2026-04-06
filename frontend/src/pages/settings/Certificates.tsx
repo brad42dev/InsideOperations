@@ -69,7 +69,6 @@ const textareaStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-
 // ---------------------------------------------------------------------------
 // CertificateContextMenu — right-click context menu for certificate table rows
 // ---------------------------------------------------------------------------
@@ -290,10 +289,7 @@ function CertificateContextMenu({
                 marginTop: "20px",
               }}
             >
-              <button
-                onClick={() => setDetailOpen(false)}
-                style={btnSecondary}
-              >
+              <button onClick={() => setDetailOpen(false)} style={btnSecondary}>
                 Close
               </button>
             </div>
@@ -441,7 +437,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         )}
 
         <div style={{ marginBottom: "16px" }}>
-          <label htmlFor="upload-cert-name" style={labelStyle}>Name *</label>
+          <label htmlFor="upload-cert-name" style={labelStyle}>
+            Name *
+          </label>
           <input
             id="upload-cert-name"
             type="text"
@@ -465,7 +463,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         </div>
 
         <div style={{ marginBottom: "16px" }}>
-          <label htmlFor="upload-cert-pem" style={labelStyle}>Certificate PEM *</label>
+          <label htmlFor="upload-cert-pem" style={labelStyle}>
+            Certificate PEM *
+          </label>
           <textarea
             id="upload-cert-pem"
             placeholder={
@@ -482,7 +482,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         </div>
 
         <div style={{ marginBottom: "24px" }}>
-          <label htmlFor="upload-cert-key" style={labelStyle}>Private Key PEM *</label>
+          <label htmlFor="upload-cert-key" style={labelStyle}>
+            Private Key PEM *
+          </label>
           <textarea
             id="upload-cert-key"
             placeholder={
@@ -574,7 +576,6 @@ export default function CertificatesPage() {
         </button>
       }
     >
-
       {/* Body */}
       {isLoading ? (
         <div
@@ -826,12 +827,20 @@ export default function CertificatesPage() {
 
       <ConfirmDialog
         open={!!deleteConfirm}
-        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
         title="Delete Certificate"
-        description={deleteConfirm ? `Delete certificate "${deleteConfirm}"? This cannot be undone.` : ""}
+        description={
+          deleteConfirm
+            ? `Delete certificate "${deleteConfirm}"? This cannot be undone.`
+            : ""
+        }
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm); }}
+        onConfirm={() => {
+          if (deleteConfirm) deleteMutation.mutate(deleteConfirm);
+        }}
       />
     </SettingsPageLayout>
   );

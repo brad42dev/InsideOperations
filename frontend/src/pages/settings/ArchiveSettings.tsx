@@ -103,12 +103,16 @@ function ArchiveStorageCard() {
     <div style={sectionCard}>
       <div style={sectionTitle}>Current Storage</div>
       {isLoading && (
-        <p style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: 0 }}>
+        <p
+          style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: 0 }}
+        >
           Loading storage statistics…
         </p>
       )}
       {!isLoading && !data && (
-        <p style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: 0 }}>
+        <p
+          style={{ fontSize: "13px", color: "var(--io-text-muted)", margin: 0 }}
+        >
           Storage statistics unavailable
         </p>
       )}
@@ -372,7 +376,9 @@ export function ArchiveTab() {
                 : "var(--io-danger-subtle)",
             border: `1px solid ${toast.type === "success" ? "var(--io-success)" : "var(--io-danger)"}`,
             color:
-              toast.type === "success" ? "var(--io-success)" : "var(--io-danger)",
+              toast.type === "success"
+                ? "var(--io-success)"
+                : "var(--io-danger)",
             fontSize: "13px",
             marginBottom: "16px",
           }}

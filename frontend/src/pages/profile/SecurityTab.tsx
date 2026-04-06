@@ -172,7 +172,8 @@ function PinSetupSection({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: mode !== "idle" ? "1px solid var(--io-border)" : undefined,
+          borderBottom:
+            mode !== "idle" ? "1px solid var(--io-border)" : undefined,
         }}
       >
         <div>
@@ -183,7 +184,14 @@ function PinSetupSection({
           </div>
         </div>
         {mode === "idle" && (
-          <div style={{ display: "flex", gap: "8px", flexShrink: 0, marginLeft: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexShrink: 0,
+              marginLeft: "16px",
+            }}
+          >
             <button
               onClick={() => setMode("set")}
               style={{
@@ -220,7 +228,9 @@ function PinSetupSection({
 
       {mode === "set" && (
         <form onSubmit={handleSetPin} style={{ padding: "16px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
             <div>
               <label style={labelStyle} htmlFor="pin-new">
                 New PIN (6 digits)
@@ -291,7 +301,13 @@ function PinSetupSection({
                 {error}
               </div>
             )}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "flex-end",
+              }}
+            >
               <button
                 type="button"
                 onClick={resetForm}
@@ -314,8 +330,12 @@ function PinSetupSection({
 
       {mode === "remove" && (
         <form onSubmit={handleRemovePin} style={{ padding: "16px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ fontSize: "13px", color: "var(--io-text-secondary)" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <div
+              style={{ fontSize: "13px", color: "var(--io-text-secondary)" }}
+            >
               This will remove your lock screen PIN. You will need your password
               to unlock the session.
             </div>
@@ -349,7 +369,13 @@ function PinSetupSection({
                 {error}
               </div>
             )}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "flex-end",
+              }}
+            >
               <button
                 type="button"
                 onClick={resetForm}
@@ -504,7 +530,13 @@ function MfaSection() {
               >
                 TOTP Authenticator
               </div>
-              <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: "2px" }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-muted)",
+                  marginTop: "2px",
+                }}
+              >
                 {status?.enabled
                   ? `Active${status.has_recovery_codes ? " · recovery codes available" : " · no recovery codes"}`
                   : "Not configured"}
@@ -550,7 +582,13 @@ function MfaSection() {
             >
               Step 1 — Add to your authenticator app
             </h4>
-            <p style={{ margin: "0 0 12px", fontSize: "13px", color: "var(--io-text-secondary)" }}>
+            <p
+              style={{
+                margin: "0 0 12px",
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+              }}
+            >
               Open your authenticator app (Google Authenticator, Authy,
               1Password, etc.) and add a new account.
             </p>
@@ -603,7 +641,14 @@ function MfaSection() {
                 {enrollData.manual_entry_key}
               </code>
             </div>
-            <h4 style={{ margin: "0 0 10px", fontSize: "14px", fontWeight: 600, color: "var(--io-text-primary)" }}>
+            <h4
+              style={{
+                margin: "0 0 10px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
               Step 2 — Enter the 6-digit code
             </h4>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -671,10 +716,24 @@ function MfaSection() {
               background: "var(--io-surface)",
             }}
           >
-            <h4 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: 600, color: "var(--io-text-primary)" }}>
+            <h4
+              style={{
+                margin: "0 0 8px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
               TOTP Enabled — Save Your Recovery Codes
             </h4>
-            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "var(--io-text-secondary)", lineHeight: 1.5 }}>
+            <p
+              style={{
+                margin: "0 0 16px",
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+                lineHeight: 1.5,
+              }}
+            >
               These 8 single-use codes let you access your account if you lose
               your authenticator device. Save them somewhere safe — you will not
               be able to view them again.
@@ -912,7 +971,9 @@ function CreateKeyModal({
             />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
+          >
             <button onClick={onClose} style={btnSecondary}>
               Cancel
             </button>
@@ -993,7 +1054,13 @@ function RevealKeyModal({
             </code>
           </div>
 
-          <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginBottom: "20px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginBottom: "20px",
+            }}
+          >
             <strong>Name:</strong> {result.name}
             {result.scopes.length > 0 && (
               <>
@@ -1009,7 +1076,9 @@ function RevealKeyModal({
             )}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
+          >
             <button onClick={handleCopy} style={btnSecondary}>
               {copied ? "Copied!" : "Copy Key"}
             </button>
@@ -1026,8 +1095,13 @@ function RevealKeyModal({
 function ApiKeysSection() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [newKeyResult, setNewKeyResult] = useState<CreateApiKeyResponse | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [newKeyResult, setNewKeyResult] = useState<CreateApiKeyResponse | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const { data: listResult, isLoading } = useQuery({
     queryKey: ["api-keys"],
@@ -1108,29 +1182,38 @@ function ApiKeysSection() {
                     borderBottom: "1px solid var(--io-border)",
                   }}
                 >
-                  {["Name", "Prefix", "Scopes", "Created", "Expires", "Last Used", ""].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "10px 14px",
-                          textAlign: "left",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          color: "var(--io-text-muted)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    "Name",
+                    "Prefix",
+                    "Scopes",
+                    "Created",
+                    "Expires",
+                    "Last Used",
+                    "",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--io-text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {keys.map((key) => (
-                  <tr key={key.id} style={{ borderBottom: "1px solid var(--io-border)" }}>
+                  <tr
+                    key={key.id}
+                    style={{ borderBottom: "1px solid var(--io-border)" }}
+                  >
                     <td
                       style={{
                         padding: "12px 14px",
@@ -1157,7 +1240,13 @@ function ApiKeysSection() {
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       {key.scopes.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "4px",
+                          }}
+                        >
                           {key.scopes.map((s) => (
                             <span
                               key={s}
@@ -1174,7 +1263,12 @@ function ApiKeysSection() {
                           ))}
                         </div>
                       ) : (
-                        <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--io-text-muted)",
+                          }}
+                        >
                           All scopes
                         </span>
                       )}
@@ -1323,7 +1417,10 @@ function ChangePasswordSection() {
         setError(msg);
         return;
       }
-      showToast({ title: "Password changed successfully.", variant: "success" });
+      showToast({
+        title: "Password changed successfully.",
+        variant: "success",
+      });
       setSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
@@ -1340,11 +1437,19 @@ function ChangePasswordSection() {
       <div style={sectionHeaderStyle}>
         <div style={sectionTitleStyle}>Change Password</div>
         <div style={sectionDescStyle}>
-          Update your account password. You will remain logged in on all devices.
+          Update your account password. You will remain logged in on all
+          devices.
         </div>
       </div>
       <form onSubmit={handleSubmit} style={{ padding: "16px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxWidth: "360px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            maxWidth: "360px",
+          }}
+        >
           <div>
             <label style={labelStyle} htmlFor="pw-current">
               Current Password

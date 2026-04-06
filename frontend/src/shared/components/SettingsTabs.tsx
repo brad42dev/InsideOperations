@@ -23,11 +23,13 @@ export function SettingsTabs({
   function handleKeyDown(e: React.KeyboardEvent, index: number) {
     let next = -1;
     if (e.key === "ArrowRight") next = (index + 1) % tabs.length;
-    else if (e.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+    else if (e.key === "ArrowLeft")
+      next = (index - 1 + tabs.length) % tabs.length;
     if (next >= 0) {
       e.preventDefault();
       onTabChange(tabs[next].id);
-      const buttons = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+      const buttons =
+        tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
       buttons?.[next]?.focus();
     }
   }
@@ -76,7 +78,11 @@ export function SettingsTabs({
           );
         })}
       </div>
-      <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+      <div
+        role="tabpanel"
+        id={`tabpanel-${activeTab}`}
+        aria-labelledby={`tab-${activeTab}`}
+      >
         {children}
       </div>
     </div>

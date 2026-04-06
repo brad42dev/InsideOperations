@@ -162,8 +162,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-
-
 // ---------------------------------------------------------------------------
 // Tab: Bulk Update
 // ---------------------------------------------------------------------------
@@ -1102,7 +1100,9 @@ function BulkUpdateTab() {
     <div>
       <ConfirmDialog
         open={showApplyConfirm}
-        onOpenChange={(open) => { if (!open) setShowApplyConfirm(false); }}
+        onOpenChange={(open) => {
+          if (!open) setShowApplyConfirm(false);
+        }}
         title="Apply Bulk Update"
         description={`This will apply ${preview?.modified.length ?? 0} modification(s) to ${TARGET_TYPE_LABELS[targetType]}. A safety snapshot will be created first. Valid rows will be applied; rows with validation errors will be skipped. Continue?`}
         confirmLabel="Apply"
@@ -1110,7 +1110,9 @@ function BulkUpdateTab() {
       />
       <ConfirmDialog
         open={showUndoConfirm}
-        onOpenChange={(open) => { if (!open) setShowUndoConfirm(false); }}
+        onOpenChange={(open) => {
+          if (!open) setShowUndoConfirm(false);
+        }}
         title="Undo Bulk Update"
         description={`This will restore ${TARGET_TYPE_LABELS[targetType]} data from the safety snapshot created before the bulk update. All changes will be reverted. Continue?`}
         confirmLabel="Undo"
@@ -1661,12 +1663,16 @@ function SnapshotsTab() {
     <div>
       <ConfirmDialog
         open={!!deleteId}
-        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteId(null);
+        }}
         title="Delete Snapshot"
         description="Delete this snapshot? This cannot be undone."
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId); }}
+        onConfirm={() => {
+          if (deleteId) deleteMutation.mutate(deleteId);
+        }}
       />
       {restoreId && (
         <RestorePreviewModal
@@ -2075,7 +2081,6 @@ export default function BulkUpdate() {
       description="Download, edit, and reimport configuration data in bulk. Create and restore point-in-time snapshots."
       variant="list"
     >
-
       {/* Tab bar */}
       <div
         style={{

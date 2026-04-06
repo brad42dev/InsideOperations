@@ -328,7 +328,9 @@ export default function UserDetail({
                     No roles assigned
                   </p>
                 ) : (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                  >
                     {user.roles.map((r) => (
                       <span
                         key={r.id}

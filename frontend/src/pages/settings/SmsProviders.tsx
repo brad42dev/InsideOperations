@@ -171,7 +171,9 @@ function AddProviderDialog({
             Add SMS Provider
           </Dialog.Title>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
             {/* Provider type */}
             <div>
               <label style={labelStyle}>Provider Type</label>
@@ -303,7 +305,11 @@ function AddProviderDialog({
 
             {error && (
               <p
-                style={{ margin: 0, fontSize: "13px", color: "var(--io-danger)" }}
+                style={{
+                  margin: 0,
+                  fontSize: "13px",
+                  color: "var(--io-danger)",
+                }}
               >
                 {error}
               </p>
@@ -552,12 +558,16 @@ export default function SmsProvidersSection() {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        onOpenChange={(v) => { if (!v) setConfirmDelete(null); }}
+        onOpenChange={(v) => {
+          if (!v) setConfirmDelete(null);
+        }}
         title={`Delete "${confirmDelete?.name ?? ""}"?`}
         description="This SMS provider will be permanently removed."
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => confirmDelete && deleteMutation.mutate(confirmDelete.id)}
+        onConfirm={() =>
+          confirmDelete && deleteMutation.mutate(confirmDelete.id)
+        }
       />
 
       <style>{`

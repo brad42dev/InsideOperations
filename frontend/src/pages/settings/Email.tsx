@@ -21,7 +21,6 @@ import {
   CreateTemplateRequest,
 } from "../../api/email";
 
-
 // ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
@@ -60,7 +59,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Providers tab
 // ---------------------------------------------------------------------------
@@ -69,7 +67,10 @@ function ProvidersTab() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editProvider, setEditProvider] = useState<EmailProvider | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-providers"],
@@ -230,12 +231,18 @@ function ProvidersTab() {
 
       <ConfirmDialog
         open={!!deleteConfirm}
-        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
         title="Delete Provider"
-        description={deleteConfirm ? `Delete provider "${deleteConfirm.name}"?` : ""}
+        description={
+          deleteConfirm ? `Delete provider "${deleteConfirm.name}"?` : ""
+        }
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id); }}
+        onConfirm={() => {
+          if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id);
+        }}
       />
     </div>
   );
@@ -353,7 +360,9 @@ function ProviderDialog({
             style={{ display: "flex", flexDirection: "column", gap: "14px" }}
           >
             <div>
-              <label htmlFor="email-provider-name" style={labelStyle}>Name</label>
+              <label htmlFor="email-provider-name" style={labelStyle}>
+                Name
+              </label>
               <input
                 id="email-provider-name"
                 style={inputStyle}
@@ -362,7 +371,9 @@ function ProviderDialog({
               />
             </div>
             <div>
-              <label htmlFor="email-provider-type" style={labelStyle}>Type</label>
+              <label htmlFor="email-provider-type" style={labelStyle}>
+                Type
+              </label>
               <select
                 id="email-provider-type"
                 style={inputStyle}
@@ -378,7 +389,9 @@ function ProviderDialog({
               </select>
             </div>
             <div>
-              <label htmlFor="email-provider-from-addr" style={labelStyle}>From Address</label>
+              <label htmlFor="email-provider-from-addr" style={labelStyle}>
+                From Address
+              </label>
               <input
                 id="email-provider-from-addr"
                 style={inputStyle}
@@ -387,7 +400,9 @@ function ProviderDialog({
               />
             </div>
             <div>
-              <label htmlFor="email-provider-from-name" style={labelStyle}>From Name (optional)</label>
+              <label htmlFor="email-provider-from-name" style={labelStyle}>
+                From Name (optional)
+              </label>
               <input
                 id="email-provider-from-name"
                 style={inputStyle}
@@ -499,7 +514,10 @@ function TemplatesTab() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(
     null,
   );
@@ -835,12 +853,18 @@ function TemplatesTab() {
 
       <ConfirmDialog
         open={!!deleteConfirm}
-        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
         title="Delete Template"
-        description={deleteConfirm ? `Delete template "${deleteConfirm.name}"?` : ""}
+        description={
+          deleteConfirm ? `Delete template "${deleteConfirm.name}"?` : ""
+        }
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id); }}
+        onConfirm={() => {
+          if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id);
+        }}
       />
     </div>
   );
@@ -1309,7 +1333,11 @@ export default function EmailSettingsPage() {
       description="Configure email providers, templates, and delivery queue."
       variant="list"
     >
-      <SettingsTabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}>
+      <SettingsTabs
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
         <div>
           {activeTab === "Providers" && <ProvidersTab />}
           {activeTab === "Templates" && <TemplatesTab />}

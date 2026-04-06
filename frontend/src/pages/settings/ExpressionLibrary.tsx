@@ -12,7 +12,6 @@ import { useAuthStore } from "../../store/auth";
 import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 
-
 // ---------------------------------------------------------------------------
 // Context display names
 // ---------------------------------------------------------------------------

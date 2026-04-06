@@ -293,39 +293,39 @@ const DashboardCard = memo(function DashboardCard({
                   ]
                     .filter((item) => !item.hidden)
                     .map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={item.disabled ? undefined : item.action}
-                      style={{
-                        width: "100%",
-                        padding: "8px 12px",
-                        background: "none",
-                        border: "none",
-                        color: item.danger
-                          ? "var(--io-danger)"
-                          : "var(--io-text-secondary)",
-                        fontSize: "13px",
-                        cursor: item.disabled ? "not-allowed" : "pointer",
-                        textAlign: "left",
-                        display: "block",
-                        opacity: item.disabled ? 0.4 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!item.disabled) {
+                      <button
+                        key={item.label}
+                        onClick={item.disabled ? undefined : item.action}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          background: "none",
+                          border: "none",
+                          color: item.danger
+                            ? "var(--io-danger)"
+                            : "var(--io-text-secondary)",
+                          fontSize: "13px",
+                          cursor: item.disabled ? "not-allowed" : "pointer",
+                          textAlign: "left",
+                          display: "block",
+                          opacity: item.disabled ? 0.4 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!item.disabled) {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "var(--io-surface-secondary)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
                           (
                             e.currentTarget as HTMLButtonElement
-                          ).style.background = "var(--io-surface-secondary)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        (
-                          e.currentTarget as HTMLButtonElement
-                        ).style.background = "transparent";
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                          ).style.background = "transparent";
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
                 </div>
               </>
             )}

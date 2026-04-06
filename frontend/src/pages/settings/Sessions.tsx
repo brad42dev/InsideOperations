@@ -29,7 +29,6 @@ const cellStyle: React.CSSProperties = {
   verticalAlign: "middle",
 };
 
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -396,7 +395,9 @@ export default function Sessions() {
         >
           Sessions
         </h2>
-        <p style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}>
+        <p
+          style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}
+        >
           View and revoke all active user sessions
         </p>
       </div>

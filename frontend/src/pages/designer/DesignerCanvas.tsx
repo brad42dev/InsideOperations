@@ -1306,9 +1306,8 @@ function WidgetRenderer({ node, tx }: { node: WidgetNode; tx: string }) {
     const w = Math.max(width, 40);
     const h = Math.max(height, 28);
     // Get live value for point-bound widget types
-    const pointId = (
-      config as { binding?: { pointId?: string } }
-    ).binding?.pointId;
+    const pointId = (config as { binding?: { pointId?: string } }).binding
+      ?.pointId;
     const liveVal = pointId ? liveValues.get(pointId) : undefined;
     const displayVal =
       liveVal !== undefined
@@ -7037,8 +7036,7 @@ export default function DesignerCanvas({
               >
                 {smartGuides.map((guide, i) => {
                   const screenPos =
-                    guide.position * zoom +
-                    (guide.axis === "h" ? panY : panX);
+                    guide.position * zoom + (guide.axis === "h" ? panY : panX);
                   return guide.axis === "h" ? (
                     <line
                       key={i}

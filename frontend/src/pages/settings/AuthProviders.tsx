@@ -69,7 +69,9 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
     queryFn: () => rolesApi.list(),
   });
 
-  const roles: Role[] = rolesResult?.success ? rolesResult.data.data ?? [] : [];
+  const roles: Role[] = rolesResult?.success
+    ? (rolesResult.data.data ?? [])
+    : [];
 
   const createMutation = useMutation({
     mutationFn: (body: {
@@ -513,7 +515,9 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
     setOidcIssuerUrl((cfg.issuer_url as string) ?? "");
     setOidcClientId((cfg.client_id as string) ?? "");
     setOidcClientSecret((cfg.client_secret as string) ?? "");
-    setOidcScopes((cfg.scopes as string[])?.join(", ") ?? "openid, profile, email");
+    setOidcScopes(
+      (cfg.scopes as string[])?.join(", ") ?? "openid, profile, email",
+    );
     // SAML
     setSamlEntityId((cfg.entity_id as string) ?? "");
     setSamlIdpMetadataUrl((cfg.idp_metadata_url as string) ?? "");
@@ -534,7 +538,12 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
       existing
         ? JSON.stringify(existing.config, null, 2)
         : JSON.stringify(
-            { issuer_url: "", client_id: "", client_secret: "", scopes: ["openid", "profile", "email"] },
+            {
+              issuer_url: "",
+              client_id: "",
+              client_secret: "",
+              scopes: ["openid", "profile", "email"],
+            },
             null,
             2,
           ),
@@ -998,7 +1007,9 @@ function ProviderRow({ provider }: ProviderRowProps) {
       if (result.success) {
         setTestStatus({
           ok: true,
-          message: (result.data as { message?: string }).message ?? "Connection successful",
+          message:
+            (result.data as { message?: string }).message ??
+            "Connection successful",
         });
       } else {
         const err = result as { success: false; error?: { message: string } };
@@ -1044,22 +1055,27 @@ function ProviderRow({ provider }: ProviderRowProps) {
         </td>
         <td style={cellStyle}>{provider.display_order}</td>
         <td style={{ ...cellStyle, textAlign: "right" }}>
-          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }}
+          >
             {testStatus && (
               <span
                 style={{
                   fontSize: "12px",
-                  color: testStatus.ok ? "var(--io-success)" : "var(--io-danger)",
+                  color: testStatus.ok
+                    ? "var(--io-success)"
+                    : "var(--io-danger)",
                 }}
               >
                 {testStatus.message}
               </span>
             )}
-            <button
-              style={btnSmall}
-              disabled={testing}
-              onClick={handleTest}
-            >
+            <button style={btnSmall} disabled={testing} onClick={handleTest}>
               {testing ? "Testing…" : "Test"}
             </button>
             <button style={btnSmall} onClick={() => setExpanded((v) => !v)}>

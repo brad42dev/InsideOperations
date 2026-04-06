@@ -210,7 +210,9 @@ function CreateVersionDialog({
               }}
             >
               <div>
-                <label htmlFor="eula-type" style={labelStyle}>Type *</label>
+                <label htmlFor="eula-type" style={labelStyle}>
+                  Type *
+                </label>
                 <select
                   id="eula-type"
                   style={inputStyle}
@@ -232,7 +234,9 @@ function CreateVersionDialog({
                 </select>
               </div>
               <div>
-                <label htmlFor="eula-version" style={labelStyle}>Version string *</label>
+                <label htmlFor="eula-version" style={labelStyle}>
+                  Version string *
+                </label>
                 <input
                   id="eula-version"
                   style={inputStyle}
@@ -242,7 +246,9 @@ function CreateVersionDialog({
                 />
               </div>
               <div>
-                <label htmlFor="eula-title" style={labelStyle}>Title *</label>
+                <label htmlFor="eula-title" style={labelStyle}>
+                  Title *
+                </label>
                 <input
                   id="eula-title"
                   style={inputStyle}
@@ -267,7 +273,10 @@ function CreateVersionDialog({
                   marginBottom: "5px",
                 }}
               >
-                <label htmlFor="eula-content" style={{ ...labelStyle, marginBottom: 0 }}>
+                <label
+                  htmlFor="eula-content"
+                  style={{ ...labelStyle, marginBottom: 0 }}
+                >
                   Content (Markdown) *
                 </label>
                 <div style={{ display: "flex", gap: "16px" }}>
@@ -990,7 +999,6 @@ export default function EulaAdminPage() {
         </button>
       }
     >
-
       {/* Tabs */}
       <div
         style={{
