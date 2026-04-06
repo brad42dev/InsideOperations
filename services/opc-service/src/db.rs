@@ -830,9 +830,17 @@ pub async fn refresh_aggregates_for_range(
 
     // 1d view: the bucket size is 1 day, so the refresh window must cover at
     // least one full day.  Align to [floor(from, day), ceil(to, day)].
-    let day_from = from_time.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+    let day_from = from_time
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
     let to_naive = to_time.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
-    let day_to = if to_time > to_naive { to_naive + chrono::Duration::days(1) } else { to_naive };
+    let day_to = if to_time > to_naive {
+        to_naive + chrono::Duration::days(1)
+    } else {
+        to_naive
+    };
     sqlx::query("CALL refresh_continuous_aggregate('points_history_1d', $1, $2)")
         .bind(day_from)
         .bind(day_to)

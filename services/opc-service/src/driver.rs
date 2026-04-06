@@ -74,7 +74,11 @@ impl EbrFilter {
 
         // Treat NaN as 0.0 for comparison purposes (extract_value already does this,
         // but guard defensively).
-        let val = if update.value.is_nan() { 0.0 } else { update.value };
+        let val = if update.value.is_nan() {
+            0.0
+        } else {
+            update.value
+        };
 
         match self.state.get_mut(&update.point_id) {
             None => {
@@ -699,8 +703,7 @@ async fn run_source_once(
     // Keep a clone of the sender so flush_loop can create new subscriptions
     // during incremental rediscovery while the channel stays open.
     let (good_items, _subscription_ids) =
-        create_subscriptions(source, &session, &node_map, update_tx.clone(), config)
-            .await?;
+        create_subscriptions(source, &session, &node_map, update_tx.clone(), config).await?;
 
     // Record how many points are currently subscribed after subscription creation.
     metrics::gauge!("io_opc_points_subscribed").set(good_items as f64);
@@ -742,8 +745,8 @@ async fn run_source_once(
             "All monitored items returned non-Good status — falling back to polling mode"
         );
         drop(update_rx); // won't be used in polling mode
-        // Rediscovery is not implemented for poll_loop — subscriptions are required.
-        // TODO: add rediscovery support to poll_loop if subscription-less servers need it.
+                         // Rediscovery is not implemented for poll_loop — subscriptions are required.
+                         // TODO: add rediscovery support to poll_loop if subscription-less servers need it.
         poll_loop(source, db, uds, config, &session, &node_map).await;
         false
     } else {
@@ -1757,23 +1760,21 @@ async fn create_subscriptions(
 
         let monitored_items: Vec<MonitoredItemCreateRequest> = chunk
             .iter()
-            .map(|(node_id, _)| {
-                MonitoredItemCreateRequest {
-                    item_to_monitor: ReadValueId {
-                        node_id: node_id.clone(),
-                        attribute_id: AttributeId::Value as u32,
-                        index_range: NumericRange::None,
-                        data_encoding: QualifiedName::null(),
-                    },
-                    monitoring_mode: MonitoringMode::Reporting,
-                    requested_parameters: MonitoringParameters {
-                        client_handle: 0,
-                        sampling_interval: publishing_ms as f64,
-                        filter: make_absolute_filter(),
-                        queue_size: 1,
-                        discard_oldest: true,
-                    },
-                }
+            .map(|(node_id, _)| MonitoredItemCreateRequest {
+                item_to_monitor: ReadValueId {
+                    node_id: node_id.clone(),
+                    attribute_id: AttributeId::Value as u32,
+                    index_range: NumericRange::None,
+                    data_encoding: QualifiedName::null(),
+                },
+                monitoring_mode: MonitoringMode::Reporting,
+                requested_parameters: MonitoringParameters {
+                    client_handle: 0,
+                    sampling_interval: publishing_ms as f64,
+                    filter: make_absolute_filter(),
+                    queue_size: 1,
+                    discard_oldest: true,
+                },
             })
             .collect();
 
@@ -2819,15 +2820,7 @@ async fn incremental_rediscovery(
     harvest_analog_metadata(source, db, session, &new_node_map, &new_analog_nodes).await;
 
     // Create a new OPC UA subscription for the new nodes only.
-    match create_subscriptions(
-        source,
-        session,
-        &new_node_map,
-        update_tx.clone(),
-        config,
-    )
-    .await
-    {
+    match create_subscriptions(source, session, &new_node_map, update_tx.clone(), config).await {
         Ok((good, _sub_ids)) => {
             info!(
                 source = %source.name,
@@ -2869,7 +2862,8 @@ async fn nightly_full_rediscovery(
     let deactivated = db::deactivate_removed_points(db, source.id, &discovered_tagnames).await?;
 
     // Build a set of discovered NodeIds for efficient retain.
-    let discovered_node_ids: HashSet<NodeId> = discovered.iter().map(|n| n.node_id.clone()).collect();
+    let discovered_node_ids: HashSet<NodeId> =
+        discovered.iter().map(|n| n.node_id.clone()).collect();
 
     // Remove deactivated entries from the in-memory node_map.
     node_map.retain(|node_id, _| discovered_node_ids.contains(node_id));
@@ -2932,8 +2926,7 @@ async fn flush_loop(
 
     // Rediscovery timers.
     let rediscovery_enabled = config.rediscovery_interval_secs > 0;
-    let rediscovery_interval =
-        Duration::from_secs(config.rediscovery_interval_secs.max(1));
+    let rediscovery_interval = Duration::from_secs(config.rediscovery_interval_secs.max(1));
     let mut next_rediscovery = tokio::time::Instant::now() + rediscovery_interval;
 
     let nightly_enabled = config.nightly_cleanup_enabled;
