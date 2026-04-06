@@ -18,6 +18,7 @@ use tracing::{error, info, warn};
 
 /// Spawn the UDS server. Accepts connections from OPC Service and dispatches
 /// received frames to the fanout engine.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_uds_server(
     sock_path: String,
     cache: Arc<ShadowCache>,
@@ -77,6 +78,7 @@ pub async fn run_uds_server(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_uds_connection(
     mut stream: UnixStream,
     cache: Arc<ShadowCache>,
@@ -133,6 +135,7 @@ async fn handle_uds_connection(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_frame(
     frame: UdsFrame,
     cache: &ShadowCache,
