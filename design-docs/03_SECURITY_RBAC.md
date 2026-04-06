@@ -262,7 +262,7 @@ When users open detached windows (see doc 06 Multi-Window Architecture), each wi
 
 **8. Admin** — Full system access
 - Target: IT administrators, system administrators
-- All 118 permissions
+- All 119 permissions
 - Exclusive access to: user/role/group management, system settings, OPC configuration, backup/restore, auth provider configuration, email configuration, alert channel configuration, emergency account management
 - Should be held by very few people — the other 7 roles cover all non-admin job functions
 
@@ -483,6 +483,9 @@ I/O includes basic multi-site support in v1 via a `sites` table and `site_id` on
 - `email:manage_templates` - Create, edit, delete email templates (Default: Admin)
 - `email:send_test` - Send test emails to verify provider configuration (Default: Admin)
 - `email:view_logs` - View email delivery logs and queue status (Default: Admin, Supervisor)
+
+**SMS System (1 permission):**
+- `sms:configure` - Configure SMS providers (Twilio, etc.) and credentials used for MFA and alert notifications (Default: Admin)
 
 **Authentication (3 permissions):**
 - `auth:configure` - Configure authentication providers (OIDC, SAML, LDAP), manage JIT provisioning rules, IdP role mappings, set default auth method (Default: Admin)
@@ -852,6 +855,7 @@ CREATE TABLE audit_log (
 
 ## Change Log
 
+- **v2.3**: Added `sms:configure` permission (SMS System, 1 permission). SMS Providers moved from Authentication to Notifications group in Settings nav. Total permissions 118 → 119. Default: Admin only (SMS costs money and is more operationally impactful than email).
 - **v2.2**: Renamed `io-crypto` crate references to `io-auth` (3 locations). Crypto functionality (AES-256-GCM encrypt/decrypt, master key handling) is consolidated into the `io-auth` crate per doc 01 v2.1.
 - **v2.1**: Replaced file-based master key (`IO_MASTER_KEY_FILE`) with systemd encrypted credentials (`LoadCredentialEncrypted`). Master key encrypted at rest via TPM2 (if available) or host key. Plaintext key never on disk. Removed `IO_MASTER_KEY_FILE` env var — key delivered via `$CREDENTIALS_DIRECTORY`. Updated key rotation to re-encrypt credential blob. Vault/HSM/KMS remains deferred for Enterprise HA multi-server deployments.
 - **v2.0**: Fixed stale permission count in header: 114 → 118. Count was not updated when Forensics and System permissions were added in v1.7-v1.8. Fixed sidebar visibility permission for Alerts module: `alerts_module:access` → `alerts:read` (namespace was merged in v1.5, cross-ref in doc 06 was stale).

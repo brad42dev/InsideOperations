@@ -44,11 +44,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "SCIM Provisioning",
         permission: "auth:configure",
       },
-      {
-        path: "/settings/sms-providers",
-        label: "SMS Providers",
-        permission: "auth:configure",
-      },
     ],
   },
   {
@@ -83,6 +78,11 @@ const NAV_GROUPS: NavGroup[] = [
         path: "/settings/email",
         label: "Email",
         permission: "email:configure",
+      },
+      {
+        path: "/settings/sms-providers",
+        label: "SMS Providers",
+        permission: "sms:configure",
       },
     ],
   },
