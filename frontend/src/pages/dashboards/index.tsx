@@ -2,8 +2,48 @@ import { useState, useRef, useEffect, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { dashboardsApi, type Dashboard } from "../../api/dashboards";
+import { graphicsApi, type DesignObjectSummary } from "../../api/graphics";
+import { convertDashboardToGraphicDocument } from "./dashboardConverter";
 import PlaylistManager from "./PlaylistManager";
 import { usePermission } from "../../shared/hooks/usePermission";
+
+// ---------------------------------------------------------------------------
+// Unified dashboard item (legacy dashboards table + Designer design_objects)
+// ---------------------------------------------------------------------------
+
+interface UnifiedDashboardItem {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  published?: boolean;
+  is_system: boolean;
+  created_at?: string;
+  source: "legacy" | "designer";
+}
+
+function fromLegacy(d: Dashboard): UnifiedDashboardItem {
+  return {
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    category: d.category,
+    published: d.published,
+    is_system: d.is_system,
+    created_at: d.created_at,
+    source: "legacy",
+  };
+}
+
+function fromDesigner(d: DesignObjectSummary): UnifiedDashboardItem {
+  return {
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    is_system: false,
+    source: "designer",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -91,11 +131,13 @@ const DashboardCard = memo(function DashboardCard({
   onEdit,
   onDuplicate,
   onDelete,
+  onConvert,
 }: {
-  dashboard: Dashboard;
+  dashboard: UnifiedDashboardItem;
   onEdit: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  onConvert: (id: string) => void;
 }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -197,7 +239,7 @@ const DashboardCard = memo(function DashboardCard({
                         onEdit(dashboard.id);
                         setMenuOpen(false);
                       },
-                      disabled: false,
+                      disabled: dashboard.is_system,
                     },
                     {
                       label: "Open in New Window",
@@ -230,6 +272,16 @@ const DashboardCard = memo(function DashboardCard({
                       disabled: false,
                     },
                     {
+                      label: "Convert to Designer",
+                      action: () => {
+                        onConvert(dashboard.id);
+                        setMenuOpen(false);
+                      },
+                      disabled: false,
+                      hidden:
+                        dashboard.source !== "legacy" || dashboard.is_system,
+                    },
+                    {
                       label: "Delete",
                       action: () => {
                         onDelete(dashboard.id);
@@ -238,7 +290,9 @@ const DashboardCard = memo(function DashboardCard({
                       disabled: dashboard.is_system,
                       danger: true,
                     },
-                  ].map((item) => (
+                  ]
+                    .filter((item) => !item.hidden)
+                    .map((item) => (
                     <button
                       key={item.label}
                       onClick={item.disabled ? undefined : item.action}
@@ -287,6 +341,25 @@ const DashboardCard = memo(function DashboardCard({
             marginBottom: "6px",
           }}
         >
+          <span
+            style={{
+              fontSize: "10px",
+              padding: "1px 5px",
+              borderRadius: "100px",
+              background:
+                dashboard.source === "designer"
+                  ? "var(--io-accent-subtle)"
+                  : "var(--io-surface-secondary)",
+              color:
+                dashboard.source === "designer"
+                  ? "var(--io-accent)"
+                  : "var(--io-text-muted)",
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+            }}
+          >
+            {dashboard.source === "designer" ? "Designer" : "Legacy"}
+          </span>
           {dashboard.is_system && (
             <span
               style={{
@@ -438,12 +511,21 @@ export default function DashboardsPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [exportMenuOpen]);
 
-  const query = useQuery({
+  const legacyQuery = useQuery({
     queryKey: ["dashboards"],
     queryFn: async () => {
       const result = await dashboardsApi.list();
       if (!result.success) throw new Error(result.error.message);
       return result.data.data;
+    },
+  });
+
+  const designerQuery = useQuery({
+    queryKey: ["designer-dashboards"],
+    queryFn: async () => {
+      const result = await graphicsApi.list();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.data.filter((d) => d.designMode === "dashboard");
     },
   });
 
@@ -455,7 +537,7 @@ export default function DashboardsPage() {
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
-      if (data) navigate(`/dashboards/${data.id}/edit`);
+      if (data) navigate(`/designer/dashboards/${data.id}/edit`);
     },
   });
 
@@ -469,7 +551,34 @@ export default function DashboardsPage() {
     },
   });
 
-  const allDashboards = query.data ?? [];
+  const convertMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const result = await dashboardsApi.get(id);
+      if (!result.success) throw new Error(result.error.message);
+      const { name, widgets } = result.data;
+      const sceneData = convertDashboardToGraphicDocument(name, widgets);
+      const createResult = await graphicsApi.create({
+        name,
+        scene_data: sceneData,
+        type: "dashboard",
+      });
+      if (!createResult.success) throw new Error(createResult.error.message);
+      return createResult.data;
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
+      void queryClient.invalidateQueries({ queryKey: ["designer-dashboards"] });
+      navigate(`/designer/dashboards/${data.id}/edit`);
+    },
+  });
+
+  const allDashboards: UnifiedDashboardItem[] = [
+    ...(legacyQuery.data ?? []).map(fromLegacy),
+    ...(designerQuery.data ?? []).map(fromDesigner),
+  ];
+
+  const isLoading = legacyQuery.isLoading || designerQuery.isLoading;
+  const isError = legacyQuery.isError || designerQuery.isError;
 
   const filtered = allDashboards.filter((d) => {
     const matchesSearch =
@@ -724,7 +833,7 @@ export default function DashboardsPage() {
             </div>
           )}
           <button
-            onClick={() => navigate("/dashboards/new")}
+            onClick={() => navigate("/designer/dashboards/new")}
             style={{
               padding: "6px 14px",
               background: "var(--io-accent)",
@@ -804,7 +913,7 @@ export default function DashboardsPage() {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        {query.isLoading && (
+        {isLoading && (
           <div
             style={{
               display: "grid",
@@ -819,7 +928,7 @@ export default function DashboardsPage() {
           </div>
         )}
 
-        {query.isError && (
+        {isError && (
           <div
             style={{
               padding: "20px",
@@ -836,7 +945,7 @@ export default function DashboardsPage() {
           </div>
         )}
 
-        {!query.isLoading && !query.isError && (
+        {!isLoading && !isError && (
           <>
             {/* Dashboard grid */}
             {filtered.length > 0 ? (
@@ -852,9 +961,10 @@ export default function DashboardsPage() {
                   <DashboardCard
                     key={dashboard.id}
                     dashboard={dashboard}
-                    onEdit={(id) => navigate(`/dashboards/${id}/edit`)}
+                    onEdit={(id) => navigate(`/designer/dashboards/${id}/edit`)}
                     onDuplicate={(id) => duplicateMutation.mutate(id)}
                     onDelete={handleDelete}
+                    onConvert={(id) => convertMutation.mutate(id)}
                   />
                 ))}
               </div>
@@ -891,7 +1001,7 @@ export default function DashboardsPage() {
                 </div>
                 {!search && activeCategory === "All" && (
                   <button
-                    onClick={() => navigate("/dashboards/new")}
+                    onClick={() => navigate("/designer/dashboards/new")}
                     style={{
                       marginTop: "8px",
                       padding: "7px 16px",

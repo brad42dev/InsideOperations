@@ -6,11 +6,11 @@ import { importApi, type StreamSession } from "../../api/import";
 // ---------------------------------------------------------------------------
 
 const STATUS_COLORS: Record<string, [string, string]> = {
-  active: ["#22c55e", "rgba(34,197,94,0.12)"],
-  connecting: ["#4a9eff", "rgba(74,158,255,0.12)"],
-  reconnecting: ["#eab308", "rgba(234,179,8,0.12)"],
-  failed: ["#ef4444", "rgba(239,68,68,0.12)"],
-  stopped: ["#6b7280", "rgba(107,114,128,0.12)"],
+  active: ["var(--io-success)", "var(--io-success-subtle)"],
+  connecting: ["var(--io-accent)", "var(--io-accent-subtle)"],
+  reconnecting: ["var(--io-warning)", "var(--io-warning-subtle)"],
+  failed: ["var(--io-danger)", "var(--io-danger-subtle)"],
+  stopped: ["var(--io-text-muted)", "var(--io-surface-secondary)"],
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -51,10 +51,10 @@ function relativeTime(isoString: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Main page
+// Content component — embeddable, no page header
 // ---------------------------------------------------------------------------
 
-export default function StreamingSessionsPage() {
+export function StreamingSessionsContent() {
   const qc = useQueryClient();
 
   const sessionsQuery = useQuery({
@@ -83,37 +83,6 @@ export default function StreamingSessionsPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "17px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Streaming Sessions
-          </h2>
-          <p
-            style={{
-              margin: "4px 0 0",
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Active SSE/WebSocket import streams — auto-refreshes every 5s
-          </p>
-        </div>
-      </div>
-
       {sessionsQuery.isLoading && (
         <div style={{ color: "var(--io-text-muted)", fontSize: 13 }}>
           Loading...
@@ -200,6 +169,48 @@ export default function StreamingSessionsPage() {
           </tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Default export — standalone page with header
+// ---------------------------------------------------------------------------
+
+export default function StreamingSessionsPage() {
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "17px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
+            Streaming Sessions
+          </h2>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+            }}
+          >
+            Active SSE/WebSocket import streams — auto-refreshes every 5s
+          </p>
+        </div>
+      </div>
+      <StreamingSessionsContent />
     </div>
   );
 }

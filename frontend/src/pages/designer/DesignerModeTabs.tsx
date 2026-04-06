@@ -25,6 +25,7 @@ export interface DesignerModeTabsProps {
   onValidateBindings?: () => void;
   onImport?: () => void;
   onExport?: () => void;
+  onExportSvg?: () => void;
   onPublish?: () => void;
   onNew?: () => void;
   onOpen?: () => void;
@@ -78,6 +79,7 @@ export default function DesignerModeTabs({
   onValidateBindings,
   onImport,
   onExport,
+  onExportSvg,
   onPublish,
   onNew,
   onOpen,
@@ -153,6 +155,13 @@ export default function DesignerModeTabs({
             setFileMenuOpen(false);
           }
         : undefined,
+    },
+    {
+      label: "Export as SVG",
+      action: () => {
+        onExportSvg?.();
+        setFileMenuOpen(false);
+      },
     },
     { divider: true },
     {

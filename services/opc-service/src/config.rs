@@ -44,6 +44,17 @@ pub struct Config {
     /// When false, connections to sources with unrecognised server certs will fail
     /// until an administrator approves the certificate via the Settings UI.
     pub auto_trust_server_certs: bool,
+
+    /// Interval in seconds between incremental namespace rediscovery scans.
+    /// Set to 0 to disable. Default: 3600 (1 hour).
+    pub rediscovery_interval_secs: u64,
+
+    /// Whether the nightly full namespace cleanup pass is enabled. Default: true.
+    pub nightly_cleanup_enabled: bool,
+
+    /// Seconds between heartbeat flushes for stable (unchanged) EBR values.
+    /// Default: 30. Set to 0 to disable heartbeat (not recommended).
+    pub ebr_heartbeat_secs: u64,
 }
 
 impl Config {
@@ -100,6 +111,21 @@ impl Config {
                 .unwrap_or_else(|_| "true".to_string())
                 .to_lowercase()
                 == "true",
+
+            rediscovery_interval_secs: std::env::var("OPC_REDISCOVERY_INTERVAL_SECS")
+                .unwrap_or_else(|_| "3600".to_string())
+                .parse()
+                .context("OPC_REDISCOVERY_INTERVAL_SECS must be a valid integer")?,
+
+            nightly_cleanup_enabled: std::env::var("OPC_NIGHTLY_CLEANUP_ENABLED")
+                .unwrap_or_else(|_| "true".to_string())
+                .to_lowercase()
+                == "true",
+
+            ebr_heartbeat_secs: std::env::var("EBR_HEARTBEAT_SECS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .context("EBR_HEARTBEAT_SECS must be a valid integer")?,
         })
     }
 }

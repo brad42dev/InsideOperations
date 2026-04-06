@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mfaApi, EnrollTotpResponse } from "../../api/mfa";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { settingsApi } from "../../api/settings";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 
-type EnrollStep = "idle" | "setup" | "verify" | "recovery";
-type AdminTab = "methods" | "policies" | "my-mfa";
+type AdminTab = "methods" | "policies";
 
 // ── Stub types for admin-level MFA configuration ──────────────────────────────
 
@@ -25,65 +25,118 @@ interface RoleMfaPolicy {
 
 // ── Admin: Method Configuration tab ──────────────────────────────────────────
 
+const DEFAULT_METHODS: MfaMethod[] = [
+  {
+    id: "totp",
+    label: "Authenticator App (TOTP)",
+    description:
+      "Time-based one-time passwords via Google Authenticator, Authy, 1Password, etc.",
+    enabled: true,
+  },
+  {
+    id: "sms",
+    label: "SMS / Text Message",
+    description:
+      "One-time codes sent via SMS to the user's registered phone number.",
+    enabled: false,
+    warning:
+      "SMS-based MFA is less secure than TOTP. Ensure your SMS provider is configured in SMS Providers before enabling.",
+  },
+  {
+    id: "email",
+    label: "Email OTP",
+    description: "One-time codes sent to the user's verified email address.",
+    enabled: false,
+    warning:
+      "Email-based MFA is susceptible to email compromise. Use only as a fallback method.",
+  },
+  {
+    id: "duo",
+    label: "Duo Security",
+    description:
+      "Push notifications and passcodes via Duo Security. Requires Duo API credentials configured under Security > Duo Integration.",
+    enabled: false,
+    warning:
+      "Duo Security requires a Duo hostname, integration key, and secret key configured in Security settings before enabling.",
+  },
+];
+
 function MfaMethodsTab() {
-  const [methods, setMethods] = useState<MfaMethod[]>([
-    {
-      id: "totp",
-      label: "Authenticator App (TOTP)",
-      description:
-        "Time-based one-time passwords via Google Authenticator, Authy, 1Password, etc.",
-      enabled: true,
-    },
-    {
-      id: "sms",
-      label: "SMS / Text Message",
-      description:
-        "One-time codes sent via SMS to the user's registered phone number.",
-      enabled: false,
-      warning:
-        "SMS-based MFA is less secure than TOTP. Ensure your SMS provider is configured in SMS Providers before enabling.",
-    },
-    {
-      id: "email",
-      label: "Email OTP",
-      description: "One-time codes sent to the user's verified email address.",
-      enabled: false,
-      warning:
-        "Email-based MFA is susceptible to email compromise. Use only as a fallback method.",
-    },
-    {
-      id: "duo",
-      label: "Duo Security",
-      description:
-        "Push notifications and passcodes via Duo Security. Requires Duo API credentials configured under Security > Duo Integration.",
-      enabled: false,
-      warning:
-        "Duo Security requires a Duo hostname, integration key, and secret key configured in Security settings before enabling.",
-    },
-  ]);
+  const qc = useQueryClient();
+  const [methods, setMethods] = useState<MfaMethod[]>(DEFAULT_METHODS);
   const [saving, setSaving] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<{
+    id: MfaMethod["id"];
+    title: string;
+    description: string;
+  } | null>(null);
+
+  // Try to hydrate from settings API
+  useQuery({
+    queryKey: ["settings"],
+    queryFn: () => settingsApi.list(),
+    select: (result) => {
+      if (!result.success) return;
+      const settings = result.data;
+      setMethods((prev) =>
+        prev.map((m) => {
+          const s = settings.find((st) => st.key === `mfa.${m.id}.enabled`);
+          return s != null ? { ...m, enabled: Boolean(s.value) } : m;
+        }),
+      );
+    },
+  });
 
   const handleToggle = (id: MfaMethod["id"]) => {
     const method = methods.find((m) => m.id === id);
     if (!method) return;
+
     if (method.warning && !method.enabled) {
-      if (!window.confirm(`${method.warning}\n\nEnable anyway?`)) return;
-    }
-    if (
-      method.enabled &&
-      !window.confirm(
-        `Disable ${method.label}? Users currently using this method will be required to re-enroll with another method.`,
-      )
-    )
+      setPendingToggle({
+        id,
+        title: `Enable ${method.label}?`,
+        description: `${method.warning}\n\nEnable anyway?`,
+      });
       return;
+    }
+
+    if (method.enabled) {
+      setPendingToggle({
+        id,
+        title: `Disable ${method.label}?`,
+        description:
+          "Users currently using this method will be required to re-enroll with another method.",
+      });
+      return;
+    }
+
+    doToggle(id);
+  };
+
+  const doToggle = async (id: MfaMethod["id"]) => {
+    const method = methods.find((m) => m.id === id);
+    if (!method) return;
     setSaving(id);
-    // Simulate API call — replace with actual API call when backend endpoint exists
-    setTimeout(() => {
+    try {
+      const result = await settingsApi.update(
+        `mfa.${id}.enabled`,
+        !method.enabled,
+      );
+      if (result.success) {
+        qc.invalidateQueries({ queryKey: ["settings"] });
+      }
+      // Update local state regardless (API may not have endpoint yet)
       setMethods((prev) =>
         prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)),
       );
+    } catch {
+      // Endpoint not yet available — update local state for demo
+      setMethods((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)),
+      );
+    } finally {
       setSaving(null);
-    }, 600);
+    }
   };
 
   return (
@@ -149,10 +202,10 @@ function MfaMethodsTab() {
                     padding: "2px 6px",
                     borderRadius: "4px",
                     background: method.enabled
-                      ? "var(--io-success-subtle, #f0fdf4)"
+                      ? "var(--io-success-subtle)"
                       : "var(--io-surface-secondary)",
                     color: method.enabled
-                      ? "var(--io-success, #16a34a)"
+                      ? "var(--io-success)"
                       : "var(--io-text-muted)",
                   }}
                 >
@@ -173,7 +226,7 @@ function MfaMethodsTab() {
                   style={{
                     margin: "6px 0 0",
                     fontSize: "12px",
-                    color: "var(--io-warning, #d97706)",
+                    color: "var(--io-warning)",
                   }}
                 >
                   {method.warning}
@@ -188,12 +241,10 @@ function MfaMethodsTab() {
                 padding: "6px 14px",
                 borderRadius: "var(--io-radius)",
                 border: method.enabled
-                  ? "1px solid var(--io-error, #ef4444)"
+                  ? "1px solid var(--io-danger)"
                   : "1px solid var(--io-accent)",
                 background: "transparent",
-                color: method.enabled
-                  ? "var(--io-error, #ef4444)"
-                  : "var(--io-accent)",
+                color: method.enabled ? "var(--io-danger)" : "var(--io-accent)",
                 fontSize: "13px",
                 cursor: saving === method.id ? "not-allowed" : "pointer",
                 opacity: saving === method.id ? 0.5 : 1,
@@ -208,6 +259,15 @@ function MfaMethodsTab() {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingToggle}
+        onOpenChange={(v) => { if (!v) setPendingToggle(null); }}
+        title={pendingToggle?.title ?? ""}
+        description={pendingToggle?.description ?? ""}
+        confirmLabel="Confirm"
+        onConfirm={() => pendingToggle && doToggle(pendingToggle.id)}
+      />
     </div>
   );
 }
@@ -283,24 +343,38 @@ const METHOD_LABELS: Record<string, string> = {
 function MfaPoliciesTab() {
   const [policies, setPolicies] = useState<RoleMfaPolicy[]>(STUB_POLICIES);
   const [saving, setSaving] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    roleId: string;
+    current: boolean;
+    roleName: string;
+  } | null>(null);
 
-  const handleRequireMfaToggle = (roleId: string, current: boolean) => {
-    if (
-      current &&
-      !window.confirm(
-        "Removing the MFA requirement for this role will allow users in this role to log in without MFA. Continue?",
-      )
-    )
+  const handleRequireMfaToggle = (
+    roleId: string,
+    current: boolean,
+    roleName: string,
+  ) => {
+    if (current) {
+      setPendingConfirm({ roleId, current, roleName });
       return;
+    }
+    doToggleMfaRequirement(roleId, current);
+  };
+
+  const doToggleMfaRequirement = async (roleId: string, current: boolean) => {
     setSaving(roleId);
-    setTimeout(() => {
+    try {
+      await settingsApi.update(`mfa.policy.${roleId}.require_mfa`, !current);
+    } catch {
+      // Endpoint not yet available — update local state for demo
+    } finally {
       setPolicies((prev) =>
         prev.map((p) =>
           p.role_id === roleId ? { ...p, require_mfa: !current } : p,
         ),
       );
       setSaving(null);
-    }, 500);
+    }
   };
 
   return (
@@ -375,10 +449,10 @@ function MfaPoliciesTab() {
                     padding: "2px 8px",
                     borderRadius: "4px",
                     background: policy.require_mfa
-                      ? "var(--io-success-subtle, #f0fdf4)"
+                      ? "var(--io-success-subtle)"
                       : "var(--io-surface-secondary)",
                     color: policy.require_mfa
-                      ? "var(--io-success, #16a34a)"
+                      ? "var(--io-success)"
                       : "var(--io-text-muted)",
                   }}
                 >
@@ -408,18 +482,22 @@ function MfaPoliciesTab() {
               <td style={{ padding: "10px 12px" }}>
                 <button
                   onClick={() =>
-                    handleRequireMfaToggle(policy.role_id, policy.require_mfa)
+                    handleRequireMfaToggle(
+                      policy.role_id,
+                      policy.require_mfa,
+                      policy.role_name,
+                    )
                   }
                   disabled={saving === policy.role_id}
                   style={{
                     padding: "4px 12px",
                     borderRadius: "var(--io-radius)",
                     border: policy.require_mfa
-                      ? "1px solid var(--io-error, #ef4444)"
+                      ? "1px solid var(--io-danger)"
                       : "1px solid var(--io-accent)",
                     background: "transparent",
                     color: policy.require_mfa
-                      ? "var(--io-error, #ef4444)"
+                      ? "var(--io-danger)"
                       : "var(--io-accent)",
                     fontSize: "12px",
                     cursor:
@@ -438,479 +516,19 @@ function MfaPoliciesTab() {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
 
-// ── Personal MFA enrollment tab (original implementation) ────────────────────
-
-function MyMfaTab() {
-  const queryClient = useQueryClient();
-  const [step, setStep] = useState<EnrollStep>("idle");
-  const [enrollData, setEnrollData] = useState<EnrollTotpResponse | null>(null);
-  const [totpCode, setTotpCode] = useState("");
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const { data: statusResult, isLoading } = useQuery({
-    queryKey: ["mfa-status"],
-    queryFn: () => mfaApi.getStatus(),
-  });
-
-  const status = statusResult?.success ? statusResult.data : null;
-
-  const enrollMutation = useMutation({
-    mutationFn: () => mfaApi.enrollTotp(),
-    onSuccess: (result) => {
-      if (result.success) {
-        setEnrollData(result.data);
-        setStep("setup");
-        setError("");
-      } else {
-        setError(result.error.message);
-      }
-    },
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: (code: string) => mfaApi.verifyEnrollment(code),
-    onSuccess: (result) => {
-      if (result.success) {
-        setRecoveryCodes(result.data.recovery_codes);
-        setStep("recovery");
-        setTotpCode("");
-        queryClient.invalidateQueries({ queryKey: ["mfa-status"] });
-      } else {
-        setError(result.error.message);
-      }
-    },
-  });
-
-  const disableMutation = useMutation({
-    mutationFn: () => mfaApi.disableTotp(),
-    onSuccess: (result) => {
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ["mfa-status"] });
-      } else {
-        setError(result.error.message);
-      }
-    },
-  });
-
-  const handleCopyRecoveryCodes = () => {
-    navigator.clipboard.writeText(recoveryCodes.join("\n"));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDoneRecovery = () => {
-    setStep("idle");
-    setEnrollData(null);
-    setRecoveryCodes([]);
-  };
-
-  if (isLoading) {
-    return (
-      <div style={{ color: "var(--io-text-muted)", fontSize: "13px" }}>
-        Loading MFA status…
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h4
-        style={{
-          margin: "0 0 4px",
-          fontSize: "14px",
-          fontWeight: 600,
-          color: "var(--io-text-primary)",
-        }}
-      >
-        Two-Factor Authentication
-      </h4>
-      <p
-        style={{
-          margin: "0 0 20px",
-          fontSize: "13px",
-          color: "var(--io-text-secondary)",
-        }}
-      >
-        Protect your account with a time-based one-time password (TOTP)
-        authenticator app.
-      </p>
-
-      {error && (
-        <div
-          style={{
-            padding: "10px 14px",
-            borderRadius: "var(--io-radius)",
-            background: "var(--io-error-subtle, #fef2f2)",
-            color: "var(--io-error, #ef4444)",
-            fontSize: "13px",
-            marginBottom: "16px",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* ── Current status ── */}
-      {step === "idle" && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            padding: "14px 16px",
-            borderRadius: "var(--io-radius)",
-            border: "1px solid var(--io-border)",
-            background: "var(--io-surface)",
-            marginBottom: "16px",
-          }}
-        >
-          <div
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: status?.enabled
-                ? "var(--io-success, #22c55e)"
-                : "var(--io-text-muted)",
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 500,
-                color: "var(--io-text-primary)",
-              }}
-            >
-              TOTP Authenticator
-            </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "var(--io-text-muted)",
-                marginTop: "2px",
-              }}
-            >
-              {status?.enabled
-                ? `Active${status.has_recovery_codes ? " · recovery codes available" : " · no recovery codes"}`
-                : "Not configured"}
-            </div>
-          </div>
-          {status?.enabled ? (
-            <button
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Disable TOTP? You will no longer need a code to log in.",
-                  )
-                ) {
-                  disableMutation.mutate();
-                }
-              }}
-              disabled={disableMutation.isPending}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "var(--io-radius)",
-                border: "1px solid var(--io-error, #ef4444)",
-                background: "transparent",
-                color: "var(--io-error, #ef4444)",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              {disableMutation.isPending ? "Disabling…" : "Disable TOTP"}
-            </button>
-          ) : (
-            <button
-              onClick={() => enrollMutation.mutate()}
-              disabled={enrollMutation.isPending}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "var(--io-radius)",
-                border: "none",
-                background: "var(--io-accent)",
-                color: "#fff",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              {enrollMutation.isPending ? "Starting…" : "Enable TOTP"}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Step 1: Setup — show secret and instructions ── */}
-      {step === "setup" && enrollData && (
-        <div
-          style={{
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            padding: "20px",
-            background: "var(--io-surface)",
-          }}
-        >
-          <h4
-            style={{
-              margin: "0 0 12px",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Step 1 — Add to your authenticator app
-          </h4>
-          <p
-            style={{
-              margin: "0 0 12px",
-              fontSize: "13px",
-              color: "var(--io-text-secondary)",
-            }}
-          >
-            Open your authenticator app (Google Authenticator, Authy, 1Password,
-            etc.) and add a new account. You can either tap the link below or
-            enter the key manually.
-          </p>
-
-          <div style={{ marginBottom: "16px" }}>
-            <a
-              href={enrollData.otpauth_uri}
-              style={{
-                display: "inline-block",
-                padding: "8px 16px",
-                borderRadius: "var(--io-radius)",
-                background: "var(--io-accent)",
-                color: "#fff",
-                fontSize: "13px",
-                textDecoration: "none",
-              }}
-            >
-              Open in Authenticator App
-            </a>
-          </div>
-
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "var(--io-radius)",
-              background: "var(--io-surface-secondary)",
-              border: "1px solid var(--io-border)",
-              marginBottom: "20px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "var(--io-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: "6px",
-              }}
-            >
-              Manual Entry Key
-            </div>
-            <code
-              style={{
-                fontSize: "15px",
-                letterSpacing: "0.12em",
-                color: "var(--io-text-primary)",
-                fontFamily: "var(--io-font-mono, monospace)",
-                wordBreak: "break-all",
-              }}
-            >
-              {enrollData.manual_entry_key}
-            </code>
-          </div>
-
-          <h4
-            style={{
-              margin: "0 0 10px",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Step 2 — Enter the 6-digit code
-          </h4>
-          <p
-            style={{
-              margin: "0 0 12px",
-              fontSize: "13px",
-              color: "var(--io-text-secondary)",
-            }}
-          >
-            Enter the code shown in your authenticator app to confirm setup.
-          </p>
-
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              placeholder="000000"
-              value={totpCode}
-              onChange={(e) => {
-                setTotpCode(e.target.value.replace(/\D/g, ""));
-                setError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && totpCode.length === 6) {
-                  verifyMutation.mutate(totpCode);
-                }
-              }}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "var(--io-radius)",
-                border: "1px solid var(--io-border)",
-                background: "var(--io-surface)",
-                color: "var(--io-text-primary)",
-                fontSize: "18px",
-                letterSpacing: "0.25em",
-                width: "140px",
-                textAlign: "center",
-              }}
-            />
-            <button
-              onClick={() => verifyMutation.mutate(totpCode)}
-              disabled={totpCode.length !== 6 || verifyMutation.isPending}
-              style={{
-                padding: "8px 20px",
-                borderRadius: "var(--io-radius)",
-                border: "none",
-                background: "var(--io-accent)",
-                color: "#fff",
-                fontSize: "13px",
-                cursor: totpCode.length === 6 ? "pointer" : "not-allowed",
-                opacity: totpCode.length === 6 ? 1 : 0.5,
-              }}
-            >
-              {verifyMutation.isPending ? "Verifying…" : "Verify & Activate"}
-            </button>
-            <button
-              onClick={() => {
-                setStep("idle");
-                setEnrollData(null);
-                setTotpCode("");
-                setError("");
-              }}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "var(--io-radius)",
-                border: "1px solid var(--io-border)",
-                background: "transparent",
-                color: "var(--io-text-secondary)",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 2: Recovery codes ── */}
-      {step === "recovery" && recoveryCodes.length > 0 && (
-        <div
-          style={{
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            padding: "20px",
-            background: "var(--io-surface)",
-          }}
-        >
-          <h4
-            style={{
-              margin: "0 0 8px",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            TOTP Enabled — Save Your Recovery Codes
-          </h4>
-          <p
-            style={{
-              margin: "0 0 16px",
-              fontSize: "13px",
-              color: "var(--io-text-secondary)",
-              lineHeight: 1.5,
-            }}
-          >
-            These 8 single-use codes let you access your account if you lose
-            your authenticator device. Save them somewhere safe — you will not
-            be able to view them again.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "8px",
-              padding: "16px",
-              background: "var(--io-surface-secondary)",
-              borderRadius: "var(--io-radius)",
-              border: "1px solid var(--io-border)",
-              marginBottom: "16px",
-            }}
-          >
-            {recoveryCodes.map((code) => (
-              <code
-                key={code}
-                style={{
-                  fontSize: "13px",
-                  fontFamily: "var(--io-font-mono, monospace)",
-                  color: "var(--io-text-primary)",
-                  textAlign: "center",
-                  padding: "4px",
-                }}
-              >
-                {code}
-              </code>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={handleCopyRecoveryCodes}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "var(--io-radius)",
-                border: "1px solid var(--io-border)",
-                background: "transparent",
-                color: "var(--io-text-secondary)",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              {copied ? "Copied!" : "Copy All Codes"}
-            </button>
-            <button
-              onClick={handleDoneRecovery}
-              style={{
-                padding: "8px 20px",
-                borderRadius: "var(--io-radius)",
-                border: "none",
-                background: "var(--io-accent)",
-                color: "#fff",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              I have saved my codes
-            </button>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        onOpenChange={(v) => { if (!v) setPendingConfirm(null); }}
+        title={`Remove MFA requirement for ${pendingConfirm?.roleName ?? ""}?`}
+        description="Users in this role will be able to log in without MFA."
+        confirmLabel="Remove Requirement"
+        variant="danger"
+        onConfirm={() =>
+          pendingConfirm &&
+          doToggleMfaRequirement(pendingConfirm.roleId, pendingConfirm.current)
+        }
+      />
     </div>
   );
 }
@@ -923,7 +541,6 @@ export default function MfaSettings() {
   const tabs: { id: AdminTab; label: string }[] = [
     { id: "methods", label: "Global Methods" },
     { id: "policies", label: "Per-Role Policies" },
-    { id: "my-mfa", label: "My MFA" },
   ];
 
   return (
@@ -945,8 +562,7 @@ export default function MfaSettings() {
           color: "var(--io-text-secondary)",
         }}
       >
-        Configure system-wide MFA methods, per-role policies, and your personal
-        MFA enrollment.
+        Configure system-wide MFA methods and per-role policies.
       </p>
 
       {/* Tab bar */}
@@ -988,7 +604,6 @@ export default function MfaSettings() {
       {/* Tab content */}
       {activeTab === "methods" && <MfaMethodsTab />}
       {activeTab === "policies" && <MfaPoliciesTab />}
-      {activeTab === "my-mfa" && <MyMfaTab />}
     </div>
   );
 }

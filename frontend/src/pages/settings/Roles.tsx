@@ -11,57 +11,13 @@ import {
   UpdateRoleRequest,
 } from "../../api/roles";
 import { ExportButton } from "../../shared/components/ExportDialog";
-
-// ---------------------------------------------------------------------------
-// Shared styles (duplicated for isolation — will be extracted in Phase 3)
-// ---------------------------------------------------------------------------
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "var(--io-text-on-accent)",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
-};
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  cellStyle,
+} from "./settingsStyles";
 
 function ErrorBanner({ message }: { message: string }) {
   return (
@@ -241,13 +197,13 @@ function PermissionMultiSelect({
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                padding: "5px 8px",
+                padding: "8px 14px",
                 cursor: disabled ? "not-allowed" : "pointer",
                 borderRadius: "4px",
-                background: "var(--io-surface-primary)",
+                background: "var(--io-surface-sunken)",
                 fontSize: "12px",
                 fontWeight: 600,
-                color: "var(--io-text-secondary)",
+                color: "var(--io-text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}
@@ -907,9 +863,9 @@ function RoleContextMenu({
 }
 
 // ---------------------------------------------------------------------------
-// RolesPage
+// RolesTab
 // ---------------------------------------------------------------------------
-export default function RolesPage() {
+export function RolesTab() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRole, setEditRole] = useState<RoleDetail | null>(null);
@@ -1008,45 +964,22 @@ export default function RolesPage() {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "20px",
+          justifyContent: "flex-end",
+          gap: "8px",
+          marginBottom: "16px",
         }}
       >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Roles
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Define roles and their permissions
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <ExportButton
-            module="settings"
-            entity="roles"
-            filteredRowCount={roles.length}
-            totalRowCount={roles.length}
-            availableColumns={ROLES_COLUMNS}
-            visibleColumns={ROLES_DEFAULT_VISIBLE}
-          />
-          <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
-            + Add Role
-          </button>
-        </div>
+        <ExportButton
+          module="settings"
+          entity="roles"
+          filteredRowCount={roles.length}
+          totalRowCount={roles.length}
+          availableColumns={ROLES_COLUMNS}
+          visibleColumns={ROLES_DEFAULT_VISIBLE}
+        />
+        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+          + Add Role
+        </button>
       </div>
 
       {bannerError && <ErrorBanner message={bannerError} />}
@@ -1247,4 +1180,8 @@ export default function RolesPage() {
       )}
     </div>
   );
+}
+
+export default function RolesPage() {
+  return <RolesTab />;
 }

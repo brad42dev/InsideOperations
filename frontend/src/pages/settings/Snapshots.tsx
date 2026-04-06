@@ -7,8 +7,9 @@ import {
   type Snapshot,
   type SnapshotDetail,
 } from "../../api/bulkUpdate";
-import { RestorePreviewModal } from "./BulkUpdate";
+import { RestorePreviewModal } from "./RestorePreviewModal";
 import { showToast } from "../../shared/components/Toast";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -27,7 +28,7 @@ const BTN_PRIMARY: React.CSSProperties = {
   borderRadius: "6px",
   border: "none",
   background: "var(--io-accent)",
-  color: "#fff",
+  color: "var(--io-text-on-accent)",
   fontWeight: 600,
   fontSize: "13px",
   cursor: "pointer",
@@ -59,7 +60,7 @@ const INPUT: React.CSSProperties = {
   padding: "6px 12px",
   borderRadius: "6px",
   border: "1px solid var(--io-border)",
-  background: "var(--io-bg)",
+  background: "var(--io-surface-primary)",
   color: "var(--io-text-primary)",
   fontSize: "13px",
   width: "260px",
@@ -69,7 +70,7 @@ const SELECT: React.CSSProperties = {
   padding: "6px 12px",
   borderRadius: "6px",
   border: "1px solid var(--io-border)",
-  background: "var(--io-bg)",
+  background: "var(--io-surface-primary)",
   color: "var(--io-text-primary)",
   fontSize: "13px",
   cursor: "pointer",
@@ -393,7 +394,18 @@ export default function Snapshots() {
     : null;
 
   return (
-    <div style={{ padding: "var(--io-space-6)", maxWidth: 900 }}>
+    <SettingsPageLayout
+      title="Change Snapshots"
+      description="Point-in-time captures of configuration data. Download as JSON for auditing or use as a restore baseline via Bulk Update."
+      variant="list"
+      action={
+        !showCreate && (
+          <button style={BTN_PRIMARY} onClick={() => setShowCreate(true)}>
+            + New Snapshot
+          </button>
+        )
+      }
+    >
       {restoreId && (
         <RestorePreviewModal
           snapshotId={restoreId}
@@ -410,43 +422,6 @@ export default function Snapshots() {
           }}
         />
       )}
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "var(--io-space-5)",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "20px",
-              fontWeight: 700,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Change Snapshots
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Point-in-time captures of configuration data. Download as JSON for
-            auditing or use as a restore baseline via Bulk Update.
-          </p>
-        </div>
-        {!showCreate && (
-          <button style={BTN_PRIMARY} onClick={() => setShowCreate(true)}>
-            + New Snapshot
-          </button>
-        )}
-      </div>
 
       {/* Create form */}
       {showCreate && (
@@ -650,6 +625,6 @@ export default function Snapshots() {
         preview field-level changes and selectively restore rows. A safety
         snapshot of the current state is created by default before any restore.
       </div>
-    </div>
+    </SettingsPageLayout>
   );
 }

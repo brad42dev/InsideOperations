@@ -15,6 +15,13 @@ import { opcCertsApi, OpcServerCert } from "../../api/opcCerts";
 import { settingsApi } from "../../api/settings";
 import SupplementalConnectorsTab from "./SupplementalConnectorsTab";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  cellStyle,
+} from "./settingsStyles";
 
 // ---------------------------------------------------------------------------
 // Column definitions for OPC sources export
@@ -242,57 +249,7 @@ const clientCertsApi = {
     }),
 };
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
-};
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -546,7 +503,7 @@ function ModalContent({
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--io-overlay, rgba(0,0,0,0.5))",
           zIndex: 100,
         }}
       />
@@ -759,7 +716,7 @@ function ManageCategoriesModal({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "rgba(0,0,0,0.5)",
+    background: "var(--io-overlay, rgba(0,0,0,0.5))",
   };
 
   const modalBox: React.CSSProperties = {
@@ -801,7 +758,7 @@ function ManageCategoriesModal({
     background: variant === "primary" ? "var(--io-accent)" : "transparent",
     color:
       variant === "primary"
-        ? "#fff"
+        ? "var(--io-text-on-accent)"
         : variant === "danger"
           ? "var(--io-danger)"
           : "var(--io-text-secondary)",
@@ -1312,8 +1269,8 @@ function CreateSourceDialog({
             style={{
               padding: "10px 12px",
               borderRadius: "var(--io-radius)",
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.25)",
+              background: "var(--io-danger-subtle)",
+              border: "1px solid var(--io-danger)",
               color: "var(--io-danger)",
               fontSize: "13px",
               marginBottom: "16px",
@@ -1487,8 +1444,8 @@ function EditSourceDialog({
             style={{
               padding: "10px 12px",
               borderRadius: "var(--io-radius)",
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.25)",
+              background: "var(--io-danger-subtle)",
+              border: "1px solid var(--io-danger)",
               color: "var(--io-danger)",
               fontSize: "13px",
               marginBottom: "16px",
@@ -1572,9 +1529,9 @@ const CERT_STATUS_COLORS: Record<
   string,
   { bg: string; text: string; label: string }
 > = {
-  trusted: { bg: "rgba(34,197,94,0.12)", text: "#22C55E", label: "Trusted" },
-  pending: { bg: "rgba(234,179,8,0.12)", text: "#EAB308", label: "Pending" },
-  rejected: { bg: "rgba(239,68,68,0.12)", text: "#EF4444", label: "Rejected" },
+  trusted: { bg: "var(--io-success-subtle)", text: "var(--io-success)", label: "Trusted" },
+  pending: { bg: "var(--io-warning-subtle)", text: "var(--io-warning)", label: "Pending" },
+  rejected: { bg: "var(--io-danger-subtle)", text: "var(--io-danger)", label: "Rejected" },
 };
 
 function CertStatusBadge({ status }: { status: string }) {
@@ -1628,9 +1585,9 @@ function ServerCertCard({
       variant === "primary"
         ? "var(--io-accent)"
         : variant === "danger"
-          ? "#EF4444"
+          ? "var(--io-danger)"
           : "transparent",
-    color: variant === "ghost" ? "var(--io-text-secondary)" : "#fff",
+    color: variant === "ghost" ? "var(--io-text-secondary)" : "var(--io-text-on-accent)",
     fontSize: 12,
     fontWeight: 500,
     cursor: loading ? "not-allowed" : "pointer",
@@ -1719,7 +1676,7 @@ function ServerCertCard({
             >
               {value ?? "—"}
               {label === "Valid To" && cert.expired && (
-                <span style={{ marginLeft: 6, color: "#EF4444", fontSize: 11 }}>
+                <span style={{ marginLeft: 6, color: "var(--io-danger)", fontSize: 11 }}>
                   EXPIRED
                 </span>
               )}
@@ -1769,9 +1726,9 @@ function ServerCertCard({
         <div
           style={{
             fontSize: 11,
-            color: "#EAB308",
-            background: "rgba(234,179,8,0.08)",
-            border: "1px solid rgba(234,179,8,0.25)",
+            color: "var(--io-warning)",
+            background: "var(--io-warning-subtle)",
+            border: "1px solid var(--io-warning)",
             borderRadius: 6,
             padding: "6px 10px",
           }}
@@ -2105,7 +2062,7 @@ function HistoryRecoveryTab({ sourceId }: { sourceId: string }) {
               background: "var(--io-accent)",
               border: "none",
               borderRadius: "4px",
-              color: "#fff",
+              color: "var(--io-text-on-accent)",
               fontSize: "13px",
               fontWeight: 500,
               cursor: createMutation.isPending ? "not-allowed" : "pointer",
@@ -2280,7 +2237,7 @@ function SourceDetailPanel({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.45)",
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
             zIndex: 100,
           }}
         />

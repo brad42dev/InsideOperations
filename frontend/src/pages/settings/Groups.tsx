@@ -12,77 +12,20 @@ import {
 } from "../../api/groups";
 import { rolesApi, Role } from "../../api/roles";
 import { usersApi, User } from "../../api/users";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+  cellStyle,
+} from "./settingsStyles";
 
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "transparent",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-secondary)",
-  fontSize: "12px",
-  cursor: "pointer",
-};
-
+// Groups-specific small danger button (not in shared styles)
 const btnSmallDanger: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "transparent",
-  border: "1px solid rgba(239,68,68,0.3)",
-  borderRadius: "var(--io-radius)",
+  ...btnSmall,
   color: "var(--io-danger)",
-  fontSize: "12px",
-  cursor: "pointer",
-};
-
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
+  border: "1px solid rgba(239,68,68,0.3)",
 };
 
 // ---------------------------------------------------------------------------
@@ -1093,9 +1036,9 @@ function GroupRow({
 }
 
 // ---------------------------------------------------------------------------
-// Main Groups page
+// GroupsTab
 // ---------------------------------------------------------------------------
-export default function Groups() {
+export function GroupsTab() {
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [editGroup, setEditGroup] = useState<Group | null>(null);
@@ -1157,37 +1100,14 @@ export default function Groups() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Actions row */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "20px",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
         }}
       >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Groups
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Create groups, assign roles, and manage membership. Users inherit
-            the combined permissions of all roles assigned to their groups.
-          </p>
-        </div>
         <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
           + Create Group
         </button>
@@ -1358,4 +1278,8 @@ export default function Groups() {
       )}
     </div>
   );
+}
+
+export default function Groups() {
+  return <GroupsTab />;
 }

@@ -6,6 +6,7 @@ import { useAuthStore } from "../../store/auth";
 import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 import { showToast } from "../../shared/components/Toast";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,7 +78,23 @@ function LockedNotice() {
         marginBottom: "20px",
       }}
     >
-      <span style={{ fontSize: "18px" }}>🔒</span>
+      <span
+        style={{
+          display: "inline-block",
+          padding: "2px 6px",
+          background: "var(--io-surface-sunken)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          fontSize: "10px",
+          fontWeight: 700,
+          color: "var(--io-text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          flexShrink: 0,
+        }}
+      >
+        locked
+      </span>
       <div>
         <div
           style={{
@@ -225,7 +242,7 @@ function ScheduleModal({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.65)",
+            background: "var(--io-modal-backdrop)",
             zIndex: 200,
           }}
         />
@@ -472,7 +489,7 @@ function ScheduleModal({
                 background: "var(--io-accent)",
                 border: "none",
                 borderRadius: "var(--io-radius)",
-                color: "#fff",
+                color: "var(--io-text-on-accent)",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: canSave && !saving ? "pointer" : "not-allowed",
@@ -511,7 +528,8 @@ function ScheduleModal({
 export default function ReportScheduling() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const canManage = user?.permissions.includes("reports:admin") ?? false;
+  const perms = user?.permissions ?? [];
+  const canManage = perms.includes("*") || perms.includes("reports:admin");
 
   const [addOpen, setAddOpen] = useState(false);
 
@@ -734,7 +752,7 @@ export default function ReportScheduling() {
             style={{
               padding: "3px 9px",
               background: "transparent",
-              border: "1px solid rgba(239,68,68,0.3)",
+              border: "1px solid var(--io-danger)",
               borderRadius: "var(--io-radius)",
               color: "var(--io-danger)",
               fontSize: "11px",
@@ -749,37 +767,12 @@ export default function ReportScheduling() {
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "20px",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Report Scheduling
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Configure automated report generation and delivery
-          </p>
-        </div>
-        {canManage && (
+    <SettingsPageLayout
+      title="Report Scheduling"
+      description="Configure automated report generation and delivery."
+      variant="list"
+      action={
+        canManage && (
           <button
             onClick={() => setAddOpen(true)}
             style={{
@@ -787,7 +780,7 @@ export default function ReportScheduling() {
               background: "var(--io-accent)",
               border: "none",
               borderRadius: "var(--io-radius)",
-              color: "#fff",
+              color: "var(--io-text-on-accent)",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
@@ -795,8 +788,9 @@ export default function ReportScheduling() {
           >
             + Add Schedule
           </button>
-        )}
-      </div>
+        )
+      }
+    >
 
       {!canManage && <LockedNotice />}
 
@@ -804,8 +798,8 @@ export default function ReportScheduling() {
         <div
           style={{
             padding: "12px 16px",
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.3)",
+            background: "var(--io-danger-subtle)",
+            border: "1px solid var(--io-danger)",
             borderRadius: "var(--io-radius)",
             color: "var(--io-danger)",
             fontSize: "13px",
@@ -836,6 +830,6 @@ export default function ReportScheduling() {
       <style>{`
         @keyframes io-spin { to { transform: rotate(360deg); } }
       `}</style>
-    </div>
+    </SettingsPageLayout>
   );
 }

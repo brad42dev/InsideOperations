@@ -2,6 +2,13 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+} from "./settingsStyles";
+import {
   pointConfigApi,
   pointSourcesApi,
   AGG_AVERAGING,
@@ -59,65 +66,10 @@ const DEFAULT_VISIBLE_COLUMNS = [
 // Shared styles
 // ---------------------------------------------------------------------------
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "7px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "transparent",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-secondary)",
-  fontSize: "12px",
-  cursor: "pointer",
-};
-
 const btnSmallDanger: React.CSSProperties = {
-  padding: "4px 10px",
-  background: "transparent",
-  border: "1px solid rgba(239,68,68,0.3)",
-  borderRadius: "var(--io-radius)",
+  ...btnSmall,
+  border: "1px solid var(--io-danger)",
   color: "var(--io-danger)",
-  fontSize: "12px",
-  cursor: "pointer",
 };
 
 const thStyle: React.CSSProperties = {
@@ -147,8 +99,8 @@ function ErrorBanner({ message }: { message: string }) {
   return (
     <div
       style={{
-        background: "rgba(239,68,68,0.1)",
-        border: "1px solid rgba(239,68,68,0.3)",
+        background: "var(--io-danger-subtle)",
+        border: "1px solid var(--io-danger)",
         borderRadius: "var(--io-radius)",
         padding: "10px 14px",
         color: "var(--io-danger)",
@@ -166,11 +118,11 @@ function ErrorBanner({ message }: { message: string }) {
 // ---------------------------------------------------------------------------
 
 const CRITICALITY_COLORS: Record<string, { bg: string; color: string }> = {
-  safety_critical: { bg: "rgba(239,68,68,0.12)", color: "#ef4444" },
-  environmental: { bg: "rgba(34,197,94,0.12)", color: "#22c55e" },
-  production: { bg: "rgba(234,179,8,0.12)", color: "#eab308" },
+  safety_critical: { bg: "var(--io-danger-subtle)", color: "var(--io-danger)" },
+  environmental: { bg: "var(--io-success-subtle)", color: "var(--io-success)" },
+  production: { bg: "var(--io-warning-subtle)", color: "var(--io-warning)" },
   informational: {
-    bg: "rgba(113,113,122,0.15)",
+    bg: "var(--io-surface-tertiary)",
     color: "var(--io-text-muted)",
   },
 };
@@ -331,7 +283,7 @@ function LifecycleDialog({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.6)",
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
             zIndex: 200,
           }}
         />
@@ -407,7 +359,7 @@ function LifecycleDialog({
                   ? {
                       padding: "8px 16px",
                       background: "var(--io-danger)",
-                      color: "#fff",
+                      color: "var(--io-text-on-accent)",
                       border: "none",
                       borderRadius: "var(--io-radius)",
                       fontSize: "13px",
@@ -658,7 +610,7 @@ function PointConfigDialog({
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0,0,0,0.6)",
+              background: "var(--io-overlay, rgba(0,0,0,0.5))",
               zIndex: 200,
             }}
           />
@@ -1202,7 +1154,7 @@ function PointConfigDialog({
               style={{
                 position: "fixed",
                 inset: 0,
-                background: "rgba(0,0,0,0.65)",
+                background: "var(--io-overlay, rgba(0,0,0,0.5))",
                 zIndex: 210,
               }}
             />
@@ -1891,7 +1843,7 @@ export default function PointManagement() {
                               style={{
                                 ...btnSmall,
                                 color: "var(--io-success)",
-                                borderColor: "rgba(34,197,94,0.3)",
+                                borderColor: "var(--io-success)",
                               }}
                               onClick={() => openLifecycle(point)}
                             >

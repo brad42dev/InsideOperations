@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../api/client";
+import { api, getStoredToken } from "../../api/client";
 import type { PaginatedResult } from "../../api/client";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+} from "./settingsStyles";
 import { opcCertsApi, OpcServerCert } from "../../api/opcCerts";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,9 +41,9 @@ function formatDate(iso: string): string {
 }
 
 function statusColor(cert: CertInfo): string {
-  if (cert.is_expired) return "var(--io-error, #ef4444)";
-  if (cert.days_remaining < 30) return "var(--io-warning, #f59e0b)";
-  return "var(--io-success, #22c55e)";
+  if (cert.is_expired) return "var(--io-danger)";
+  if (cert.days_remaining < 30) return "var(--io-warning)";
+  return "var(--io-success)";
 }
 
 function statusLabel(cert: CertInfo): string {
@@ -47,27 +55,6 @@ function statusLabel(cert: CertInfo): string {
 // ---------------------------------------------------------------------------
 // Shared inline style fragments
 // ---------------------------------------------------------------------------
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 600,
-  color: "var(--io-text-muted)",
-  marginBottom: "6px",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 12px",
-  borderRadius: "var(--io-radius)",
-  border: "1px solid var(--io-border)",
-  background: "var(--io-surface)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  boxSizing: "border-box",
-};
 
 const textareaStyle: React.CSSProperties = {
   width: "100%",
@@ -82,26 +69,6 @@ const textareaStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const primaryBtnStyle: React.CSSProperties = {
-  padding: "8px 20px",
-  borderRadius: "var(--io-radius)",
-  border: "none",
-  background: "var(--io-accent)",
-  color: "#fff",
-  fontSize: "13px",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: "var(--io-radius)",
-  border: "1px solid var(--io-border)",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
 
 // ---------------------------------------------------------------------------
 // CertificateContextMenu — right-click context menu for certificate table rows
@@ -208,7 +175,7 @@ function CertificateContextMenu({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.55)",
+            background: "var(--io-modal-backdrop)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -217,6 +184,9 @@ function CertificateContextMenu({
           onClick={() => setDetailOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cert-detail-title"
             style={{
               background: "var(--io-surface-elevated)",
               border: "1px solid var(--io-border)",
@@ -238,6 +208,7 @@ function CertificateContextMenu({
               }}
             >
               <h3
+                id="cert-detail-title"
                 style={{
                   margin: 0,
                   fontSize: "16px",
@@ -248,6 +219,7 @@ function CertificateContextMenu({
                 Certificate Details
               </h3>
               <button
+                aria-label="Close"
                 onClick={() => setDetailOpen(false)}
                 style={{
                   background: "none",
@@ -320,7 +292,7 @@ function CertificateContextMenu({
             >
               <button
                 onClick={() => setDetailOpen(false)}
-                style={cancelBtnStyle}
+                style={btnSecondary}
               >
                 Close
               </button>
@@ -349,7 +321,7 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("io_access_token");
+      const token = getStoredToken();
       const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
       const formData = new FormData();
@@ -416,7 +388,7 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.55)",
+        background: "var(--io-modal-backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -427,6 +399,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-cert-title"
         style={{
           background: "var(--io-surface)",
           border: "1px solid var(--io-border)",
@@ -439,6 +414,7 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         }}
       >
         <h3
+          id="upload-cert-title"
           style={{
             margin: "0 0 20px",
             fontSize: "16px",
@@ -454,8 +430,8 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
             style={{
               padding: "10px 14px",
               borderRadius: "var(--io-radius)",
-              background: "var(--io-error-subtle, #fef2f2)",
-              color: "var(--io-error, #ef4444)",
+              background: "var(--io-danger-subtle)",
+              color: "var(--io-danger)",
               fontSize: "13px",
               marginBottom: "16px",
             }}
@@ -465,8 +441,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         )}
 
         <div style={{ marginBottom: "16px" }}>
-          <label style={labelStyle}>Name *</label>
+          <label htmlFor="upload-cert-name" style={labelStyle}>Name *</label>
           <input
+            id="upload-cert-name"
             type="text"
             placeholder="e.g. io-tls"
             value={name}
@@ -488,8 +465,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         </div>
 
         <div style={{ marginBottom: "16px" }}>
-          <label style={labelStyle}>Certificate PEM *</label>
+          <label htmlFor="upload-cert-pem" style={labelStyle}>Certificate PEM *</label>
           <textarea
+            id="upload-cert-pem"
             placeholder={
               "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
             }
@@ -504,8 +482,9 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         </div>
 
         <div style={{ marginBottom: "24px" }}>
-          <label style={labelStyle}>Private Key PEM *</label>
+          <label htmlFor="upload-cert-key" style={labelStyle}>Private Key PEM *</label>
           <textarea
+            id="upload-cert-key"
             placeholder={
               "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
             }
@@ -522,13 +501,13 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
         <div
           style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}
         >
-          <button onClick={onClose} style={cancelBtnStyle}>
+          <button onClick={onClose} style={btnSecondary}>
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={uploadMutation.isPending}
-            style={primaryBtnStyle}
+            style={btnPrimary}
           >
             {uploadMutation.isPending ? "Uploading…" : "Upload Certificate"}
           </button>
@@ -545,6 +524,7 @@ function UploadModal({ onClose, onUploaded }: UploadModalProps) {
 export default function CertificatesPage() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     cert: CertInfo;
     pos: ContextMenuPos;
@@ -575,11 +555,7 @@ export default function CertificatesPage() {
   });
 
   const handleDelete = (name: string) => {
-    if (
-      window.confirm(`Delete certificate "${name}"? This cannot be undone.`)
-    ) {
-      deleteMutation.mutate(name);
-    }
+    setDeleteConfirm(name);
   };
 
   const handleUploaded = () => {
@@ -588,42 +564,16 @@ export default function CertificatesPage() {
   };
 
   return (
-    <div>
-      {/* Header row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "8px",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Certificates
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Manage TLS certificates for HTTPS termination and service
-            authentication.
-          </p>
-        </div>
-        <button onClick={() => setShowUpload(true)} style={primaryBtnStyle}>
+    <SettingsPageLayout
+      title="Certificates"
+      description="Manage TLS certificates for HTTPS termination and service authentication."
+      variant="list"
+      action={
+        <button onClick={() => setShowUpload(true)} style={btnPrimary}>
           + Upload Certificate
         </button>
-      </div>
+      }
+    >
 
       {/* Body */}
       {isLoading ? (
@@ -642,8 +592,8 @@ export default function CertificatesPage() {
             marginTop: "24px",
             padding: "16px",
             borderRadius: "var(--io-radius)",
-            background: "var(--io-error-subtle, #fef2f2)",
-            color: "var(--io-error, #ef4444)",
+            background: "var(--io-danger-subtle)",
+            color: "var(--io-danger)",
             fontSize: "13px",
           }}
         >
@@ -792,10 +742,10 @@ export default function CertificatesPage() {
                         fontSize: "11px",
                         fontWeight: 600,
                         background: cert.is_expired
-                          ? "var(--io-error-subtle, #fef2f2)"
+                          ? "var(--io-danger-subtle)"
                           : cert.days_remaining < 30
-                            ? "var(--io-warning-subtle, #fffbeb)"
-                            : "var(--io-success-subtle, #f0fdf4)",
+                            ? "var(--io-warning-subtle)"
+                            : "var(--io-success-subtle)",
                         color: statusColor(cert),
                       }}
                     >
@@ -810,9 +760,9 @@ export default function CertificatesPage() {
                       style={{
                         padding: "4px 12px",
                         borderRadius: "var(--io-radius)",
-                        border: "1px solid var(--io-error, #ef4444)",
+                        border: "1px solid var(--io-danger)",
                         background: "transparent",
-                        color: "var(--io-error, #ef4444)",
+                        color: "var(--io-danger)",
                         fontSize: "12px",
                         cursor: "pointer",
                         whiteSpace: "nowrap",
@@ -873,7 +823,17 @@ export default function CertificatesPage() {
 
       {/* OPC UA Server Certificates section */}
       <OpcServerCertsSection />
-    </div>
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title="Delete Certificate"
+        description={deleteConfirm ? `Delete certificate "${deleteConfirm}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm); }}
+      />
+    </SettingsPageLayout>
   );
 }
 
@@ -883,11 +843,19 @@ export default function CertificatesPage() {
 
 const OPC_STATUS: Record<string, { bg: string; color: string; label: string }> =
   {
-    trusted: { bg: "rgba(34,197,94,0.12)", color: "#22C55E", label: "Trusted" },
-    pending: { bg: "rgba(234,179,8,0.12)", color: "#EAB308", label: "Pending" },
+    trusted: {
+      bg: "color-mix(in srgb, var(--io-success) 12%, transparent)",
+      color: "var(--io-success)",
+      label: "Trusted",
+    },
+    pending: {
+      bg: "color-mix(in srgb, var(--io-warning) 12%, transparent)",
+      color: "var(--io-warning)",
+      label: "Pending",
+    },
     rejected: {
-      bg: "rgba(239,68,68,0.12)",
-      color: "#EF4444",
+      bg: "color-mix(in srgb, var(--io-danger) 12%, transparent)",
+      color: "var(--io-danger)",
       label: "Rejected",
     },
   };
@@ -1062,7 +1030,7 @@ function OpcServerCertsSection() {
                       style={{
                         padding: "10px 14px",
                         color: cert.expired
-                          ? "#EF4444"
+                          ? "var(--io-danger)"
                           : "var(--io-text-secondary)",
                         whiteSpace: "nowrap",
                       }}
@@ -1097,7 +1065,7 @@ function OpcServerCertsSection() {
                               borderRadius: 5,
                               border: "none",
                               background: "var(--io-accent)",
-                              color: "#fff",
+                              color: "var(--io-text-on-accent)",
                               cursor: "pointer",
                               opacity: busy ? 0.6 : 1,
                             }}
@@ -1114,8 +1082,8 @@ function OpcServerCertsSection() {
                               fontSize: 12,
                               borderRadius: 5,
                               border: "none",
-                              background: "#EF4444",
-                              color: "#fff",
+                              background: "var(--io-danger)",
+                              color: "var(--io-text-on-accent)",
                               cursor: "pointer",
                               opacity: busy ? 0.6 : 1,
                             }}

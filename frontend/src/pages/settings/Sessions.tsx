@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sessionsApi, Session, MySession } from "../../api/sessions";
+import { sessionsApi, Session } from "../../api/sessions";
 import type { PaginatedResult } from "../../api/client";
-import { useAuthStore } from "../../store/auth";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -30,16 +29,6 @@ const cellStyle: React.CSSProperties = {
   verticalAlign: "middle",
 };
 
-const tabBase: React.CSSProperties = {
-  padding: "8px 16px",
-  fontSize: "13px",
-  fontWeight: 500,
-  background: "none",
-  border: "none",
-  borderBottom: "2px solid transparent",
-  cursor: "pointer",
-  color: "var(--io-text-muted)",
-};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -384,194 +373,18 @@ function AllSessionsTab() {
 }
 
 // ---------------------------------------------------------------------------
-// MySessionsTab — current user's own sessions
+// SessionsTab — named export for use in IdentityAccess tabs
 // ---------------------------------------------------------------------------
-function MySessionsTab() {
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const [bannerError, setBannerError] = useState<string | null>(null);
-
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["my-sessions"],
-    queryFn: async () => {
-      const r = await sessionsApi.listMine();
-      if (!r.success) throw new Error(r.error.message);
-      return r.data as MySession[];
-    },
-  });
-
-  const sessions = data ?? [];
-
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) => sessionsApi.revokeMine(id),
-    onSuccess: (r) => {
-      if (!r.success) {
-        setBannerError(r.error.message);
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: ["my-sessions"] });
-    },
-  });
-
-  return (
-    <div>
-      <p
-        style={{
-          margin: "0 0 16px",
-          fontSize: "13px",
-          color: "var(--io-text-muted)",
-        }}
-      >
-        Active sessions for{" "}
-        <strong style={{ color: "var(--io-text-primary)" }}>
-          {user?.username}
-        </strong>
-        . Revoking a session signs you out on that device.
-      </p>
-
-      {bannerError && <ErrorBanner message={bannerError} />}
-
-      <div
-        style={{
-          background: "var(--io-surface-secondary)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "8px",
-          overflow: "hidden",
-        }}
-      >
-        {isLoading && (
-          <div
-            style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "var(--io-text-muted)",
-              fontSize: "14px",
-            }}
-          >
-            Loading…
-          </div>
-        )}
-        {isError && (
-          <div style={{ padding: "20px" }}>
-            <ErrorBanner
-              message={(error as Error)?.message ?? "Failed to load sessions"}
-            />
-          </div>
-        )}
-        {!isLoading && !isError && (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid var(--io-border)",
-                  background: "var(--io-surface-primary)",
-                }}
-              >
-                {[
-                  "IP Address",
-                  "Browser",
-                  "Signed In",
-                  "Last Active",
-                  "Expires In",
-                  "Action",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    style={{
-                      padding: "10px 14px",
-                      textAlign: "left",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.length === 0 && (
-                <EmptyState message="No active sessions" />
-              )}
-              {sessions.map((s, i) => (
-                <tr
-                  key={s.id}
-                  style={{
-                    borderBottom:
-                      i < sessions.length - 1
-                        ? "1px solid var(--io-border-subtle)"
-                        : undefined,
-                  }}
-                >
-                  <td style={cellStyle}>
-                    <code
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--io-text-primary)",
-                      }}
-                    >
-                      {s.ip_address ?? "—"}
-                    </code>
-                  </td>
-                  <td style={cellStyle}>{parseAgent(s.user_agent)}</td>
-                  <td style={cellStyle}>{formatRelative(s.created_at)}</td>
-                  <td style={cellStyle}>
-                    {formatRelative(s.last_accessed_at)}
-                  </td>
-                  <td style={cellStyle}>
-                    <span
-                      style={{
-                        color: "var(--io-text-muted)",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {formatExpiry(s.expires_at)}
-                    </span>
-                  </td>
-                  <td style={cellStyle}>
-                    <button
-                      style={btnDanger}
-                      disabled={revokeMutation.isPending}
-                      onClick={() => revokeMutation.mutate(s.id)}
-                    >
-                      Sign Out
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
+export function SessionsTab() {
+  return <AllSessionsTab />;
 }
 
 // ---------------------------------------------------------------------------
-// Sessions page
+// Sessions page — admin view only (My Sessions moved to /profile?tab=sessions)
 // ---------------------------------------------------------------------------
 export default function Sessions() {
-  const { user } = useAuthStore();
-  const isAdmin =
-    user?.permissions?.includes("system:configure") ||
-    user?.permissions?.includes("*");
-
-  const [tab, setTab] = useState<"all" | "mine">(isAdmin ? "all" : "mine");
-
-  function tabStyle(active: boolean): React.CSSProperties {
-    return {
-      ...tabBase,
-      color: active ? "var(--io-text-primary)" : "var(--io-text-muted)",
-      borderBottom: `2px solid ${active ? "var(--io-accent)" : "transparent"}`,
-    };
-  }
-
   return (
     <div>
-      {/* Header */}
       <div style={{ marginBottom: "20px" }}>
         <h2
           style={{
@@ -583,35 +396,11 @@ export default function Sessions() {
         >
           Sessions
         </h2>
-        <p
-          style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}
-        >
-          View and revoke active login sessions
+        <p style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}>
+          View and revoke all active user sessions
         </p>
       </div>
-
-      {/* Tabs */}
-      {isAdmin && (
-        <div
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--io-border)",
-            marginBottom: "20px",
-          }}
-        >
-          <button style={tabStyle(tab === "all")} onClick={() => setTab("all")}>
-            All Sessions
-          </button>
-          <button
-            style={tabStyle(tab === "mine")}
-            onClick={() => setTab("mine")}
-          >
-            My Sessions
-          </button>
-        </div>
-      )}
-
-      {tab === "all" && isAdmin ? <AllSessionsTab /> : <MySessionsTab />}
+      <AllSessionsTab />
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { SettingsTabs } from "../../shared/components/SettingsTabs";
+import SettingsPageLayout from "./SettingsPageLayout";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import {
@@ -14,11 +16,19 @@ const STATUS_COLORS: Record<
   ServiceStatus,
   { bg: string; text: string; label: string }
 > = {
-  healthy: { bg: "rgba(34,197,94,0.12)", text: "#22c55e", label: "Ready" },
-  degraded: { bg: "rgba(251,191,36,0.15)", text: "#fbbf24", label: "Degraded" },
+  healthy: {
+    bg: "color-mix(in srgb, var(--io-success) 12%, transparent)",
+    text: "var(--io-success)",
+    label: "Ready",
+  },
+  degraded: {
+    bg: "color-mix(in srgb, var(--io-warning) 15%, transparent)",
+    text: "var(--io-warning)",
+    label: "Degraded",
+  },
   unhealthy: {
-    bg: "rgba(239,68,68,0.12)",
-    text: "#ef4444",
+    bg: "color-mix(in srgb, var(--io-danger) 12%, transparent)",
+    text: "var(--io-danger)",
     label: "Not Ready",
   },
   unknown: {
@@ -45,6 +55,7 @@ function StatusBadge({ status }: { status: ServiceStatus }) {
       }}
     >
       <span
+        aria-hidden="true"
         style={{
           width: "6px",
           height: "6px",
@@ -380,7 +391,7 @@ function ServicesTab() {
                         padding: "10px 12px",
                         color:
                           svc.error_rate != null && svc.error_rate > 0
-                            ? "#ef4444"
+                            ? "var(--io-danger)"
                             : "var(--io-text-secondary)",
                       }}
                     >
@@ -567,10 +578,10 @@ function DatabaseTab() {
                       : "0";
                   const utilColor =
                     Number(utilPct) > 80
-                      ? "#ef4444"
+                      ? "var(--io-danger)"
                       : Number(utilPct) > 60
-                        ? "#fbbf24"
-                        : "#22c55e";
+                        ? "var(--io-warning)"
+                        : "var(--io-success)";
                   return (
                     <tr
                       key={svc.service}
@@ -687,7 +698,7 @@ function OpcSourcesTab() {
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  background: src.connected ? "#22c55e" : "#ef4444",
+                  background: src.connected ? "var(--io-success)" : "var(--io-danger)",
                   boxShadow: src.connected ? "0 0 4px #22c55e" : undefined,
                 }}
               />
@@ -783,8 +794,8 @@ function OpcSourcesTab() {
               </div>
               <div
                 style={{
-                  background: "rgba(239,68,68,0.05)",
-                  border: "1px solid rgba(239,68,68,0.15)",
+                  background: "color-mix(in srgb, var(--io-danger) 5%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--io-danger) 15%, transparent)",
                   borderRadius: "6px",
                   padding: "8px 10px",
                   display: "flex",
@@ -797,7 +808,7 @@ function OpcSourcesTab() {
                     key={j}
                     style={{
                       fontSize: "11px",
-                      color: "#ef4444",
+                      color: "var(--io-danger)",
                       fontFamily: "var(--io-font-mono, monospace)",
                     }}
                   >
@@ -995,57 +1006,57 @@ function JobsTab() {
       <JobSection
         title="Email"
         rows={[
-          { label: "Pending", value: data.email.pending, color: "#fbbf24" },
-          { label: "Sent", value: data.email.sent, color: "#22c55e" },
-          { label: "Failed", value: data.email.failed, color: "#ef4444" },
+          { label: "Pending", value: data.email.pending, color: "var(--io-warning)" },
+          { label: "Sent", value: data.email.sent, color: "var(--io-success)" },
+          { label: "Failed", value: data.email.failed, color: "var(--io-danger)" },
           { label: "Retry", value: data.email.retry, color: "#fb923c" },
         ]}
       />
       <JobSection
         title="Alerts"
         rows={[
-          { label: "Pending", value: data.alerts.pending, color: "#fbbf24" },
+          { label: "Pending", value: data.alerts.pending, color: "var(--io-warning)" },
           { label: "Dispatched", value: data.alerts.dispatched },
           {
             label: "Acknowledged",
             value: data.alerts.acknowledged,
-            color: "#22c55e",
+            color: "var(--io-success)",
           },
           {
             label: "Escalated",
             value: data.alerts.escalated,
-            color: "#ef4444",
+            color: "var(--io-danger)",
           },
         ]}
       />
       <JobSection
         title="Exports"
         rows={[
-          { label: "Active", value: data.exports.active, color: "#4A9EFF" },
-          { label: "Queued", value: data.exports.queued, color: "#fbbf24" },
+          { label: "Active", value: data.exports.active, color: "var(--io-accent)" },
+          { label: "Queued", value: data.exports.queued, color: "var(--io-warning)" },
           {
             label: "Completed",
             value: data.exports.completed,
-            color: "#22c55e",
+            color: "var(--io-success)",
           },
-          { label: "Failed", value: data.exports.failed, color: "#ef4444" },
+          { label: "Failed", value: data.exports.failed, color: "var(--io-danger)" },
         ]}
       />
       <JobSection
         title="Imports"
         rows={[
-          { label: "Running", value: data.imports.running, color: "#4A9EFF" },
+          { label: "Running", value: data.imports.running, color: "var(--io-accent)" },
           {
             label: "Scheduled",
             value: data.imports.scheduled,
-            color: "#fbbf24",
+            color: "var(--io-warning)",
           },
           {
             label: "Completed",
             value: data.imports.completed,
-            color: "#22c55e",
+            color: "var(--io-success)",
           },
-          { label: "Failed", value: data.imports.failed, color: "#ef4444" },
+          { label: "Failed", value: data.imports.failed, color: "var(--io-danger)" },
         ]}
       />
     </div>
@@ -1164,7 +1175,7 @@ function MetricChart({
       </div>
       <TimeSeriesChart
         timestamps={timestamps}
-        series={[{ label, data: values, color: "#4A9EFF" }]}
+        series={[{ label, data: values, color: "var(--io-accent)" }]}
         height={160}
       />
     </div>
@@ -1217,7 +1228,7 @@ function MetricsTab() {
                 borderRight:
                   r !== "30d" ? "1px solid var(--io-border)" : "none",
                 background:
-                  timeRange === r ? "var(--io-accent, #4A9EFF)" : "transparent",
+                  timeRange === r ? "var(--io-accent)" : "transparent",
                 color: timeRange === r ? "#fff" : "var(--io-text-secondary)",
                 cursor: "pointer",
                 fontSize: "12px",
@@ -1325,51 +1336,13 @@ export default function SystemHealth() {
           : "unknown";
 
   return (
-    <div
-      style={{
-        padding: "var(--io-space-6)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "24px",
-        maxWidth: "1100px",
-      }}
+    <SettingsPageLayout
+      title="System Health"
+      description="Deep operational visibility across all services and infrastructure."
+      variant="list"
+      action={<StatusBadge status={overallStatus} />}
     >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: "16px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "20px",
-              fontWeight: 700,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            System Health
-          </h2>
-          <p
-            style={{
-              margin: "4px 0 0",
-              fontSize: "14px",
-              color: "var(--io-text-secondary)",
-            }}
-          >
-            Deep operational visibility across all services and infrastructure.
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <StatusBadge status={overallStatus} />
-        </div>
-      </div>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Summary tiles */}
       <div
         style={{
@@ -1383,20 +1356,23 @@ export default function SystemHealth() {
           {
             label: "Healthy",
             count: healthyCnt,
-            color: "#22c55e",
-            bg: "rgba(34,197,94,0.08)",
+            color: "var(--io-success)",
+            bg: "color-mix(in srgb, var(--io-success) 8%, transparent)",
+            borderColor: "color-mix(in srgb, var(--io-success) 30%, transparent)",
           },
           {
             label: "Degraded",
             count: degradedCnt,
-            color: "#fbbf24",
-            bg: "rgba(251,191,36,0.08)",
+            color: "var(--io-warning)",
+            bg: "color-mix(in srgb, var(--io-warning) 8%, transparent)",
+            borderColor: "color-mix(in srgb, var(--io-warning) 30%, transparent)",
           },
           {
             label: "Unhealthy",
             count: unhealthyCnt,
-            color: "#ef4444",
-            bg: "rgba(239,68,68,0.08)",
+            color: "var(--io-danger)",
+            bg: "color-mix(in srgb, var(--io-danger) 8%, transparent)",
+            borderColor: "color-mix(in srgb, var(--io-danger) 30%, transparent)",
           },
         ].map((s) => (
           <div
@@ -1404,7 +1380,7 @@ export default function SystemHealth() {
             style={{
               padding: "14px",
               background: s.bg,
-              border: `1px solid ${s.color}30`,
+              border: `1px solid ${s.borderColor}`,
               borderRadius: "8px",
               textAlign: "center",
             }}
@@ -1434,50 +1410,12 @@ export default function SystemHealth() {
       </div>
 
       {/* Tab navigation */}
-      <div>
-        {/* Tab list */}
-        <div
-          role="tablist"
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--io-border)",
-            gap: "0",
-            overflowX: "auto",
-          }}
-        >
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: "10px 18px",
-                background: "none",
-                border: "none",
-                borderBottom:
-                  activeTab === tab.id
-                    ? "2px solid var(--io-accent, #4A9EFF)"
-                    : "2px solid transparent",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontWeight: activeTab === tab.id ? 700 : 400,
-                color:
-                  activeTab === tab.id
-                    ? "var(--io-accent, #4A9EFF)"
-                    : "var(--io-text-secondary)",
-                whiteSpace: "nowrap",
-                marginBottom: "-1px",
-                transition: "color 150ms, border-color 150ms",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab panels */}
-        <div style={{ paddingTop: "24px" }}>
+      <SettingsTabs
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabId)}
+      >
+        <div>
           {activeTab === "services" && <ServicesTab />}
           {activeTab === "database" && <DatabaseTab />}
           {activeTab === "opc" && <OpcSourcesTab />}
@@ -1485,7 +1423,8 @@ export default function SystemHealth() {
           {activeTab === "jobs" && <JobsTab />}
           {activeTab === "metrics" && <MetricsTab />}
         </div>
+      </SettingsTabs>
       </div>
-    </div>
+    </SettingsPageLayout>
   );
 }

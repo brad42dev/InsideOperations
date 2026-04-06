@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../api/client";
+import { api, getStoredToken } from "../../api/client";
+import { btnPrimary, btnDanger, btnSmall } from "./settingsStyles";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +24,12 @@ interface CreateBackupResponse {
 interface RestoreResponse {
   success: boolean;
   message: string;
+}
+
+interface BackupSchedule {
+  enabled: boolean;
+  cron: string;
+  keep_last: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,180 +53,39 @@ function formatDate(iso: string): string {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
-const TOKEN_KEY = "io_access_token";
 
 // ---------------------------------------------------------------------------
-// Toast / inline notification
+// Local danger-small button style
 // ---------------------------------------------------------------------------
 
-interface ToastMessage {
-  type: "success" | "error";
-  text: string;
-}
-
-function Toast({
-  msg,
-  onDismiss,
-}: {
-  msg: ToastMessage;
-  onDismiss: () => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-        padding: "12px 16px",
-        borderRadius: "8px",
-        background:
-          msg.type === "success"
-            ? "var(--io-success-subtle, #0f3d20)"
-            : "var(--io-danger-subtle, #3d1a1a)",
-        border: `1px solid ${msg.type === "success" ? "var(--io-success)" : "var(--io-danger)"}`,
-        color:
-          msg.type === "success" ? "var(--io-success)" : "var(--io-danger)",
-        fontSize: "13px",
-        marginBottom: "16px",
-      }}
-    >
-      <span>{msg.text}</span>
-      <button
-        onClick={onDismiss}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "inherit",
-          fontSize: "16px",
-          lineHeight: 1,
-          padding: "0 2px",
-          opacity: 0.7,
-        }}
-        aria-label="Dismiss"
-      >
-        ×
-      </button>
-    </div>
-  );
-}
+const btnSmallDanger = {
+  ...btnSmall,
+  border: "1px solid var(--io-danger)",
+  color: "var(--io-danger)",
+};
 
 // ---------------------------------------------------------------------------
-// Confirm dialog
+// Backup tab content (embeddable)
 // ---------------------------------------------------------------------------
 
-function ConfirmDialog({
-  title,
-  body,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  dangerous,
-}: {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  dangerous?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-      }}
-    >
-      <div
-        style={{
-          background: "var(--io-surface)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "12px",
-          padding: "28px 32px",
-          maxWidth: "440px",
-          width: "100%",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            color: "var(--io-text-primary)",
-            marginBottom: "10px",
-          }}
-        >
-          {title}
-        </div>
-        <p
-          style={{
-            fontSize: "13px",
-            color: "var(--io-text-secondary)",
-            margin: "0 0 20px",
-            lineHeight: 1.6,
-          }}
-        >
-          {body}
-        </p>
-        <div
-          style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "8px 18px",
-              borderRadius: "6px",
-              border: "1px solid var(--io-border)",
-              background: "var(--io-surface-secondary)",
-              color: "var(--io-text-secondary)",
-              fontSize: "13px",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            style={{
-              padding: "8px 18px",
-              borderRadius: "6px",
-              border: "none",
-              background: dangerous
-                ? "var(--io-danger, #d94040)"
-                : "var(--io-accent, #3b82f6)",
-              color: "#fff",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-export default function BackupRestorePage() {
+export function BackupTab() {
   const queryClient = useQueryClient();
 
-  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [labelInput, setLabelInput] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<string>("");
+
+  // Schedule form state
+  const [scheduleForm, setScheduleForm] = useState<BackupSchedule>({
+    enabled: false,
+    cron: "0 2 * * *",
+    keep_last: 7,
+  });
 
   function showToast(type: "success" | "error", text: string) {
     setToast({ type, text });
@@ -241,8 +109,26 @@ export default function BackupRestorePage() {
     },
   });
 
+  const { data: schedule } = useQuery<BackupSchedule | null>({
+    queryKey: ["backup-schedule"],
+    queryFn: async () => {
+      try {
+        const result = await api.get<BackupSchedule>("/api/backups/schedule");
+        if (!result.success) return null;
+        return result.data;
+      } catch {
+        return null;
+      }
+    },
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (schedule) setScheduleForm(schedule);
+  }, [schedule]);
+
   // -------------------------------------------------------------------------
-  // Create backup
+  // Mutations
   // -------------------------------------------------------------------------
 
   const createMutation = useMutation<CreateBackupResponse, Error, string>({
@@ -267,10 +153,6 @@ export default function BackupRestorePage() {
     },
   });
 
-  // -------------------------------------------------------------------------
-  // Delete backup
-  // -------------------------------------------------------------------------
-
   const deleteMutation = useMutation<void, Error, string>({
     mutationFn: async (filename: string) => {
       const result = await api.delete(
@@ -288,10 +170,6 @@ export default function BackupRestorePage() {
     },
   });
 
-  // -------------------------------------------------------------------------
-  // Restore backup
-  // -------------------------------------------------------------------------
-
   const restoreMutation = useMutation<RestoreResponse, Error, string>({
     mutationFn: async (filename: string) => {
       const result = await api.post<RestoreResponse>("/api/backup/restore", {
@@ -308,22 +186,40 @@ export default function BackupRestorePage() {
     },
   });
 
+  const scheduleMutation = useMutation<BackupSchedule, Error, BackupSchedule>({
+    mutationFn: async (payload: BackupSchedule) => {
+      const result = await api.put<BackupSchedule>(
+        "/api/backups/schedule",
+        payload,
+      );
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      showToast("success", "Backup schedule saved.");
+      queryClient.invalidateQueries({ queryKey: ["backup-schedule"] });
+    },
+    onError: (err) => {
+      showToast(
+        "error",
+        err instanceof Error ? err.message : "Failed to save schedule",
+      );
+    },
+  });
+
   // -------------------------------------------------------------------------
-  // Download backup — use fetch with auth header, then blob download
+  // Download backup — use fetch with auth token from shared client
   // -------------------------------------------------------------------------
 
   async function handleDownload(filename: string) {
     try {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = getStoredToken();
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const res = await fetch(
         `${API_BASE}/api/backup/download/${encodeURIComponent(filename)}`,
-        {
-          headers,
-          credentials: "include",
-        },
+        { headers, credentials: "include" },
       );
       if (!res.ok) {
         showToast("error", `Download failed: ${res.statusText}`);
@@ -350,86 +246,85 @@ export default function BackupRestorePage() {
   // Render
   // -------------------------------------------------------------------------
 
-  const btnBase: React.CSSProperties = {
-    padding: "7px 14px",
-    borderRadius: "6px",
-    fontSize: "13px",
-    fontWeight: 500,
-    cursor: "pointer",
-    border: "1px solid var(--io-border)",
-    background: "var(--io-surface-secondary)",
-    color: "var(--io-text-secondary)",
-    transition: "opacity 0.1s",
-  };
-
-  const btnPrimary: React.CSSProperties = {
-    ...btnBase,
-    background: "var(--io-accent, #3b82f6)",
-    color: "#fff",
-    border: "none",
-    fontWeight: 600,
-  };
-
-  const btnDanger: React.CSSProperties = {
-    ...btnBase,
-    background: "transparent",
-    color: "var(--io-danger, #d94040)",
-    borderColor: "var(--io-danger, #d94040)",
-  };
-
   return (
-    <div style={{ maxWidth: "720px" }}>
+    <div>
       {/* Confirm dialogs */}
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete Backup"
-          body={`Delete "${confirmDelete}"? This cannot be undone.`}
-          confirmLabel="Delete"
-          dangerous
-          onConfirm={() => {
-            deleteMutation.mutate(confirmDelete);
-            setConfirmDelete(null);
-          }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
-      {confirmRestore && selectedBackup && (
-        <ConfirmDialog
-          title="Restore Database"
-          body={`Restore from "${selectedBackup}"? This will overwrite ALL current data and cannot be undone.`}
-          confirmLabel="Restore"
-          dangerous
-          onConfirm={() => {
-            restoreMutation.mutate(selectedBackup);
-            setConfirmRestore(false);
-          }}
-          onCancel={() => setConfirmRestore(false)}
-        />
-      )}
-
-      <h2
-        style={{
-          margin: "0 0 4px",
-          fontSize: "18px",
-          fontWeight: 600,
-          color: "var(--io-text-primary)",
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null);
         }}
-      >
-        Backup &amp; Restore
-      </h2>
-      <p
-        style={{
-          margin: "0 0 28px",
-          fontSize: "13px",
-          color: "var(--io-text-muted)",
+        title="Delete Backup"
+        description={
+          confirmDelete
+            ? `Delete "${confirmDelete}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDelete) deleteMutation.mutate(confirmDelete);
         }}
-      >
-        Create and manage PostgreSQL database backups using pg_dump, and restore
-        from a previous backup.
-      </p>
+      />
+      <ConfirmDialog
+        open={confirmRestore && !!selectedBackup}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRestore(false);
+        }}
+        title="Restore Database"
+        description={
+          selectedBackup
+            ? `Restore from "${selectedBackup}"? This will overwrite ALL current data and cannot be undone.`
+            : ""
+        }
+        confirmLabel="Restore"
+        variant="danger"
+        onConfirm={() => {
+          restoreMutation.mutate(selectedBackup);
+          setConfirmRestore(false);
+        }}
+      />
 
       {/* Toast */}
-      {toast && <Toast msg={toast} onDismiss={() => setToast(null)} />}
+      {toast && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            background:
+              toast.type === "success"
+                ? "var(--io-success-subtle)"
+                : "var(--io-danger-subtle)",
+            border: `1px solid ${toast.type === "success" ? "var(--io-success)" : "var(--io-danger)"}`,
+            color:
+              toast.type === "success" ? "var(--io-success)" : "var(--io-danger)",
+            fontSize: "13px",
+            marginBottom: "16px",
+          }}
+        >
+          <span>{toast.text}</span>
+          <button
+            onClick={() => setToast(null)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "inherit",
+              fontSize: "16px",
+              lineHeight: 1,
+              padding: "0 2px",
+              opacity: 0.7,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Create Backup section                                               */}
@@ -471,7 +366,7 @@ export default function BackupRestorePage() {
             style={{
               flex: "1 1 200px",
               padding: "8px 12px",
-              borderRadius: "6px",
+              borderRadius: "var(--io-radius)",
               border: "1px solid var(--io-border)",
               background: "var(--io-surface)",
               color: "var(--io-text-primary)",
@@ -498,8 +393,8 @@ export default function BackupRestorePage() {
                     display: "inline-block",
                     width: "12px",
                     height: "12px",
-                    border: "2px solid rgba(255,255,255,0.4)",
-                    borderTopColor: "#fff",
+                    border: `2px solid color-mix(in srgb, var(--io-text-on-accent) 40%, transparent)`,
+                    borderTopColor: "var(--io-text-on-accent)",
                     borderRadius: "50%",
                     animation: "io-spin 0.7s linear infinite",
                   }}
@@ -557,10 +452,7 @@ export default function BackupRestorePage() {
           >
             Available Backups
           </div>
-          <button
-            style={{ ...btnBase, padding: "5px 12px", fontSize: "12px" }}
-            onClick={() => refetch()}
-          >
+          <button style={btnSmall} onClick={() => refetch()}>
             Refresh
           </button>
         </div>
@@ -738,11 +630,7 @@ export default function BackupRestorePage() {
                         }}
                       >
                         <button
-                          style={{
-                            ...btnBase,
-                            padding: "5px 10px",
-                            fontSize: "12px",
-                          }}
+                          style={btnSmall}
                           onClick={() => handleDownload(backup.filename)}
                           title="Download this backup"
                         >
@@ -750,9 +638,7 @@ export default function BackupRestorePage() {
                         </button>
                         <button
                           style={{
-                            ...btnDanger,
-                            padding: "5px 10px",
-                            fontSize: "12px",
+                            ...btnSmallDanger,
                             opacity: deleteMutation.isPending ? 0.6 : 1,
                           }}
                           disabled={deleteMutation.isPending}
@@ -780,6 +666,7 @@ export default function BackupRestorePage() {
           border: "1px solid var(--io-border)",
           borderRadius: "10px",
           padding: "20px 24px",
+          marginBottom: "24px",
         }}
       >
         <div
@@ -801,9 +688,9 @@ export default function BackupRestorePage() {
             alignItems: "flex-start",
             padding: "12px 14px",
             borderRadius: "8px",
-            background: "var(--io-warning-subtle, #3d2d0a)",
-            border: "1px solid var(--io-warning, #d97706)",
-            color: "var(--io-warning, #d97706)",
+            background: "var(--io-warning-subtle)",
+            border: "1px solid var(--io-warning)",
+            color: "var(--io-warning)",
             fontSize: "13px",
             marginBottom: "16px",
             lineHeight: 1.5,
@@ -833,7 +720,7 @@ export default function BackupRestorePage() {
             style={{
               flex: "1 1 260px",
               padding: "8px 12px",
-              borderRadius: "6px",
+              borderRadius: "var(--io-radius)",
               border: "1px solid var(--io-border)",
               background: "var(--io-surface)",
               color: selectedBackup
@@ -854,19 +741,18 @@ export default function BackupRestorePage() {
 
           <button
             style={{
-              ...btnBase,
-              background: "var(--io-danger, #d94040)",
-              color: "#fff",
+              ...btnDanger,
+              background: "var(--io-danger)",
+              color: "var(--io-text-on-accent)",
               border: "none",
-              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
               opacity: !selectedBackup || restoreMutation.isPending ? 0.5 : 1,
               cursor:
                 !selectedBackup || restoreMutation.isPending
                   ? "not-allowed"
                   : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
             }}
             disabled={!selectedBackup || restoreMutation.isPending}
             onClick={() => setConfirmRestore(true)}
@@ -878,8 +764,8 @@ export default function BackupRestorePage() {
                     display: "inline-block",
                     width: "12px",
                     height: "12px",
-                    border: "2px solid rgba(255,255,255,0.4)",
-                    borderTopColor: "#fff",
+                    border: `2px solid color-mix(in srgb, var(--io-text-on-accent) 40%, transparent)`,
+                    borderTopColor: "var(--io-text-on-accent)",
                     borderRadius: "50%",
                     animation: "io-spin 0.7s linear infinite",
                   }}
@@ -906,8 +792,174 @@ export default function BackupRestorePage() {
         </p>
       </section>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Schedule section                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <section
+        style={{
+          background: "var(--io-surface-secondary)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          padding: "20px 24px",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "var(--io-text-primary)",
+            marginBottom: "14px",
+          }}
+        >
+          Scheduled Backups
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+            maxWidth: "480px",
+          }}
+        >
+          {/* Enable toggle */}
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              cursor: "pointer",
+              fontSize: "13px",
+              color: "var(--io-text-primary)",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={scheduleForm.enabled}
+              onChange={(e) =>
+                setScheduleForm((f) => ({ ...f, enabled: e.target.checked }))
+              }
+              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            Enable scheduled backups
+          </label>
+
+          {/* Cron expression */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--io-text-secondary)",
+                marginBottom: "5px",
+              }}
+            >
+              Schedule (cron expression)
+            </label>
+            <input
+              type="text"
+              value={scheduleForm.cron}
+              onChange={(e) =>
+                setScheduleForm((f) => ({ ...f, cron: e.target.value }))
+              }
+              placeholder="0 2 * * *"
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                background: "var(--io-surface-sunken)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-primary)",
+                fontSize: "13px",
+                outline: "none",
+                boxSizing: "border-box",
+                fontFamily: "monospace",
+              }}
+            />
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+              }}
+            >
+              Standard 5-field cron. Example: <code>0 2 * * *</code> = daily at
+              2 AM.
+            </p>
+          </div>
+
+          {/* Retention count */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--io-text-secondary)",
+                marginBottom: "5px",
+              }}
+            >
+              Keep last N backups
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={scheduleForm.keep_last}
+              onChange={(e) =>
+                setScheduleForm((f) => ({
+                  ...f,
+                  keep_last: parseInt(e.target.value, 10) || 1,
+                }))
+              }
+              style={{
+                width: "120px",
+                padding: "8px 10px",
+                background: "var(--io-surface-sunken)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-primary)",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          <div>
+            <button
+              style={{
+                ...btnPrimary,
+                opacity: scheduleMutation.isPending ? 0.7 : 1,
+                cursor: scheduleMutation.isPending ? "not-allowed" : "pointer",
+              }}
+              disabled={scheduleMutation.isPending}
+              onClick={() => scheduleMutation.mutate(scheduleForm)}
+            >
+              {scheduleMutation.isPending ? "Saving…" : "Save Schedule"}
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Spinner keyframe */}
       <style>{`@keyframes io-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page wrapper (standalone route)
+// ---------------------------------------------------------------------------
+
+export default function BackupRestorePage() {
+  return (
+    <SettingsPageLayout
+      title="Backup & Restore"
+      description="Create and manage PostgreSQL database backups using pg_dump, and restore from a previous backup."
+      maxWidth={720}
+    >
+      <BackupTab />
+    </SettingsPageLayout>
   );
 }

@@ -735,6 +735,55 @@ pub async fn compress_completed_chunks(
     Ok(count)
 }
 
+/// Set `active = false` on any point for `source_id` whose tagname is NOT in
+/// `current_tagnames`.  The `handle_point_activation_change` trigger will set
+/// `deactivated_at` automatically.  Returns the number of rows deactivated.
+pub async fn deactivate_removed_points(
+    db: &DbPool,
+    source_id: Uuid,
+    current_tagnames: &[String],
+) -> anyhow::Result<u64> {
+    let result = sqlx::query(
+        r#"
+        UPDATE points_metadata
+        SET active = false, updated_at = NOW()
+        WHERE source_id = $1
+          AND active = true
+          AND tagname != ALL($2::text[])
+        "#,
+    )
+    .bind(source_id)
+    .bind(current_tagnames)
+    .execute(db)
+    .await
+    .context("deactivate_removed_points: query failed")?;
+    Ok(result.rows_affected())
+}
+
+/// Bulk-update `last_seen_at = NOW()` for the given tagnames under a source.
+pub async fn touch_last_seen_at(
+    db: &DbPool,
+    source_id: Uuid,
+    tagnames: &[String],
+) -> anyhow::Result<()> {
+    if tagnames.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        r#"
+        UPDATE points_metadata
+        SET last_seen_at = NOW(), updated_at = NOW()
+        WHERE source_id = $1 AND tagname = ANY($2::text[])
+        "#,
+    )
+    .bind(source_id)
+    .bind(tagnames)
+    .execute(db)
+    .await
+    .context("touch_last_seen_at: query failed")?;
+    Ok(())
+}
+
 /// Returns true if there is at least one pending recovery job for this source.
 /// Used to avoid creating a duplicate startup job when one is already queued.
 pub async fn has_pending_recovery_jobs(db: &DbPool, source_id: Uuid) -> anyhow::Result<bool> {
@@ -760,14 +809,14 @@ pub async fn refresh_aggregates_for_range(
     from_time: chrono::DateTime<chrono::Utc>,
     to_time: chrono::DateTime<chrono::Utc>,
 ) -> anyhow::Result<()> {
-    let views = [
+    // Sub-day views: refresh the exact window.
+    let sub_day_views = [
         "points_history_1m",
         "points_history_5m",
         "points_history_15m",
         "points_history_1h",
-        "points_history_1d",
     ];
-    for view in &views {
+    for view in &sub_day_views {
         sqlx::query(&format!(
             "CALL refresh_continuous_aggregate('{}', $1, $2)",
             view
@@ -778,5 +827,18 @@ pub async fn refresh_aggregates_for_range(
         .await
         .with_context(|| format!("refresh_continuous_aggregate({})", view))?;
     }
+
+    // 1d view: the bucket size is 1 day, so the refresh window must cover at
+    // least one full day.  Align to [floor(from, day), ceil(to, day)].
+    let day_from = from_time.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+    let to_naive = to_time.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+    let day_to = if to_time > to_naive { to_naive + chrono::Duration::days(1) } else { to_naive };
+    sqlx::query("CALL refresh_continuous_aggregate('points_history_1d', $1, $2)")
+        .bind(day_from)
+        .bind(day_to)
+        .execute(db)
+        .await
+        .context("refresh_continuous_aggregate(points_history_1d)")?;
+
     Ok(())
 }

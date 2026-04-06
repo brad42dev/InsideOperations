@@ -1,6 +1,17 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import { SettingsTabs } from "../../shared/components/SettingsTabs";
+import SettingsPageLayout from "./SettingsPageLayout";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnDanger,
+  cellStyle,
+} from "./settingsStyles";
 import {
   emailApi,
   EmailProvider,
@@ -10,63 +21,6 @@ import {
   CreateTemplateRequest,
 } from "../../api/email";
 
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnDanger: React.CSSProperties = {
-  ...btnSecondary,
-  color: "var(--io-danger)",
-  borderColor: "var(--io-danger)",
-};
-
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
-};
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -106,54 +60,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tab component
-// ---------------------------------------------------------------------------
-
-function Tabs({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: string[];
-  active: string;
-  onChange: (t: string) => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: "2px",
-        borderBottom: "1px solid var(--io-border)",
-        marginBottom: "20px",
-      }}
-    >
-      {tabs.map((t) => (
-        <button
-          key={t}
-          onClick={() => onChange(t)}
-          style={{
-            padding: "8px 16px",
-            fontSize: "13px",
-            fontWeight: active === t ? 600 : 400,
-            color:
-              active === t ? "var(--io-accent)" : "var(--io-text-secondary)",
-            background: "transparent",
-            border: "none",
-            borderBottom:
-              active === t
-                ? "2px solid var(--io-accent)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            marginBottom: "-1px",
-          }}
-        >
-          {t}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Providers tab
@@ -163,6 +69,7 @@ function ProvidersTab() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editProvider, setEditProvider] = useState<EmailProvider | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-providers"],
@@ -300,10 +207,7 @@ function ProvidersTab() {
                   </button>
                   <button
                     style={btnDanger}
-                    onClick={() => {
-                      if (confirm(`Delete provider "${p.name}"?`))
-                        deleteMutation.mutate(p.id);
-                    }}
+                    onClick={() => setDeleteConfirm({ id: p.id, name: p.name })}
                   >
                     Delete
                   </button>
@@ -323,6 +227,16 @@ function ProvidersTab() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title="Delete Provider"
+        description={deleteConfirm ? `Delete provider "${deleteConfirm.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id); }}
+      />
     </div>
   );
 }
@@ -403,7 +317,7 @@ function ProviderDialog({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "var(--io-modal-backdrop)",
             zIndex: 100,
           }}
         />
@@ -439,16 +353,18 @@ function ProviderDialog({
             style={{ display: "flex", flexDirection: "column", gap: "14px" }}
           >
             <div>
-              <label style={labelStyle}>Name</label>
+              <label htmlFor="email-provider-name" style={labelStyle}>Name</label>
               <input
+                id="email-provider-name"
                 style={inputStyle}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div>
-              <label style={labelStyle}>Type</label>
+              <label htmlFor="email-provider-type" style={labelStyle}>Type</label>
               <select
+                id="email-provider-type"
                 style={inputStyle}
                 value={providerType}
                 onChange={(e) => setProviderType(e.target.value)}
@@ -462,23 +378,25 @@ function ProviderDialog({
               </select>
             </div>
             <div>
-              <label style={labelStyle}>From Address</label>
+              <label htmlFor="email-provider-from-addr" style={labelStyle}>From Address</label>
               <input
+                id="email-provider-from-addr"
                 style={inputStyle}
                 value={fromAddress}
                 onChange={(e) => setFromAddress(e.target.value)}
               />
             </div>
             <div>
-              <label style={labelStyle}>From Name (optional)</label>
+              <label htmlFor="email-provider-from-name" style={labelStyle}>From Name (optional)</label>
               <input
+                id="email-provider-from-name"
                 style={inputStyle}
                 value={fromName}
                 onChange={(e) => setFromName(e.target.value)}
               />
             </div>
             <div>
-              <label style={labelStyle}>
+              <label htmlFor="email-provider-config" style={labelStyle}>
                 Config (JSON) — smtp: {"{host, port, username, password}"} ·
                 smtp_xoauth2:{" "}
                 {"{host, port, username, client_id, client_secret, tenant_id}"}{" "}
@@ -488,6 +406,7 @@ function ProviderDialog({
                 {"{url}"}
               </label>
               <textarea
+                id="email-provider-config"
                 style={{
                   ...inputStyle,
                   height: "120px",
@@ -580,6 +499,7 @@ function TemplatesTab() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(
     null,
   );
@@ -722,10 +642,7 @@ function TemplatesTab() {
                   </button>
                   <button
                     style={btnDanger}
-                    onClick={() => {
-                      if (confirm(`Delete template "${t.name}"?`))
-                        deleteMutation.mutate(t.id);
-                    }}
+                    onClick={() => setDeleteConfirm({ id: t.id, name: t.name })}
                   >
                     Delete
                   </button>
@@ -756,7 +673,7 @@ function TemplatesTab() {
               style={{
                 position: "fixed",
                 inset: 0,
-                background: "rgba(0,0,0,0.5)",
+                background: "var(--io-modal-backdrop)",
                 zIndex: 100,
               }}
             />
@@ -915,6 +832,16 @@ function TemplatesTab() {
           </Dialog.Portal>
         </Dialog.Root>
       )}
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title="Delete Template"
+        description={deleteConfirm ? `Delete template "${deleteConfirm.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (deleteConfirm) deleteMutation.mutate(deleteConfirm.id); }}
+      />
     </div>
   );
 }
@@ -982,7 +909,7 @@ function TemplateDialog({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "var(--io-modal-backdrop)",
             zIndex: 100,
           }}
         />
@@ -1367,27 +1294,28 @@ function QueueTab() {
 // Page root
 // ---------------------------------------------------------------------------
 
-const TABS = ["Providers", "Templates", "Queue"];
+const TABS = [
+  { id: "Providers", label: "Providers" },
+  { id: "Templates", label: "Templates" },
+  { id: "Queue", label: "Queue" },
+];
 
 export default function EmailSettingsPage() {
   const [activeTab, setActiveTab] = useState("Providers");
 
   return (
-    <div>
-      <h2
-        style={{
-          margin: "0 0 20px",
-          fontSize: "18px",
-          fontWeight: 600,
-          color: "var(--io-text-primary)",
-        }}
-      >
-        Email
-      </h2>
-      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
-      {activeTab === "Providers" && <ProvidersTab />}
-      {activeTab === "Templates" && <TemplatesTab />}
-      {activeTab === "Queue" && <QueueTab />}
-    </div>
+    <SettingsPageLayout
+      title="Email"
+      description="Configure email providers, templates, and delivery queue."
+      variant="list"
+    >
+      <SettingsTabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}>
+        <div>
+          {activeTab === "Providers" && <ProvidersTab />}
+          {activeTab === "Templates" && <TemplatesTab />}
+          {activeTab === "Queue" && <QueueTab />}
+        </div>
+      </SettingsTabs>
+    </SettingsPageLayout>
   );
 }

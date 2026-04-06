@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { StreamingSessionsContent } from "./StreamingSessions";
 import {
   importApi,
   type ConnectorTemplate,
@@ -5003,7 +5005,8 @@ type Tab =
   | "definitions"
   | "runs"
   | "point_detail"
-  | "data_links";
+  | "data_links"
+  | "streaming";
 
 export default function ImportSettingsPage({
   defaultTab,
@@ -5016,7 +5019,11 @@ export default function ImportSettingsPage({
   const canManagePointDetail = usePermission("system:point_detail_config");
   const canManageDataLinks = usePermission("system:data_link_config");
 
-  const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? "connectors");
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab") as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(
+    urlTab ?? defaultTab ?? "connectors",
+  );
 
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
     { id: "connectors", label: "Connectors", visible: canManageConnections },
@@ -5029,6 +5036,7 @@ export default function ImportSettingsPage({
       visible: canManagePointDetail,
     },
     { id: "data_links", label: "Data Links", visible: canManageDataLinks },
+    { id: "streaming", label: "Streaming", visible: true },
   ];
 
   const visibleTabs = tabs.filter((t) => t.visible);
@@ -5091,6 +5099,7 @@ export default function ImportSettingsPage({
       {activeTab === "runs" && <RunsTab />}
       {activeTab === "point_detail" && <PointDetailTab />}
       {activeTab === "data_links" && <DataLinksTab />}
+      {activeTab === "streaming" && <StreamingSessionsContent />}
     </div>
   );
 }

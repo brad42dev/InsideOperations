@@ -28,6 +28,7 @@ import {
   useTabStore,
   snapToGridValue,
 } from "../../store/designer";
+import type { SmartGuide } from "../../store/designer/uiStore";
 import type { NodeId } from "../../shared/types/graphics";
 import type {
   SceneNode,
@@ -1293,6 +1294,110 @@ function WidgetRenderer({ node, tx }: { node: WidgetNode; tx: string }) {
     widgetType.replace(/_/g, " ");
   const icon = WIDGET_ICONS[widgetType] ?? "▭";
   const isSmall = width < 80 || height < 50;
+
+  // In dashboard test mode, render an HTML live preview via foreignObject
+  const testMode = useUiStore((s) => s.testMode);
+  const designMode = useSceneStore((s) => s.designMode);
+  const liveValues = useContext(TestModeContext);
+
+  const showLivePreview = testMode && designMode === "dashboard";
+
+  if (showLivePreview) {
+    const w = Math.max(width, 40);
+    const h = Math.max(height, 28);
+    // Get live value for point-bound widget types
+    const pointId = (
+      config as { binding?: { pointId?: string } }
+    ).binding?.pointId;
+    const liveVal = pointId ? liveValues.get(pointId) : undefined;
+    const displayVal =
+      liveVal !== undefined
+        ? typeof liveVal.value === "number"
+          ? liveVal.value.toFixed(2)
+          : String(liveVal.value)
+        : null;
+
+    return (
+      <g
+        transform={tx}
+        data-node-id={node.id}
+        data-canvas-x={String(Math.round(node.transform.position.x))}
+        data-canvas-y={String(Math.round(node.transform.position.y))}
+        opacity={node.opacity}
+      >
+        <foreignObject x={0} y={0} width={w} height={h}>
+          <div
+            // @ts-expect-error — xmlns required for SVG foreignObject
+            xmlns="http://www.w3.org/1999/xhtml"
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 3,
+              overflow: "hidden",
+              boxSizing: "border-box",
+              fontFamily: "inherit",
+            }}
+          >
+            {/* Title bar */}
+            <div
+              style={{
+                height: 20,
+                flexShrink: 0,
+                background: "rgba(99,102,241,0.15)",
+                borderBottom: "1px solid var(--io-border)",
+                padding: "0 6px",
+                display: "flex",
+                alignItems: "center",
+                fontSize: 9,
+                fontWeight: 600,
+                color: "var(--io-accent)",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {title}
+            </div>
+            {/* Body */}
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              {displayVal !== null ? (
+                <span
+                  style={{
+                    fontSize: Math.min(h * 0.3, 28),
+                    fontWeight: 700,
+                    color: "var(--io-text-primary)",
+                  }}
+                >
+                  {displayVal}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: "var(--io-text-muted)",
+                  }}
+                >
+                  {widgetType.replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
+          </div>
+        </foreignObject>
+      </g>
+    );
+  }
 
   return (
     <g
@@ -3007,6 +3112,7 @@ export default function DesignerCanvas({
   const setSnap = useUiStore((s) => s.setSnap);
   const guides = useUiStore((s) => s.guides);
   const guidesVisible = useUiStore((s) => s.guidesVisible);
+  const smartGuides = useUiStore((s) => s.smartGuides);
   const activeGroupId = useUiStore((s) => s.activeGroupId);
   const setActiveGroup = useUiStore((s) => s.setActiveGroup);
   const phonePreviewActive = useUiStore((s) => s.phonePreviewActive);
@@ -3634,6 +3740,79 @@ export default function DesignerCanvas({
             if (canvasDragGhostRef.current) {
               canvasDragGhostRef.current.style.left = `${me.clientX}px`;
               canvasDragGhostRef.current.style.top = `${me.clientY}px`;
+            }
+
+            // Smart guides: compute alignment candidates from non-selected nodes
+            const currentDoc = docRef.current;
+            const selIds = selectedIdsRef.current;
+            if (currentDoc && selIds.size > 0) {
+              const SNAP_THRESHOLD = 6;
+              const newGuides: SmartGuide[] = [];
+
+              // Collect dragged node new bounding boxes using getNodeBounds.
+              // getNodeBounds returns canvas-absolute coords; adding ddx/ddy
+              // gives the new position after the in-flight drag offset.
+              const draggedBounds: Array<{
+                x: number;
+                y: number;
+                w: number;
+                h: number;
+              }> = [];
+              for (const sid of selIds) {
+                if (interactionRef.current.type !== "drag") continue;
+                if (!interactionRef.current.originalPositions.has(sid))
+                  continue;
+                const node = currentDoc.children.find((n) => n.id === sid);
+                if (!node) continue;
+                const b = getNodeBounds(node);
+                draggedBounds.push({
+                  x: b.x + ddx,
+                  y: b.y + ddy,
+                  w: b.w,
+                  h: b.h,
+                });
+              }
+
+              // Compare against non-selected nodes using getNodeBounds for
+              // accurate per-type dimensions (ellipse, text, image, group…).
+              for (const node of currentDoc.children) {
+                if (selIds.has(node.id)) continue;
+                const tb = getNodeBounds(node);
+                const candidates: Array<{
+                  axis: "h" | "v";
+                  pos: number;
+                }> = [
+                  { axis: "h", pos: tb.y },
+                  { axis: "h", pos: tb.y + tb.h / 2 },
+                  { axis: "h", pos: tb.y + tb.h },
+                  { axis: "v", pos: tb.x },
+                  { axis: "v", pos: tb.x + tb.w / 2 },
+                  { axis: "v", pos: tb.x + tb.w },
+                ];
+                for (const cand of candidates) {
+                  let matched = false;
+                  for (const db of draggedBounds) {
+                    if (matched) break;
+                    const edges =
+                      cand.axis === "h"
+                        ? [db.y, db.y + db.h / 2, db.y + db.h]
+                        : [db.x, db.x + db.w / 2, db.x + db.w];
+                    for (const edge of edges) {
+                      if (Math.abs(edge - cand.pos) < SNAP_THRESHOLD) {
+                        newGuides.push({
+                          axis: cand.axis,
+                          position: cand.pos,
+                          sourceNodeId: node.id,
+                        });
+                        matched = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+
+              useUiStore.getState().setSmartGuides(newGuides);
             }
           };
 
@@ -6839,6 +7018,54 @@ export default function DesignerCanvas({
             canvasH={canvasH}
             containerRef={containerRef}
           />
+
+          {/* Smart guides overlay — shown during drag when elements align */}
+          {smartGuides.length > 0 && !testMode && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                zIndex: 15,
+                overflow: "hidden",
+              }}
+            >
+              <svg
+                width="100%"
+                height="100%"
+                style={{ position: "absolute", inset: 0 }}
+              >
+                {smartGuides.map((guide, i) => {
+                  const screenPos =
+                    guide.position * zoom +
+                    (guide.axis === "h" ? panY : panX);
+                  return guide.axis === "h" ? (
+                    <line
+                      key={i}
+                      x1={0}
+                      y1={screenPos}
+                      x2="100%"
+                      y2={screenPos}
+                      stroke="var(--io-accent-cyan, #06b6d4)"
+                      strokeWidth={1}
+                      strokeDasharray="4 2"
+                    />
+                  ) : (
+                    <line
+                      key={i}
+                      x1={screenPos}
+                      y1={0}
+                      x2={screenPos}
+                      y2="100%"
+                      stroke="var(--io-accent-cyan, #06b6d4)"
+                      strokeWidth={1}
+                      strokeDasharray="4 2"
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+          )}
 
           {/* Save as Stencil dialog */}
           {stencilNodes && (

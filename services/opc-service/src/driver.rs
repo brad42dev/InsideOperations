@@ -34,6 +34,130 @@ use crate::ipc::UdsSender;
 use crate::state::SessionRegistry;
 
 // ---------------------------------------------------------------------------
+// Exception-Based Recording (EBR) filter
+// ---------------------------------------------------------------------------
+// Lossless historian-style deduplication. Writes the first and last value
+// of any stable (unchanged) run to the database. The frontend uses step
+// interpolation to display the flat line between them.
+
+struct EbrPointState {
+    last_written_value: f64,
+    last_written_quality: String,
+    last_written_ts: chrono::DateTime<chrono::Utc>,
+    /// Most recent unchanged value, buffered for flush when value changes or heartbeat fires.
+    pending: Option<EbrPending>,
+}
+
+struct EbrPending {
+    value: f64,
+    quality: String,
+    timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+struct EbrFilter {
+    state: std::collections::HashMap<uuid::Uuid, EbrPointState>,
+    heartbeat_secs: u64,
+}
+
+impl EbrFilter {
+    fn new(heartbeat_secs: u64) -> Self {
+        Self {
+            state: std::collections::HashMap::new(),
+            heartbeat_secs,
+        }
+    }
+
+    /// Process one incoming update. Returns 0, 1, or 2 PointUpdates to write to history.
+    /// The caller writes ALL updates (unfiltered) to points_current and UDS.
+    fn process(&mut self, update: &PointUpdate) -> Vec<PointUpdate> {
+        let mut out = Vec::new();
+
+        // Treat NaN as 0.0 for comparison purposes (extract_value already does this,
+        // but guard defensively).
+        let val = if update.value.is_nan() { 0.0 } else { update.value };
+
+        match self.state.get_mut(&update.point_id) {
+            None => {
+                // First time seeing this point — always write.
+                self.state.insert(
+                    update.point_id,
+                    EbrPointState {
+                        last_written_value: val,
+                        last_written_quality: update.quality.clone(),
+                        last_written_ts: update.timestamp,
+                        pending: None,
+                    },
+                );
+                out.push(update.clone());
+            }
+            Some(state) => {
+                let value_changed = (state.last_written_value - val).abs() > f64::EPSILON
+                    || state.last_written_quality != update.quality;
+
+                if value_changed {
+                    // Flush pending-last (end of stable period) if its timestamp
+                    // differs from what we already wrote — this closes the stable run.
+                    if let Some(p) = state.pending.take() {
+                        if p.timestamp != state.last_written_ts {
+                            out.push(PointUpdate {
+                                point_id: update.point_id,
+                                value: p.value,
+                                quality: p.quality,
+                                timestamp: p.timestamp,
+                            });
+                        }
+                    }
+                    // Write the new (changed) value.
+                    out.push(update.clone());
+                    state.last_written_value = val;
+                    state.last_written_quality = update.quality.clone();
+                    state.last_written_ts = update.timestamp;
+                } else {
+                    // Value unchanged — buffer as pending (overwrites previous pending).
+                    state.pending = Some(EbrPending {
+                        value: val,
+                        quality: update.quality.clone(),
+                        timestamp: update.timestamp,
+                    });
+                }
+            }
+        }
+
+        out
+    }
+
+    /// Heartbeat: flush pending values whose last-written time is older than
+    /// heartbeat_secs. Call on every flush tick to guarantee regularity in the DB
+    /// even for signals that hold steady for long periods.
+    fn heartbeat_flush(&mut self, now: chrono::DateTime<chrono::Utc>) -> Vec<PointUpdate> {
+        if self.heartbeat_secs == 0 {
+            return Vec::new();
+        }
+        let cutoff = now - chrono::Duration::seconds(self.heartbeat_secs as i64);
+        let mut out = Vec::new();
+
+        for (&point_id, state) in self.state.iter_mut() {
+            if let Some(ref p) = state.pending {
+                if state.last_written_ts <= cutoff {
+                    out.push(PointUpdate {
+                        point_id,
+                        value: p.value,
+                        quality: p.quality.clone(),
+                        timestamp: p.timestamp,
+                    });
+                    state.last_written_value = p.value;
+                    state.last_written_quality = p.quality.clone();
+                    state.last_written_ts = p.timestamp;
+                    state.pending = None;
+                }
+            }
+        }
+
+        out
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -429,7 +553,8 @@ async fn run_source_once(
     register_server_cert(source, db, config).await;
 
     // --- Browse namespace ---
-    let (node_map, analog_nodes, discrete_nodes) = browse_namespace(source, db, &session).await?;
+    let (mut node_map, analog_nodes, discrete_nodes) =
+        browse_namespace(source, db, &session).await?;
 
     if node_map.is_empty() {
         warn!(source = %source.name, "No variable nodes discovered; disconnecting");
@@ -446,9 +571,9 @@ async fn run_source_once(
 
     // --- Harvest OPC UA Part 8 analog metadata (EU, limits, description) ---
     // Opportunistic — failures are non-fatal; missing properties are skipped.
-    // Returns eu_ranges: NodeId → (low, high) for analog nodes with valid EURange,
-    // used by create_subscriptions to apply PercentDeadband filters.
-    let eu_ranges = harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
+    // The return value (eu_ranges) is intentionally discarded — EBR is now handled
+    // client-side in flush_loop; we no longer apply PercentDeadband at the OPC level.
+    harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
 
     // --- Harvest discrete-type metadata (EnumStrings, TrueState/FalseState) ---
     // Opportunistic — failures are non-fatal.
@@ -571,8 +696,11 @@ async fn run_source_once(
     // --- Subscribe ---
     let (update_tx, update_rx) = mpsc::unbounded_channel::<PointUpdate>();
 
-    let good_items =
-        create_subscriptions(source, &session, &node_map, &eu_ranges, update_tx, config).await?;
+    // Keep a clone of the sender so flush_loop can create new subscriptions
+    // during incremental rediscovery while the channel stays open.
+    let (good_items, _subscription_ids) =
+        create_subscriptions(source, &session, &node_map, update_tx.clone(), config)
+            .await?;
 
     // Record how many points are currently subscribed after subscription creation.
     metrics::gauge!("io_opc_points_subscribed").set(good_items as f64);
@@ -614,12 +742,24 @@ async fn run_source_once(
             "All monitored items returned non-Good status — falling back to polling mode"
         );
         drop(update_rx); // won't be used in polling mode
+        // Rediscovery is not implemented for poll_loop — subscriptions are required.
+        // TODO: add rediscovery support to poll_loop if subscription-less servers need it.
         poll_loop(source, db, uds, config, &session, &node_map).await;
         false
     } else {
         info!(source = %source.name, "Entering flush loop — waiting for OPC UA DataChange callbacks");
         // --- Flush loop (runs until session ends; returns true if watchdog triggered) ---
-        flush_loop(source, db, uds, config, &session, &node_map, update_rx).await
+        flush_loop(
+            source,
+            db,
+            uds,
+            config,
+            &session,
+            &mut node_map,
+            update_tx,
+            update_rx,
+        )
+        .await
     };
 
     // Abort the A&C drain task — the session is gone, events will no longer arrive.
@@ -872,6 +1012,82 @@ async fn browse_namespace(
     Ok((node_map, analog_nodes, discrete_nodes))
 }
 
+/// A single variable node discovered during a lightweight BFS (no DB upsert).
+struct DiscoveredNode {
+    node_id: NodeId,
+    /// Tagname derived by the same ns:s= / DisplayName fallback as browse_namespace.
+    tagname: String,
+    /// OPC data type string: "Double", "Boolean", or "String".
+    data_type: &'static str,
+    #[allow(dead_code)]
+    type_def_id: Option<NodeId>,
+}
+
+/// Lightweight namespace BFS — same traversal as `browse_namespace` but does NOT
+/// upsert to the DB and does NOT harvest metadata.  Returns the full set of
+/// discovered variable nodes so callers can diff against what is already known.
+async fn browse_namespace_nodes_only(
+    source: &PointSource,
+    session: &Arc<Session>,
+) -> anyhow::Result<Vec<DiscoveredNode>> {
+    let root = NodeId::new(0u16, 85u32);
+    let mut results: Vec<DiscoveredNode> = Vec::new();
+    let mut to_visit: Vec<NodeId> = vec![root];
+
+    while !to_visit.is_empty() {
+        let batch: Vec<NodeId> = std::mem::take(&mut to_visit);
+
+        for parent_id in batch {
+            let children_result = browse_children(session, &parent_id).await;
+            match children_result {
+                Ok(children) => {
+                    for (node_id, display_name, node_class, type_def_id) in children {
+                        if node_id.namespace == 0 {
+                            continue;
+                        }
+                        match node_class {
+                            NodeClass::Variable => {
+                                let type_name = type_name_from_typedef(&type_def_id);
+                                let data_type = match type_name {
+                                    Some("TwoStateDiscreteType") => "Boolean",
+                                    Some("MultiStateDiscreteType")
+                                    | Some("MultiStateValueDiscreteType") => "String",
+                                    _ => "Double",
+                                };
+                                let node_id_str = node_id.to_string();
+                                let tagname = node_id_str
+                                    .split_once(";s=")
+                                    .map(|(_, ident)| ident.to_string())
+                                    .unwrap_or_else(|| display_name.clone());
+                                results.push(DiscoveredNode {
+                                    node_id,
+                                    tagname,
+                                    data_type,
+                                    type_def_id,
+                                });
+                            }
+                            NodeClass::Object => {
+                                to_visit.push(node_id);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        source = %source.name,
+                        node = %parent_id,
+                        error = %e,
+                        "Browse (nodes-only) failed for node"
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
 /// Map TypeDefinition NodeId to a human-readable name for metadata storage.
 fn type_name_from_typedef(type_def: &Option<NodeId>) -> Option<&'static str> {
     let nid = type_def.as_ref()?;
@@ -972,16 +1188,15 @@ async fn browse_children(session: &Session, node_id: &NodeId) -> Result<Vec<Brow
 /// If empty (server did not report TypeDefinitions), all nodes are processed as a compatibility
 /// fallback (preserves behaviour with servers that omit TypeDefinition in browse results).
 ///
-/// Returns a map of `NodeId → (low, high)` for every analog node whose EURange was successfully
-/// read and has a non-degenerate range (i.e. `high - low > EPSILON`). This map is passed to
-/// `create_subscriptions` so that PercentDeadband filters can be applied at subscription time.
+/// EURange data is stored in the DB (points_metadata) for display in the UI but is no longer
+/// used for OPC UA subscription filtering — EBR is handled client-side in flush_loop.
 async fn harvest_analog_metadata(
     source: &PointSource,
     db: &DbPool,
     session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
     analog_nodes: &HashSet<NodeId>,
-) -> HashMap<NodeId, (f64, f64)> {
+) {
     // Filter to only AnalogItemType/DataItemType nodes to avoid unnecessary load on large servers.
     // Fall back to all nodes when analog_nodes is empty (server didn't report TypeDefinitions).
     let node_ids: Vec<(NodeId, Uuid)> = if analog_nodes.is_empty() {
@@ -998,20 +1213,10 @@ async fn harvest_analog_metadata(
     // Process in batches to avoid overwhelming the server.
     const BATCH: usize = 50;
     let mut harvested = 0usize;
-    // Accumulate EURange values for valid analog nodes (non-degenerate range).
-    // Returned to the caller for use in DataChangeFilter configuration.
-    let mut eu_ranges: HashMap<NodeId, (f64, f64)> = HashMap::new();
 
     for chunk in node_ids.chunks(BATCH) {
         for (node_id, point_id) in chunk {
             let meta = read_analog_properties(session, node_id).await;
-
-            // Capture EURange for subscription-time deadband filter if non-degenerate.
-            if let (Some(low), Some(high)) = (meta.eu_range_low, meta.eu_range_high) {
-                if (high - low).abs() > f64::EPSILON {
-                    eu_ranges.insert(node_id.clone(), (low, high));
-                }
-            }
 
             // Only write to DB if at least one field was populated.
             let has_data = meta.description.is_some()
@@ -1046,8 +1251,6 @@ async fn harvest_analog_metadata(
             "OPC UA Part 8 analog metadata harvested"
         );
     }
-
-    eu_ranges
 }
 
 /// Build (category, labels) from the JSON returned by read_discrete_properties_simblah.
@@ -1490,21 +1693,20 @@ fn decode_eu_range(ext: &ExtensionObject) -> Option<(f64, f64)> {
 /// Returns the total number of monitored items that were accepted (Good status) by the server.
 /// A return value of 0 means all items failed — caller should fall back to polling mode.
 ///
-/// `eu_ranges` — map of NodeId → (low, high) EU range for analog nodes with valid EURange,
-/// produced by `harvest_analog_metadata`. Nodes present in this map get a PercentDeadband 1%
-/// DataChangeFilter; all other nodes get AbsoluteDeadband 0 (report any change).
+/// All nodes use AbsoluteDeadband 0 (report any change). EBR deduplication is handled
+/// client-side in flush_loop so no data is lost at the OPC UA transport layer.
 async fn create_subscriptions(
     source: &PointSource,
     session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
-    eu_ranges: &HashMap<NodeId, (f64, f64)>,
     update_tx: mpsc::UnboundedSender<PointUpdate>,
     config: &Arc<Config>,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<(usize, Vec<u32>)> {
     let node_ids: Vec<(NodeId, Uuid)> = node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
 
     let publishing_ms = config.publishing_interval_ms;
     let mut total_good: usize = 0;
+    let mut sub_ids: Vec<u32> = Vec::new();
 
     for (chunk_idx, chunk) in node_ids.chunks(config.subscription_batch_size).enumerate() {
         let chunk: Vec<(NodeId, Uuid)> = chunk.to_vec();
@@ -1541,18 +1743,9 @@ async fn create_subscriptions(
             let _ = tx.send(update);
         });
 
-        // Build per-node DataChangeFilter.
-        // Nodes with a valid EURange in `eu_ranges` get PercentDeadband 1% to reduce OPC
-        // traffic on analog signals (reduces traffic ~30-60% per §17 design doc).
-        // All other nodes (boolean, string, no EURange) get AbsoluteDeadband 0 (any-change).
-        let make_percent_filter = || -> ExtensionObject {
-            let dcf = DataChangeFilter {
-                trigger: DataChangeTrigger::StatusValue,
-                deadband_type: DeadbandType::Percent as u32,
-                deadband_value: 1.0,
-            };
-            ExtensionObject::from_message(dcf)
-        };
+        // All nodes use AbsoluteDeadband 0 (report every change).
+        // EBR deduplication is applied client-side in flush_loop, so the OPC layer
+        // is lossless and signals at low end of their EURange are not suppressed.
         let make_absolute_filter = || -> ExtensionObject {
             let dcf = DataChangeFilter {
                 trigger: DataChangeTrigger::StatusValue,
@@ -1565,11 +1758,6 @@ async fn create_subscriptions(
         let monitored_items: Vec<MonitoredItemCreateRequest> = chunk
             .iter()
             .map(|(node_id, _)| {
-                let filter = if eu_ranges.contains_key(node_id) {
-                    make_percent_filter()
-                } else {
-                    make_absolute_filter()
-                };
                 MonitoredItemCreateRequest {
                     item_to_monitor: ReadValueId {
                         node_id: node_id.clone(),
@@ -1581,7 +1769,7 @@ async fn create_subscriptions(
                     requested_parameters: MonitoringParameters {
                         client_handle: 0,
                         sampling_interval: publishing_ms as f64,
-                        filter,
+                        filter: make_absolute_filter(),
                         queue_size: 1,
                         discard_oldest: true,
                     },
@@ -1602,62 +1790,10 @@ async fn create_subscriptions(
             .await
             .map_err(|sc| anyhow::anyhow!("create_subscription failed: {}", sc))?;
 
-        let mut item_results = session
+        let item_results = session
             .create_monitored_items(sub_id, TimestampsToReturn::Both, monitored_items)
             .await
             .map_err(|sc| anyhow::anyhow!("create_monitored_items failed: {}", sc))?;
-
-        // Fallback: if any item returned BadDeadbandFilterInvalid, the server does not support
-        // the PercentDeadband filter for that node (e.g. missing or un-configured EURange on the
-        // server side). Retry those specific items with AbsoluteDeadband 0.
-        let fallback_indices: Vec<usize> = item_results
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| r.result.status_code == StatusCode::BadDeadbandFilterInvalid)
-            .map(|(i, _)| i)
-            .collect();
-
-        if !fallback_indices.is_empty() {
-            let fallback_items: Vec<MonitoredItemCreateRequest> = fallback_indices
-                .iter()
-                .map(|&i| {
-                    let (node_id, _) = &chunk[i];
-                    warn!(
-                        source = %source.name,
-                        node_id = %node_id,
-                        "BadDeadbandFilterInvalid — falling back to AbsoluteDeadband 0 for this node"
-                    );
-                    MonitoredItemCreateRequest {
-                        item_to_monitor: ReadValueId {
-                            node_id: node_id.clone(),
-                            attribute_id: AttributeId::Value as u32,
-                            index_range: NumericRange::None,
-                            data_encoding: QualifiedName::null(),
-                        },
-                        monitoring_mode: MonitoringMode::Reporting,
-                        requested_parameters: MonitoringParameters {
-                            client_handle: 0,
-                            sampling_interval: publishing_ms as f64,
-                            filter: make_absolute_filter(),
-                            queue_size: 1,
-                            discard_oldest: true,
-                        },
-                    }
-                })
-                .collect();
-
-            if let Ok(fallback_results) = session
-                .create_monitored_items(sub_id, TimestampsToReturn::Both, fallback_items)
-                .await
-            {
-                // Patch the original results with the fallback outcomes.
-                for (&orig_idx, fallback_result) in
-                    fallback_indices.iter().zip(fallback_results.iter())
-                {
-                    item_results[orig_idx] = fallback_result.clone();
-                }
-            }
-        }
 
         // Count items with non-Good status codes and log them for diagnostics.
         let bad_items: Vec<String> = item_results
@@ -1682,6 +1818,7 @@ async fn create_subscriptions(
             .filter(|r| r.result.status_code.is_good())
             .count();
         total_good += chunk_good;
+        sub_ids.push(sub_id);
 
         info!(
             source = %source.name,
@@ -1693,7 +1830,7 @@ async fn create_subscriptions(
         );
     }
 
-    Ok(total_good)
+    Ok((total_good, sub_ids))
 }
 
 // ---------------------------------------------------------------------------
@@ -2606,6 +2743,157 @@ async fn poll_loop(
 }
 
 // ---------------------------------------------------------------------------
+// Periodic namespace rediscovery
+// ---------------------------------------------------------------------------
+
+/// Compute a `tokio::time::Instant` corresponding to the next 03:00 UTC wall-clock time.
+fn next_3am_instant() -> tokio::time::Instant {
+    let now = chrono::Utc::now();
+    let today_3am = now.date_naive().and_hms_opt(3, 0, 0).unwrap().and_utc();
+    let next_3am = if now < today_3am {
+        today_3am
+    } else {
+        today_3am + chrono::Duration::days(1)
+    };
+    let secs = (next_3am - now).num_seconds().max(0) as u64;
+    tokio::time::Instant::now() + std::time::Duration::from_secs(secs)
+}
+
+/// Discover new nodes that are not yet in `node_map`, upsert them, and create a
+/// new OPC UA subscription for them.  Returns the count of newly discovered nodes.
+async fn incremental_rediscovery(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<Session>,
+    config: &Arc<Config>,
+    node_map: &mut HashMap<NodeId, Uuid>,
+    update_tx: &mpsc::UnboundedSender<PointUpdate>,
+) -> anyhow::Result<usize> {
+    let discovered = browse_namespace_nodes_only(source, session).await?;
+
+    // Filter to nodes not already in node_map.
+    let new_nodes: Vec<DiscoveredNode> = discovered
+        .into_iter()
+        .filter(|n| !node_map.contains_key(&n.node_id))
+        .collect();
+
+    if new_nodes.is_empty() {
+        return Ok(0);
+    }
+
+    // Upsert each new node into points_metadata and track in node_map.
+    let mut new_analog_nodes: HashSet<NodeId> = HashSet::new();
+    let mut new_node_map: HashMap<NodeId, Uuid> = HashMap::new();
+
+    for node in &new_nodes {
+        let metadata = serde_json::json!({
+            "node_id": node.node_id.to_string(),
+            "display_name": node.tagname,
+        });
+        match db::upsert_point_from_source(db, source.id, &node.tagname, node.data_type, metadata)
+            .await
+        {
+            Ok(point_id) => {
+                if node.data_type == "Double" {
+                    new_analog_nodes.insert(node.node_id.clone());
+                }
+                new_node_map.insert(node.node_id.clone(), point_id);
+                node_map.insert(node.node_id.clone(), point_id);
+            }
+            Err(e) => {
+                warn!(
+                    source = %source.name,
+                    tag = %node.tagname,
+                    error = %e,
+                    "Incremental rediscovery: failed to upsert point"
+                );
+            }
+        }
+    }
+
+    if new_node_map.is_empty() {
+        return Ok(0);
+    }
+
+    // Harvest analog metadata for new analog nodes (writes to DB; return discarded).
+    harvest_analog_metadata(source, db, session, &new_node_map, &new_analog_nodes).await;
+
+    // Create a new OPC UA subscription for the new nodes only.
+    match create_subscriptions(
+        source,
+        session,
+        &new_node_map,
+        update_tx.clone(),
+        config,
+    )
+    .await
+    {
+        Ok((good, _sub_ids)) => {
+            info!(
+                source = %source.name,
+                new_nodes = new_node_map.len(),
+                subscribed = good,
+                "Incremental rediscovery: subscribed new nodes"
+            );
+            // TODO: newly discovered nodes won't resolve in the event subscription
+            // until the next reconnect (the Arc<HashMap> source_name_to_id is frozen).
+        }
+        Err(e) => {
+            warn!(
+                source = %source.name,
+                error = %e,
+                "Incremental rediscovery: failed to create subscription for new nodes"
+            );
+        }
+    }
+
+    Ok(new_node_map.len())
+}
+
+/// Full nightly rediscovery: deactivate removed nodes, touch last_seen_at for
+/// surviving ones, then run incremental logic for any newly appeared nodes.
+/// Returns `(new_count, deactivated_count)`.
+async fn nightly_full_rediscovery(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<Session>,
+    config: &Arc<Config>,
+    node_map: &mut HashMap<NodeId, Uuid>,
+    update_tx: &mpsc::UnboundedSender<PointUpdate>,
+) -> anyhow::Result<(usize, u64)> {
+    let discovered = browse_namespace_nodes_only(source, session).await?;
+
+    let discovered_tagnames: Vec<String> = discovered.iter().map(|n| n.tagname.clone()).collect();
+
+    // Deactivate points that no longer appear in the server's address space.
+    let deactivated = db::deactivate_removed_points(db, source.id, &discovered_tagnames).await?;
+
+    // Build a set of discovered NodeIds for efficient retain.
+    let discovered_node_ids: HashSet<NodeId> = discovered.iter().map(|n| n.node_id.clone()).collect();
+
+    // Remove deactivated entries from the in-memory node_map.
+    node_map.retain(|node_id, _| discovered_node_ids.contains(node_id));
+
+    // Refresh last_seen_at for all nodes still present.
+    if let Err(e) = db::touch_last_seen_at(db, source.id, &discovered_tagnames).await {
+        warn!(source = %source.name, error = %e, "Nightly rediscovery: touch_last_seen_at failed (non-fatal)");
+    }
+
+    // Run incremental logic for any nodes that appeared since last connect/rediscovery.
+    // Pass discovered back as a new browse to avoid a second server round-trip — reuse
+    // the already-collected set by filtering against node_map inside incremental_rediscovery.
+    let new_count =
+        incremental_rediscovery(source, db, session, config, node_map, update_tx)
+            .await
+            .unwrap_or_else(|e| {
+                warn!(source = %source.name, error = %e, "Nightly rediscovery: incremental phase failed (non-fatal)");
+                0
+            });
+
+    Ok((new_count, deactivated))
+}
+
+// ---------------------------------------------------------------------------
 // Flush loop
 // ---------------------------------------------------------------------------
 
@@ -2617,13 +2905,18 @@ async fn flush_loop(
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
     session: &Arc<Session>,
-    node_map: &HashMap<NodeId, Uuid>,
+    node_map: &mut HashMap<NodeId, Uuid>,
+    update_tx: mpsc::UnboundedSender<PointUpdate>,
     mut update_rx: mpsc::UnboundedReceiver<PointUpdate>,
 ) -> bool {
     const WATCHDOG_DURATION: Duration = Duration::from_secs(300); // 5 minutes
 
     let interval = Duration::from_millis(config.batch_interval_ms);
-    let mut pending: Vec<PointUpdate> = Vec::with_capacity(config.batch_max_points);
+    // All updates — used for points_current writes and UDS (live display must always
+    // show the latest value, even for stable signals that EBR would suppress in history).
+    let mut pending_all: Vec<PointUpdate> = Vec::with_capacity(config.batch_max_points);
+    // EBR-filtered updates — written to points_history_raw only.
+    let mut pending_history: Vec<PointUpdate> = Vec::with_capacity(config.batch_max_points);
     let mut next_flush = Instant::now() + interval;
     let mut heartbeat = tokio::time::Instant::now();
     let heartbeat_interval = Duration::from_secs(30);
@@ -2633,6 +2926,18 @@ async fn flush_loop(
     let mut last_update_time = tokio::time::Instant::now();
     // Recovery jobs run in a background task so they don't block live DataChange callbacks.
     let mut recovery_task: Option<tokio::task::JoinHandle<()>> = None;
+
+    // EBR filter — lossless historian deduplication applied only to history writes.
+    let mut ebr = EbrFilter::new(config.ebr_heartbeat_secs);
+
+    // Rediscovery timers.
+    let rediscovery_enabled = config.rediscovery_interval_secs > 0;
+    let rediscovery_interval =
+        Duration::from_secs(config.rediscovery_interval_secs.max(1));
+    let mut next_rediscovery = tokio::time::Instant::now() + rediscovery_interval;
+
+    let nightly_enabled = config.nightly_cleanup_enabled;
+    let mut next_nightly = next_3am_instant();
 
     loop {
         tokio::select! {
@@ -2647,16 +2952,20 @@ async fn flush_loop(
                         if total_updates == 1 {
                             info!(source = %source.name, "First DataChange callback received!");
                         }
-                        pending.push(update);
-                        if pending.len() >= config.batch_max_points {
-                            flush(source, db, uds, &mut pending).await;
+                        // All updates go to current/UDS for live display.
+                        pending_all.push(update.clone());
+                        // EBR-filtered updates go to history.
+                        let ebr_out = ebr.process(&update);
+                        pending_history.extend(ebr_out);
+                        if pending_all.len() >= config.batch_max_points {
+                            flush_split(source, db, uds, &mut pending_all, &mut pending_history).await;
                             next_flush = Instant::now() + interval;
                         }
                     }
                     None => {
                         // Channel closed — session ended normally.
-                        if !pending.is_empty() {
-                            flush(source, db, uds, &mut pending).await;
+                        if !pending_all.is_empty() || !pending_history.is_empty() {
+                            flush_split(source, db, uds, &mut pending_all, &mut pending_history).await;
                         }
                         return false;
                     }
@@ -2664,8 +2973,13 @@ async fn flush_loop(
             }
 
             _ = tokio::time::sleep_until(next_flush) => {
-                if !pending.is_empty() {
-                    flush(source, db, uds, &mut pending).await;
+                // Heartbeat flush: write any stable EBR-pending values that are
+                // older than ebr_heartbeat_secs so the DB has regular timestamps.
+                let hb = ebr.heartbeat_flush(Utc::now());
+                pending_history.extend(hb);
+
+                if !pending_all.is_empty() || !pending_history.is_empty() {
+                    flush_split(source, db, uds, &mut pending_all, &mut pending_history).await;
                 }
                 next_flush = Instant::now() + interval;
 
@@ -2701,11 +3015,114 @@ async fn flush_loop(
                     }
                     job_check = tokio::time::Instant::now();
                 }
+
+                // Incremental rediscovery: find and subscribe to new nodes.
+                if rediscovery_enabled
+                    && tokio::time::Instant::now() >= next_rediscovery
+                {
+                    match incremental_rediscovery(
+                        source, db, session, config, node_map, &update_tx,
+                    )
+                    .await
+                    {
+                        Ok(0) => debug!(source = %source.name, "Incremental rediscovery: no new nodes"),
+                        Ok(n) => info!(source = %source.name, new_nodes = n, "Incremental rediscovery complete"),
+                        Err(e) => warn!(source = %source.name, error = %e, "Incremental rediscovery failed"),
+                    }
+                    next_rediscovery = tokio::time::Instant::now() + rediscovery_interval;
+                }
+
+                // Nightly full rediscovery: deactivate removed nodes at 03:00 UTC.
+                if nightly_enabled && tokio::time::Instant::now() >= next_nightly {
+                    match nightly_full_rediscovery(
+                        source, db, session, config, node_map, &update_tx,
+                    )
+                    .await
+                    {
+                        Ok((new, deactivated)) => info!(
+                            source = %source.name,
+                            new_nodes = new,
+                            deactivated,
+                            "Nightly full rediscovery complete"
+                        ),
+                        Err(e) => warn!(source = %source.name, error = %e, "Nightly full rediscovery failed"),
+                    }
+                    next_nightly = next_3am_instant();
+                }
             }
         }
     }
 }
 
+/// Flush accumulated updates to DB and UDS.
+///
+/// `all` — all received updates, written to `points_current` and forwarded via UDS for live
+///         display. Must always reflect the latest value regardless of EBR filtering.
+/// `history` — EBR-filtered subset, written to `points_history_raw` only.
+async fn flush_split(
+    source: &PointSource,
+    db: &DbPool,
+    uds: &Arc<UdsSender>,
+    all: &mut Vec<PointUpdate>,
+    history: &mut Vec<PointUpdate>,
+) {
+    if all.is_empty() && history.is_empty() {
+        return;
+    }
+
+    let batch_all = std::mem::take(all);
+    let batch_history = std::mem::take(history);
+
+    // Write latest values to points_current (all updates — unfiltered).
+    if !batch_all.is_empty() {
+        if let Err(e) = db::write_points_current(db, &batch_all).await {
+            warn!(source = %source.name, error = %format!("{:#}", e), "Failed to write points_current");
+        }
+    }
+
+    // Write EBR-filtered values to history.
+    if !batch_history.is_empty() {
+        if let Err(e) = db::write_history_batch(db, &batch_history).await {
+            warn!(source = %source.name, error = %e, "Failed to write points_history_raw");
+        }
+    }
+
+    // Forward all updates to Data Broker via UDS for live display.
+    if !batch_all.is_empty() {
+        let uds_points: Vec<UdsPointUpdate> = batch_all
+            .iter()
+            .map(|u| UdsPointUpdate {
+                point_id: u.point_id,
+                value: u.value,
+                quality: str_to_quality(&u.quality),
+                timestamp: u.timestamp.timestamp_millis(),
+            })
+            .collect();
+
+        let uds_batch = UdsPointBatch {
+            source_id: source.id,
+            points: uds_points,
+        };
+
+        if let Err(e) = uds.send_batch(&uds_batch).await {
+            warn!(
+                source = %source.name,
+                error = %e,
+                "UDS send failed; falling back to NOTIFY"
+            );
+            if let Err(ne) = db::notify_broker(db, source.id, &batch_all).await {
+                warn!(
+                    source = %source.name,
+                    error = %ne,
+                    "NOTIFY fallback also failed"
+                );
+            }
+        }
+    }
+}
+
+/// Legacy flush wrapper used by poll_loop — no EBR applied (polling mode is
+/// already low-frequency; EBR would suppress the first value of each poll cycle).
 async fn flush(
     source: &PointSource,
     db: &DbPool,
@@ -2715,10 +3132,9 @@ async fn flush(
     if pending.is_empty() {
         return;
     }
-
     let batch = std::mem::take(pending);
 
-    // Write to DB (current + history).
+    // Write to DB (current + history — no EBR in polling mode).
     if let Err(e) = db::write_points_current(db, &batch).await {
         warn!(source = %source.name, error = %format!("{:#}", e), "Failed to write points_current");
     }

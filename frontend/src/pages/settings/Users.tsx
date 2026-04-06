@@ -11,6 +11,15 @@ import {
 import { rolesApi, Role } from "../../api/roles";
 import type { PaginatedResult } from "../../api/client";
 import { ExportButton } from "../../shared/components/ExportDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnDanger,
+  cellStyle,
+} from "./settingsStyles";
+import UserDetailDialog from "./UserDetail";
 
 // ---------------------------------------------------------------------------
 // Column definitions for users export
@@ -34,56 +43,6 @@ const USERS_DEFAULT_VISIBLE = [
   "auth_provider",
   "last_login_at",
 ];
-
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "var(--io-text-on-accent)",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnDanger: React.CSSProperties = {
-  ...btnSecondary,
-  color: "var(--io-danger)",
-  borderColor: "rgba(239,68,68,0.3)",
-};
 
 // ---------------------------------------------------------------------------
 // ErrorBanner
@@ -882,9 +841,9 @@ function UserContextMenu({
 }
 
 // ---------------------------------------------------------------------------
-// UsersPage
+// UsersTab
 // ---------------------------------------------------------------------------
-export default function UsersPage() {
+export function UsersTab() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
@@ -894,6 +853,7 @@ export default function UsersPage() {
   const [confirmUser, setConfirmUser] = useState<User | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     user: User;
     pos: ContextMenuPos;
@@ -971,49 +931,26 @@ export default function UsersPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Actions row */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "20px",
+          justifyContent: "flex-end",
+          gap: "8px",
+          marginBottom: "16px",
         }}
       >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Users
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            Manage user accounts and access
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <ExportButton
-            module="settings"
-            entity="users"
-            filteredRowCount={pagination?.total ?? users.length}
-            totalRowCount={pagination?.total ?? users.length}
-            availableColumns={USERS_COLUMNS}
-            visibleColumns={USERS_DEFAULT_VISIBLE}
-          />
-          <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
-            + Add User
-          </button>
-        </div>
+        <ExportButton
+          module="settings"
+          entity="users"
+          filteredRowCount={pagination?.total ?? users.length}
+          totalRowCount={pagination?.total ?? users.length}
+          availableColumns={USERS_COLUMNS}
+          visibleColumns={USERS_DEFAULT_VISIBLE}
+        />
+        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+          + Add User
+        </button>
       </div>
 
       {bannerError && <ErrorBanner message={bannerError} />}
@@ -1157,6 +1094,20 @@ export default function UsersPage() {
                       >
                         Edit
                       </button>
+                      <button
+                        style={{
+                          padding: "4px 10px",
+                          background: "transparent",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: "var(--io-radius)",
+                          color: "var(--io-text-secondary)",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => setDetailUserId(user.id)}
+                      >
+                        View
+                      </button>
                       {user.enabled && (
                         <button
                           style={{
@@ -1293,20 +1244,25 @@ export default function UsersPage() {
             enableMutation.mutate(u);
           }}
           onViewSessions={(u) => {
-            window.location.href = `/settings/sessions?user=${u.id}`;
+            setDetailUserId(u.id);
           }}
           onCopyUsername={(u) => {
             navigator.clipboard.writeText(u.username).catch(() => {});
           }}
         />
       )}
+
+      <UserDetailDialog
+        userId={detailUserId ?? ""}
+        open={!!detailUserId}
+        onOpenChange={(v) => {
+          if (!v) setDetailUserId(null);
+        }}
+      />
     </div>
   );
 }
 
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
-};
+export default function UsersPage() {
+  return <UsersTab />;
+}

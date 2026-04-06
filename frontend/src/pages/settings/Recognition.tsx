@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { recognitionApi, type ModelInfo } from "../../api/recognition";
 import { api } from "../../api/client";
 import { showToast } from "../../shared/components/Toast";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,7 +29,7 @@ function StatusPill({ active, label }: { active: boolean; label: string }) {
         fontWeight: 600,
         background: active
           ? "var(--io-success-subtle)"
-          : "var(--io-surface-tertiary)",
+          : "var(--io-surface-sunken)",
         color: active ? "var(--io-success)" : "var(--io-text-muted)",
       }}
     >
@@ -380,7 +382,7 @@ function ModelsSection() {
             borderRadius: "var(--io-radius)",
             border: "1px solid var(--io-border)",
             background: "var(--io-accent)",
-            color: "#fff",
+            color: "var(--io-text-on-accent)",
             fontSize: "13px",
             fontWeight: 600,
             cursor: uploading ? "not-allowed" : "pointer",
@@ -561,29 +563,34 @@ function ModelsSection() {
         />
       )}
 
-      {detailModel && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setDetailModel(null)}
-        >
-          <div
+      <Dialog.Root
+        open={!!detailModel}
+        onOpenChange={(open) => { if (!open) setDetailModel(null); }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay
             style={{
+              position: "fixed",
+              inset: 0,
+              background: "var(--io-modal-backdrop)",
+              zIndex: 1000,
+            }}
+          />
+          <Dialog.Content
+            aria-describedby={undefined}
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
               background: "var(--io-surface-elevated)",
               border: "1px solid var(--io-border)",
               borderRadius: "var(--io-radius)",
               padding: "24px",
               width: "420px",
               maxWidth: "calc(100vw - 32px)",
+              zIndex: 1001,
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
@@ -593,7 +600,7 @@ function ModelsSection() {
                 marginBottom: "20px",
               }}
             >
-              <h3
+              <Dialog.Title
                 style={{
                   margin: 0,
                   fontSize: "16px",
@@ -602,96 +609,103 @@ function ModelsSection() {
                 }}
               >
                 Model Details
-              </h3>
-              <button
-                onClick={() => setDetailModel(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--io-text-muted)",
-                  cursor: "pointer",
-                  fontSize: "18px",
-                  lineHeight: 1,
-                }}
-              >
-                x
-              </button>
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <button
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--io-text-muted)",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                    lineHeight: 1,
+                  }}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </Dialog.Close>
             </div>
-            <dl
-              style={{
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-              }}
-            >
-              {[
-                ["Domain", detailModel.domain.toUpperCase()],
-                ["Version", detailModel.version],
-                ["Filename", detailModel.filename],
-                ["Classes", String(detailModel.class_count)],
-                [
-                  "Size",
-                  `${(detailModel.file_size_bytes / 1024 / 1024).toFixed(1)} MB`,
-                ],
-                ["Status", detailModel.loaded ? "Active" : "Inactive"],
-                [
-                  "Uploaded",
-                  new Date(detailModel.uploaded_at).toLocaleString(),
-                ],
-              ].map(([label, value]) => (
-                <div key={label} style={{ display: "flex", gap: "12px" }}>
-                  <dt
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      width: "100px",
-                      flexShrink: 0,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    {label}
-                  </dt>
-                  <dd
-                    style={{
-                      margin: 0,
-                      fontSize: "13px",
-                      color: "var(--io-text-primary)",
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {value}
-                  </dd>
+            {detailModel && (
+              <>
+                <dl
+                  style={{
+                    margin: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {[
+                    ["Domain", detailModel.domain.toUpperCase()],
+                    ["Version", detailModel.version],
+                    ["Filename", detailModel.filename],
+                    ["Classes", String(detailModel.class_count)],
+                    [
+                      "Size",
+                      `${(detailModel.file_size_bytes / 1024 / 1024).toFixed(1)} MB`,
+                    ],
+                    ["Status", detailModel.loaded ? "Active" : "Inactive"],
+                    [
+                      "Uploaded",
+                      new Date(detailModel.uploaded_at).toLocaleString(),
+                    ],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: "flex", gap: "12px" }}>
+                      <dt
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "var(--io-text-muted)",
+                          width: "100px",
+                          flexShrink: 0,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        {label}
+                      </dt>
+                      <dd
+                        style={{
+                          margin: 0,
+                          fontSize: "13px",
+                          color: "var(--io-text-primary)",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginTop: "20px",
+                  }}
+                >
+                  <Dialog.Close asChild>
+                    <button
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: "var(--io-radius)",
+                        border: "1px solid var(--io-border)",
+                        background: "transparent",
+                        color: "var(--io-text-secondary)",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Close
+                    </button>
+                  </Dialog.Close>
                 </div>
-              ))}
-            </dl>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: "20px",
-              }}
-            >
-              <button
-                onClick={() => setDetailModel(null)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "var(--io-radius)",
-                  border: "1px solid var(--io-border)",
-                  background: "transparent",
-                  color: "var(--io-text-secondary)",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </SectionCard>
   );
 }
@@ -747,7 +761,7 @@ function GapReportsSection() {
             borderRadius: "var(--io-radius)",
             border: "1px solid var(--io-border)",
             background: "var(--io-accent)",
-            color: "#fff",
+            color: "var(--io-text-on-accent)",
             fontSize: "13px",
             fontWeight: 600,
             cursor: uploading ? "not-allowed" : "pointer",
@@ -779,31 +793,14 @@ function GapReportsSection() {
 
 export default function RecognitionPage() {
   return (
-    <div>
-      <h1
-        style={{
-          fontSize: "20px",
-          fontWeight: 700,
-          color: "var(--io-text-primary)",
-          marginBottom: "4px",
-        }}
-      >
-        Recognition
-      </h1>
-      <p
-        style={{
-          fontSize: "13px",
-          color: "var(--io-text-muted)",
-          marginBottom: "24px",
-        }}
-      >
-        Manage P&ID and DCS symbol recognition models and gap reports. Full ONNX
-        inference is enabled when .iomodel packages are loaded.
-      </p>
-
+    <SettingsPageLayout
+      title="Recognition"
+      description="Manage P&ID and DCS symbol recognition models and gap reports. Full ONNX inference is enabled when .iomodel packages are loaded."
+      variant="form"
+    >
       <ServiceStatusCard />
       <ModelsSection />
       <GapReportsSection />
-    </div>
+    </SettingsPageLayout>
   );
 }

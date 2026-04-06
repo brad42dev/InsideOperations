@@ -1,7 +1,16 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import type { CSSProperties } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+} from "./settingsStyles";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,69 +44,14 @@ interface EulaAcceptanceRow {
   content_hash: string;
 }
 
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  fontSize: "12px",
-  borderRadius: "var(--io-radius)",
-  cursor: "pointer",
-  border: "1px solid var(--io-border)",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-};
-
-const overlayStyle: React.CSSProperties = {
+const overlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.5)",
+  background: "var(--io-modal-backdrop)",
   zIndex: 50,
 };
 
-const dialogStyle: React.CSSProperties = {
+const dialogStyle: CSSProperties = {
   position: "fixed",
   top: "50%",
   left: "50%",
@@ -113,7 +67,7 @@ const dialogStyle: React.CSSProperties = {
   overflowY: "auto",
 };
 
-const dialogStyleFullscreen: React.CSSProperties = {
+const dialogStyleFullscreen: CSSProperties = {
   position: "fixed",
   top: "50%",
   left: "50%",
@@ -256,8 +210,9 @@ function CreateVersionDialog({
               }}
             >
               <div>
-                <label style={labelStyle}>Type *</label>
+                <label htmlFor="eula-type" style={labelStyle}>Type *</label>
                 <select
+                  id="eula-type"
                   style={inputStyle}
                   value={eulaType}
                   onChange={(e) => {
@@ -277,8 +232,9 @@ function CreateVersionDialog({
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Version string *</label>
+                <label htmlFor="eula-version" style={labelStyle}>Version string *</label>
                 <input
+                  id="eula-version"
                   style={inputStyle}
                   value={version}
                   onChange={(e) => setVersion(e.target.value)}
@@ -286,8 +242,9 @@ function CreateVersionDialog({
                 />
               </div>
               <div>
-                <label style={labelStyle}>Title *</label>
+                <label htmlFor="eula-title" style={labelStyle}>Title *</label>
                 <input
+                  id="eula-title"
                   style={inputStyle}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -310,7 +267,7 @@ function CreateVersionDialog({
                   marginBottom: "5px",
                 }}
               >
-                <label style={{ ...labelStyle, marginBottom: 0 }}>
+                <label htmlFor="eula-content" style={{ ...labelStyle, marginBottom: 0 }}>
                   Content (Markdown) *
                 </label>
                 <div style={{ display: "flex", gap: "16px" }}>
@@ -337,6 +294,7 @@ function CreateVersionDialog({
               >
                 {/* Left: raw markdown textarea */}
                 <textarea
+                  id="eula-content"
                   style={{
                     ...inputStyle,
                     height: editorHeight,
@@ -403,10 +361,10 @@ function CreateVersionDialog({
               style={{
                 marginTop: "12px",
                 padding: "8px 12px",
-                background: "var(--io-error-subtle)",
+                background: "var(--io-danger-subtle)",
                 borderRadius: "var(--io-radius)",
                 fontSize: "13px",
-                color: "var(--io-error)",
+                color: "var(--io-danger)",
               }}
             >
               {error}
@@ -640,7 +598,7 @@ function AcceptancesPanel({ versionId }: { versionId?: string }) {
     }
   }
 
-  const cardStyle: React.CSSProperties = {
+  const cardStyle: CSSProperties = {
     flex: 1,
     padding: "14px 16px",
     background: "var(--io-surface-secondary)",
@@ -1003,7 +961,7 @@ export default function EulaAdminPage() {
     onError: (e: Error) => setPublishError(e.message),
   });
 
-  const tabStyle = (tab: ActiveTab): React.CSSProperties => ({
+  const tabStyle = (tab: ActiveTab): CSSProperties => ({
     padding: "8px 16px",
     fontSize: "13px",
     fontWeight: activeTab === tab ? 600 : 400,
@@ -1019,47 +977,19 @@ export default function EulaAdminPage() {
   });
 
   return (
-    <div style={{ maxWidth: "900px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "8px",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: "0 0 4px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            License &amp; Terms Management
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "13px",
-              color: "var(--io-text-secondary)",
-            }}
-          >
-            Manage both the <strong>Installer EULA</strong> (organizational
-            software license) and the <strong>End User EULA</strong> (individual
-            use agreement). All versions are retained permanently and every
-            acceptance is recorded with a chained SHA-256 hash for
-            tamper-evident audit.
-          </p>
-        </div>
+    <SettingsPageLayout
+      title="License & Terms Management"
+      description="Manage both the Installer EULA (organizational software license) and the End User EULA (individual use agreement). All versions are retained permanently and every acceptance is recorded with a chained SHA-256 hash for tamper-evident audit."
+      variant="list"
+      action={
         <button
-          style={{ ...btnPrimary, whiteSpace: "nowrap", marginLeft: "16px" }}
+          style={{ ...btnPrimary, whiteSpace: "nowrap" }}
           onClick={() => setCreateOpen(true)}
         >
           New Version
         </button>
-      </div>
+      }
+    >
 
       {/* Tabs */}
       <div
@@ -1270,7 +1200,7 @@ export default function EulaAdminPage() {
                     style={{
                       marginBottom: "12px",
                       fontSize: "13px",
-                      color: "var(--io-error)",
+                      color: "var(--io-danger)",
                     }}
                   >
                     {publishError}
@@ -1349,6 +1279,6 @@ export default function EulaAdminPage() {
         version={viewVersion}
         onClose={() => setViewVersion(null)}
       />
-    </div>
+    </SettingsPageLayout>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -7,93 +7,17 @@ import {
   IdpRoleMapping,
   CreateProviderBody,
 } from "../../api/authProviders";
-
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: "var(--io-surface-sunken)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  color: "var(--io-text-primary)",
-  fontSize: "13px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--io-text-secondary)",
-  marginBottom: "5px",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "var(--io-accent)",
-  color: "#09090b",
-  border: "none",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "13px",
-  cursor: "pointer",
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: "4px 10px",
-  fontSize: "12px",
-  borderRadius: "var(--io-radius)",
-  cursor: "pointer",
-  border: "1px solid var(--io-border)",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-};
-
-const cellStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  fontSize: "13px",
-  color: "var(--io-text-secondary)",
-  verticalAlign: "middle",
-};
-
-// ---------------------------------------------------------------------------
-// Config templates
-// ---------------------------------------------------------------------------
-
-const CONFIG_TEMPLATES: Record<string, Record<string, unknown>> = {
-  oidc: {
-    issuer_url: "",
-    client_id: "",
-    client_secret: "",
-    scopes: ["openid", "profile", "email"],
-  },
-  saml: {
-    entity_id: "",
-    idp_metadata_url: "",
-    nameid_format: "email",
-  },
-  ldap: {
-    server_url: "ldaps://dc.corp.example.com:636",
-    bind_dn: "",
-    bind_password: "",
-    search_base: "",
-    user_filter: "(&(sAMAccountName={username})(objectClass=user))",
-  },
-};
+import { rolesApi, Role } from "../../api/roles";
+import { api } from "../../api/client";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+  cellStyle,
+} from "./settingsStyles";
 
 // ---------------------------------------------------------------------------
 // Provider type badge
@@ -140,6 +64,13 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
     queryFn: () => authProvidersApi.listMappings(provider.id),
   });
 
+  const { data: rolesResult } = useQuery({
+    queryKey: ["roles"],
+    queryFn: () => rolesApi.list(),
+  });
+
+  const roles: Role[] = rolesResult?.success ? rolesResult.data.data ?? [] : [];
+
   const createMutation = useMutation({
     mutationFn: (body: {
       idp_group: string;
@@ -177,6 +108,11 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
       role_id: newRoleId.trim(),
       match_type: newMatchType,
     });
+  }
+
+  function getRoleName(roleId: string): string {
+    const role = roles.find((r) => r.id === roleId);
+    return role?.display_name ?? roleId;
   }
 
   return (
@@ -226,7 +162,7 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
         >
           <thead>
             <tr style={{ borderBottom: "1px solid var(--io-border)" }}>
-              {["IdP Group", "Role ID", "Match Type", ""].map((h) => (
+              {["IdP Group", "Role", "Match Type", ""].map((h) => (
                 <th
                   key={h}
                   style={{
@@ -249,7 +185,7 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
                 style={{ borderBottom: "1px solid var(--io-border)" }}
               >
                 <td style={cellStyle}>{m.idp_group}</td>
-                <td style={cellStyle}>{m.role_id}</td>
+                <td style={cellStyle}>{getRoleName(m.role_id)}</td>
                 <td style={cellStyle}>{m.match_type}</td>
                 <td style={{ ...cellStyle, textAlign: "right" }}>
                   <button
@@ -282,13 +218,28 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
           />
         </div>
         <div style={{ flex: 2 }}>
-          <label style={labelStyle}>Role ID</label>
-          <input
-            style={inputStyle}
-            value={newRoleId}
-            onChange={(e) => setNewRoleId(e.target.value)}
-            placeholder="uuid or role name"
-          />
+          <label style={labelStyle}>Role</label>
+          {roles.length > 0 ? (
+            <select
+              style={inputStyle}
+              value={newRoleId}
+              onChange={(e) => setNewRoleId(e.target.value)}
+            >
+              <option value="">— Select role —</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.display_name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              style={inputStyle}
+              value={newRoleId}
+              onChange={(e) => setNewRoleId(e.target.value)}
+              placeholder="Role ID or name"
+            />
+          )}
         </div>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Match Type</label>
@@ -319,6 +270,186 @@ function RoleMappings({ provider }: { provider: AuthProviderConfig }) {
 }
 
 // ---------------------------------------------------------------------------
+// Structured config fields per provider type
+// ---------------------------------------------------------------------------
+
+interface OidcFieldsProps {
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+  scopes: string;
+  onChange: (field: string, value: string) => void;
+}
+
+function OidcFields({
+  issuerUrl,
+  clientId,
+  clientSecret,
+  scopes,
+  onChange,
+}: OidcFieldsProps) {
+  return (
+    <>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Issuer URL</label>
+        <input
+          style={inputStyle}
+          value={issuerUrl}
+          onChange={(e) => onChange("issuerUrl", e.target.value)}
+          placeholder="https://accounts.example.com"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Client ID</label>
+        <input
+          style={inputStyle}
+          value={clientId}
+          onChange={(e) => onChange("clientId", e.target.value)}
+          placeholder="your-client-id"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Client Secret</label>
+        <input
+          style={{ ...inputStyle }}
+          type="password"
+          value={clientSecret}
+          onChange={(e) => onChange("clientSecret", e.target.value)}
+          placeholder="your-client-secret"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Scopes (comma-separated)</label>
+        <input
+          style={inputStyle}
+          value={scopes}
+          onChange={(e) => onChange("scopes", e.target.value)}
+          placeholder="openid, profile, email"
+        />
+      </div>
+    </>
+  );
+}
+
+interface SamlFieldsProps {
+  entityId: string;
+  idpMetadataUrl: string;
+  nameidFormat: string;
+  onChange: (field: string, value: string) => void;
+}
+
+function SamlFields({
+  entityId,
+  idpMetadataUrl,
+  nameidFormat,
+  onChange,
+}: SamlFieldsProps) {
+  return (
+    <>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Entity ID</label>
+        <input
+          style={inputStyle}
+          value={entityId}
+          onChange={(e) => onChange("entityId", e.target.value)}
+          placeholder="https://your-app.example.com/saml"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>IdP Metadata URL</label>
+        <input
+          style={inputStyle}
+          value={idpMetadataUrl}
+          onChange={(e) => onChange("idpMetadataUrl", e.target.value)}
+          placeholder="https://idp.example.com/metadata"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>NameID Format</label>
+        <select
+          style={inputStyle}
+          value={nameidFormat}
+          onChange={(e) => onChange("nameidFormat", e.target.value)}
+        >
+          <option value="email">Email</option>
+          <option value="persistent">Persistent</option>
+          <option value="transient">Transient</option>
+        </select>
+      </div>
+    </>
+  );
+}
+
+interface LdapFieldsProps {
+  serverUrl: string;
+  bindDn: string;
+  bindPassword: string;
+  searchBase: string;
+  userFilter: string;
+  onChange: (field: string, value: string) => void;
+}
+
+function LdapFields({
+  serverUrl,
+  bindDn,
+  bindPassword,
+  searchBase,
+  userFilter,
+  onChange,
+}: LdapFieldsProps) {
+  return (
+    <>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Server URL</label>
+        <input
+          style={inputStyle}
+          value={serverUrl}
+          onChange={(e) => onChange("serverUrl", e.target.value)}
+          placeholder="ldaps://dc.corp.example.com:636"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Bind DN</label>
+        <input
+          style={inputStyle}
+          value={bindDn}
+          onChange={(e) => onChange("bindDn", e.target.value)}
+          placeholder="CN=ServiceAccount,DC=corp,DC=example"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Bind Password</label>
+        <input
+          style={inputStyle}
+          type="password"
+          value={bindPassword}
+          onChange={(e) => onChange("bindPassword", e.target.value)}
+          placeholder="Service account password"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>Search Base</label>
+        <input
+          style={inputStyle}
+          value={searchBase}
+          onChange={(e) => onChange("searchBase", e.target.value)}
+          placeholder="OU=Users,DC=corp,DC=example"
+        />
+      </div>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={labelStyle}>User Filter</label>
+        <input
+          style={inputStyle}
+          value={userFilter}
+          onChange={(e) => onChange("userFilter", e.target.value)}
+          placeholder="(&(sAMAccountName={username})(objectClass=user))"
+        />
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Add / Edit provider dialog
 // ---------------------------------------------------------------------------
 
@@ -333,29 +464,161 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
   const isEdit = Boolean(existing);
 
   const [providerType, setProviderType] = useState<"oidc" | "saml" | "ldap">(
-    existing?.provider_type ?? "oidc",
+    "oidc",
   );
-  const [name, setName] = useState(existing?.name ?? "");
-  const [displayName, setDisplayName] = useState(existing?.display_name ?? "");
-  const [enabled, setEnabled] = useState(existing?.enabled ?? true);
-  const [jitProvisioning, setJitProvisioning] = useState(
-    existing?.jit_provisioning ?? false,
-  );
-  const [displayOrder, setDisplayOrder] = useState(
-    existing?.display_order ?? 0,
-  );
-  const [configJson, setConfigJson] = useState(
-    existing
-      ? JSON.stringify(existing.config, null, 2)
-      : JSON.stringify(CONFIG_TEMPLATES["oidc"], null, 2),
-  );
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [jitProvisioning, setJitProvisioning] = useState(false);
+  const [displayOrder, setDisplayOrder] = useState(0);
+  const [showRaw, setShowRaw] = useState(false);
+  const [configJson, setConfigJson] = useState("");
   const [configError, setConfigError] = useState<string | null>(null);
 
-  // When type changes and not editing, update config template
+  // OIDC fields
+  const [oidcIssuerUrl, setOidcIssuerUrl] = useState("");
+  const [oidcClientId, setOidcClientId] = useState("");
+  const [oidcClientSecret, setOidcClientSecret] = useState("");
+  const [oidcScopes, setOidcScopes] = useState("openid, profile, email");
+
+  // SAML fields
+  const [samlEntityId, setSamlEntityId] = useState("");
+  const [samlIdpMetadataUrl, setSamlIdpMetadataUrl] = useState("");
+  const [samlNameidFormat, setSamlNameidFormat] = useState("email");
+
+  // LDAP fields
+  const [ldapServerUrl, setLdapServerUrl] = useState(
+    "ldaps://dc.corp.example.com:636",
+  );
+  const [ldapBindDn, setLdapBindDn] = useState("");
+  const [ldapBindPassword, setLdapBindPassword] = useState("");
+  const [ldapSearchBase, setLdapSearchBase] = useState("");
+  const [ldapUserFilter, setLdapUserFilter] = useState(
+    "(&(sAMAccountName={username})(objectClass=user))",
+  );
+
+  // Reset all fields when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    const cfg = existing?.config ?? {};
+    setProviderType(existing?.provider_type ?? "oidc");
+    setName(existing?.name ?? "");
+    setDisplayName(existing?.display_name ?? "");
+    setEnabled(existing?.enabled ?? true);
+    setJitProvisioning(existing?.jit_provisioning ?? false);
+    setDisplayOrder(existing?.display_order ?? 0);
+    setShowRaw(false);
+    setConfigError(null);
+    // OIDC
+    setOidcIssuerUrl((cfg.issuer_url as string) ?? "");
+    setOidcClientId((cfg.client_id as string) ?? "");
+    setOidcClientSecret((cfg.client_secret as string) ?? "");
+    setOidcScopes((cfg.scopes as string[])?.join(", ") ?? "openid, profile, email");
+    // SAML
+    setSamlEntityId((cfg.entity_id as string) ?? "");
+    setSamlIdpMetadataUrl((cfg.idp_metadata_url as string) ?? "");
+    setSamlNameidFormat((cfg.nameid_format as string) ?? "email");
+    // LDAP
+    setLdapServerUrl(
+      (cfg.server_url as string) ?? "ldaps://dc.corp.example.com:636",
+    );
+    setLdapBindDn((cfg.bind_dn as string) ?? "");
+    setLdapBindPassword((cfg.bind_password as string) ?? "");
+    setLdapSearchBase((cfg.search_base as string) ?? "");
+    setLdapUserFilter(
+      (cfg.user_filter as string) ??
+        "(&(sAMAccountName={username})(objectClass=user))",
+    );
+    // Sync raw JSON from existing config
+    setConfigJson(
+      existing
+        ? JSON.stringify(existing.config, null, 2)
+        : JSON.stringify(
+            { issuer_url: "", client_id: "", client_secret: "", scopes: ["openid", "profile", "email"] },
+            null,
+            2,
+          ),
+    );
+  }, [open, existing]);
+
+  function buildConfigFromFields(): Record<string, unknown> {
+    switch (providerType) {
+      case "oidc":
+        return {
+          issuer_url: oidcIssuerUrl.trim(),
+          client_id: oidcClientId.trim(),
+          client_secret: oidcClientSecret.trim(),
+          scopes: oidcScopes
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        };
+      case "saml":
+        return {
+          entity_id: samlEntityId.trim(),
+          idp_metadata_url: samlIdpMetadataUrl.trim(),
+          nameid_format: samlNameidFormat,
+        };
+      case "ldap":
+        return {
+          server_url: ldapServerUrl.trim(),
+          bind_dn: ldapBindDn.trim(),
+          bind_password: ldapBindPassword.trim(),
+          search_base: ldapSearchBase.trim(),
+          user_filter: ldapUserFilter.trim(),
+        };
+    }
+  }
+
+  function handleOidcChange(field: string, value: string) {
+    if (field === "issuerUrl") setOidcIssuerUrl(value);
+    else if (field === "clientId") setOidcClientId(value);
+    else if (field === "clientSecret") setOidcClientSecret(value);
+    else if (field === "scopes") setOidcScopes(value);
+  }
+
+  function handleSamlChange(field: string, value: string) {
+    if (field === "entityId") setSamlEntityId(value);
+    else if (field === "idpMetadataUrl") setSamlIdpMetadataUrl(value);
+    else if (field === "nameidFormat") setSamlNameidFormat(value);
+  }
+
+  function handleLdapChange(field: string, value: string) {
+    if (field === "serverUrl") setLdapServerUrl(value);
+    else if (field === "bindDn") setLdapBindDn(value);
+    else if (field === "bindPassword") setLdapBindPassword(value);
+    else if (field === "searchBase") setLdapSearchBase(value);
+    else if (field === "userFilter") setLdapUserFilter(value);
+  }
+
+  function handleToggleRaw() {
+    if (!showRaw) {
+      // Sync structured → JSON before opening raw editor
+      setConfigJson(JSON.stringify(buildConfigFromFields(), null, 2));
+    }
+    setShowRaw((v) => !v);
+  }
+
   function handleTypeChange(t: "oidc" | "saml" | "ldap") {
     setProviderType(t);
     if (!isEdit) {
-      setConfigJson(JSON.stringify(CONFIG_TEMPLATES[t], null, 2));
+      // Reset structured fields to defaults for new type
+      if (t === "oidc") {
+        setOidcIssuerUrl("");
+        setOidcClientId("");
+        setOidcClientSecret("");
+        setOidcScopes("openid, profile, email");
+      } else if (t === "saml") {
+        setSamlEntityId("");
+        setSamlIdpMetadataUrl("");
+        setSamlNameidFormat("email");
+      } else {
+        setLdapServerUrl("ldaps://dc.corp.example.com:636");
+        setLdapBindDn("");
+        setLdapBindPassword("");
+        setLdapSearchBase("");
+        setLdapUserFilter("(&(sAMAccountName={username})(objectClass=user))");
+      }
     }
   }
 
@@ -379,12 +642,17 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setConfigError(null);
+
     let parsedConfig: Record<string, unknown>;
-    try {
-      parsedConfig = JSON.parse(configJson) as Record<string, unknown>;
-    } catch {
-      setConfigError("Invalid JSON in configuration");
-      return;
+    if (showRaw) {
+      try {
+        parsedConfig = JSON.parse(configJson) as Record<string, unknown>;
+      } catch {
+        setConfigError("Invalid JSON in configuration");
+        return;
+      }
+    } else {
+      parsedConfig = buildConfigFromFields();
     }
 
     const body: CreateProviderBody = {
@@ -420,7 +688,7 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
             zIndex: 100,
           }}
         />
@@ -562,40 +830,101 @@ function ProviderDialog({ open, onOpenChange, existing }: ProviderDialogProps) {
               </label>
             </div>
 
-            {/* Config JSON */}
-            <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Configuration (JSON)</label>
-              <textarea
+            {/* Structured config fields */}
+            <div style={{ marginBottom: "8px" }}>
+              <div
                 style={{
-                  ...inputStyle,
-                  fontFamily: "monospace",
-                  fontSize: "12px",
-                  minHeight: "160px",
-                  resize: "vertical",
-                  lineHeight: 1.5,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "12px",
                 }}
-                value={configJson}
-                onChange={(e) => setConfigJson(e.target.value)}
-                spellCheck={false}
-              />
-              {configError && (
-                <p
+              >
+                <label style={labelStyle}>Configuration</label>
+                <button
+                  type="button"
+                  onClick={handleToggleRaw}
                   style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--io-accent)",
                     fontSize: "12px",
-                    color: "var(--io-danger)",
-                    marginTop: "4px",
+                    cursor: "pointer",
+                    padding: 0,
                   }}
                 >
-                  {configError}
-                </p>
+                  {showRaw ? "Use Structured Fields" : "Edit Raw JSON"}
+                </button>
+              </div>
+
+              {!showRaw && (
+                <>
+                  {providerType === "oidc" && (
+                    <OidcFields
+                      issuerUrl={oidcIssuerUrl}
+                      clientId={oidcClientId}
+                      clientSecret={oidcClientSecret}
+                      scopes={oidcScopes}
+                      onChange={handleOidcChange}
+                    />
+                  )}
+                  {providerType === "saml" && (
+                    <SamlFields
+                      entityId={samlEntityId}
+                      idpMetadataUrl={samlIdpMetadataUrl}
+                      nameidFormat={samlNameidFormat}
+                      onChange={handleSamlChange}
+                    />
+                  )}
+                  {providerType === "ldap" && (
+                    <LdapFields
+                      serverUrl={ldapServerUrl}
+                      bindDn={ldapBindDn}
+                      bindPassword={ldapBindPassword}
+                      searchBase={ldapSearchBase}
+                      userFilter={ldapUserFilter}
+                      onChange={handleLdapChange}
+                    />
+                  )}
+                </>
+              )}
+
+              {showRaw && (
+                <div style={{ marginBottom: "16px" }}>
+                  <textarea
+                    style={{
+                      ...inputStyle,
+                      fontFamily: "monospace",
+                      fontSize: "12px",
+                      minHeight: "160px",
+                      resize: "vertical",
+                      lineHeight: 1.5,
+                    }}
+                    value={configJson}
+                    onChange={(e) => setConfigJson(e.target.value)}
+                    spellCheck={false}
+                  />
+                </div>
               )}
             </div>
+
+            {configError && (
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-danger)",
+                  marginBottom: "12px",
+                }}
+              >
+                {configError}
+              </p>
+            )}
 
             {mutationError && (
               <div
                 style={{
-                  background: "rgba(239,68,68,0.1)",
-                  border: "1px solid rgba(239,68,68,0.3)",
+                  background: "var(--io-danger-subtle)",
+                  border: "1px solid var(--io-danger)",
                   borderRadius: "var(--io-radius)",
                   padding: "8px 12px",
                   color: "var(--io-danger)",
@@ -646,11 +975,44 @@ function ProviderRow({ provider }: ProviderRowProps) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [testStatus, setTestStatus] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => authProvidersApi.delete(provider.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["auth-providers"] }),
   });
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestStatus(null);
+    try {
+      const result = await api.post<{ message: string }>(
+        `/api/auth/admin/providers/${provider.id}/test`,
+        {},
+      );
+      if (result.success) {
+        setTestStatus({
+          ok: true,
+          message: (result.data as { message?: string }).message ?? "Connection successful",
+        });
+      } else {
+        const err = result as { success: false; error?: { message: string } };
+        setTestStatus({
+          ok: false,
+          message: err.error?.message ?? "Test failed",
+        });
+      }
+    } catch {
+      setTestStatus({ ok: false, message: "Connection test failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <>
@@ -682,9 +1044,24 @@ function ProviderRow({ provider }: ProviderRowProps) {
         </td>
         <td style={cellStyle}>{provider.display_order}</td>
         <td style={{ ...cellStyle, textAlign: "right" }}>
-          <div
-            style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}
-          >
+          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", alignItems: "center" }}>
+            {testStatus && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: testStatus.ok ? "var(--io-success)" : "var(--io-danger)",
+                }}
+              >
+                {testStatus.message}
+              </span>
+            )}
+            <button
+              style={btnSmall}
+              disabled={testing}
+              onClick={handleTest}
+            >
+              {testing ? "Testing…" : "Test"}
+            </button>
             <button style={btnSmall} onClick={() => setExpanded((v) => !v)}>
               {expanded ? "Hide Mappings" : "Mappings"}
             </button>
@@ -698,11 +1075,7 @@ function ProviderRow({ provider }: ProviderRowProps) {
                 borderColor: "var(--io-danger)",
               }}
               disabled={deleteMutation.isPending}
-              onClick={() => {
-                if (confirm(`Delete provider "${provider.display_name}"?`)) {
-                  deleteMutation.mutate();
-                }
-              }}
+              onClick={() => setConfirmDeleteOpen(true)}
             >
               Delete
             </button>
@@ -722,6 +1095,16 @@ function ProviderRow({ provider }: ProviderRowProps) {
         open={editOpen}
         onOpenChange={setEditOpen}
         existing={provider}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`Delete "${provider.display_name}"?`}
+        description="This auth provider will be permanently removed. Users who sign in via this provider will no longer be able to authenticate."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => deleteMutation.mutate()}
       />
     </>
   );

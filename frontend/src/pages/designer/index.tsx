@@ -1167,6 +1167,76 @@ export default function DesignerPage() {
     [handleSave],
   );
 
+  /**
+   * Export the current graphic as a clean standalone SVG.
+   * Builds the export SVG from [data-node-id] scene elements (canvas coords)
+   * rather than serialising the editor DOM, which includes grid, selection
+   * handles, viewport transforms, and other chrome.
+   */
+  const handleExportSvg = useCallback(() => {
+    const currentDoc = useSceneStore.getState().doc;
+    if (!currentDoc) return;
+    const svgEl = document.querySelector<SVGSVGElement>(
+      '[data-testid="designer-canvas-svg"]',
+    );
+    if (!svgEl) return;
+
+    const { width: cw, height: ch, backgroundColor } = currentDoc.canvas;
+    const ns = "http://www.w3.org/2000/svg";
+
+    // Fresh SVG with proper viewBox — no editor chrome, no viewport transform
+    const exportSvg = document.createElementNS(ns, "svg") as SVGSVGElement;
+    exportSvg.setAttribute("xmlns", ns);
+    exportSvg.setAttribute("viewBox", `0 0 ${cw} ${ch}`);
+    exportSvg.setAttribute("width", String(cw));
+    exportSvg.setAttribute("height", String(ch));
+
+    // Copy defs (shape markers, gradients) — strip editor grid patterns
+    const defsEl = svgEl.querySelector("defs");
+    if (defsEl) {
+      const exportDefs = defsEl.cloneNode(true) as Element;
+      for (const child of Array.from(exportDefs.children)) {
+        if (child.id.startsWith("grid-")) exportDefs.removeChild(child);
+      }
+      if (exportDefs.children.length > 0) {
+        exportSvg.appendChild(exportDefs);
+      }
+    }
+
+    // Canvas background rect
+    const bg = document.createElementNS(ns, "rect");
+    bg.setAttribute("x", "0");
+    bg.setAttribute("y", "0");
+    bg.setAttribute("width", String(cw));
+    bg.setAttribute("height", String(ch));
+    bg.setAttribute("fill", backgroundColor ?? "#0d0d0d");
+    exportSvg.appendChild(bg);
+
+    // Clone only top-level scene node elements (those with data-node-id that
+    // are NOT nested inside another data-node-id — avoids duplicating children
+    // of groups that are also individually matched by querySelectorAll).
+    const allNodes = Array.from(
+      svgEl.querySelectorAll<SVGElement>("[data-node-id]"),
+    );
+    const topLevel = allNodes.filter(
+      (el) => el.parentElement?.closest("[data-node-id]") === null,
+    );
+    for (const el of topLevel) {
+      exportSvg.appendChild(el.cloneNode(true));
+    }
+
+    const svgStr = new XMLSerializer().serializeToString(exportSvg);
+    const blob = new Blob([svgStr], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentDoc.name ?? "graphic"}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
   // -------------------------------------------------------------------------
   // Publish — create permanent version snapshot
   // -------------------------------------------------------------------------
@@ -2436,6 +2506,7 @@ export default function DesignerPage() {
         onValidateBindings={handleValidateBindings}
         onImport={() => setShowImportWizard(true)}
         onExport={() => setShowExportDialog(true)}
+        onExportSvg={handleExportSvg}
         onNew={() => setShowNewDialog(true)}
         onOpen={() => navigate("/designer/graphics")}
         onProperties={() => setShowPropertiesDialog(true)}

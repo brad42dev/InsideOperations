@@ -7,6 +7,10 @@ export interface ApiError {
   details?: Array<{ field: string; message: string }>;
 }
 
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 export type ApiResult<T> =
   | { success: true; data: T }
   | { success: false; error: ApiError };

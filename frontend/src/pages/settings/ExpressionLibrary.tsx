@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { btnSecondary, btnDanger } from "./settingsStyles";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { expressionsApi, type SavedExpression } from "../../api/expressions";
 import type {
@@ -11,25 +12,6 @@ import { useAuthStore } from "../../store/auth";
 import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const btnSecondary: React.CSSProperties = {
-  padding: "6px 12px",
-  background: "transparent",
-  color: "var(--io-text-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  fontSize: "12px",
-  cursor: "pointer",
-};
-
-const btnDanger: React.CSSProperties = {
-  ...btnSecondary,
-  color: "var(--io-danger)",
-  borderColor: "rgba(239,68,68,0.3)",
-};
 
 // ---------------------------------------------------------------------------
 // Context display names
@@ -76,7 +58,7 @@ function EditExpressionDialog({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.65)",
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
             zIndex: 200,
           }}
         />
@@ -177,7 +159,7 @@ function ConfirmDeleteDialog({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.6)",
+            background: "var(--io-overlay, rgba(0,0,0,0.5))",
             zIndex: 200,
           }}
         />
@@ -248,8 +230,8 @@ function ErrorBanner({ message }: { message: string }) {
   return (
     <div
       style={{
-        background: "rgba(239,68,68,0.1)",
-        border: "1px solid rgba(239,68,68,0.3)",
+        background: "var(--io-danger-subtle)",
+        border: "1px solid var(--io-danger)",
         borderRadius: "var(--io-radius)",
         padding: "10px 14px",
         color: "var(--io-danger)",
@@ -416,7 +398,7 @@ export default function ExpressionLibrary() {
                 style={{
                   padding: "4px 10px",
                   background: "transparent",
-                  border: "1px solid rgba(239,68,68,0.3)",
+                  border: "1px solid var(--io-danger)",
                   borderRadius: "var(--io-radius)",
                   color: "var(--io-danger)",
                   fontSize: "12px",

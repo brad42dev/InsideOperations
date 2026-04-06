@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
 import { reportsApi, type ExportPreset } from "../../api/reports";
 import DataTable from "../../shared/components/DataTable";
 import type { ColumnDef } from "../../shared/components/DataTable";
 import { showToast } from "../../shared/components/Toast";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import SettingsPageLayout from "./SettingsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,112 +18,6 @@ function formatDate(iso: string): string {
     month: "short",
     day: "numeric",
   });
-}
-
-// ---------------------------------------------------------------------------
-// Confirm delete dialog
-// ---------------------------------------------------------------------------
-
-function ConfirmDeleteDialog({
-  preset,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  preset: ExportPreset | null;
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onConfirm: () => void;
-}) {
-  if (!preset) return null;
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            zIndex: 200,
-          }}
-        />
-        <Dialog.Content
-          aria-describedby={undefined}
-          style={{
-            position: "fixed",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "10px",
-            padding: "24px",
-            width: "420px",
-            maxWidth: "95vw",
-            zIndex: 201,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-          }}
-        >
-          <Dialog.Title
-            style={{
-              margin: "0 0 12px",
-              fontSize: "16px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Delete Preset
-          </Dialog.Title>
-          <p
-            style={{
-              margin: "0 0 24px",
-              fontSize: "14px",
-              color: "var(--io-text-secondary)",
-            }}
-          >
-            Are you sure you want to delete the preset{" "}
-            <strong>"{preset.name}"</strong>? This cannot be undone.
-          </p>
-          <div
-            style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}
-          >
-            <Dialog.Close asChild>
-              <button
-                style={{
-                  padding: "7px 14px",
-                  background: "transparent",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: "var(--io-radius)",
-                  color: "var(--io-text-secondary)",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-            </Dialog.Close>
-            <button
-              onClick={() => {
-                onConfirm();
-                onOpenChange(false);
-              }}
-              style={{
-                padding: "7px 14px",
-                background: "transparent",
-                border: "1px solid rgba(239,68,68,0.3)",
-                borderRadius: "var(--io-radius)",
-                color: "var(--io-danger)",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              Delete
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +183,7 @@ export default function ExportPresets() {
             style={{
               padding: "3px 9px",
               background: "transparent",
-              border: "1px solid rgba(239,68,68,0.3)",
+              border: "1px solid var(--io-danger)",
               borderRadius: "var(--io-radius)",
               color: "var(--io-danger)",
               fontSize: "11px",
@@ -304,32 +199,18 @@ export default function ExportPresets() {
   ];
 
   return (
-    <div>
-      <div style={{ marginBottom: "20px" }}>
-        <h2
-          style={{
-            margin: "0 0 4px",
-            fontSize: "18px",
-            fontWeight: 600,
-            color: "var(--io-text-primary)",
-          }}
-        >
-          Export Presets
-        </h2>
-        <p
-          style={{ margin: 0, fontSize: "13px", color: "var(--io-text-muted)" }}
-        >
-          Your saved report parameter presets. Use "Load" to open a report with
-          pre-filled settings.
-        </p>
-      </div>
+    <SettingsPageLayout
+      title="Export Presets"
+      description='Your saved report parameter presets. Use "Load" to open a report with pre-filled settings.'
+      variant="list"
+    >
 
       {(templatesQuery.isError || presetsQuery.isError) && (
         <div
           style={{
             padding: "12px 16px",
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.3)",
+            background: "var(--io-danger-subtle)",
+            border: "1px solid var(--io-danger)",
             borderRadius: "var(--io-radius)",
             color: "var(--io-danger)",
             fontSize: "13px",
@@ -349,14 +230,21 @@ export default function ExportPresets() {
         emptyMessage="No export presets saved yet. Save a preset from the Reports module configuration panel."
       />
 
-      <ConfirmDeleteDialog
-        preset={deletePreset}
+      <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
+        title="Delete Preset"
+        description={
+          deletePreset
+            ? `Delete preset "${deletePreset.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="danger"
         onConfirm={() => {
           if (deletePreset) deleteMutation.mutate(deletePreset.id);
         }}
       />
-    </div>
+    </SettingsPageLayout>
   );
 }

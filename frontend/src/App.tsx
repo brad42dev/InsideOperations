@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import * as echarts from "echarts";
 import {
   ioLightTheme,
@@ -108,9 +108,6 @@ const DashboardsPage = lazy(() => import("./pages/dashboards/index"));
 const DashboardViewer = lazy(
   () => import("./pages/dashboards/DashboardViewer"),
 );
-const DashboardBuilder = lazy(
-  () => import("./pages/dashboards/DashboardBuilder"),
-);
 const PlaylistPlayer = lazy(() => import("./pages/dashboards/PlaylistPlayer"));
 
 // Reports module
@@ -121,7 +118,7 @@ const ReportGenerator = lazy(() => import("./pages/reports/ReportGenerator"));
 const ReportHistory = lazy(() => import("./pages/reports/ReportHistory"));
 const ReportSchedules = lazy(() => import("./pages/reports/ReportSchedules"));
 const MyExports = lazy(() => import("./pages/reports/MyExports"));
-const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
+const ProfilePage = lazy(() => import("./pages/profile/index"));
 
 // Forensics module
 const ForensicsPage = lazy(() => import("./pages/forensics/index"));
@@ -178,17 +175,11 @@ const MusterPointConfig = lazy(
 
 // Settings module — kept lazy too for consistent splitting
 const SettingsShell = lazy(() => import("./pages/settings/index"));
-const UsersPage = lazy(() => import("./pages/settings/Users"));
-const UserDetail = lazy(() => import("./pages/settings/UserDetail"));
-const RolesPage = lazy(() => import("./pages/settings/Roles"));
-const Groups = lazy(() => import("./pages/settings/Groups"));
+const IdentityAccess = lazy(() => import("./pages/settings/IdentityAccess"));
 const OpcSourcesPage = lazy(() => import("./pages/settings/OpcSources"));
-const AppearancePage = lazy(() => import("./pages/settings/Appearance"));
-const HealthPage = lazy(() => import("./pages/settings/Health"));
 const AboutPage = lazy(() => import("./pages/settings/About"));
 const EulaAdminPage = lazy(() => import("./pages/settings/EulaAdmin"));
 const CertificatesPage = lazy(() => import("./pages/settings/Certificates"));
-const BackupRestorePage = lazy(() => import("./pages/settings/BackupRestore"));
 const ExpressionLibrary = lazy(
   () => import("./pages/settings/ExpressionLibrary"),
 );
@@ -197,29 +188,20 @@ const ReportScheduling = lazy(
 );
 const ExportPresets = lazy(() => import("./pages/settings/ExportPresets"));
 const EmailSettingsPage = lazy(() => import("./pages/settings/Email"));
-const SecurityPage = lazy(() => import("./pages/settings/Security"));
 const ImportSettingsPage = lazy(() => import("./pages/settings/Import"));
-const StreamingSessionsPage = lazy(
-  () => import("./pages/settings/StreamingSessions"),
-);
 const RecognitionPage = lazy(() => import("./pages/settings/Recognition"));
 const AuthProvidersPage = lazy(() => import("./pages/settings/AuthProviders"));
 const MfaSettingsPage = lazy(() => import("./pages/settings/MfaSettings"));
-const ApiKeysPage = lazy(() => import("./pages/settings/ApiKeys"));
 const ScimTokensPage = lazy(() => import("./pages/settings/ScimTokens"));
 const SmsProvidersPage = lazy(() => import("./pages/settings/SmsProviders"));
 const SystemHealth = lazy(() => import("./pages/settings/SystemHealth"));
-const Sessions = lazy(() => import("./pages/settings/Sessions"));
-const Display = lazy(() => import("./pages/settings/Display"));
-const DataSources = lazy(() => import("./pages/settings/DataSources"));
-const OpcConfig = lazy(() => import("./pages/settings/OpcConfig"));
 const PointManagement = lazy(() => import("./pages/settings/PointManagement"));
 const EventConfig = lazy(() => import("./pages/settings/EventConfig"));
 const AlertConfig = lazy(() => import("./pages/settings/AlertConfig"));
 const Badges = lazy(() => import("./pages/settings/Badges"));
 const BulkUpdate = lazy(() => import("./pages/settings/BulkUpdate"));
 const Snapshots = lazy(() => import("./pages/settings/Snapshots"));
-const ArchiveSettings = lazy(() => import("./pages/settings/ArchiveSettings"));
+const SystemSettings = lazy(() => import("./pages/settings/SystemSettings"));
 
 // ---------------------------------------------------------------------------
 // Minimal loading fallback used by Suspense boundaries
@@ -264,6 +246,11 @@ function DefaultRedirect() {
   return <Navigate to={route} replace />;
 }
 
+function RedirectDashboardEdit() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/designer/dashboards/${id}/edit`} replace />;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
@@ -306,7 +293,7 @@ function AppRoutes() {
             path="profile"
             element={
               <PermissionGuard permission={null}>
-                <UserProfile />
+                <ProfilePage />
               </PermissionGuard>
             }
           />
@@ -573,13 +560,7 @@ function AppRoutes() {
           />
           <Route
             path="dashboards/new"
-            element={
-              <PermissionGuard permission="dashboards:write">
-                <ErrorBoundary module="Dashboards">
-                  <DashboardBuilder />
-                </ErrorBoundary>
-              </PermissionGuard>
-            }
+            element={<Navigate to="/designer/dashboards/new" replace />}
           />
           <Route
             path="dashboards/playlist/:id"
@@ -603,13 +584,7 @@ function AppRoutes() {
           />
           <Route
             path="dashboards/:id/edit"
-            element={
-              <PermissionGuard permission="dashboards:write">
-                <ErrorBoundary module="Dashboards">
-                  <DashboardBuilder />
-                </ErrorBoundary>
-              </PermissionGuard>
-            }
+            element={<RedirectDashboardEdit />}
           />
 
           {/* Reports module — static paths before parameterised */}
@@ -1055,68 +1030,36 @@ function AppRoutes() {
               )
             }
           >
-            <Route index element={<Navigate to="users" replace />} />
+            <Route index element={<Navigate to="identity" replace />} />
             <Route
-              path="users"
+              path="identity"
               element={
                 <PermissionGuard permission="system:manage_users">
-                  <UsersPage />
+                  <IdentityAccess />
                 </PermissionGuard>
               }
+            />
+            <Route
+              path="users"
+              element={<Navigate to="/settings/identity?tab=users" replace />}
             />
             <Route
               path="users/:id"
-              element={
-                <PermissionGuard permission="system:manage_users">
-                  <UserDetail />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/settings/identity?tab=users" replace />}
             />
             <Route
               path="groups"
-              element={
-                <PermissionGuard permission="system:manage_groups">
-                  <Groups />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/settings/identity?tab=groups" replace />}
             />
             <Route
               path="roles"
-              element={
-                <PermissionGuard permission="system:manage_roles">
-                  <RolesPage />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/settings/identity?tab=roles" replace />}
             />
             <Route
               path="opc-sources"
               element={
                 <PermissionGuard permission="system:opc_config">
                   <OpcSourcesPage />
-                </PermissionGuard>
-              }
-            />
-            <Route
-              path="sources"
-              element={
-                <PermissionGuard permission="system:source_config">
-                  <DataSources />
-                </PermissionGuard>
-              }
-            />
-            <Route
-              path="sources/:id"
-              element={
-                <PermissionGuard permission="system:source_config">
-                  <DataSources detail />
-                </PermissionGuard>
-              }
-            />
-            <Route
-              path="opc"
-              element={
-                <PermissionGuard permission="system:opc_config">
-                  <OpcConfig />
                 </PermissionGuard>
               }
             />
@@ -1179,34 +1122,20 @@ function AppRoutes() {
             <Route
               path="sessions"
               element={
-                <PermissionGuard permission={null}>
-                  <Sessions />
-                </PermissionGuard>
+                <Navigate to="/settings/identity?tab=sessions" replace />
               }
             />
             <Route
               path="display"
-              element={
-                <PermissionGuard permission={null}>
-                  <Display />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/profile?tab=preferences" replace />}
             />
             <Route
               path="appearance"
-              element={
-                <PermissionGuard permission={null}>
-                  <AppearancePage />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/profile?tab=preferences" replace />}
             />
             <Route
               path="health"
-              element={
-                <PermissionGuard permission="system:monitor">
-                  <HealthPage />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/settings/system-health" replace />}
             />
             <Route
               path="about"
@@ -1233,19 +1162,23 @@ function AppRoutes() {
               }
             />
             <Route
+              path="system"
+              element={
+                <PermissionGuard permission="system:backup">
+                  <SystemSettings />
+                </PermissionGuard>
+              }
+            />
+            <Route
               path="archive"
               element={
-                <PermissionGuard permission="system:configure">
-                  <ArchiveSettings />
-                </PermissionGuard>
+                <Navigate to="/settings/system?tab=archive" replace />
               }
             />
             <Route
               path="backup"
               element={
-                <PermissionGuard permission="system:change_backup">
-                  <BackupRestorePage />
-                </PermissionGuard>
+                <Navigate to="/settings/system?tab=backup" replace />
               }
             />
             <Route
@@ -1281,14 +1214,6 @@ function AppRoutes() {
               }
             />
             <Route
-              path="security"
-              element={
-                <PermissionGuard permission="system:configure">
-                  <SecurityPage />
-                </PermissionGuard>
-              }
-            />
-            <Route
               path="import"
               element={
                 <PermissionGuard permission="settings:write">
@@ -1298,11 +1223,7 @@ function AppRoutes() {
             />
             <Route
               path="import-streaming"
-              element={
-                <PermissionGuard permission="settings:write">
-                  <StreamingSessionsPage />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/settings/import?tab=streaming" replace />}
             />
             {/* Doc 38 alias: /settings/imports → /settings/import */}
             <Route
@@ -1340,11 +1261,7 @@ function AppRoutes() {
             />
             <Route
               path="api-keys"
-              element={
-                <PermissionGuard permission="auth:manage_api_keys">
-                  <ApiKeysPage />
-                </PermissionGuard>
-              }
+              element={<Navigate to="/profile?tab=security" replace />}
             />
             <Route
               path="scim"
