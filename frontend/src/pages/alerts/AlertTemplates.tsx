@@ -332,7 +332,7 @@ export default function AlertTemplates() {
             { label: menuState.data.name, disabled: true },
             {
               label: menuState.data.enabled ? "Disable" : "Enable",
-              permission: "alerts:manage",
+              permission: "alerts:manage_templates",
               onClick: () => {
                 closeMenu();
                 toggleMutation.mutate({
@@ -348,7 +348,7 @@ export default function AlertTemplates() {
                     label: "Delete",
                     danger: true as const,
                     divider: true,
-                    permission: "alerts:manage",
+                    permission: "alerts:manage_templates",
                     onClick: () => {
                       closeMenu();
                       deleteMutation.mutate(menuState.data!.id);

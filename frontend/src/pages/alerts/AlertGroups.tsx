@@ -388,7 +388,7 @@ export default function AlertGroups() {
               label: "Delete Group",
               danger: true,
               divider: true,
-              permission: "alerts:manage",
+              permission: "alerts:manage_groups",
               onClick: () => {
                 closeMenu();
                 deleteMutation.mutate(menuState.data!.id);

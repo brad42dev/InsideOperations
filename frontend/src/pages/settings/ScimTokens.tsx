@@ -1095,7 +1095,7 @@ export default function ScimTokensSection() {
               label: "Revoke Token",
               danger: true,
               divider: true,
-              permission: "scim:manage",
+              permission: "auth:configure",
               onClick: () => {
                 closeMenu();
                 setConfirmRevoke({

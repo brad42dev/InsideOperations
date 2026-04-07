@@ -1196,7 +1196,7 @@ export default function SmsProvidersPage() {
             { label: menuState.data.name, disabled: true },
             {
               label: "Edit",
-              permission: "sms:manage",
+              permission: "sms:configure",
               onClick: () => {
                 closeMenu();
                 openEdit(menuState.data!);
@@ -1213,7 +1213,7 @@ export default function SmsProvidersPage() {
               label: "Delete",
               danger: true,
               divider: true,
-              permission: "sms:manage",
+              permission: "sms:configure",
               onClick: () => {
                 closeMenu();
                 setConfirmDelete(menuState.data!);

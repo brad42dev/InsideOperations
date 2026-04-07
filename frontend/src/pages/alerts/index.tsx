@@ -2311,7 +2311,7 @@ function TemplatesPanel() {
                     label: "Delete",
                     danger: true as const,
                     divider: true,
-                    permission: "alerts:manage",
+                    permission: "alerts:manage_templates",
                     onClick: () => {
                       closeTplMenu();
                       setDeleteConfirmId(tplMenuState.data!.id);
@@ -2873,7 +2873,7 @@ function GroupsPanel() {
                     label: "Delete",
                     danger: true as const,
                     divider: true,
-                    permission: "alerts:manage",
+                    permission: "alerts:manage_groups",
                     onClick: () => {
                       closeGrpMenu();
                       setDeleteGroupId(grpMenuState.data!.id);

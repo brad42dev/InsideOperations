@@ -2641,7 +2641,7 @@ function ProviderRow({ provider }: ProviderRowProps) {
             { label: menuState.data.display_name, disabled: true },
             { label: "Edit / View Mappings", onClick: () => { closeMenu(); setExpanded(v => !v); } },
             { label: "Test Connection", onClick: () => { closeMenu(); void handleTest(); } },
-            { label: "Delete", danger: true, divider: true, permission: "auth:manage", onClick: () => { closeMenu(); setConfirmDeleteOpen(true); } },
+            { label: "Delete", danger: true, divider: true, permission: "auth:configure", onClick: () => { closeMenu(); setConfirmDeleteOpen(true); } },
           ]}
           onClose={closeMenu}
         />

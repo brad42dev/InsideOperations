@@ -383,7 +383,7 @@ function ProvidersTab() {
             { label: menuState.data.name, disabled: true },
             {
               label: "Edit",
-              permission: "email:manage",
+              permission: "email:configure",
               onClick: () => {
                 closeMenu();
                 setEditProvider(menuState.data!);
@@ -403,7 +403,7 @@ function ProvidersTab() {
               label: "Delete",
               danger: true,
               divider: true,
-              permission: "email:manage",
+              permission: "email:configure",
               onClick: () => {
                 closeMenu();
                 setDeleteConfirm({
