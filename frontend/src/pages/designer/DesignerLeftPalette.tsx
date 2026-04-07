@@ -10,8 +10,9 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import { useLibraryStore, useSceneStore } from "../../store/designer";
 import type { ShapeIndexItem } from "../../store/designer";
 import type {
@@ -153,47 +154,6 @@ function SvgThumbnail({ svgText, size }: { svgText: string; size: number }) {
     />
   );
 }
-
-// ---------------------------------------------------------------------------
-// Shared context menu styles (matches DesignerCanvas context menu tokens)
-// ---------------------------------------------------------------------------
-
-const cmContentStyle: React.CSSProperties = {
-  background: "var(--io-surface)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-  minWidth: 160,
-  overflow: "hidden",
-  fontSize: 12,
-  zIndex: 1800,
-};
-
-const cmItemStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: "6px 14px",
-  fontSize: 12,
-  cursor: "pointer",
-  userSelect: "none",
-  outline: "none",
-  color: "var(--io-text-primary)",
-  background: "transparent",
-  border: "none",
-  width: "100%",
-  textAlign: "left",
-};
-
-const cmItemDestructiveStyle: React.CSSProperties = {
-  ...cmItemStyle,
-  color: "var(--io-danger, #ef4444)",
-};
-
-const cmSepStyle: React.CSSProperties = {
-  height: 1,
-  background: "var(--io-border)",
-  margin: "2px 0",
-};
 
 // ---------------------------------------------------------------------------
 // Delete confirmation dialog (Radix Dialog, no window.confirm)
@@ -494,110 +454,82 @@ function ShapeTile({
     );
   }
 
-  const contextMenuContent = (
-    <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Content style={cmContentStyle}>
-        <ContextMenuPrimitive.Item
-          style={cmItemStyle}
-          onSelect={handlePlaceAtCenter}
-        >
-          Place at Center
-        </ContextMenuPrimitive.Item>
-        <ContextMenuPrimitive.Item
-          style={cmItemStyle}
-          onSelect={handleToggleFavorite}
-        >
-          {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
-        </ContextMenuPrimitive.Item>
-        <ContextMenuPrimitive.Separator style={cmSepStyle} />
-        {isLibrary && (
-          <>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleCopyToMyShapes}
-            >
-              Copy to My Shapes
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleExportSvg}
-            >
-              Export SVG
-            </ContextMenuPrimitive.Item>
-          </>
-        )}
-        {isCustom && (
-          <>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleEditShape}
-            >
-              Edit Shape
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleExportSvg}
-            >
-              Export SVG
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleReplaceSvg}
-            >
-              Replace SVG…
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Separator style={cmSepStyle} />
-            <ContextMenuPrimitive.Item
-              style={cmItemDestructiveStyle}
-              onSelect={() => setDeleteOpen(true)}
-            >
-              Delete
-            </ContextMenuPrimitive.Item>
-          </>
-        )}
-      </ContextMenuPrimitive.Content>
-    </ContextMenuPrimitive.Portal>
-  );
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+
+  const shapeMenuItems = [
+    { label: "Place at Center", onClick: handlePlaceAtCenter },
+    {
+      label: isFavorited ? "Remove from Favorites" : "Add to Favorites",
+      onClick: handleToggleFavorite,
+    },
+    ...(isLibrary
+      ? [
+          {
+            label: "Copy to My Shapes",
+            onClick: handleCopyToMyShapes,
+            divider: true,
+          },
+          { label: "Export SVG", onClick: handleExportSvg },
+        ]
+      : []),
+    ...(isCustom
+      ? [
+          { label: "Edit Shape", onClick: handleEditShape, divider: true },
+          { label: "Export SVG", onClick: handleExportSvg },
+          { label: "Replace SVG…", onClick: handleReplaceSvg },
+          {
+            label: "Delete",
+            onClick: () => setDeleteOpen(true),
+            danger: true,
+            divider: true,
+          },
+        ]
+      : []),
+  ];
 
   if (collapsed) {
     return (
       <>
-        <ContextMenuPrimitive.Root>
-          <ContextMenuPrimitive.Trigger asChild>
-            <div
-              onMouseDown={handleMouseDown}
-              title={item.label}
-              style={{
-                width: 32,
-                height: 32,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "var(--io-surface-elevated)",
-                border: "1px solid var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                cursor: "grab",
-                overflow: "hidden",
-                userSelect: "none",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--io-accent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--io-border)";
-              }}
-            >
-              {shape?.svg ? (
-                <SvgThumbnail svgText={shape.svg} size={26} />
-              ) : (
-                <span style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
-                  {item.label.slice(0, 2).toUpperCase()}
-                </span>
-              )}
-            </div>
-          </ContextMenuPrimitive.Trigger>
-          {contextMenuContent}
-        </ContextMenuPrimitive.Root>
+        <div
+          onMouseDown={handleMouseDown}
+          onContextMenu={handleContextMenu}
+          title={item.label}
+          style={{
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            cursor: "grab",
+            overflow: "hidden",
+            userSelect: "none",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--io-accent)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--io-border)";
+          }}
+        >
+          {shape?.svg ? (
+            <SvgThumbnail svgText={shape.svg} size={26} />
+          ) : (
+            <span style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
+              {item.label.slice(0, 2).toUpperCase()}
+            </span>
+          )}
+        </div>
+        {menuState && (
+          <ContextMenu
+            x={menuState.x}
+            y={menuState.y}
+            items={shapeMenuItems}
+            onClose={closeMenu}
+          />
+        )}
         {isCustom && (
           <DeleteConfirmDialog
             open={deleteOpen}
@@ -612,80 +544,84 @@ function ShapeTile({
 
   return (
     <>
-      <ContextMenuPrimitive.Root>
-        <ContextMenuPrimitive.Trigger asChild>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={item.label}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          width: 64,
+          height: 64,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          overflow: "hidden",
+          userSelect: "none",
+          padding: 4,
+          textAlign: "center",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
+        {shape?.svg ? (
+          <SvgThumbnail svgText={shape.svg} size={36} />
+        ) : (
           <div
-            onMouseDown={handleMouseDown}
-            title={item.label}
             style={{
+              width: 36,
+              height: 36,
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 3,
-              width: 64,
-              height: 64,
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              cursor: "grab",
-              overflow: "hidden",
-              userSelect: "none",
-              padding: 4,
-              textAlign: "center",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-accent)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-border)";
+              opacity: 0.25,
             }}
           >
-            {shape?.svg ? (
-              <SvgThumbnail svgText={shape.svg} size={36} />
-            ) : (
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: 0.25,
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <rect
-                    x="2"
-                    y="5"
-                    width="16"
-                    height="10"
-                    rx="1"
-                    stroke="#808080"
-                    strokeWidth="1.5"
-                    fill="none"
-                  />
-                </svg>
-              </div>
-            )}
-            <div
-              style={{
-                fontSize: 9,
-                lineHeight: 1.2,
-                wordBreak: "break-word",
-                maxWidth: "100%",
-                color: "var(--io-text-muted)",
-              }}
-            >
-              {item.label.length > 12
-                ? item.label.slice(0, 11) + "…"
-                : item.label}
-            </div>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect
+                x="2"
+                y="5"
+                width="16"
+                height="10"
+                rx="1"
+                stroke="#808080"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </svg>
           </div>
-        </ContextMenuPrimitive.Trigger>
-        {contextMenuContent}
-      </ContextMenuPrimitive.Root>
+        )}
+        <div
+          style={{
+            fontSize: 9,
+            lineHeight: 1.2,
+            wordBreak: "break-word",
+            maxWidth: "100%",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          {item.label.length > 12
+            ? item.label.slice(0, 11) + "…"
+            : item.label}
+        </div>
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={shapeMenuItems}
+          onClose={closeMenu}
+        />
+      )}
       {isCustom && (
         <DeleteConfirmDialog
           open={deleteOpen}
@@ -1090,79 +1026,35 @@ function DisplayElementTile({
     }
   }
 
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+
+  const displayElemMenuItems = [
+    { label: "Place at Center", onClick: handlePlaceAtCenter },
+    {
+      label: isFavorited ? "Remove from Favorites" : "Add to Favorites",
+      onClick: handleToggleFavorite,
+    },
+  ];
+
   if (collapsed) {
     return (
-      <ContextMenuPrimitive.Root>
-        <ContextMenuPrimitive.Trigger asChild>
-          <div
-            onMouseDown={handleMouseDown}
-            title={label}
-            style={{
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              cursor: "grab",
-              overflow: "hidden",
-              userSelect: "none",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-accent)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-border)";
-            }}
-          >
-            <DisplayElementPreview type={type} size={26} />
-          </div>
-        </ContextMenuPrimitive.Trigger>
-        <ContextMenuPrimitive.Portal>
-          <ContextMenuPrimitive.Content style={cmContentStyle}>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handlePlaceAtCenter}
-            >
-              Place at Center
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item
-              style={cmItemStyle}
-              onSelect={handleToggleFavorite}
-            >
-              {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
-            </ContextMenuPrimitive.Item>
-          </ContextMenuPrimitive.Content>
-        </ContextMenuPrimitive.Portal>
-      </ContextMenuPrimitive.Root>
-    );
-  }
-
-  return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>
+      <>
         <div
           onMouseDown={handleMouseDown}
+          onContextMenu={handleContextMenu}
           title={label}
           style={{
+            width: 32,
+            height: 32,
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 4,
-            width: 72,
-            height: 64,
             background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
             borderRadius: "var(--io-radius)",
             cursor: "grab",
             overflow: "hidden",
             userSelect: "none",
-            padding: 4,
-            textAlign: "center",
             flexShrink: 0,
           }}
           onMouseEnter={(e) => {
@@ -1172,36 +1064,72 @@ function DisplayElementTile({
             e.currentTarget.style.borderColor = "var(--io-border)";
           }}
         >
-          <DisplayElementPreview type={type} size={40} />
-          <span
-            style={{
-              fontSize: 9,
-              color: "var(--io-text-muted)",
-              lineHeight: 1.2,
-              textAlign: "center",
-            }}
-          >
-            {label.length > 12 ? label.slice(0, 11) + "…" : label}
-          </span>
+          <DisplayElementPreview type={type} size={26} />
         </div>
-      </ContextMenuPrimitive.Trigger>
-      <ContextMenuPrimitive.Portal>
-        <ContextMenuPrimitive.Content style={cmContentStyle}>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handlePlaceAtCenter}
-          >
-            Place at Center
-          </ContextMenuPrimitive.Item>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handleToggleFavorite}
-          >
-            {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
-          </ContextMenuPrimitive.Item>
-        </ContextMenuPrimitive.Content>
-      </ContextMenuPrimitive.Portal>
-    </ContextMenuPrimitive.Root>
+        {menuState && (
+          <ContextMenu
+            x={menuState.x}
+            y={menuState.y}
+            items={displayElemMenuItems}
+            onClose={closeMenu}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={label}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          width: 72,
+          height: 64,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          overflow: "hidden",
+          userSelect: "none",
+          padding: 4,
+          textAlign: "center",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
+        <DisplayElementPreview type={type} size={40} />
+        <span
+          style={{
+            fontSize: 9,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.2,
+            textAlign: "center",
+          }}
+        >
+          {label.length > 12 ? label.slice(0, 11) + "…" : label}
+        </span>
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={displayElemMenuItems}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -1496,90 +1424,89 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     );
   }
 
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+
   return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>
+    <>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={item.name}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          width: 64,
+          height: 64,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          overflow: "hidden",
+          userSelect: "none",
+          padding: 4,
+          textAlign: "center",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
         <div
-          onMouseDown={handleMouseDown}
-          title={item.name}
           style={{
+            width: 36,
+            height: 36,
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 3,
-            width: 64,
-            height: 64,
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            cursor: "grab",
-            overflow: "hidden",
-            userSelect: "none",
-            padding: 4,
-            textAlign: "center",
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "var(--io-accent)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--io-border)";
+            opacity: 0.5,
           }}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: 0.5,
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect
-                x="3"
-                y="6"
-                width="18"
-                height="12"
-                rx="1.5"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                fill="none"
-              />
-              <path
-                d="M8 12h8M12 8v8"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <div
-            style={{
-              fontSize: 9,
-              lineHeight: 1.2,
-              wordBreak: "break-word",
-              maxWidth: "100%",
-              color: "var(--io-text-muted)",
-            }}
-          >
-            {item.name.length > 12 ? item.name.slice(0, 11) + "…" : item.name}
-          </div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect
+              x="3"
+              y="6"
+              width="18"
+              height="12"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              fill="none"
+            />
+            <path
+              d="M8 12h8M12 8v8"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
-      </ContextMenuPrimitive.Trigger>
-      <ContextMenuPrimitive.Portal>
-        <ContextMenuPrimitive.Content style={cmContentStyle}>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handleAddToCanvas}
-          >
-            Add to Canvas
-          </ContextMenuPrimitive.Item>
-        </ContextMenuPrimitive.Content>
-      </ContextMenuPrimitive.Portal>
-    </ContextMenuPrimitive.Root>
+        <div
+          style={{
+            fontSize: 9,
+            lineHeight: 1.2,
+            wordBreak: "break-word",
+            maxWidth: "100%",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          {item.name.length > 12 ? item.name.slice(0, 11) + "…" : item.name}
+        </div>
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[{ label: "Add to Canvas", onClick: handleAddToCanvas }]}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -1864,57 +1791,46 @@ function StencilTile({
     );
   }
 
-  const stencilContextMenuContent = (
-    <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Content style={cmContentStyle}>
-        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleEdit}>
-          Edit
-        </ContextMenuPrimitive.Item>
-        <ContextMenuPrimitive.Item
-          style={cmItemStyle}
-          onSelect={handleExportSvg}
-        >
-          Export SVG
-        </ContextMenuPrimitive.Item>
-        <ContextMenuPrimitive.Separator style={cmSepStyle} />
-        <ContextMenuPrimitive.Item
-          style={cmItemDestructiveStyle}
-          onSelect={() => setDeleteOpen(true)}
-        >
-          Delete
-        </ContextMenuPrimitive.Item>
-      </ContextMenuPrimitive.Content>
-    </ContextMenuPrimitive.Portal>
-  );
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+
+  const stencilMenuItems = [
+    { label: "Edit", onClick: handleEdit },
+    { label: "Export SVG", onClick: handleExportSvg },
+    { label: "Delete", onClick: () => setDeleteOpen(true), danger: true, divider: true },
+  ];
 
   if (collapsed) {
     return (
       <>
-        <ContextMenuPrimitive.Root>
-          <ContextMenuPrimitive.Trigger asChild>
-            <div
-              onMouseDown={handleMouseDown}
-              title={item.name}
-              style={{
-                width: 28,
-                height: 28,
-                background: "var(--io-surface-elevated)",
-                border: "1px solid var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 9,
-                color: "var(--io-text-muted)",
-                cursor: "grab",
-                userSelect: "none",
-              }}
-            >
-              {item.name.slice(0, 2).toUpperCase()}
-            </div>
-          </ContextMenuPrimitive.Trigger>
-          {stencilContextMenuContent}
-        </ContextMenuPrimitive.Root>
+        <div
+          onMouseDown={handleMouseDown}
+          onContextMenu={handleContextMenu}
+          title={item.name}
+          style={{
+            width: 28,
+            height: 28,
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 9,
+            color: "var(--io-text-muted)",
+            cursor: "grab",
+            userSelect: "none",
+          }}
+        >
+          {item.name.slice(0, 2).toUpperCase()}
+        </div>
+        {menuState && (
+          <ContextMenu
+            x={menuState.x}
+            y={menuState.y}
+            items={stencilMenuItems}
+            onClose={closeMenu}
+          />
+        )}
         <DeleteConfirmDialog
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
@@ -1927,51 +1843,55 @@ function StencilTile({
 
   return (
     <>
-      <ContextMenuPrimitive.Root>
-        <ContextMenuPrimitive.Trigger asChild>
-          <div
-            onMouseDown={handleMouseDown}
-            title={item.name}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              width: 64,
-              height: 48,
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              cursor: "grab",
-              fontSize: 9,
-              color: "var(--io-text-muted)",
-              userSelect: "none",
-              padding: 4,
-              textAlign: "center",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-accent)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--io-border)";
-            }}
-          >
-            <div style={{ fontSize: 16 }}>⬜</div>
-            <div
-              style={{
-                fontSize: 9,
-                lineHeight: 1.2,
-                wordBreak: "break-word",
-                maxWidth: "100%",
-              }}
-            >
-              {item.name.length > 10 ? item.name.slice(0, 9) + "…" : item.name}
-            </div>
-          </div>
-        </ContextMenuPrimitive.Trigger>
-        {stencilContextMenuContent}
-      </ContextMenuPrimitive.Root>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={item.name}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          width: 64,
+          height: 48,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          fontSize: 9,
+          color: "var(--io-text-muted)",
+          userSelect: "none",
+          padding: 4,
+          textAlign: "center",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
+        <div style={{ fontSize: 16 }}>⬜</div>
+        <div
+          style={{
+            fontSize: 9,
+            lineHeight: 1.2,
+            wordBreak: "break-word",
+            maxWidth: "100%",
+          }}
+        >
+          {item.name.length > 10 ? item.name.slice(0, 9) + "…" : item.name}
+        </div>
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={stencilMenuItems}
+          onClose={closeMenu}
+        />
+      )}
       <DeleteConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -2154,73 +2074,64 @@ function WidgetTile({
   }
 
   const size = collapsed ? 32 : 48;
-
-  const tileDiv = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={label}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 3,
-        width: size,
-        height: size,
-        background: "var(--io-surface-elevated)",
-        border: "1px solid var(--io-border)",
-        borderRadius: "var(--io-radius)",
-        cursor: "grab",
-        fontSize: collapsed ? 14 : 20,
-        color: "var(--io-text-secondary)",
-        userSelect: "none",
-        flexShrink: 0,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--io-accent)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--io-border)";
-      }}
-    >
-      <span>{icon}</span>
-      {!collapsed && (
-        <span
-          style={{
-            fontSize: 9,
-            color: "var(--io-text-muted)",
-            textAlign: "center",
-            lineHeight: 1.2,
-          }}
-        >
-          {label.length > 10 ? label.slice(0, 9) + "…" : label}
-        </span>
-      )}
-    </div>
-  );
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
 
   return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>
-        {tileDiv}
-      </ContextMenuPrimitive.Trigger>
-      <ContextMenuPrimitive.Portal>
-        <ContextMenuPrimitive.Content style={cmContentStyle}>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handlePlaceAtCenter}
+    <>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={label}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          width: size,
+          height: size,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          fontSize: collapsed ? 14 : 20,
+          color: "var(--io-text-secondary)",
+          userSelect: "none",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
+        <span>{icon}</span>
+        {!collapsed && (
+          <span
+            style={{
+              fontSize: 9,
+              color: "var(--io-text-muted)",
+              textAlign: "center",
+              lineHeight: 1.2,
+            }}
           >
-            Place at Center
-          </ContextMenuPrimitive.Item>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handleAddToFavorites}
-          >
-            Add to Favorites
-          </ContextMenuPrimitive.Item>
-        </ContextMenuPrimitive.Content>
-      </ContextMenuPrimitive.Portal>
-    </ContextMenuPrimitive.Root>
+            {label.length > 10 ? label.slice(0, 9) + "…" : label}
+          </span>
+        )}
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Place at Center", onClick: handlePlaceAtCenter },
+            { label: "Add to Favorites", onClick: handleAddToFavorites },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -2619,72 +2530,63 @@ function ReportElementTile({
 
   const size = collapsed ? 32 : 48;
   const previewSize = collapsed ? 20 : 32;
-
-  const tileDiv = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={label}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 3,
-        width: size,
-        height: size,
-        background: "var(--io-surface-elevated)",
-        border: "1px solid var(--io-border)",
-        borderRadius: "var(--io-radius)",
-        cursor: "grab",
-        color: "var(--io-text-secondary)",
-        userSelect: "none",
-        flexShrink: 0,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--io-accent)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--io-border)";
-      }}
-    >
-      <ReportElementPreview elementType={elementType} size={previewSize} />
-      {!collapsed && (
-        <span
-          style={{
-            fontSize: 8,
-            color: "var(--io-text-muted)",
-            textAlign: "center",
-            lineHeight: 1.1,
-          }}
-        >
-          {label.length > 11 ? label.slice(0, 10) + "…" : label}
-        </span>
-      )}
-    </div>
-  );
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
 
   return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>
-        {tileDiv}
-      </ContextMenuPrimitive.Trigger>
-      <ContextMenuPrimitive.Portal>
-        <ContextMenuPrimitive.Content style={cmContentStyle}>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handlePlaceAtCenter}
+    <>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        title={label}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          width: size,
+          height: size,
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab",
+          color: "var(--io-text-secondary)",
+          userSelect: "none",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--io-border)";
+        }}
+      >
+        <ReportElementPreview elementType={elementType} size={previewSize} />
+        {!collapsed && (
+          <span
+            style={{
+              fontSize: 8,
+              color: "var(--io-text-muted)",
+              textAlign: "center",
+              lineHeight: 1.1,
+            }}
           >
-            Place at Center
-          </ContextMenuPrimitive.Item>
-          <ContextMenuPrimitive.Item
-            style={cmItemStyle}
-            onSelect={handleAddToFavorites}
-          >
-            Add to Favorites
-          </ContextMenuPrimitive.Item>
-        </ContextMenuPrimitive.Content>
-      </ContextMenuPrimitive.Portal>
-    </ContextMenuPrimitive.Root>
+            {label.length > 11 ? label.slice(0, 10) + "…" : label}
+          </span>
+        )}
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: "Place at Center", onClick: handlePlaceAtCenter },
+            { label: "Add to Favorites", onClick: handleAddToFavorites },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 
