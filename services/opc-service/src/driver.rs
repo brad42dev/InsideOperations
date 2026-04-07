@@ -190,6 +190,12 @@ pub async fn run_source(
     let mut attempt: u32 = 0;
     let mut backoff_secs: u64 = 5;
     let mut last_error: Option<String> = None;
+    // Tracks when we first entered a persistent-error state (post-watchdog/disconnect).
+    // If we stay in error for more than 15 minutes without a successful
+    // connection, the process exits so the external watchdog can restart it
+    // with a clean OPC UA library state.
+    let mut error_streak_start: Option<std::time::Instant> = None;
+    const SELF_RESTART_AFTER: Duration = Duration::from_secs(900); // 15 minutes
 
     loop {
         attempt += 1;
@@ -206,11 +212,29 @@ pub async fn run_source(
                 .unwrap_or("Too many reconnect failures");
             error!(
                 source = %source.name,
-                "Persistent OPC UA connection failure after 10 attempts; marking error"
+                attempt,
+                error_streak_secs = error_streak_start.map(|t| t.elapsed().as_secs()),
+                "Persistent OPC UA connection failure after 10 attempts; slowing reconnect"
             );
             if let Err(e) = db::set_source_status(&db, source.id, "error", Some(msg)).await {
                 warn!(source = %source.name, error = %e, "Failed to set source status to error");
             }
+
+            // Self-restart: if we have been unable to reconnect for >15 minutes,
+            // exit the process so the external watchdog can bring it back with
+            // a clean OPC UA library state.  This is a last resort — the watchdog
+            // must be running for this to be effective.
+            if let Some(start) = error_streak_start {
+                if start.elapsed() >= SELF_RESTART_AFTER {
+                    error!(
+                        source = %source.name,
+                        elapsed_secs = start.elapsed().as_secs(),
+                        "OPC reconnect failed for >15 minutes — forcing process exit for supervisor restart"
+                    );
+                    std::process::exit(1);
+                }
+            }
+
             // Wait longer, but still honour manual reconnect requests.
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(config.reconnect_max_secs)) => {}
@@ -239,10 +263,11 @@ pub async fn run_source(
 
         match run_source_once(&source, &db, &uds, &config, &sessions).await {
             Ok(watchdog_triggered) => {
-                info!(source = %source.name, "OPC UA driver exited cleanly");
+                info!(source = %source.name, watchdog_triggered, "OPC UA driver exited cleanly");
                 last_error = None;
                 attempt = 0;
                 backoff_secs = 5;
+                error_streak_start = None; // successful session — reset streak
 
                 if watchdog_triggered {
                     // Watchdog fired — no updates for 5 minutes.  Schedule a history
@@ -281,8 +306,18 @@ pub async fn run_source(
             }
             Err(e) => {
                 let msg = e.to_string();
-                warn!(source = %source.name, error = %msg, "OPC UA driver error");
+                warn!(
+                    source = %source.name,
+                    attempt,
+                    error = %msg,
+                    error_streak_secs = error_streak_start.map(|t| t.elapsed().as_secs()),
+                    "OPC UA reconnect attempt failed"
+                );
                 last_error = Some(msg);
+                // Start tracking the error streak on first failure.
+                if error_streak_start.is_none() {
+                    error_streak_start = Some(std::time::Instant::now());
+                }
             }
         }
 
@@ -381,16 +416,15 @@ async fn run_source_once(
     // hostnames) that don't match the DNS name the client uses to reach
     // them.  We discover the actual endpoint, patch its hostname with
     // ours, and use it for the real connection.
-    // A 30-second timeout prevents a hung TCP connection from blocking the
-    // reconnect loop indefinitely when the server accepts TCP but stops
-    // responding to OPC UA discovery requests.
+    // 8-second timeout: enough for a slow server, short enough that the
+    // reconnect loop remains responsive when the server is completely down.
     let discovery_result = tokio::time::timeout(
-        Duration::from_secs(30),
+        Duration::from_secs(8),
         client.get_server_endpoints_from_url(endpoint_url.as_str()),
     )
     .await
     .unwrap_or_else(|_| {
-        warn!(endpoint_url = %endpoint_url, "OPC UA endpoint discovery timed out (30s) — using configured endpoint");
+        warn!(endpoint_url = %endpoint_url, "OPC UA endpoint discovery timed out (8s) — using configured endpoint");
         Ok(vec![])
     });
     match discovery_result {

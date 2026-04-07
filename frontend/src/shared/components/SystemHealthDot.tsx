@@ -70,30 +70,29 @@ async function fetchHealth(): Promise<ServiceHealth[]> {
   }
 }
 
-// OPC source status from /api/opc/sources/stats (best-effort)
-interface OpcSourceStat {
-  source_id: string;
-  name: string;
-  connected: boolean;
+// OPC connection + data-flow status from /api/health/opc-status.
+// This endpoint requires only a valid JWT (no settings:read permission),
+// so it reliably reflects real state for all authenticated users.
+interface OpcStatusData {
+  sources_active: number;
+  sources_total: number;
+  all_offline: boolean;
+  last_data_at: string | null;
+  data_stale: boolean;
 }
 
-async function fetchOpcSources(): Promise<OpcSourceStat[]> {
+async function fetchOpcStatus(): Promise<OpcStatusData | null> {
   try {
     const token = localStorage.getItem("io_access_token") ?? "";
-    const r = await fetch("/api/opc/sources/stats", {
+    const r = await fetch("/api/health/opc-status", {
       signal: AbortSignal.timeout(3000),
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!r.ok) return [];
-    const body = (await r.json()) as
-      | { data?: OpcSourceStat[] }
-      | OpcSourceStat[];
-    if (Array.isArray(body)) return body;
-    if (Array.isArray((body as { data?: OpcSourceStat[] }).data))
-      return (body as { data: OpcSourceStat[] }).data;
-    return [];
+    if (!r.ok) return null;
+    const body = (await r.json()) as { data?: OpcStatusData };
+    return body.data ?? null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -144,11 +143,11 @@ export function SystemHealthDot() {
     staleTime: 10_000,
   });
 
-  const { data: opcSources } = useQuery({
-    queryKey: ["system-health-opc-sources"],
-    queryFn: fetchOpcSources,
-    refetchInterval: 30_000,
-    staleTime: 25_000,
+  const { data: opcStatus } = useQuery({
+    queryKey: ["system-health-opc-status"],
+    queryFn: fetchOpcStatus,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
   const [wsState, setWsState] = useState<WsConnectionState>(
@@ -183,8 +182,9 @@ export function SystemHealthDot() {
   }, [services]);
 
   // Compute OPC stats
-  const totalOpc = opcSources?.length ?? 0;
-  const activeOpc = opcSources?.filter((s) => s.connected).length ?? 0;
+  const totalOpc = opcStatus?.sources_total ?? 0;
+  const activeOpc = opcStatus?.sources_active ?? 0;
+  const opcDataStale = opcStatus?.data_stale ?? false;
 
   // Compute aggregate service status
   let serviceAggregate: ServiceStatus = "unknown";
@@ -198,23 +198,25 @@ export function SystemHealthDot() {
     else serviceAggregate = "unknown";
   }
 
-  // Compute dot color per spec:
-  // Red   — WS disconnected >30s OR (totalOpc>0 AND activeOpc===0)
-  // Yellow — degraded services OR WS reconnecting
+  // Compute dot color:
+  // Red    — WS disconnected >30s, all OPC sources offline, or service unhealthy
+  // Yellow — degraded services, WS reconnecting, or data flow stale
   // Green  — all pass
-  // Gray   — unknown
+  // Gray   — unknown / initial
   let dotColor: DotColor = "gray";
   const wsDisconnectedTooLong =
     disconnectedAt !== null && Date.now() - disconnectedAt > 30_000;
-  const allOpcOffline = totalOpc > 0 && activeOpc === 0;
-  if (wsDisconnectedTooLong || allOpcOffline) {
+  const allOpcOffline = opcStatus?.all_offline ?? (totalOpc > 0 && activeOpc === 0);
+  if (wsDisconnectedTooLong || allOpcOffline || serviceAggregate === "unhealthy") {
     dotColor = "red";
-  } else if (serviceAggregate === "degraded" || wsState === "connecting") {
+  } else if (
+    serviceAggregate === "degraded" ||
+    wsState === "connecting" ||
+    opcDataStale
+  ) {
     dotColor = "yellow";
   } else if (serviceAggregate === "healthy" && wsState === "connected") {
     dotColor = "green";
-  } else if (serviceAggregate === "unhealthy") {
-    dotColor = "red";
   }
 
   // Trigger pulse when color changes
@@ -265,11 +267,15 @@ export function SystemHealthDot() {
   const opcLabel =
     totalOpc === 0
       ? "No sources configured"
-      : `${activeOpc}/${totalOpc} sources active`;
+      : allOpcOffline
+        ? `0/${totalOpc} offline`
+        : opcDataStale
+          ? `${activeOpc}/${totalOpc} active — data stale`
+          : `${activeOpc}/${totalOpc} sources active`;
 
   const opcLabelColor = allOpcOffline
     ? "#ef4444"
-    : activeOpc < totalOpc
+    : opcDataStale || activeOpc < totalOpc
       ? "#fbbf24"
       : "#22c55e";
 

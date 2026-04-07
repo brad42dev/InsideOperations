@@ -327,6 +327,203 @@ impl HealthCheckable for UnixSocketCheck {
 }
 
 // ---------------------------------------------------------------------------
+// OpcActiveSourcesCheck — verifies at least one OPC source is connected
+// ---------------------------------------------------------------------------
+
+/// Health check that queries `point_sources` and fails when all enabled sources
+/// are offline.  Non-critical by default (yields `degraded`, not `not_ready`).
+pub struct OpcActiveSourcesCheck {
+    pool: sqlx::PgPool,
+    name: String,
+    critical: bool,
+}
+
+impl OpcActiveSourcesCheck {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self {
+            pool,
+            name: "opc_active_sources".to_string(),
+            critical: false,
+        }
+    }
+
+    /// Override to make a failure mark the service as `not_ready` (503).
+    pub fn make_critical(mut self) -> Self {
+        self.critical = true;
+        self
+    }
+}
+
+#[async_trait]
+impl HealthCheckable for OpcActiveSourcesCheck {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn critical(&self) -> bool {
+        self.critical
+    }
+
+    async fn check(&self) -> HealthStatus {
+        let start = Instant::now();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            sqlx::query(
+                "SELECT \
+                    COUNT(*) FILTER (WHERE status = 'active') AS active_count, \
+                    COUNT(*)                                   AS total_count \
+                 FROM point_sources \
+                 WHERE enabled = true",
+            )
+            .fetch_one(&self.pool),
+        )
+        .await;
+
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(Ok(row)) => {
+                use sqlx::Row;
+                let active: i64 = row.try_get("active_count").unwrap_or(0);
+                let total: i64 = row.try_get("total_count").unwrap_or(0);
+
+                if total == 0 {
+                    // No sources configured — not an error (fresh deployment).
+                    HealthStatus {
+                        status: CheckStatus::Ok,
+                        latency_ms,
+                        error: None,
+                    }
+                } else if active > 0 {
+                    HealthStatus {
+                        status: CheckStatus::Ok,
+                        latency_ms,
+                        error: None,
+                    }
+                } else {
+                    HealthStatus {
+                        status: CheckStatus::Error,
+                        latency_ms,
+                        error: Some(format!("0/{total} OPC sources active")),
+                    }
+                }
+            }
+            Ok(Err(e)) => HealthStatus {
+                status: CheckStatus::Error,
+                latency_ms,
+                error: Some(e.to_string()),
+            },
+            Err(_) => HealthStatus {
+                status: CheckStatus::Timeout,
+                latency_ms: 2000,
+                error: Some("opc_active_sources query timed out".to_string()),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OpcDataFlowCheck — verifies data is arriving recently
+// ---------------------------------------------------------------------------
+
+/// Health check that queries `points_current` for the most recent `updated_at`
+/// timestamp and fails if data is older than `stale_secs`.  Non-critical by
+/// default.
+pub struct OpcDataFlowCheck {
+    pool: sqlx::PgPool,
+    stale_secs: i64,
+    name: String,
+    critical: bool,
+}
+
+impl OpcDataFlowCheck {
+    /// `stale_secs`: silence window before reporting unhealthy (e.g. 300 = 5 min).
+    pub fn new(pool: sqlx::PgPool, stale_secs: u64) -> Self {
+        Self {
+            pool,
+            stale_secs: stale_secs as i64,
+            name: "opc_data_flow".to_string(),
+            critical: false,
+        }
+    }
+}
+
+#[async_trait]
+impl HealthCheckable for OpcDataFlowCheck {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn critical(&self) -> bool {
+        self.critical
+    }
+
+    async fn check(&self) -> HealthStatus {
+        let start = Instant::now();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            sqlx::query(
+                "SELECT MAX(updated_at) AS last_at, COUNT(*) AS point_count FROM points_current",
+            )
+            .fetch_one(&self.pool),
+        )
+        .await;
+
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        match result {
+            Ok(Ok(row)) => {
+                use sqlx::Row;
+                let last_at: Option<chrono::DateTime<chrono::Utc>> =
+                    row.try_get("last_at").ok().flatten();
+                let count: i64 = row.try_get("point_count").unwrap_or(0);
+
+                match last_at {
+                    None => {
+                        // No data yet (fresh deployment or no configured sources).
+                        HealthStatus {
+                            status: CheckStatus::Ok,
+                            latency_ms,
+                            error: None,
+                        }
+                    }
+                    Some(ts) => {
+                        let age_secs =
+                            (chrono::Utc::now() - ts).num_seconds();
+                        if age_secs > self.stale_secs {
+                            HealthStatus {
+                                status: CheckStatus::Error,
+                                latency_ms,
+                                error: Some(format!(
+                                    "last data {age_secs}s ago ({count} points tracked), threshold {}s",
+                                    self.stale_secs
+                                )),
+                            }
+                        } else {
+                            HealthStatus {
+                                status: CheckStatus::Ok,
+                                latency_ms,
+                                error: None,
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Err(e)) => HealthStatus {
+                status: CheckStatus::Error,
+                latency_ms,
+                error: Some(e.to_string()),
+            },
+            Err(_) => HealthStatus {
+                status: CheckStatus::Timeout,
+                latency_ms: 2000,
+                error: Some("opc_data_flow query timed out".to_string()),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RedisCheck — stub (not currently used by any service but fulfils the spec)
 // ---------------------------------------------------------------------------
 

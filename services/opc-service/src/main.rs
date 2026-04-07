@@ -67,6 +67,10 @@ async fn main() -> anyhow::Result<()> {
     let mut health = io_health::HealthRegistry::new("opc-service", env!("CARGO_PKG_VERSION"));
     health.register(io_health::PgDatabaseCheck::new(db.clone()));
     health.register(io_health::UnixSocketCheck::new(config.opc_broker_sock.clone()).non_critical());
+    // OPC-specific checks: degrade the service when no sources are connected or
+    // when data has stopped flowing (both non-critical so the service stays reachable).
+    health.register(io_health::OpcActiveSourcesCheck::new(db.clone()));
+    health.register(io_health::OpcDataFlowCheck::new(db.clone(), 300));
     health.mark_startup_complete();
 
     let app_state = AppState {

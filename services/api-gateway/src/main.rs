@@ -1001,6 +1001,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/system/sbom", get(handlers::system::download_sbom))
         // System health aggregation
         .route("/api/health/services", get(service_health_handler))
+        .route("/api/health/opc-status", get(health_opc_status_handler))
         .route("/api/health/websocket", get(health_websocket_handler))
         .route("/api/health/database", get(health_database_handler))
         .route("/api/health/jobs", get(health_jobs_handler))
@@ -1342,8 +1343,10 @@ const BACKEND_SERVICES: &[(&str, u16)] = &[
     ("recognition-service", 3010),
 ];
 
-/// GET /api/health/services — fan out to all 11 service /health/live endpoints
-/// and return their aggregated status. Requires authentication (JWT middleware).
+/// GET /api/health/services — fan out to all 11 service /health/ready endpoints
+/// and return their aggregated status.  Parses the body `status` field so
+/// functional degradation (e.g. OPC disconnected) shows as "degraded" rather
+/// than "healthy".  Requires authentication (JWT middleware).
 async fn service_health_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
@@ -1355,17 +1358,44 @@ async fn service_health_handler(
         .iter()
         .map(|(name, port)| {
             let client = client.clone();
-            let url = format!("http://127.0.0.1:{}/health/live", port);
+            // Use /health/ready — runs real checks (DB, OPC connection, data flow).
+            // /health/live always returns 200 while the process is up, which masks
+            // functional failures like OPC disconnection.
+            let url = format!("http://127.0.0.1:{}/health/ready", port);
             let name = *name;
             async move {
                 let status = match client
                     .get(&url)
-                    .timeout(std::time::Duration::from_secs(2))
+                    .timeout(std::time::Duration::from_secs(3))
                     .send()
                     .await
                 {
-                    Ok(resp) if resp.status().is_success() => "healthy",
-                    Ok(_) => "unhealthy",
+                    Ok(resp) => {
+                        let http_ok = resp.status().is_success();
+                        // Parse the body status field for richer mapping.
+                        match resp.json::<serde_json::Value>().await {
+                            Ok(body) => {
+                                match body
+                                    .get("status")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                {
+                                    "ready" => "healthy",
+                                    "degraded" => "degraded",
+                                    _ if !http_ok => "unhealthy",
+                                    _ => "degraded",
+                                }
+                            }
+                            // Body unreadable — fall back to HTTP status code.
+                            Err(_) => {
+                                if http_ok {
+                                    "healthy"
+                                } else {
+                                    "unhealthy"
+                                }
+                            }
+                        }
+                    }
                     Err(_) => "unhealthy",
                 };
                 json!({ "name": name, "port": port, "status": status })
@@ -1375,6 +1405,52 @@ async fn service_health_handler(
 
     let results: Vec<Value> = join_all(tasks).await;
     axum::Json(json!({ "success": true, "data": results }))
+}
+
+/// GET /api/health/opc-status — lightweight OPC connection + data-flow status.
+///
+/// Requires authentication (any valid JWT) but no specific RBAC permission.
+/// Used by SystemHealthDot to avoid the `settings:read` requirement of
+/// `/api/opc/sources/stats`, which caused silent 403s that masked OPC outages.
+async fn health_opc_status_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+
+    // Active vs total enabled OPC sources.
+    let (sources_active, sources_total): (i64, i64) = sqlx::query_as(
+        "SELECT \
+            COUNT(*) FILTER (WHERE status = 'active'), \
+            COUNT(*) \
+         FROM point_sources \
+         WHERE enabled = true",
+    )
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or((0, 0));
+
+    // Most recent data point timestamp.
+    let last_data_at: Option<chrono::DateTime<chrono::Utc>> =
+        sqlx::query_scalar("SELECT MAX(updated_at) FROM points_current")
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(None);
+
+    // Stale = last data older than 5 minutes (300s).
+    let data_stale = last_data_at
+        .map(|t| (chrono::Utc::now() - t).num_seconds() > 300)
+        .unwrap_or(false);
+
+    axum::Json(json!({
+        "success": true,
+        "data": {
+            "sources_active": sources_active,
+            "sources_total": sources_total,
+            "all_offline": sources_total > 0 && sources_active == 0,
+            "last_data_at": last_data_at.map(|t| t.to_rfc3339()),
+            "data_stale": data_stale,
+        }
+    }))
 }
 
 /// GET /api/health/websocket — returns live WebSocket stats from the data-broker.
