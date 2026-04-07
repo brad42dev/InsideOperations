@@ -1085,7 +1085,7 @@ export default function AppShell() {
       }
 
       // Ctrl+K / Cmd+K — command palette
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "k") {
         e.preventDefault();
         setPaletteOpen((v) => !v);
         return;

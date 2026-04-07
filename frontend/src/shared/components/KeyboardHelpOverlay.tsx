@@ -170,6 +170,7 @@ const MODULE_LABELS: Record<string, string> = {
   log: "Log",
   rounds: "Rounds",
   alerts: "Alerts",
+  shifts: "Shifts",
   settings: "Settings",
 };
 
