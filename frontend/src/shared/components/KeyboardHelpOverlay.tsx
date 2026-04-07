@@ -1,5 +1,6 @@
 /**
- * KeyboardHelpOverlay — shows all registered keyboard shortcuts when '?' is pressed.
+ * KeyboardHelpOverlay — shows keyboard shortcuts for the current module plus
+ * global application shortcuts when '?' is pressed or the topbar button is clicked.
  *
  * Spec reference: design-docs/06_FRONTEND_SHELL.md §Keyboard Shortcuts
  * Task: DD-06-013
@@ -8,20 +9,17 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { ROUTE_REGISTRY } from "../routes/registry";
+import {
+  MODULE_SHORTCUTS,
+  type ShortcutEntry,
+  type ShortcutSection,
+} from "../keyboard/shortcutRegistry";
 
 interface KeyboardHelpOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-interface ShortcutEntry {
-  keys: string[];
-  description: string;
-}
-
-interface ShortcutSection {
-  title: string;
-  shortcuts: ShortcutEntry[];
+  /** First path segment of the current route (e.g. "console", "designer"). */
+  currentModule?: string;
 }
 
 // Build the navigation section dynamically from ROUTE_REGISTRY so it stays
@@ -33,7 +31,7 @@ const NAV_SHORTCUTS: ShortcutEntry[] = ROUTE_REGISTRY.filter(
   description: `Go to ${r.sidebar_label}`,
 }));
 
-const SECTIONS: ShortcutSection[] = [
+const GLOBAL_SECTIONS: ShortcutSection[] = [
   {
     title: "Sidebar",
     shortcuts: [
@@ -55,10 +53,10 @@ const SECTIONS: ShortcutSection[] = [
     title: "Application",
     shortcuts: [
       { keys: ["Ctrl", "K"], description: "Open command palette" },
+      { keys: ["Ctrl", "L"], description: "Lock screen" },
       { keys: ["Ctrl", "Shift", "K"], description: "Toggle kiosk mode" },
       { keys: ["F8"], description: "Open notification history panel" },
-      { keys: ["?"], description: "Show keyboard shortcuts (this overlay)" },
-      { keys: ["Esc"], description: "Dismiss overlay / exit kiosk" },
+      { keys: ["?"], description: "Show keyboard shortcuts (this panel)" },
     ],
   },
   {
@@ -76,10 +74,10 @@ function KeyBadge({ label }: { label: string }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minWidth: "28px",
-        height: "22px",
-        padding: "0 6px",
-        borderRadius: "4px",
+        minWidth: "22px",
+        height: "20px",
+        padding: "0 5px",
+        borderRadius: "3px",
         background: "var(--io-surface-secondary)",
         border: "1px solid var(--io-border-subtle)",
         boxShadow: "0 1px 0 0 var(--io-border-subtle)",
@@ -104,12 +102,12 @@ function ShortcutRow({ keys, description }: ShortcutEntry) {
         alignItems: "center",
         justifyContent: "space-between",
         gap: "12px",
-        padding: "5px 0",
+        padding: "4px 0",
       }}
     >
       <span
         style={{
-          fontSize: "13px",
+          fontSize: "12px",
           color: "var(--io-text-primary)",
           flexShrink: 1,
           minWidth: 0,
@@ -121,7 +119,7 @@ function ShortcutRow({ keys, description }: ShortcutEntry) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "4px",
+          gap: "3px",
           flexShrink: 0,
         }}
       >
@@ -135,17 +133,18 @@ function ShortcutRow({ keys, description }: ShortcutEntry) {
 
 // ─── Section ──────────────────────────────────────────────────────────────────
 
-function ShortcutSection({ title, shortcuts }: ShortcutSection) {
+function ShortcutSectionBlock({ title, shortcuts }: ShortcutSection) {
+  if (shortcuts.length === 0) return null;
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "18px" }}>
       <div
         style={{
-          fontSize: "11px",
+          fontSize: "10px",
           fontWeight: 600,
           letterSpacing: "0.06em",
           textTransform: "uppercase",
           color: "var(--io-text-muted)",
-          marginBottom: "8px",
+          marginBottom: "6px",
         }}
       >
         {title}
@@ -159,12 +158,61 @@ function ShortcutSection({ title, shortcuts }: ShortcutSection) {
   );
 }
 
+// ─── Module label map ─────────────────────────────────────────────────────────
+
+const MODULE_LABELS: Record<string, string> = {
+  console: "Console",
+  process: "Process",
+  designer: "Designer",
+  dashboards: "Dashboards",
+  reports: "Reports",
+  forensics: "Forensics",
+  log: "Log",
+  rounds: "Rounds",
+  alerts: "Alerts",
+  settings: "Settings",
+};
+
+// ─── Column layout helper ────────────────────────────────────────────────────
+// Designer has many sections — split into two columns to avoid excessive scroll.
+
+function TwoColumnSections({ sections }: { sections: ShortcutSection[] }) {
+  const nonEmpty = sections.filter((s) => s.shortcuts.length > 0);
+  const half = Math.ceil(nonEmpty.length / 2);
+  const left = nonEmpty.slice(0, half);
+  const right = nonEmpty.slice(half);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
+      <div>
+        {left.map((s) => (
+          <ShortcutSectionBlock key={s.title} title={s.title} shortcuts={s.shortcuts} />
+        ))}
+      </div>
+      <div>
+        {right.map((s) => (
+          <ShortcutSectionBlock key={s.title} title={s.title} shortcuts={s.shortcuts} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main overlay ─────────────────────────────────────────────────────────────
 
 export default function KeyboardHelpOverlay({
   open,
   onOpenChange,
+  currentModule,
 }: KeyboardHelpOverlayProps) {
+  const moduleSections: ShortcutSection[] = currentModule
+    ? (MODULE_SHORTCUTS[currentModule] ?? [])
+    : [];
+  const nonEmptyModuleSections = moduleSections.filter(
+    (s) => s.shortcuts.length > 0,
+  );
+  const moduleLabel = currentModule ? MODULE_LABELS[currentModule] : undefined;
+  const useWide = currentModule === "designer";
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -184,9 +232,9 @@ export default function KeyboardHelpOverlay({
             left: "50%",
             transform: "translate(-50%, -50%)",
             zIndex: 1201,
-            width: "480px",
+            width: useWide ? "720px" : "480px",
             maxWidth: "calc(100vw - 32px)",
-            maxHeight: "80vh",
+            maxHeight: "85vh",
             overflowY: "auto",
             background: "var(--io-surface-overlay)",
             border: "1px solid var(--io-border-default)",
@@ -204,16 +252,31 @@ export default function KeyboardHelpOverlay({
               marginBottom: "20px",
             }}
           >
-            <Dialog.Title
-              style={{
-                margin: 0,
-                fontSize: "15px",
-                fontWeight: 600,
-                color: "var(--io-text-primary)",
-              }}
-            >
-              Keyboard Shortcuts
-            </Dialog.Title>
+            <div>
+              <Dialog.Title
+                style={{
+                  margin: 0,
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  color: "var(--io-text-primary)",
+                }}
+              >
+                Keyboard Shortcuts
+              </Dialog.Title>
+              {moduleLabel && (
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--io-text-muted)",
+                    marginTop: "2px",
+                  }}
+                >
+                  Showing shortcuts for{" "}
+                  <span style={{ color: "var(--io-accent)" }}>{moduleLabel}</span>{" "}
+                  + global
+                </div>
+              )}
+            </div>
             <Dialog.Close
               style={{
                 display: "flex",
@@ -234,9 +297,33 @@ export default function KeyboardHelpOverlay({
             </Dialog.Close>
           </div>
 
-          {/* Sections */}
-          {SECTIONS.map((section) => (
-            <ShortcutSection
+          {/* Module-specific sections */}
+          {nonEmptyModuleSections.length > 0 && (
+            <>
+              {useWide ? (
+                <TwoColumnSections sections={moduleSections} />
+              ) : (
+                moduleSections.map((section) => (
+                  <ShortcutSectionBlock
+                    key={section.title}
+                    title={section.title}
+                    shortcuts={section.shortcuts}
+                  />
+                ))
+              )}
+              {/* Divider before global shortcuts */}
+              <div
+                style={{
+                  borderTop: "1px solid var(--io-border-subtle)",
+                  margin: "4px 0 20px",
+                }}
+              />
+            </>
+          )}
+
+          {/* Global sections */}
+          {GLOBAL_SECTIONS.map((section) => (
+            <ShortcutSectionBlock
               key={section.title}
               title={section.title}
               shortcuts={section.shortcuts}

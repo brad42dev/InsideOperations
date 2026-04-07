@@ -28,6 +28,7 @@ import {
   Lock,
   ChevronLeft,
   ChevronsRight,
+  Keyboard,
 } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { useUiStore } from "../../store/ui";
@@ -1233,6 +1234,9 @@ export default function AppShell() {
   // module's own header — don't repeat it in the app top bar.
   const isTopLevelModulePage =
     location.pathname.split("/").filter(Boolean).length === 1;
+  // First path segment identifies the active module for context-aware shortcut help.
+  const currentModule =
+    location.pathname.split("/").filter(Boolean)[0] ?? undefined;
 
   return (
     <div
@@ -1915,6 +1919,41 @@ export default function AppShell() {
               </button>
             )}
 
+            {/* Keyboard shortcuts button */}
+            {!isKiosk && (
+              <button
+                onClick={() => setHelpOpen(true)}
+                title="Keyboard shortcuts (?)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  background: "none",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-muted)",
+                  cursor: "pointer",
+                  padding: "5px 8px",
+                  fontSize: "12px",
+                }}
+              >
+                <Keyboard size={13} />
+                <span>Shortcuts</span>
+                <kbd
+                  style={{
+                    fontSize: "10px",
+                    background: "var(--io-surface-elevated)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "3px",
+                    padding: "1px 4px",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  ?
+                </kbd>
+              </button>
+            )}
+
             {/* Popup blocked compact indicator — shown when full banner is dismissed */}
             {!isKiosk && <PopupBlockedIndicator state={popupBlockedState} />}
 
@@ -2569,7 +2608,11 @@ export default function AppShell() {
       <LockOverlay />
       <EmergencyAlert />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-      <KeyboardHelpOverlay open={helpOpen} onOpenChange={setHelpOpen} />
+      <KeyboardHelpOverlay
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        currentModule={currentModule}
+      />
       <NotificationHistoryPanel />
 
       {/* Corner dwell triggers — only in kiosk mode */}
