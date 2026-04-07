@@ -1407,11 +1407,10 @@ async fn health_database_handler(
 
     let db = &state.db;
 
-    let db_size: Option<i64> =
-        sqlx::query_scalar("SELECT pg_database_size(current_database())")
-            .fetch_one(db)
-            .await
-            .ok();
+    let db_size: Option<i64> = sqlx::query_scalar("SELECT pg_database_size(current_database())")
+        .fetch_one(db)
+        .await
+        .ok();
 
     let ts_version: Option<String> =
         sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")
@@ -1473,21 +1472,17 @@ async fn health_database_handler(
 }
 
 /// GET /api/health/jobs — queue depths for email, exports, imports, and alerts.
-async fn health_jobs_handler(
-    State(state): State<AppState>,
-) -> impl axum::response::IntoResponse {
+async fn health_jobs_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
     use serde_json::json;
     use sqlx::Row;
 
     let db = &state.db;
 
     // Email queue counts by status
-    let email_rows = sqlx::query(
-        "SELECT status, COUNT(*) AS cnt FROM email_queue GROUP BY status",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+    let email_rows = sqlx::query("SELECT status, COUNT(*) AS cnt FROM email_queue GROUP BY status")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
 
     let mut email_pending = 0i64;
     let mut email_sent = 0i64;
@@ -1506,12 +1501,11 @@ async fn health_jobs_handler(
     }
 
     // Export jobs by status (all time)
-    let export_rows = sqlx::query(
-        "SELECT status, COUNT(*) AS cnt FROM export_jobs GROUP BY status",
-    )
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+    let export_rows =
+        sqlx::query("SELECT status, COUNT(*) AS cnt FROM export_jobs GROUP BY status")
+            .fetch_all(db)
+            .await
+            .unwrap_or_default();
 
     let mut export_active = 0i64;
     let mut export_queued = 0i64;
@@ -1628,10 +1622,7 @@ async fn health_metrics_handler(
         }
     };
 
-    let from: i64 = params
-        .get("from")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+    let from: i64 = params.get("from").and_then(|v| v.parse().ok()).unwrap_or(0);
     let to: i64 = params
         .get("to")
         .and_then(|v| v.parse().ok())
@@ -1721,37 +1712,35 @@ async fn health_services_detail_handler(
                 let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
 
                 match outcome {
-                    Ok(resp) => {
-                        match resp.json::<serde_json::Value>().await {
-                            Ok(body) => {
-                                let raw_status = body["status"].as_str().unwrap_or("unknown");
-                                let status = match raw_status {
-                                    "ready" => "healthy",
-                                    "degraded" => "degraded",
-                                    _ => "unhealthy",
-                                };
-                                let uptime_s = body["uptime_seconds"].as_u64().unwrap_or(0);
-                                let uptime = format_uptime(uptime_s);
-                                let version = body["version"].as_str().unwrap_or("—").to_string();
-                                json!({
-                                    "name": name,
-                                    "port": port,
-                                    "status": status,
-                                    "uptime": uptime,
-                                    "version": version,
-                                    "response_p50": elapsed_ms,
-                                    "response_p95": elapsed_ms,
-                                    "checked_at": now,
-                                })
-                            }
-                            Err(_) => json!({
+                    Ok(resp) => match resp.json::<serde_json::Value>().await {
+                        Ok(body) => {
+                            let raw_status = body["status"].as_str().unwrap_or("unknown");
+                            let status = match raw_status {
+                                "ready" => "healthy",
+                                "degraded" => "degraded",
+                                _ => "unhealthy",
+                            };
+                            let uptime_s = body["uptime_seconds"].as_u64().unwrap_or(0);
+                            let uptime = format_uptime(uptime_s);
+                            let version = body["version"].as_str().unwrap_or("—").to_string();
+                            json!({
                                 "name": name,
                                 "port": port,
-                                "status": "unhealthy",
+                                "status": status,
+                                "uptime": uptime,
+                                "version": version,
+                                "response_p50": elapsed_ms,
+                                "response_p95": elapsed_ms,
                                 "checked_at": now,
-                            }),
+                            })
                         }
-                    }
+                        Err(_) => json!({
+                            "name": name,
+                            "port": port,
+                            "status": "unhealthy",
+                            "checked_at": now,
+                        }),
+                    },
                     Err(_) => json!({
                         "name": name,
                         "port": port,

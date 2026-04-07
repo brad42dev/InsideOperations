@@ -4,6 +4,7 @@ pub struct Config {
     pub database_url: String,
     pub service_secret: String,
     pub port: u16,
+    pub opc_service_url: String,
 }
 
 impl Config {
@@ -14,6 +15,8 @@ impl Config {
             port: std::env::var("EVENT_SERVICE_PORT")
                 .unwrap_or_else(|_| "3003".to_string())
                 .parse()?,
+            opc_service_url: std::env::var("OPC_SERVICE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:3002".to_string()),
         })
     }
 }

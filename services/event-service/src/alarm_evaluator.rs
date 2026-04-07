@@ -535,11 +535,12 @@ pub async fn run_external_alarm_processor(db: PgPool) {
             r#"
             SELECT DISTINCT ON (point_id)
                 point_id,
+                severity,
                 metadata,
                 timestamp
             FROM events
             WHERE event_type = 'process_alarm'
-              AND source IN ('opc', 'import')
+              AND source = 'opc'
               AND point_id IS NOT NULL
               AND created_at > $1
             ORDER BY point_id, timestamp DESC
@@ -569,37 +570,136 @@ pub async fn run_external_alarm_processor(db: PgPool) {
                 None => continue,
             };
 
+            let severity: i16 = row.try_get("severity").unwrap_or(0);
+
             let active = meta
                 .get("active")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             let acked = meta.get("acked").and_then(|v| v.as_bool()).unwrap_or(false);
+            let retain = meta
+                .get("retain")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let suppressed_or_shelved = meta
                 .get("suppressed_or_shelved")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            // Derive priority: LimitState → priority number.
-            // "HighHigh" → 1 (Critical), "High" → 2, "Low" → 3, "LowLow" → 4, else advisory 4.
-            let limit_state = meta
-                .get("limit_state")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let priority = if active || acked {
-                limit_state_to_priority(limit_state)
+            // Derive priority from OPC UA Severity (0–1000) using SimBLAH severity ranges.
+            let priority_int = if active || acked {
+                severity_to_priority(severity)
             } else {
                 0 // Cleared
             };
+            let priority_enum = severity_to_priority_enum(severity);
 
-            let message = meta
+            let alarm_state = if active && !acked {
+                "active"
+            } else if active && acked {
+                "acknowledged"
+            } else if !active && !acked {
+                "rtn"
+            } else {
+                "cleared"
+            };
+
+            let condition_name = meta
+                .get("condition_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let limit_state: Option<String> = meta
+                .get("limit_state")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string());
+            let event_id_hex: Option<String> = meta
+                .get("external_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_id: Option<uuid::Uuid> = meta
+                .get("source_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| uuid::Uuid::parse_str(s).ok());
+            let message: Option<String> = meta
                 .get("condition_name")
                 .or_else(|| meta.get("message"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+            let event_ts: chrono::DateTime<chrono::Utc> = row.try_get("timestamp").unwrap_or(now);
+
+            // Upsert current alarm state — latest OPC event always wins.
+            if let Err(e) = sqlx::query(
+                r#"
+                INSERT INTO alarms_current (
+                    point_id, alarm_source, condition_name,
+                    state, priority, severity, limit_state,
+                    event_id_hex, source_id,
+                    active, acked, retain, suppressed_or_shelved,
+                    message, metadata, last_event_at,
+                    activated_at, cleared_at, updated_at
+                ) VALUES (
+                    $1, 'opc', $2,
+                    $3::alarm_state_enum, $4::alarm_priority_enum, $5, $6,
+                    $7, $8,
+                    $9, $10, $11, $12,
+                    $13, $14, $15,
+                    CASE WHEN $9 THEN $15 ELSE NULL END,
+                    CASE WHEN NOT $9 THEN $15 ELSE NULL END,
+                    NOW()
+                )
+                ON CONFLICT (point_id, alarm_source, condition_name) DO UPDATE SET
+                    state                = EXCLUDED.state,
+                    priority             = EXCLUDED.priority,
+                    severity             = EXCLUDED.severity,
+                    limit_state          = EXCLUDED.limit_state,
+                    event_id_hex         = EXCLUDED.event_id_hex,
+                    source_id            = COALESCE(EXCLUDED.source_id, alarms_current.source_id),
+                    active               = EXCLUDED.active,
+                    acked                = EXCLUDED.acked,
+                    retain               = EXCLUDED.retain,
+                    suppressed_or_shelved = EXCLUDED.suppressed_or_shelved,
+                    message              = EXCLUDED.message,
+                    metadata             = EXCLUDED.metadata,
+                    last_event_at        = EXCLUDED.last_event_at,
+                    activated_at         = CASE
+                        WHEN EXCLUDED.active AND NOT alarms_current.active
+                            THEN EXCLUDED.last_event_at
+                        ELSE alarms_current.activated_at
+                    END,
+                    cleared_at           = CASE
+                        WHEN NOT EXCLUDED.active AND alarms_current.active
+                            THEN EXCLUDED.last_event_at
+                        ELSE alarms_current.cleared_at
+                    END,
+                    updated_at           = NOW()
+                "#,
+            )
+            .bind(point_id)
+            .bind(&condition_name)
+            .bind(alarm_state)
+            .bind(priority_enum)
+            .bind(severity)
+            .bind(&limit_state)
+            .bind(&event_id_hex)
+            .bind(source_id)
+            .bind(active)
+            .bind(acked)
+            .bind(retain)
+            .bind(suppressed_or_shelved)
+            .bind(&message)
+            .bind(&meta)
+            .bind(event_ts)
+            .execute(&db)
+            .await
+            {
+                warn!(error = %e, %point_id, "External alarm processor: alarms_current upsert failed");
+            }
 
             let notify = NotifyAlarmState {
                 point_id,
-                priority,
+                priority: priority_int,
                 active,
                 unacknowledged: active && !acked,
                 suppressed: suppressed_or_shelved,
@@ -631,11 +731,29 @@ pub async fn run_external_alarm_processor(db: PgPool) {
     }
 }
 
-/// Map OPC UA LimitState/CurrentState string to ISA-18.2 priority integer.
-fn limit_state_to_priority(limit_state: &str) -> i32 {
-    match limit_state {
-        "HighHigh" | "LowLow" => 1,
-        "High" | "Low" => 2,
-        _ => 4, // Advisory when no specific limit state
+/// Map OPC UA Severity (0–1000) to ISA-18.2 priority integer.
+/// SimBLAH discrete values: 900 (P1), 600 (P2), 300 (P3), 0 (non-alarm).
+///   1 (urgent) : ≥750  — HighHigh / LowLow
+///   2 (high)   : ≥450  — High / Low limit alarms
+///   3 (medium) : ≥150  — Equipment / operational alarms
+///   4 (low)    : 1–149 — Meta-events
+fn severity_to_priority(severity: i16) -> i32 {
+    match severity {
+        750..=1000 => 1,
+        450..=749 => 2,
+        150..=449 => 3,
+        1..=149 => 4,
+        _ => 0,
+    }
+}
+
+/// Map OPC UA Severity to alarm_priority_enum string.
+fn severity_to_priority_enum(severity: i16) -> &'static str {
+    match severity {
+        750..=1000 => "urgent",
+        450..=749 => "high",
+        150..=449 => "medium",
+        1..=149 => "low",
+        _ => "diagnostic",
     }
 }

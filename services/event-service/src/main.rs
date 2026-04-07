@@ -39,9 +39,14 @@ async fn main() -> anyhow::Result<()> {
     health.register(io_health::PgDatabaseCheck::new(db.clone()));
     health.mark_startup_complete();
 
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+
     let state = AppState {
         db: db.clone(),
         config: cfg.clone(),
+        http,
     };
     let cfg_arc = Arc::new(cfg);
 
@@ -69,6 +74,15 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::alarms::acknowledge_alarm),
         )
         .route("/alarms/:id/shelve", post(handlers::alarms::shelve_alarm))
+        // OPC A&C alarm endpoints
+        .route(
+            "/alarms/opc/active",
+            get(handlers::alarms::get_opc_active_alarms),
+        )
+        .route(
+            "/alarms/opc/:point_id/acknowledge",
+            post(handlers::alarms::acknowledge_opc_alarm),
+        )
         .with_state(state)
         .merge(health.into_router())
         .merge(obs.metrics_router())

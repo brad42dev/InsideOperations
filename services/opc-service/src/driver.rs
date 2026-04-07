@@ -18,10 +18,11 @@ use opcua::client::{
 use opcua::crypto::SecurityPolicy;
 use opcua::types::{
     AttributeId, BrowseDescription, BrowseDirection, DataChangeFilter, DataChangeTrigger,
-    DataValue, DeadbandType, EndpointDescription, ExtensionObject, HistoryData, HistoryReadValueId,
-    MessageSecurityMode, MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters,
-    NodeClass, NodeId, NumericRange, QualifiedName, ReadRawModifiedDetails, ReadValueId,
-    ReferenceTypeId, StatusCode, TimestampsToReturn, UAString, Variant,
+    DataValue, DeadbandType, EndpointDescription, ExtensionObject, HistoryData, HistoryEvent,
+    HistoryReadValueId, MessageSecurityMode, MonitoredItemCreateRequest, MonitoringMode,
+    MonitoringParameters, NodeClass, NodeId, NumericRange, QualifiedName, ReadEventDetails,
+    ReadRawModifiedDetails, ReadValueId, ReferenceTypeId, StatusCode, TimestampsToReturn, UAString,
+    Variant,
 };
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -755,7 +756,28 @@ async fn run_source_once(
     // Store the handle so we can abort the drain task when this session ends,
     // preventing stale tasks from accumulating across reconnect cycles.
     let event_task =
-        create_event_subscription(source, db, &session, config, source_name_to_id).await;
+        create_event_subscription(source, db, &session, config, source_name_to_id.clone()).await;
+
+    // Spawn alarm event history recovery as a background task.
+    // Runs concurrently with the flush loop; ON CONFLICT DO NOTHING in write_opc_events
+    // handles deduplication with live subscription events.
+    {
+        let recover_source_id = source.id;
+        let recover_source_name = source.name.clone();
+        let recover_db = db.clone();
+        let recover_session = session.clone();
+        let recover_map = source_name_to_id.clone();
+        tokio::spawn(async move {
+            recover_alarm_event_history(
+                recover_source_id,
+                &recover_source_name,
+                &recover_db,
+                recover_session,
+                recover_map,
+            )
+            .await;
+        });
+    }
 
     // If all monitored items returned BadServiceUnsupported (0 good items), fall back to
     // periodic polling via OPC UA Read instead of subscriptions.  This handles servers
@@ -2768,6 +2790,314 @@ async fn run_pending_recovery_jobs(
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Alarm event history recovery (OPC UA Part 11 — ReadEventDetails)
+// ---------------------------------------------------------------------------
+
+/// Recover historical alarm events from SimBLAH via OPC UA HistoryRead / ReadEventDetails.
+///
+/// Queries the Server node (ns=0;i=2253) — the OPC UA standard target for historical
+/// event access.  Uses the same 10-field EventFilter as the live subscription but skips
+/// the limit-value fields (HighHighLimit etc.) that SimBLAH does not populate in history.
+///
+/// Returns the number of events written.  A non-fatal error (BadServiceUnsupported,
+/// server capability gap) is logged and treated as 0 events so startup continues.
+pub async fn recover_alarm_event_history(
+    source_id: Uuid,
+    source_name: &str,
+    db: &DbPool,
+    session: Arc<Session>,
+    source_name_to_id: Arc<HashMap<String, Uuid>>,
+) -> usize {
+    match recover_alarm_event_history_inner(source_id, source_name, db, session, source_name_to_id)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            warn!(
+                source = source_name,
+                error = %e,
+                "Alarm event history recovery failed (non-fatal)"
+            );
+            0
+        }
+    }
+}
+
+async fn recover_alarm_event_history_inner(
+    source_id: Uuid,
+    source_name: &str,
+    db: &DbPool,
+    session: Arc<Session>,
+    source_name_to_id: Arc<HashMap<String, Uuid>>,
+) -> anyhow::Result<usize> {
+    use anyhow::Context as _;
+    use opcua::types::{
+        ContentFilter, DateTime as OpcDateTime, EventFilter, SimpleAttributeOperand,
+    };
+
+    // Watermark: most recent event in DB for this source, or 90 days ago.
+    let watermark: chrono::DateTime<Utc> = sqlx::query_scalar(
+        "SELECT MAX(timestamp) FROM events WHERE event_type = 'process_alarm' AND source = 'opc'",
+    )
+    .fetch_optional(db)
+    .await
+    .unwrap_or(None)
+    .flatten()
+    .unwrap_or_else(|| Utc::now() - chrono::Duration::days(90));
+
+    let end_time = Utc::now();
+
+    if watermark >= end_time - chrono::Duration::seconds(5) {
+        debug!(
+            source = source_name,
+            "Alarm event history already up to date — skipping"
+        );
+        return Ok(0);
+    }
+
+    info!(
+        source = source_name,
+        from = %watermark,
+        to = %end_time,
+        "Starting alarm event history recovery"
+    );
+
+    // Build a 10-field EventFilter matching indices 0-9 of the live subscription.
+    // SimBLAH historical records don't include per-limit fields (12-15) so we omit them.
+    let field_names = [
+        "EventId",        // 0
+        "EventType",      // 1
+        "SourceName",     // 2
+        "Time",           // 3
+        "Severity",       // 4
+        "Message",        // 5
+        "ConditionName",  // 6
+        "AckedState/Id",  // 7
+        "ActiveState/Id", // 8
+        "Retain",         // 9
+    ];
+
+    let base_event_type = NodeId::new(0u16, 2041u32); // BaseEventType
+    let select_clauses: Vec<SimpleAttributeOperand> = field_names
+        .iter()
+        .map(|name| {
+            let parts: Vec<QualifiedName> =
+                name.split('/').map(|p| QualifiedName::new(0, p)).collect();
+            SimpleAttributeOperand {
+                type_definition_id: base_event_type.clone(),
+                browse_path: Some(parts),
+                attribute_id: 13, // Value
+                index_range: NumericRange::None,
+            }
+        })
+        .collect();
+
+    let event_filter = EventFilter {
+        select_clauses: Some(select_clauses),
+        where_clause: ContentFilter { elements: None },
+    };
+
+    let details = ReadEventDetails {
+        num_values_per_node: 1000,
+        start_time: OpcDateTime::from(watermark),
+        end_time: OpcDateTime::from(end_time),
+        filter: event_filter,
+    };
+
+    // Server node: ns=0;i=2253 — historical events are always queried globally.
+    let server_node_id = NodeId::new(0u16, 2253u32);
+
+    let mut continuation_point = opcua::types::ByteString::null();
+    let mut total = 0usize;
+    let mut page = 0u32;
+
+    loop {
+        page += 1;
+
+        let node = HistoryReadValueId {
+            node_id: server_node_id.clone(),
+            index_range: NumericRange::None,
+            data_encoding: QualifiedName::null(),
+            continuation_point: continuation_point.clone(),
+        };
+
+        let results = session
+            .history_read(
+                HistoryReadAction::ReadEventDetails(details.clone()),
+                TimestampsToReturn::Source,
+                false,
+                &[node],
+            )
+            .await
+            .map_err(|sc| anyhow::anyhow!("HistoryRead(events) page {page}: {sc}"))?;
+
+        let result = results
+            .into_iter()
+            .next()
+            .context("HistoryRead(events): empty result list")?;
+
+        if !result.status_code.is_good() {
+            // BadHistoryOperationUnsupported or similar — server doesn't support event history.
+            anyhow::bail!("HistoryRead(events) returned {}", result.status_code);
+        }
+
+        let history_event = match result.history_data.inner_as::<HistoryEvent>() {
+            Some(he) => he,
+            None => {
+                warn!(
+                    source = source_name,
+                    page, "Failed to decode HistoryEvent — stopping"
+                );
+                break;
+            }
+        };
+
+        let event_rows = history_event.events.as_deref().unwrap_or(&[]);
+        let mut batch: Vec<db::OpcEvent> = Vec::with_capacity(event_rows.len());
+
+        for row in event_rows {
+            let fields = row.event_fields.as_deref().unwrap_or(&[]);
+            let get = |i: usize| fields.get(i);
+
+            // Skip ConditionRefresh bracket events (shouldn't appear in history but be safe).
+            let event_type = get(1).and_then(|v| {
+                if let Variant::NodeId(nid) = v {
+                    Some(nid.to_string())
+                } else {
+                    None
+                }
+            });
+            if matches!(
+                event_type.as_deref(),
+                Some("ns=0;i=2787") | Some("ns=0;i=2788")
+            ) {
+                continue;
+            }
+
+            let event_id = get(0).and_then(|v| {
+                if let Variant::ByteString(bs) = v {
+                    bs.value.as_ref().map(|b| {
+                        b.iter()
+                            .map(|byte| format!("{:02x}", byte))
+                            .collect::<String>()
+                    })
+                } else {
+                    None
+                }
+            });
+
+            let source_name_field = get(2).and_then(|v| {
+                if let Variant::String(s) = v {
+                    s.value().as_ref().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
+
+            let timestamp = get(3)
+                .and_then(|v| {
+                    if let Variant::DateTime(dt) = v {
+                        Some(dt.as_chrono())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(Utc::now);
+
+            let severity = get(4).and_then(|v| {
+                if let Variant::UInt16(s) = v {
+                    Some(*s)
+                } else {
+                    None
+                }
+            });
+
+            let message = get(5).and_then(|v| match v {
+                Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+                Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
+                _ => None,
+            });
+
+            let condition_name = get(6).and_then(|v| {
+                if let Variant::String(s) = v {
+                    s.value().as_ref().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
+
+            let acked = get(7)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let active = get(8)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let retain = get(9)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let point_id = source_name_field
+                .as_deref()
+                .and_then(|name| source_name_to_id.get(name))
+                .copied();
+
+            batch.push(db::OpcEvent {
+                source_id,
+                point_id,
+                event_id,
+                event_type,
+                source_name: source_name_field,
+                timestamp,
+                severity,
+                message: message.or_else(|| Some("(no message)".to_string())),
+                condition_name,
+                acked,
+                active,
+                retain,
+                limit_state: None,
+                suppressed_or_shelved: false,
+                high_high_limit: None,
+                high_limit: None,
+                low_limit: None,
+                low_low_limit: None,
+            });
+        }
+
+        let batch_len = batch.len();
+        if batch_len > 0 {
+            db::write_opc_events(db, &batch)
+                .await
+                .context("write_opc_events during history recovery")?;
+            total += batch_len;
+        }
+
+        debug!(
+            source = source_name,
+            page,
+            batch = batch_len,
+            total,
+            "Alarm event history page"
+        );
+
+        continuation_point = result.continuation_point;
+        if continuation_point.is_null() {
+            break;
+        }
+    }
+
+    info!(
+        source = source_name,
+        total,
+        pages = page,
+        "Alarm event history recovery complete"
+    );
+
+    Ok(total)
 }
 
 // ---------------------------------------------------------------------------

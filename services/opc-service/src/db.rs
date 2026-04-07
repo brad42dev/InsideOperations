@@ -401,6 +401,22 @@ pub struct OpcEvent {
     pub low_low_limit: Option<f64>,
 }
 
+/// Map OPC UA Severity (0–1000) to ISA-18.2 alarm priority enum string.
+/// SimBLAH discrete severity values: 900 (P1/HH+LL), 600 (P2/H+L), 300 (P3/equipment), 0 (non-alarm).
+///   urgent (P1) : ≥750  — HighHigh / LowLow limit alarms
+///   high   (P2) : ≥450  — High / Low limit alarms
+///   medium (P3) : ≥150  — Equipment / operational alarms
+///   low    (P4) : 1–149 — Meta-events (ConditionRefresh etc.)
+fn severity_to_priority_enum(severity: i16) -> &'static str {
+    match severity {
+        750..=1000 => "urgent",
+        450..=749 => "high",
+        150..=449 => "medium",
+        1..=149 => "low",
+        _ => "diagnostic",
+    }
+}
+
 /// Batch-insert OPC UA events into the `events` hypertable.
 /// Alarm state machine metadata (active, acked, retain) is stored in the `metadata` JSONB column.
 pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Result<()> {
@@ -421,9 +437,6 @@ pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Resul
             "cleared"
         };
 
-        // limit_state → ISA-18.2 priority integer for the events.priority column.
-        // The external alarm processor in event-service reads limit_state from
-        // metadata to derive the same priority for the alarm_state_changed broadcast.
         let limit_state = ev.limit_state.as_deref().unwrap_or("");
 
         // Build metadata JSONB with all OPC A&C fields.
@@ -451,33 +464,44 @@ pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Resul
 
         let message = ev.message.as_deref().unwrap_or("(no message)");
 
+        let priority = severity_to_priority_enum(severity);
+
         sqlx::query(
             r#"
             INSERT INTO events (
                 event_type,
                 source,
                 severity,
+                priority,
                 point_id,
                 message,
                 timestamp,
                 source_timestamp,
+                source_event_id,
                 metadata
             ) VALUES (
                 'process_alarm',
                 'opc',
                 $1,
-                $2,
+                $2::alarm_priority_enum,
                 $3,
                 $4,
-                $4,
-                $5
+                $5,
+                $5,
+                $6,
+                $7
             )
+            ON CONFLICT (timestamp, source_event_id)
+            WHERE source_event_id IS NOT NULL
+            DO NOTHING
             "#,
         )
         .bind(severity)
+        .bind(priority)
         .bind(ev.point_id)
         .bind(message)
         .bind(ev.timestamp)
+        .bind(ev.event_id.as_deref())
         .bind(&metadata)
         .execute(db)
         .await

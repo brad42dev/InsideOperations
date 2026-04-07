@@ -6,4 +6,5 @@ use io_db::DbPool;
 pub struct AppState {
     pub db: DbPool,
     pub config: Config,
+    pub http: reqwest::Client,
 }
