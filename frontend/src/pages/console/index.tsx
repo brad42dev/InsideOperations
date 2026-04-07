@@ -2321,14 +2321,14 @@ export default function ConsolePage() {
               }
               style={{
                 background: preserveAspectRatio
-                  ? "transparent"
-                  : "var(--io-accent)",
+                  ? "var(--io-accent)"
+                  : "transparent",
                 border: "1px solid var(--io-border)",
                 borderRadius: 6,
                 padding: "4px 8px",
                 cursor: "pointer",
                 fontSize: 12,
-                color: preserveAspectRatio ? "var(--io-text-muted)" : "#fff",
+                color: preserveAspectRatio ? "#fff" : "var(--io-text-muted)",
                 display: "flex",
                 alignItems: "center",
                 gap: 4,
@@ -2374,14 +2374,14 @@ export default function ConsolePage() {
                   : "Hide all pane titles"
               }
               style={{
-                background: hideTitles ? "var(--io-accent)" : "transparent",
+                background: hideTitles ? "transparent" : "var(--io-accent)",
                 border: "1px solid var(--io-border)",
                 borderRadius: 6,
                 padding: "4px 8px",
                 cursor: "pointer",
                 fontSize: 12,
                 fontWeight: 600,
-                color: hideTitles ? "#fff" : "var(--io-text-muted)",
+                color: hideTitles ? "var(--io-text-muted)" : "#fff",
               }}
             >
               TT
