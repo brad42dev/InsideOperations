@@ -42,19 +42,20 @@ declare -A SERVICE_PORTS=(
   ["recognition-service"]=3010
 )
 
-# Binary names in target/debug/ — map service name to binary name
+# Binary names match service names exactly (no prefix needed).
+# Maps to target/debug/<binary> — override if production paths differ.
 declare -A SERVICE_BINS=(
-  ["api-gateway"]="io-api-gateway"
-  ["data-broker"]="io-data-broker"
+  ["api-gateway"]="api-gateway"
+  ["data-broker"]="data-broker"
   ["opc-service"]="opc-service"
-  ["event-service"]="io-event-service"
-  ["parser-service"]="io-parser-service"
-  ["archive-service"]="io-archive-service"
-  ["import-service"]="io-import-service"
-  ["alert-service"]="io-alert-service"
-  ["email-service"]="io-email-service"
-  ["auth-service"]="io-auth-service"
-  ["recognition-service"]="io-recognition-service"
+  ["event-service"]="event-service"
+  ["parser-service"]="parser-service"
+  ["archive-service"]="archive-service"
+  ["import-service"]="import-service"
+  ["alert-service"]="alert-service"
+  ["email-service"]="email-service"
+  ["auth-service"]="auth-service"
+  ["recognition-service"]="recognition-service"
 )
 
 TS() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
