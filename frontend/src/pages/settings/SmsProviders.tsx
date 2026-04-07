@@ -8,6 +8,8 @@ import {
   UpdateSmsProviderRequest,
 } from "../../api/smsProviders";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import SettingsPageLayout from "./SettingsPageLayout";
 import {
   inputStyle,
@@ -948,6 +950,8 @@ export default function SmsProvidersPage() {
     null,
   );
   const [confirmDelete, setConfirmDelete] = useState<SmsProvider | null>(null);
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<SmsProvider>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["sms-providers"],
@@ -1046,9 +1050,11 @@ export default function SmsProvidersPage() {
               {providers.map((p, idx) => (
                 <tr
                   key={p.id}
+                  onContextMenu={(e) => handleContextMenu(e, p)}
                   style={{
                     borderTop:
                       idx === 0 ? "none" : "1px solid var(--io-border)",
+                    cursor: "context-menu",
                   }}
                 >
                   <td
@@ -1180,6 +1186,42 @@ export default function SmsProvidersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: "Edit",
+              permission: "sms:manage",
+              onClick: () => {
+                closeMenu();
+                openEdit(menuState.data!);
+              },
+            },
+            {
+              label: "Test Connection",
+              onClick: () => {
+                closeMenu();
+                setTestingProvider(menuState.data!);
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "sms:manage",
+              onClick: () => {
+                closeMenu();
+                setConfirmDelete(menuState.data!);
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
 
       <ProviderDialog

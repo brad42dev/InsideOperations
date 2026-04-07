@@ -3,10 +3,13 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   scimApi,
+  ScimToken,
   CreateScimTokenPayload,
   CreateScimTokenResponse,
 } from "../../api/scim";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import {
   inputStyle,
   labelStyle,
@@ -777,6 +780,8 @@ export default function ScimTokensSection() {
     name: string;
   } | null>(null);
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ScimToken>();
 
   const { data: listResult, isLoading } = useQuery({
     queryKey: ["scim-tokens"],
@@ -989,9 +994,11 @@ export default function ScimTokensSection() {
               {tokens.map((token, idx) => (
                 <tr
                   key={token.id}
+                  onContextMenu={(e) => handleContextMenu(e, token)}
                   style={{
                     borderTop:
                       idx > 0 ? "1px solid var(--io-border)" : undefined,
+                    cursor: "context-menu",
                   }}
                 >
                   <td
@@ -1069,6 +1076,37 @@ export default function ScimTokensSection() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: "Copy Token Name",
+              onClick: () => {
+                closeMenu();
+                navigator.clipboard.writeText(menuState.data!.name);
+              },
+            },
+            {
+              label: "Revoke Token",
+              danger: true,
+              divider: true,
+              permission: "scim:manage",
+              onClick: () => {
+                closeMenu();
+                setConfirmRevoke({
+                  id: menuState.data!.id,
+                  name: menuState.data!.name,
+                });
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
 
       {/* IdP setup guide */}

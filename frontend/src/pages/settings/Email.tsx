@@ -3,6 +3,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 import { SettingsTabs } from "../../shared/components/SettingsTabs";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import SettingsPageLayout from "./SettingsPageLayout";
 import {
   inputStyle,
@@ -225,6 +227,8 @@ function ProvidersTab() {
     id: string;
     name: string;
   } | null>(null);
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<EmailProvider>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-providers"],
@@ -309,7 +313,11 @@ function ProvidersTab() {
             {providers.map((p) => (
               <tr
                 key={p.id}
-                style={{ borderBottom: "1px solid var(--io-border)" }}
+                onContextMenu={(e) => handleContextMenu(e, p)}
+                style={{
+                  borderBottom: "1px solid var(--io-border)",
+                  cursor: "context-menu",
+                }}
               >
                 <td
                   style={{
@@ -365,6 +373,48 @@ function ProvidersTab() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: "Edit",
+              permission: "email:manage",
+              onClick: () => {
+                closeMenu();
+                setEditProvider(menuState.data!);
+              },
+            },
+            {
+              label: "Test",
+              onClick: () => {
+                closeMenu();
+                setTestTarget({
+                  id: menuState.data!.id,
+                  name: menuState.data!.name,
+                });
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "email:manage",
+              onClick: () => {
+                closeMenu();
+                setDeleteConfirm({
+                  id: menuState.data!.id,
+                  name: menuState.data!.name,
+                });
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
       )}
 
       {(showAdd || editProvider) && (

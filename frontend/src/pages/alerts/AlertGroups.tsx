@@ -4,7 +4,10 @@ import {
   notificationsApi,
   type GroupType,
   type CreateGroupPayload,
+  type NotificationGroup,
 } from "../../api/notifications";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 const GROUP_TYPE_LABEL: Record<GroupType, string> = {
   static: "Static",
@@ -77,6 +80,16 @@ export default function AlertGroups() {
     },
   });
   const groups = groupsData ?? [];
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.deleteGroup(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", "groups"] });
+    },
+  });
+
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<NotificationGroup>();
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateGroupPayload) => {
@@ -313,7 +326,9 @@ export default function AlertGroups() {
         {groups?.map((group) => (
           <div
             key={group.id}
+            onContextMenu={(e) => handleContextMenu(e, group)}
             style={{
+              cursor: "context-menu",
               display: "grid",
               gridTemplateColumns: "1fr 2fr 140px 80px",
               gap: 12,
@@ -355,6 +370,34 @@ export default function AlertGroups() {
           </div>
         ))}
       </div>
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: "Copy Name",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(menuState.data!.name);
+              },
+            },
+            {
+              label: "Delete Group",
+              danger: true,
+              divider: true,
+              permission: "alerts:manage",
+              onClick: () => {
+                closeMenu();
+                deleteMutation.mutate(menuState.data!.id);
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

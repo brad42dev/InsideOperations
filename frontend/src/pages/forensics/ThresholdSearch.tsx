@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { forensicsApi, type ThresholdExceedance } from "../../api/forensics";
 import { pointsApi } from "../../api/points";
 import DataTable, { type ColumnDef } from "../../shared/components/DataTable";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import EChart from "../../shared/components/charts/EChart";
 import type { EChartsOption } from "echarts";
 
@@ -42,6 +44,9 @@ export default function ThresholdSearch() {
   const [creatingFor, setCreatingFor] = useState<ThresholdExceedance | null>(
     null,
   );
+
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ThresholdExceedance>();
 
   const searchMutation = useMutation({
     mutationFn: async () => {
@@ -560,6 +565,7 @@ export default function ThresholdSearch() {
               loading={searchMutation.isPending}
               emptyMessage="No exceedances found for the given criteria"
               onRowClick={(row) => setSelectedExceedance(row)}
+              onRowContextMenu={(e, row) => handleContextMenu(e, row)}
             />
 
             {/* Selected exceedance action */}
@@ -760,6 +766,20 @@ export default function ThresholdSearch() {
           </div>
         )}
       </div>
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: `${new Date(menuState.data.start).toLocaleString()}`, disabled: true },
+            { label: "Copy Start Time", onClick: () => { closeMenu(); void navigator.clipboard.writeText(new Date(menuState.data!.start).toLocaleString()); } },
+            { label: "Copy Peak Value", onClick: () => { closeMenu(); void navigator.clipboard.writeText(String(menuState.data!.peak_value)); } },
+            { label: "Create Investigation", divider: true, onClick: () => { closeMenu(); setCreatingFor(menuState.data!); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

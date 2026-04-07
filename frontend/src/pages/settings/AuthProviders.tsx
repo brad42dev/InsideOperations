@@ -10,6 +10,8 @@ import {
 import { rolesApi, Role } from "../../api/roles";
 import { api } from "../../api/client";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import {
   inputStyle,
   labelStyle,
@@ -2499,6 +2501,9 @@ function ProviderRow({ provider }: ProviderRowProps) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["auth-providers"] }),
   });
 
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<AuthProviderConfig>();
+
   const handleTest = async () => {
     setTesting(true);
     setTestStatus(null);
@@ -2530,7 +2535,10 @@ function ProviderRow({ provider }: ProviderRowProps) {
 
   return (
     <>
-      <tr style={{ borderBottom: "1px solid var(--io-border)" }}>
+      <tr
+        style={{ borderBottom: "1px solid var(--io-border)", cursor: "context-menu" }}
+        onContextMenu={(e) => handleContextMenu(e, provider)}
+      >
         <td style={cellStyle}>
           <div style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
             {provider.display_name}
@@ -2624,6 +2632,20 @@ function ProviderRow({ provider }: ProviderRowProps) {
           </div>
         </td>
       </tr>
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.display_name, disabled: true },
+            { label: "Edit / View Mappings", onClick: () => { closeMenu(); setExpanded(v => !v); } },
+            { label: "Test Connection", onClick: () => { closeMenu(); void handleTest(); } },
+            { label: "Delete", danger: true, divider: true, permission: "auth:manage", onClick: () => { closeMenu(); setConfirmDeleteOpen(true); } },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
 
       {expanded && (
         <tr>

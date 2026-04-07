@@ -5,6 +5,8 @@ import {
   type NotificationSeverity,
   type NotificationChannel,
 } from "../../api/notifications";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 const SEVERITY_COLOR: Record<NotificationSeverity, string> = {
   emergency: "#ef4444",
@@ -52,13 +54,17 @@ function SeverityBadge({ severity }: { severity: NotificationSeverity }) {
 function TemplateRow({
   template,
   onToggle,
+  onContextMenu,
 }: {
   template: NotificationTemplate;
   onToggle: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   return (
     <div
+      onContextMenu={onContextMenu}
       style={{
+        cursor: "context-menu",
         display: "grid",
         gridTemplateColumns: "1fr 120px 120px 1fr 100px 70px",
         gap: 12,
@@ -181,6 +187,9 @@ function TemplateRow({
 export default function AlertTemplates() {
   const queryClient = useQueryClient();
 
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<NotificationTemplate>();
+
   const {
     data: templates,
     isLoading,
@@ -205,6 +214,12 @@ export default function AlertTemplates() {
         queryKey: ["notifications", "templates"],
       });
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.deleteTemplate(id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["notifications", "templates"] }),
   });
 
   return (
@@ -304,9 +319,46 @@ export default function AlertTemplates() {
                 enabled: !template.enabled,
               })
             }
+            onContextMenu={(e) => handleContextMenu(e, template)}
           />
         ))}
       </div>
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: menuState.data.enabled ? "Disable" : "Enable",
+              permission: "alerts:manage",
+              onClick: () => {
+                closeMenu();
+                toggleMutation.mutate({
+                  id: menuState.data!.id,
+                  enabled: !menuState.data!.enabled,
+                });
+              },
+            },
+            ...(menuState.data.is_system
+              ? []
+              : [
+                  {
+                    label: "Delete",
+                    danger: true as const,
+                    divider: true,
+                    permission: "alerts:manage",
+                    onClick: () => {
+                      closeMenu();
+                      deleteMutation.mutate(menuState.data!.id);
+                    },
+                  },
+                ]),
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

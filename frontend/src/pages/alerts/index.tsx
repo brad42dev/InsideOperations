@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import { wsManager } from "../../shared/hooks/useWebSocket";
 import { exportsApi, type ExportFormat } from "../../api/exports";
 import {
@@ -275,56 +276,6 @@ function ConfirmDeleteDialog({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Shared context menu styles
-// ---------------------------------------------------------------------------
-
-const ctxMenuContentStyle: React.CSSProperties = {
-  background: "var(--io-surface-elevated)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius, 6px)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-  minWidth: 200,
-  paddingTop: 4,
-  paddingBottom: 4,
-  zIndex: 1800,
-  animation: "io-context-menu-in 0.08s ease",
-};
-
-const ctxMenuItemStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: "6px 14px",
-  fontSize: 13,
-  color: "var(--io-text-primary)",
-  cursor: "pointer",
-  userSelect: "none",
-  outline: "none",
-  background: "transparent",
-  border: "none",
-  width: "100%",
-  textAlign: "left",
-  borderRadius: 0,
-  gap: 8,
-};
-
-const ctxMenuItemDestructiveStyle: React.CSSProperties = {
-  ...ctxMenuItemStyle,
-  color: "#ef4444",
-};
-
-const ctxMenuItemDisabledStyle: React.CSSProperties = {
-  ...ctxMenuItemDestructiveStyle,
-  opacity: 0.4,
-  cursor: "default",
-};
-
-const ctxMenuSeparatorStyle: React.CSSProperties = {
-  height: 1,
-  background: "var(--io-border)",
-  margin: "3px 0",
-};
 
 // ---------------------------------------------------------------------------
 // Send Alert Panel
@@ -1153,6 +1104,11 @@ function HistoryPanel() {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const canExport = usePermission("alerts:read");
+  const {
+    menuState: msgMenuState,
+    handleContextMenu: handleMsgContextMenu,
+    closeMenu: closeMsgMenu,
+  } = useContextMenu<NotificationMessage>();
 
   const { data: result, isLoading } = useQuery({
     queryKey: [
@@ -1426,7 +1382,8 @@ function HistoryPanel() {
                 {messages.map((msg) => (
                   <tr
                     key={msg.id}
-                    style={{ cursor: "default" }}
+                    onContextMenu={(e) => handleMsgContextMenu(e, msg)}
+                    style={{ cursor: "context-menu" }}
                     onMouseEnter={(e) =>
                       ((
                         e.currentTarget as HTMLTableRowElement
@@ -1521,6 +1478,31 @@ function HistoryPanel() {
           )}
         </>
       )}
+
+      {msgMenuState?.data && (
+        <ContextMenu
+          x={msgMenuState.x}
+          y={msgMenuState.y}
+          items={[
+            { label: msgMenuState.data.title, disabled: true },
+            {
+              label: "Copy Title",
+              onClick: () => {
+                closeMsgMenu();
+                void navigator.clipboard.writeText(msgMenuState.data!.title);
+              },
+            },
+            {
+              label: "Copy Severity",
+              onClick: () => {
+                closeMsgMenu();
+                void navigator.clipboard.writeText(msgMenuState.data!.severity);
+              },
+            },
+          ]}
+          onClose={closeMsgMenu}
+        />
+      )}
     </div>
   );
 }
@@ -1533,6 +1515,11 @@ function TemplatesPanel() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const canManageTemplates = usePermission("alerts:manage_templates");
+  const {
+    menuState: tplMenuState,
+    handleContextMenu: handleTplContextMenu,
+    closeMenu: closeTplMenu,
+  } = useContextMenu<NotificationTemplate>();
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState<Partial<CreateTemplatePayload>>(
     {},
@@ -2176,192 +2163,165 @@ function TemplatesPanel() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {templates.map((tpl) => (
-            <ContextMenuPrimitive.Root key={tpl.id}>
-              <ContextMenuPrimitive.Trigger asChild>
-                <div
+            <div
+              key={tpl.id}
+              onContextMenu={(e) => handleTplContextMenu(e, tpl)}
+              style={{
+                cursor: "context-menu",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                borderRadius: 6,
+                border: "1px solid var(--io-border)",
+                background: tpl.enabled
+                  ? "var(--io-surface-secondary)"
+                  : "transparent",
+                opacity: tpl.enabled ? 1 : 0.5,
+              }}
+            >
+              <SeverityBadge severity={tpl.severity} />
+              <div style={{ flex: 1 }}>
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 14px",
-                    borderRadius: 6,
-                    border: "1px solid var(--io-border)",
-                    background: tpl.enabled
-                      ? "var(--io-surface-secondary)"
-                      : "transparent",
-                    opacity: tpl.enabled ? 1 : 0.5,
-                    cursor: "default",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--io-text)",
                   }}
                 >
-                  <SeverityBadge severity={tpl.severity} />
-                  <div style={{ flex: 1 }}>
+                  {tpl.name}
+                  {tpl.is_system && (
                     <span
                       style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--io-text)",
+                        marginLeft: 6,
+                        fontSize: 10,
+                        color: "var(--io-text-muted)",
                       }}
                     >
-                      {tpl.name}
-                      {tpl.is_system && (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: 10,
-                            color: "var(--io-text-muted)",
-                          }}
-                        >
-                          SYSTEM
-                        </span>
-                      )}
+                      SYSTEM
                     </span>
-                    <br />
-                    <span
-                      style={{ fontSize: 11, color: "var(--io-text-muted)" }}
-                    >
-                      {tpl.title_template}
-                    </span>
-                  </div>
-                  <ChannelChips channels={tpl.channels} />
-                  <button
-                    onClick={() =>
-                      toggleMutation.mutate({
-                        id: tpl.id,
-                        enabled: !tpl.enabled,
-                      })
-                    }
-                    style={{
-                      fontSize: 11,
-                      padding: "3px 8px",
-                      borderRadius: 4,
-                      border: "1px solid var(--io-border)",
-                      background: "transparent",
-                      color: tpl.enabled ? "#22c55e" : "var(--io-text-muted)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {tpl.enabled ? "Enabled" : "Disabled"}
-                  </button>
-                  {!tpl.is_system && (
-                    <button
-                      onClick={() => setDeleteConfirmId(tpl.id)}
-                      style={{
-                        fontSize: 11,
-                        padding: "3px 8px",
-                        borderRadius: 4,
-                        border: "1px solid var(--io-border)",
-                        background: "transparent",
-                        color: "#ef4444",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
                   )}
-                </div>
-              </ContextMenuPrimitive.Trigger>
-
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.Content style={ctxMenuContentStyle}>
-                  <style>{`
-                    @keyframes io-context-menu-in {
-                      from { opacity: 0; transform: scale(0.97) translateY(-3px); }
-                      to   { opacity: 1; transform: scale(1) translateY(0); }
-                    }
-                    [data-radix-context-menu-item]:hover,
-                    [data-radix-context-menu-item][data-highlighted] {
-                      background: var(--io-accent-subtle, rgba(74,158,255,0.12)) !important;
-                      outline: none;
-                    }
-                    [data-radix-context-menu-item][data-disabled] {
-                      pointer-events: none;
-                    }
-                  `}</style>
-
-                  {/* Primary: Edit — manage_templates only */}
-                  {canManageTemplates && (
-                    <ContextMenuPrimitive.Item
-                      style={ctxMenuItemStyle}
-                      onSelect={() => {
-                        setShowCreate(false);
-                        setEditTemplateId(tpl.id);
-                        setEditForm({
-                          name: tpl.name,
-                          severity: tpl.severity,
-                          title_template: tpl.title_template,
-                          body_template: tpl.body_template,
-                          channels: tpl.channels,
-                        });
-                        setEditVarDefs(tpl.variables ?? []);
-                      }}
-                    >
-                      Edit
-                    </ContextMenuPrimitive.Item>
-                  )}
-
-                  {/* Secondary: Duplicate — manage_templates only */}
-                  {canManageTemplates && (
-                    <ContextMenuPrimitive.Item
-                      style={ctxMenuItemStyle}
-                      onSelect={() => duplicateMutation.mutate(tpl)}
-                    >
-                      Duplicate
-                    </ContextMenuPrimitive.Item>
-                  )}
-
-                  {/* Secondary: Send Alert from Template — always visible (alerts:send) */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => navigate(`/alerts?template=${tpl.id}`)}
-                  >
-                    Send Alert from Template
-                  </ContextMenuPrimitive.Item>
-
-                  {/* Secondary: Test Send — always visible (alerts:send) */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => {
-                      setTestSendPendingId(tpl.id);
-                      testSendMutation.mutate(tpl.id);
-                    }}
-                    disabled={testSendPendingId === tpl.id}
-                  >
-                    {testSendPendingId === tpl.id
-                      ? "Sending…"
-                      : "Test Send (to self)"}
-                  </ContextMenuPrimitive.Item>
-
-                  {/* Separator + Destructive: Delete — manage_templates only */}
-                  {canManageTemplates && (
-                    <>
-                      <ContextMenuPrimitive.Separator
-                        style={ctxMenuSeparatorStyle}
-                      />
-                      <ContextMenuPrimitive.Item
-                        style={
-                          tpl.is_system
-                            ? ctxMenuItemDisabledStyle
-                            : ctxMenuItemDestructiveStyle
-                        }
-                        onSelect={() => {
-                          if (!tpl.is_system) setDeleteConfirmId(tpl.id);
-                        }}
-                        disabled={tpl.is_system}
-                        title={
-                          tpl.is_system
-                            ? "System templates cannot be deleted"
-                            : undefined
-                        }
-                      >
-                        Delete{tpl.is_system ? " (built-in)" : ""}
-                      </ContextMenuPrimitive.Item>
-                    </>
-                  )}
-                </ContextMenuPrimitive.Content>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Root>
+                </span>
+                <br />
+                <span
+                  style={{ fontSize: 11, color: "var(--io-text-muted)" }}
+                >
+                  {tpl.title_template}
+                </span>
+              </div>
+              <ChannelChips channels={tpl.channels} />
+              <button
+                onClick={() =>
+                  toggleMutation.mutate({
+                    id: tpl.id,
+                    enabled: !tpl.enabled,
+                  })
+                }
+                style={{
+                  fontSize: 11,
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  border: "1px solid var(--io-border)",
+                  background: "transparent",
+                  color: tpl.enabled ? "#22c55e" : "var(--io-text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                {tpl.enabled ? "Enabled" : "Disabled"}
+              </button>
+              {!tpl.is_system && (
+                <button
+                  onClick={() => setDeleteConfirmId(tpl.id)}
+                  style={{
+                    fontSize: 11,
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                    border: "1px solid var(--io-border)",
+                    background: "transparent",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           ))}
         </div>
+      )}
+
+      {tplMenuState?.data && (
+        <ContextMenu
+          x={tplMenuState.x}
+          y={tplMenuState.y}
+          items={[
+            { label: tplMenuState.data.name, disabled: true },
+            ...(canManageTemplates
+              ? [
+                  {
+                    label: "Edit",
+                    onClick: () => {
+                      closeTplMenu();
+                      setEditTemplateId(tplMenuState.data!.id);
+                      setEditForm({
+                        name: tplMenuState.data!.name,
+                        severity: tplMenuState.data!.severity,
+                        title_template: tplMenuState.data!.title_template,
+                        body_template: tplMenuState.data!.body_template,
+                        channels: tplMenuState.data!.channels,
+                      });
+                      setEditVarDefs(tplMenuState.data!.variables ?? []);
+                    },
+                  },
+                ]
+              : []),
+            ...(canManageTemplates
+              ? [
+                  {
+                    label: "Duplicate",
+                    onClick: () => {
+                      closeTplMenu();
+                      duplicateMutation.mutate(tplMenuState.data!);
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: "Send Alert from Template",
+              onClick: () => {
+                closeTplMenu();
+                navigate(`/alerts?template=${tplMenuState.data!.id}`);
+              },
+            },
+            {
+              label:
+                testSendPendingId === tplMenuState.data.id
+                  ? "Sending…"
+                  : "Test Send (to self)",
+              disabled: testSendPendingId === tplMenuState.data.id,
+              onClick: () => {
+                closeTplMenu();
+                setTestSendPendingId(tplMenuState.data!.id);
+                testSendMutation.mutate(tplMenuState.data!.id);
+              },
+            },
+            ...(canManageTemplates && !tplMenuState.data.is_system
+              ? [
+                  {
+                    label: "Delete",
+                    danger: true as const,
+                    divider: true,
+                    permission: "alerts:manage",
+                    onClick: () => {
+                      closeTplMenu();
+                      setDeleteConfirmId(tplMenuState.data!.id);
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          onClose={closeTplMenu}
+        />
       )}
     </div>
   );
@@ -2374,6 +2334,11 @@ function TemplatesPanel() {
 function GroupsPanel() {
   const qc = useQueryClient();
   const canManageGroups = usePermission("alerts:manage_groups");
+  const {
+    menuState: grpMenuState,
+    handleContextMenu: handleGrpContextMenu,
+    closeMenu: closeGrpMenu,
+  } = useContextMenu<NotificationGroup>();
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
@@ -2793,129 +2758,132 @@ function GroupsPanel() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {groups.map((g) => (
-            <ContextMenuPrimitive.Root key={g.id}>
-              <ContextMenuPrimitive.Trigger asChild>
-                <div
+            <div
+              key={g.id}
+              onContextMenu={(e) => handleGrpContextMenu(e, g)}
+              style={{
+                cursor: "context-menu",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                borderRadius: 6,
+                border: "1px solid var(--io-border)",
+                background: "var(--io-surface-secondary)",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 14px",
-                    borderRadius: 6,
-                    border: "1px solid var(--io-border)",
-                    background: "var(--io-surface-secondary)",
-                    cursor: "default",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--io-text)",
                   }}
                 >
-                  <div style={{ flex: 1 }}>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--io-text)",
-                      }}
-                    >
-                      {g.name}
-                    </span>
-                    {g.description && (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "var(--io-text-muted)",
-                          marginLeft: 8,
-                        }}
-                      >
-                        {g.description}
-                      </span>
-                    )}
-                  </div>
+                  {g.name}
+                </span>
+                {g.description && (
                   <span
                     style={{
-                      fontSize: 11,
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                      background: "var(--io-surface)",
+                      fontSize: 12,
                       color: "var(--io-text-muted)",
-                      border: "1px solid var(--io-border)",
+                      marginLeft: 8,
                     }}
                   >
-                    {g.group_type}
+                    {g.description}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
-                    {g.member_count ?? 0} members
-                  </span>
-                  {canManageGroups && (
-                    <button
-                      onClick={() => setDeleteGroupId(g.id)}
-                      style={{
-                        fontSize: 11,
-                        padding: "3px 8px",
-                        borderRadius: 4,
-                        border: "1px solid var(--io-border)",
-                        background: "transparent",
-                        color: "#ef4444",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </ContextMenuPrimitive.Trigger>
-
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.Content style={ctxMenuContentStyle}>
-                  {/* Primary: Edit — manage_groups only */}
-                  {canManageGroups && (
-                    <ContextMenuPrimitive.Item
-                      style={ctxMenuItemStyle}
-                      onSelect={() => {
-                        setEditGroupId(g.id);
-                        setEditName(g.name);
-                        setEditDesc(g.description ?? "");
-                      }}
-                    >
-                      Edit
-                    </ContextMenuPrimitive.Item>
-                  )}
-
-                  {/* Secondary: Add Members — manage_groups only */}
-                  {canManageGroups && (
-                    <ContextMenuPrimitive.Item
-                      style={ctxMenuItemStyle}
-                      onSelect={() => setShowCreate(true)}
-                    >
-                      Add Members
-                    </ContextMenuPrimitive.Item>
-                  )}
-
-                  {/* Secondary: View Members — always visible (alerts:read) */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => setViewMembersGroupId(g.id)}
-                  >
-                    View Members
-                  </ContextMenuPrimitive.Item>
-
-                  {/* Separator + Destructive: Delete — manage_groups only */}
-                  {canManageGroups && (
-                    <>
-                      <ContextMenuPrimitive.Separator
-                        style={ctxMenuSeparatorStyle}
-                      />
-                      <ContextMenuPrimitive.Item
-                        style={ctxMenuItemDestructiveStyle}
-                        onSelect={() => setDeleteGroupId(g.id)}
-                      >
-                        Delete
-                      </ContextMenuPrimitive.Item>
-                    </>
-                  )}
-                </ContextMenuPrimitive.Content>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Root>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: "var(--io-surface)",
+                  color: "var(--io-text-muted)",
+                  border: "1px solid var(--io-border)",
+                }}
+              >
+                {g.group_type}
+              </span>
+              <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+                {g.member_count ?? 0} members
+              </span>
+              {canManageGroups && (
+                <button
+                  onClick={() => setDeleteGroupId(g.id)}
+                  style={{
+                    fontSize: 11,
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                    border: "1px solid var(--io-border)",
+                    background: "transparent",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           ))}
         </div>
+      )}
+
+      {grpMenuState?.data && (
+        <ContextMenu
+          x={grpMenuState.x}
+          y={grpMenuState.y}
+          items={[
+            { label: grpMenuState.data.name, disabled: true },
+            ...(canManageGroups
+              ? [
+                  {
+                    label: "Edit",
+                    onClick: () => {
+                      closeGrpMenu();
+                      setEditGroupId(grpMenuState.data!.id);
+                      setEditName(grpMenuState.data!.name);
+                      setEditDesc(grpMenuState.data!.description ?? "");
+                    },
+                  },
+                ]
+              : []),
+            ...(canManageGroups
+              ? [
+                  {
+                    label: "Add Members",
+                    onClick: () => {
+                      closeGrpMenu();
+                      setShowCreate(true);
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: "View Members",
+              onClick: () => {
+                closeGrpMenu();
+                setViewMembersGroupId(grpMenuState.data!.id);
+              },
+            },
+            ...(canManageGroups
+              ? [
+                  {
+                    label: "Delete",
+                    danger: true as const,
+                    divider: true,
+                    permission: "alerts:manage",
+                    onClick: () => {
+                      closeGrpMenu();
+                      setDeleteGroupId(grpMenuState.data!.id);
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          onClose={closeGrpMenu}
+        />
       )}
     </div>
   );

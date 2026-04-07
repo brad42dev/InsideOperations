@@ -9,6 +9,8 @@ import {
 import { expressionsApi } from "../../api/expressions";
 import { ExpressionBuilderModal } from "../../shared/components/expression/ExpressionBuilderModal";
 import type { ExpressionAst } from "../../shared/types/expression";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -132,6 +134,8 @@ function AlarmDefinitionsSection() {
   const [pendingExprName, setPendingExprName] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<AlarmDefinition>();
 
   // Form state for create/edit
   const [form, setForm] = useState<CreateAlarmDefinitionBody>({
@@ -366,7 +370,11 @@ function AlarmDefinitionsSection() {
             </thead>
             <tbody>
               {definitions.map((def) => (
-                <tr key={def.id}>
+                <tr
+                  key={def.id}
+                  onContextMenu={(e) => handleContextMenu(e, def)}
+                  style={{ cursor: "context-menu" }}
+                >
                   <td
                     style={{
                       padding: "9px 14px",
@@ -481,6 +489,35 @@ function AlarmDefinitionsSection() {
           </table>
         )}
       </div>
+
+      {menuState?.data && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            { label: menuState.data.name, disabled: true },
+            {
+              label: "Edit",
+              permission: "events:manage",
+              onClick: () => {
+                closeMenu();
+                openEdit(menuState.data!);
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "events:manage",
+              onClick: () => {
+                closeMenu();
+                setDeleteId(menuState.data!.id);
+              },
+            },
+          ]}
+          onClose={closeMenu}
+        />
+      )}
 
       {/* Create / Edit dialog */}
       {isOpen && (

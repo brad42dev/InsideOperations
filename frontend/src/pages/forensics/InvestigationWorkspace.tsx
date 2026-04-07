@@ -33,6 +33,8 @@ import EvidenceRenderer from "./EvidenceRenderer";
 import { ErrorBoundary } from "../../shared/components/ErrorBoundary";
 import { useAuthStore } from "../../store/auth";
 import PointContextMenu from "../../shared/components/PointContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import ForensicsPlaybackBar from "../../shared/components/ForensicsPlaybackBar";
 import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
 
@@ -117,6 +119,17 @@ function StageCard({
   const [rangeEnd, setRangeEnd] = useState(stage.time_range_end.slice(0, 16));
   const [showEvidenceMenu, setShowEvidenceMenu] = useState(false);
   const [showSnapshotDialog, setShowSnapshotDialog] = useState(false);
+
+  const {
+    menuState: evidenceMenuState,
+    handleContextMenu: handleEvidenceContextMenu,
+    closeMenu: closeEvidenceMenu,
+  } = useContextMenu<EvidenceItem>();
+  const {
+    menuState: stageMenuState,
+    handleContextMenu: handleStageContextMenu,
+    closeMenu: closeStageMenu,
+  } = useContextMenu<InvestigationStage>();
   const [snapshotGraphicId, setSnapshotGraphicId] = useState("");
   const [snapshotTimestamp, setSnapshotTimestamp] = useState(
     stage.time_range_start,
@@ -257,6 +270,7 @@ function StageCard({
     >
       {/* Stage header */}
       <div
+        onContextMenu={(e) => !readOnly && handleStageContextMenu(e, stage)}
         style={{
           display: "flex",
           alignItems: "center",
@@ -490,31 +504,36 @@ function StageCard({
           .slice()
           .sort((a, b) => a.sort_order - b.sort_order)
           .map((ev: EvidenceItem) => (
-            <EvidenceRenderer
+            <div
               key={ev.id}
-              item={ev}
-              stageStart={stage.time_range_start}
-              stageEnd={stage.time_range_end}
-              onDelete={
-                readOnly
-                  ? undefined
-                  : () => deleteEvidenceMutation.mutate(ev.id)
-              }
-              readOnly={readOnly}
-              onUpdateConfig={
-                readOnly
-                  ? undefined
-                  : (evidenceId, patch) =>
-                      updateEvidenceMutation.mutate({
-                        evidenceId,
-                        config: patch,
-                      })
-              }
-              isUpdating={
-                updateEvidenceMutation.isPending &&
-                updateEvidenceMutation.variables?.evidenceId === ev.id
-              }
-            />
+              onContextMenu={(e) => !readOnly && handleEvidenceContextMenu(e, ev)}
+              style={{ cursor: readOnly ? "default" : "context-menu" }}
+            >
+              <EvidenceRenderer
+                item={ev}
+                stageStart={stage.time_range_start}
+                stageEnd={stage.time_range_end}
+                onDelete={
+                  readOnly
+                    ? undefined
+                    : () => deleteEvidenceMutation.mutate(ev.id)
+                }
+                readOnly={readOnly}
+                onUpdateConfig={
+                  readOnly
+                    ? undefined
+                    : (evidenceId, patch) =>
+                        updateEvidenceMutation.mutate({
+                          evidenceId,
+                          config: patch,
+                        })
+                }
+                isUpdating={
+                  updateEvidenceMutation.isPending &&
+                  updateEvidenceMutation.variables?.evidenceId === ev.id
+                }
+              />
+            </div>
           ))}
 
         {/* Graphic snapshot picker dialog */}
@@ -757,6 +776,32 @@ function StageCard({
               </div>
             )}
           </div>
+        )}
+
+        {evidenceMenuState?.data && (
+          <ContextMenu
+            x={evidenceMenuState.x}
+            y={evidenceMenuState.y}
+            items={[
+              { label: `${evidenceMenuState.data.evidence_type} evidence`, disabled: true },
+              { label: "Copy Evidence ID", onClick: () => { closeEvidenceMenu(); void navigator.clipboard.writeText(evidenceMenuState.data!.id); } },
+              { label: "Remove Evidence", danger: true, divider: true, onClick: () => { closeEvidenceMenu(); deleteEvidenceMutation.mutate(evidenceMenuState.data!.id); } },
+            ]}
+            onClose={closeEvidenceMenu}
+          />
+        )}
+
+        {stageMenuState?.data && (
+          <ContextMenu
+            x={stageMenuState.x}
+            y={stageMenuState.y}
+            items={[
+              { label: stageMenuState.data.name, disabled: true },
+              { label: "Rename Stage", onClick: () => { closeStageMenu(); setEditingName(true); } },
+              { label: "Delete Stage", danger: true, divider: true, onClick: () => { closeStageMenu(); deleteStageMutation.mutate(); } },
+            ]}
+            onClose={closeStageMenu}
+          />
         )}
       </div>
     </div>
