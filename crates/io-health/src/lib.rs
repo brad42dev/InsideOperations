@@ -488,8 +488,7 @@ impl HealthCheckable for OpcDataFlowCheck {
                         }
                     }
                     Some(ts) => {
-                        let age_secs =
-                            (chrono::Utc::now() - ts).num_seconds();
+                        let age_secs = (chrono::Utc::now() - ts).num_seconds();
                         if age_secs > self.stale_secs {
                             HealthStatus {
                                 status: CheckStatus::Error,

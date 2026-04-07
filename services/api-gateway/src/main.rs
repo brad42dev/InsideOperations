@@ -1375,11 +1375,7 @@ async fn service_health_handler(
                         // Parse the body status field for richer mapping.
                         match resp.json::<serde_json::Value>().await {
                             Ok(body) => {
-                                match body
-                                    .get("status")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                {
+                                match body.get("status").and_then(|v| v.as_str()).unwrap_or("") {
                                     "ready" => "healthy",
                                     "degraded" => "degraded",
                                     _ if !http_ok => "unhealthy",
