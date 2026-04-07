@@ -11,8 +11,9 @@
  */
 
 import React, { useRef, useCallback, useEffect, useState } from "react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import type { DesignerTab } from "../../store/designer/tabStore";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -95,217 +96,128 @@ function TabItem({
     [onClose],
   );
 
+  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+
+  const menuItems = [
+    { label: "Close", onClick: () => { closeMenu(); onClose(); } },
+    { label: "Close Others", onClick: () => { closeMenu(); onCloseOthers(); } },
+    { label: "Close All", onClick: () => { closeMenu(); onCloseAll(); } },
+    { label: "Copy Name", divider: true, onClick: () => { closeMenu(); handleCopyName(); } },
+  ];
+
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>
-        <div
-          role="tab"
-          aria-selected={active}
-          title={fullTitle}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onClick={onSwitch}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "0 10px 0 12px",
-            height: "100%",
-            flexShrink: 0,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-            fontSize: 12,
-            fontWeight: active ? 600 : 400,
-            color: active
-              ? "var(--io-text-primary)"
-              : "var(--io-text-secondary)",
-            background: active
+    <>
+      <div
+        role="tab"
+        aria-selected={active}
+        title={fullTitle}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={onSwitch}
+        onContextMenu={handleContextMenu}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "0 10px 0 12px",
+          height: "100%",
+          flexShrink: 0,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          fontSize: 12,
+          fontWeight: active ? 600 : 400,
+          color: active
+            ? "var(--io-text-primary)"
+            : "var(--io-text-secondary)",
+          background: active
+            ? "var(--io-surface-elevated)"
+            : hovered
               ? "var(--io-surface-elevated)"
-              : hovered
-                ? "var(--io-surface-elevated)"
-                : "var(--io-surface)",
-            borderRight: "1px solid var(--io-border)",
-            borderBottom: active
-              ? "2px solid var(--io-accent)"
-              : "2px solid transparent",
-            transition: "background 0.1s ease",
-            position: "relative",
-            userSelect: "none",
-          }}
-        >
-          {/* Modified dot */}
-          {tab.isModified && (
-            <span
-              aria-label="unsaved changes"
-              style={{
-                color: "var(--io-warning, #f59e0b)",
-                fontSize: 14,
-                lineHeight: 1,
-                flexShrink: 0,
-              }}
-            >
-              &#9679;
-            </span>
-          )}
-
-          {/* Label */}
+              : "var(--io-surface)",
+          borderRight: "1px solid var(--io-border)",
+          borderBottom: active
+            ? "2px solid var(--io-accent)"
+            : "2px solid transparent",
+          transition: "background 0.1s ease",
+          position: "relative",
+          userSelect: "none",
+        }}
+      >
+        {/* Modified dot */}
+        {tab.isModified && (
           <span
+            aria-label="unsaved changes"
             style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: 160,
+              color: "var(--io-warning, #f59e0b)",
+              fontSize: 14,
+              lineHeight: 1,
+              flexShrink: 0,
             }}
           >
-            {displayLabel}
+            &#9679;
           </span>
+        )}
 
-          {/* Close button — always visible on active, visible on hover otherwise */}
-          {(active || hovered) && (
-            <button
-              onClick={handleClose}
-              title="Close tab"
-              aria-label={`Close ${fullTitle}`}
-              style={{
-                flexShrink: 0,
-                marginLeft: 4,
-                width: 16,
-                height: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "none",
-                border: "none",
-                borderRadius: 3,
-                cursor: "pointer",
-                color: "var(--io-text-muted)",
-                fontSize: 14,
-                lineHeight: 1,
-                padding: 0,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(239,68,68,0.15)";
-                e.currentTarget.style.color = "#f87171";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "none";
-                e.currentTarget.style.color = "var(--io-text-muted)";
-              }}
-            >
-              &times;
-            </button>
-          )}
-
-          {/* Placeholder to keep layout stable when close button is hidden */}
-          {!active && !hovered && <span style={{ width: 20, flexShrink: 0 }} />}
-        </div>
-      </ContextMenu.Trigger>
-
-      <ContextMenu.Portal>
-        <ContextMenu.Content
+        {/* Label */}
+        <span
           style={{
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            padding: "4px 0",
-            minWidth: 180,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            zIndex: 2000,
-            fontSize: 13,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: 160,
           }}
         >
-          <ContextMenu.Item
-            onSelect={onClose}
+          {displayLabel}
+        </span>
+
+        {/* Close button — always visible on active, visible on hover otherwise */}
+        {(active || hovered) && (
+          <button
+            onClick={handleClose}
+            title="Close tab"
+            aria-label={`Close ${fullTitle}`}
             style={{
-              padding: "6px 14px",
+              flexShrink: 0,
+              marginLeft: 4,
+              width: 16,
+              height: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "none",
+              border: "none",
+              borderRadius: 3,
               cursor: "pointer",
-              color: "var(--io-text-primary)",
-              outline: "none",
+              color: "var(--io-text-muted)",
+              fontSize: 14,
+              lineHeight: 1,
+              padding: 0,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--io-accent)";
-              e.currentTarget.style.color = "#000";
+              e.currentTarget.style.background = "rgba(239,68,68,0.15)";
+              e.currentTarget.style.color = "#f87171";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = "var(--io-text-primary)";
+              e.currentTarget.style.background = "none";
+              e.currentTarget.style.color = "var(--io-text-muted)";
             }}
           >
-            Close
-            <span style={{ float: "right", fontSize: 11, opacity: 0.5 }}>
-              Ctrl+W
-            </span>
-          </ContextMenu.Item>
+            &times;
+          </button>
+        )}
 
-          <ContextMenu.Item
-            onSelect={onCloseOthers}
-            style={{
-              padding: "6px 14px",
-              cursor: "pointer",
-              color: "var(--io-text-primary)",
-              outline: "none",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--io-accent)";
-              e.currentTarget.style.color = "#000";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = "var(--io-text-primary)";
-            }}
-          >
-            Close Others
-          </ContextMenu.Item>
+        {/* Placeholder to keep layout stable when close button is hidden */}
+        {!active && !hovered && <span style={{ width: 20, flexShrink: 0 }} />}
+      </div>
 
-          <ContextMenu.Item
-            onSelect={onCloseAll}
-            style={{
-              padding: "6px 14px",
-              cursor: "pointer",
-              color: "var(--io-text-primary)",
-              outline: "none",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--io-accent)";
-              e.currentTarget.style.color = "#000";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = "var(--io-text-primary)";
-            }}
-          >
-            Close All
-          </ContextMenu.Item>
-
-          <ContextMenu.Separator
-            style={{
-              height: 1,
-              background: "var(--io-border)",
-              margin: "4px 0",
-            }}
-          />
-
-          <ContextMenu.Item
-            onSelect={handleCopyName}
-            style={{
-              padding: "6px 14px",
-              cursor: "pointer",
-              color: "var(--io-text-primary)",
-              outline: "none",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--io-accent)";
-              e.currentTarget.style.color = "#000";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = "var(--io-text-primary)";
-            }}
-          >
-            Copy Name
-          </ContextMenu.Item>
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={menuItems}
+          onClose={closeMenu}
+        />
+      )}
+    </>
   );
 }
 

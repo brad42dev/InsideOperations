@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 import {
   useSceneStore,
   useHistoryStore,
@@ -3611,38 +3612,6 @@ function collectNodeIdsByLayer(
   return result;
 }
 
-const layerCtxMenuContent: React.CSSProperties = {
-  background: "var(--io-surface)",
-  border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-  minWidth: 160,
-  overflow: "hidden",
-  fontSize: 12,
-  zIndex: 1800,
-  padding: "3px 0",
-};
-
-const layerCtxMenuItemStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: "5px 14px",
-  fontSize: 12,
-  cursor: "pointer",
-  userSelect: "none",
-  outline: "none",
-  color: "var(--io-text-primary)",
-  background: "transparent",
-  border: "none",
-  width: "100%",
-  textAlign: "left",
-};
-
-const layerCtxMenuSepStyle: React.CSSProperties = {
-  height: 1,
-  background: "var(--io-border)",
-  margin: "2px 0",
-};
 
 function LayersPanel() {
   const executeCmd = useExecuteCmd();
@@ -3650,6 +3619,8 @@ function LayersPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const { menuState: layerMenu, handleContextMenu: handleLayerCtx, closeMenu: closeLayerMenu } =
+    useContextMenu<{ layer: LayerDefinition; layerIndex: number }>();
 
   if (!doc) return null;
 
@@ -3821,164 +3792,102 @@ function LayersPanel() {
 
       {!collapsed && (
         <div>
-          {/* Layer rows — each wrapped in Radix ContextMenu (RC-DES-16) */}
+          {/* Layer rows */}
           {layers.map((layer, layerIndex) => (
-            <ContextMenuPrimitive.Root key={layer.id}>
-              <ContextMenuPrimitive.Trigger asChild>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "3px 8px 3px 12px",
-                    fontSize: 12,
-                    color: layer.visible
-                      ? "var(--io-text-primary)"
-                      : "var(--io-text-muted)",
+            <div
+              key={layer.id}
+              onContextMenu={(e) => handleLayerCtx(e, { layer, layerIndex })}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "3px 8px 3px 12px",
+                fontSize: 12,
+                cursor: "context-menu",
+                color: layer.visible
+                  ? "var(--io-text-primary)"
+                  : "var(--io-text-muted)",
+              }}
+            >
+              {/* Visibility toggle */}
+              <button
+                title={layer.visible ? "Hide" : "Show"}
+                style={iconBtn}
+                onClick={() => handleToggleVisible(layer)}
+              >
+                {layer.visible ? "👁" : "○"}
+              </button>
+              {/* Lock toggle */}
+              <button
+                title={layer.locked ? "Unlock" : "Lock"}
+                style={iconBtn}
+                onClick={() => handleToggleLocked(layer)}
+              >
+                {layer.locked ? "🔒" : "🔓"}
+              </button>
+              {/* Name — double-click to edit */}
+              {editingId === layer.id ? (
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={() => handleRenameCommit(layer)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRenameCommit(layer);
+                    if (e.key === "Escape") setEditingId(null);
                   }}
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    height: 20,
+                    fontSize: 12,
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    cursor: "default",
+                  }}
+                  onDoubleClick={() => handleRenameStart(layer)}
                 >
-                  {/* Visibility toggle */}
-                  <button
-                    title={layer.visible ? "Hide" : "Show"}
-                    style={iconBtn}
-                    onClick={() => handleToggleVisible(layer)}
-                  >
-                    {layer.visible ? "👁" : "○"}
-                  </button>
-                  {/* Lock toggle */}
-                  <button
-                    title={layer.locked ? "Unlock" : "Lock"}
-                    style={iconBtn}
-                    onClick={() => handleToggleLocked(layer)}
-                  >
-                    {layer.locked ? "🔒" : "🔓"}
-                  </button>
-                  {/* Name — double-click to edit */}
-                  {editingId === layer.id ? (
-                    <input
-                      autoFocus
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onBlur={() => handleRenameCommit(layer)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRenameCommit(layer);
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      style={{
-                        ...inputStyle,
-                        flex: 1,
-                        height: 20,
-                        fontSize: 12,
-                      }}
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        cursor: "default",
-                      }}
-                      onDoubleClick={() => handleRenameStart(layer)}
-                    >
-                      {layer.name}
-                    </span>
-                  )}
-                </div>
-              </ContextMenuPrimitive.Trigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.Content style={layerCtxMenuContent}>
-                  <ContextMenuPrimitive.Item
-                    style={layerCtxMenuItemStyle}
-                    onSelect={() => handleRenameStart(layer)}
-                  >
-                    Rename
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Item
-                    style={layerCtxMenuItemStyle}
-                    onSelect={() => {
-                      const maxOrder = doc.layers.reduce(
-                        (m, l) => Math.max(m, l.order),
-                        0,
-                      );
-                      executeCmd(
-                        new AddLayerCommand({
-                          ...layer,
-                          id: crypto.randomUUID(),
-                          name: layer.name + " Copy",
-                          order: maxOrder + 1,
-                        }),
-                      );
-                    }}
-                  >
-                    Duplicate
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Separator
-                    style={layerCtxMenuSepStyle}
-                  />
-                  <ContextMenuPrimitive.Item
-                    style={layerCtxMenuItemStyle}
-                    onSelect={() => handleToggleVisible(layer)}
-                  >
-                    {layer.visible ? "Hide Layer" : "Show Layer"}
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Item
-                    style={layerCtxMenuItemStyle}
-                    onSelect={() => handleToggleLocked(layer)}
-                  >
-                    {layer.locked ? "Unlock Layer" : "Lock Layer"}
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Separator
-                    style={layerCtxMenuSepStyle}
-                  />
-                  <ContextMenuPrimitive.Item
-                    style={{
-                      ...layerCtxMenuItemStyle,
-                      opacity: layerIndex === 0 ? 0.4 : 1,
-                      cursor: layerIndex === 0 ? "default" : "pointer",
-                    }}
-                    disabled={layerIndex === 0}
-                    onSelect={() => handleMoveUp(layer, layerIndex)}
-                  >
-                    Move Up
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Item
-                    style={{
-                      ...layerCtxMenuItemStyle,
-                      opacity: layerIndex === layers.length - 1 ? 0.4 : 1,
-                      cursor:
-                        layerIndex === layers.length - 1
-                          ? "default"
-                          : "pointer",
-                    }}
-                    disabled={layerIndex === layers.length - 1}
-                    onSelect={() => handleMoveDown(layer, layerIndex)}
-                  >
-                    Move Down
-                  </ContextMenuPrimitive.Item>
-                  <ContextMenuPrimitive.Separator
-                    style={layerCtxMenuSepStyle}
-                  />
-                  <ContextMenuPrimitive.Item
-                    style={{
-                      ...layerCtxMenuItemStyle,
-                      color:
-                        doc.layers.length <= 1
-                          ? "var(--io-text-muted)"
-                          : "var(--io-danger)",
-                      cursor: doc.layers.length <= 1 ? "default" : "pointer",
-                      opacity: doc.layers.length <= 1 ? 0.4 : 1,
-                    }}
-                    disabled={doc.layers.length <= 1}
-                    onSelect={() => handleDeleteLayer(layer.id)}
-                  >
-                    Delete
-                  </ContextMenuPrimitive.Item>
-                </ContextMenuPrimitive.Content>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Root>
+                  {layer.name}
+                </span>
+              )}
+            </div>
           ))}
+
+          {layerMenu?.data && (
+            <ContextMenu
+              x={layerMenu.x}
+              y={layerMenu.y}
+              items={[
+                { label: "Rename", onClick: () => { closeLayerMenu(); handleRenameStart(layerMenu.data!.layer); } },
+                {
+                  label: "Duplicate",
+                  onClick: () => {
+                    closeLayerMenu();
+                    const maxOrder = doc.layers.reduce((m, l) => Math.max(m, l.order), 0);
+                    executeCmd(new AddLayerCommand({
+                      ...layerMenu.data!.layer,
+                      id: crypto.randomUUID(),
+                      name: layerMenu.data!.layer.name + " Copy",
+                      order: maxOrder + 1,
+                    }));
+                  },
+                },
+                { label: layerMenu.data.layer.visible ? "Hide Layer" : "Show Layer", divider: true, onClick: () => { closeLayerMenu(); handleToggleVisible(layerMenu.data!.layer); } },
+                { label: layerMenu.data.layer.locked ? "Unlock Layer" : "Lock Layer", onClick: () => { closeLayerMenu(); handleToggleLocked(layerMenu.data!.layer); } },
+                { label: "Move Up", divider: true, disabled: layerMenu.data.layerIndex === 0, onClick: () => { closeLayerMenu(); handleMoveUp(layerMenu.data!.layer, layerMenu.data!.layerIndex); } },
+                { label: "Move Down", disabled: layerMenu.data.layerIndex === layers.length - 1, onClick: () => { closeLayerMenu(); handleMoveDown(layerMenu.data!.layer, layerMenu.data!.layerIndex); } },
+                { label: "Delete", divider: true, danger: true, disabled: doc.layers.length <= 1, onClick: () => { closeLayerMenu(); handleDeleteLayer(layerMenu.data!.layer.id); } },
+              ]}
+              onClose={closeLayerMenu}
+            />
+          )}
 
           {/* Add layer */}
           <div style={{ padding: "4px 12px 6px" }}>
