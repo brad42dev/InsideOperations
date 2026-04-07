@@ -75,12 +75,12 @@
 
 | Token | Value | Priority Level | Notes |
 |---|---|---|---|
-| `--io-alarm-critical` | `#ef4444` | Urgent / P1 | Red-500. **Identical to dark mode** |
-| `--io-alarm-high` | `#f59e0b` | High / P2 | Amber-500. **Identical to dark mode** |
-| `--io-alarm-medium` | `#eab308` | Medium / P3 | Yellow-500. **Identical to dark mode** |
-| `--io-alarm-advisory` | `#06b6d4` | Advisory / P4 | Cyan-500. **Identical to dark mode** |
+| `--io-alarm-urgent` | `#ef4444` | P1 — Urgent | Red-500. **Identical to dark mode** |
+| `--io-alarm-high` | `#f59e0b` | P2 — High | Amber-500. **Identical to dark mode** |
+| `--io-alarm-low` | `#eab308` | P3 — Low | Yellow-500. **Identical to dark mode** |
+| `--io-alarm-diagnostic` | `#06b6d4` | P4 — Diagnostic | Cyan-500. **Identical to dark mode** |
 | `--io-alarm-custom` | `#7c3aed` | Custom | Violet-700. **Identical to dark mode** |
-| `--io-alarm-fault` | `#d946ef` | Fault | Fuchsia-500. **Identical to dark mode** |
+| `--io-alarm-shelved` | `#a78bfa` | Shelved | Violet-400. Alarm active but operator-suppressed |
 
 > **HPHMI design rationale:** Alarm colors are deliberately identical to dark mode and use full-saturation values. Against the muted Slate background, these colors pop with maximum contrast — which is the entire point of HPHMI. Do NOT desaturate alarm colors in this theme.
 
@@ -91,8 +91,7 @@
 | Token | Value | Notes |
 |---|---|---|
 | `--io-alarm-normal` | `#22c55e` | Green-500. Point in normal state |
-| `--io-alarm-suppressed` | `#a78bfa` | Violet-400. Suppressed/shelved |
-| `--io-alarm-disabled` | `#64748b` | Slate-500. Disabled alarm (vs Zinc-500 in dark) |
+| `--io-alarm-disabled` | `#64748b` | Slate-500. Disabled alarm (vs Zinc-600 in dark) |
 
 ---
 

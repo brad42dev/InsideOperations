@@ -65,12 +65,12 @@
 
 | Token | Value | Priority Level | Notes |
 |---|---|---|---|
-| `--io-alarm-critical` | `#dc2626` | Urgent / P1 | Red-600. Darker for light bg contrast |
-| `--io-alarm-high` | `#d97706` | High / P2 | Amber-600 |
-| `--io-alarm-medium` | `#ca8a04` | Medium / P3 | Yellow-600 |
-| `--io-alarm-advisory` | `#0891b2` | Advisory / P4 | Cyan-700 |
-| `--io-alarm-custom` | `#6d28d9` | Custom | Violet-800 |
-| `--io-alarm-fault` | `#c026d3` | Fault | Fuchsia-600 |
+| `--io-alarm-urgent` | `#dc2626` | P1 — Urgent | Red-600. Darker for light bg contrast |
+| `--io-alarm-high` | `#d97706` | P2 — High | Amber-600 |
+| `--io-alarm-low` | `#ca8a04` | P3 — Low | Yellow-600 |
+| `--io-alarm-diagnostic` | `#0891b2` | P4 — Diagnostic | Cyan-700. Diagnostic/Journal |
+| `--io-alarm-custom` | `#6d28d9` | Custom | Violet-800. User-defined |
+| `--io-alarm-shelved` | `#7c3aed` | Shelved | Violet-700. Alarm active but operator-suppressed |
 
 > **Note:** All alarm colors are one shade darker in light mode vs dark mode to maintain legibility on white/light backgrounds. These are NOT identical to the dark theme alarm colors.
 
@@ -81,8 +81,7 @@
 | Token | Value | Notes |
 |---|---|---|
 | `--io-alarm-normal` | `#16a34a` | Green-600. Point in normal state |
-| `--io-alarm-suppressed` | `#7c3aed` | Violet-700. Suppressed/shelved |
-| `--io-alarm-disabled` | `#9ca3af` | Gray-400. Disabled alarm |
+| `--io-alarm-disabled` | `#9ca3af` | Gray-400. Disabled alarm; no action possible |
 
 ---
 
