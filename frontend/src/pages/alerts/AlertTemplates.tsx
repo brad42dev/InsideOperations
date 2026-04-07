@@ -219,7 +219,9 @@ export default function AlertTemplates() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => notificationsApi.deleteTemplate(id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications", "templates"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "templates"],
+      }),
   });
 
   return (

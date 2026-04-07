@@ -78,12 +78,15 @@ const SERVICE_INFO: Record<
   "api-gateway": {
     display: "API Gateway",
     description: "HTTP routing, JWT validation, RBAC enforcement",
-    impact: "All API requests fail. Users cannot log in or access the application.",
+    impact:
+      "All API requests fail. Users cannot log in or access the application.",
   },
   "data-broker": {
     display: "Data Broker",
-    description: "WebSocket broker, subscription registry, backpressure management",
-    impact: "Live data updates stop. All dashboards and consoles show stale values.",
+    description:
+      "WebSocket broker, subscription registry, backpressure management",
+    impact:
+      "Live data updates stop. All dashboards and consoles show stale values.",
   },
   "opc-service": {
     display: "OPC Service",
@@ -93,7 +96,8 @@ const SERVICE_INFO: Record<
   "event-service": {
     display: "Event Service",
     description: "ISA-18.2 alarm state machine, event processing",
-    impact: "Alarms stop triggering. Active alarm states freeze until service recovers.",
+    impact:
+      "Alarms stop triggering. Active alarm states freeze until service recovers.",
   },
   "parser-service": {
     display: "Parser Service",
@@ -103,27 +107,34 @@ const SERVICE_INFO: Record<
   "archive-service": {
     display: "Archive Service",
     description: "TimescaleDB management, compression, data retention",
-    impact: "Historical queries fail. Trend charts, forensics, and reports unavailable.",
+    impact:
+      "Historical queries fail. Trend charts, forensics, and reports unavailable.",
   },
   "import-service": {
     display: "Import Service",
     description: "Universal import ETL pipeline, connector templates",
-    impact: "Data imports fail. Scheduled imports will queue and retry on recovery.",
+    impact:
+      "Data imports fail. Scheduled imports will queue and retry on recovery.",
   },
   "alert-service": {
     display: "Alert Service",
-    description: "Alert routing, escalation policies, shift-aware notification dispatch",
-    impact: "Alert notifications stop. No SMS, email, or WebSocket alerts dispatched.",
+    description:
+      "Alert routing, escalation policies, shift-aware notification dispatch",
+    impact:
+      "Alert notifications stop. No SMS, email, or WebSocket alerts dispatched.",
   },
   "email-service": {
     display: "Email Service",
     description: "Transactional email, template rendering, delivery queue",
-    impact: "All emails stop. Password resets and alarm notifications via email unavailable.",
+    impact:
+      "All emails stop. Password resets and alarm notifications via email unavailable.",
   },
   "auth-service": {
     display: "Auth Service",
-    description: "Multi-provider auth (Local/OIDC/SAML/LDAP), MFA, SCIM, API keys",
-    impact: "New logins fail. Active sessions remain valid until JWT expires (15 min).",
+    description:
+      "Multi-provider auth (Local/OIDC/SAML/LDAP), MFA, SCIM, API keys",
+    impact:
+      "New logins fail. Active sessions remain valid until JWT expires (15 min).",
   },
   "recognition-service": {
     display: "Recognition Service",

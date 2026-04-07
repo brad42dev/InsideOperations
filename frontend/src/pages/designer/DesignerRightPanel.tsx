@@ -3612,15 +3612,17 @@ function collectNodeIdsByLayer(
   return result;
 }
 
-
 function LayersPanel() {
   const executeCmd = useExecuteCmd();
   const doc = useSceneStore((s) => s.doc);
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const { menuState: layerMenu, handleContextMenu: handleLayerCtx, closeMenu: closeLayerMenu } =
-    useContextMenu<{ layer: LayerDefinition; layerIndex: number }>();
+  const {
+    menuState: layerMenu,
+    handleContextMenu: handleLayerCtx,
+    closeMenu: closeLayerMenu,
+  } = useContextMenu<{ layer: LayerDefinition; layerIndex: number }>();
 
   if (!doc) return null;
 
@@ -3865,25 +3867,83 @@ function LayersPanel() {
               x={layerMenu.x}
               y={layerMenu.y}
               items={[
-                { label: "Rename", onClick: () => { closeLayerMenu(); handleRenameStart(layerMenu.data!.layer); } },
+                {
+                  label: "Rename",
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleRenameStart(layerMenu.data!.layer);
+                  },
+                },
                 {
                   label: "Duplicate",
                   onClick: () => {
                     closeLayerMenu();
-                    const maxOrder = doc.layers.reduce((m, l) => Math.max(m, l.order), 0);
-                    executeCmd(new AddLayerCommand({
-                      ...layerMenu.data!.layer,
-                      id: crypto.randomUUID(),
-                      name: layerMenu.data!.layer.name + " Copy",
-                      order: maxOrder + 1,
-                    }));
+                    const maxOrder = doc.layers.reduce(
+                      (m, l) => Math.max(m, l.order),
+                      0,
+                    );
+                    executeCmd(
+                      new AddLayerCommand({
+                        ...layerMenu.data!.layer,
+                        id: crypto.randomUUID(),
+                        name: layerMenu.data!.layer.name + " Copy",
+                        order: maxOrder + 1,
+                      }),
+                    );
                   },
                 },
-                { label: layerMenu.data.layer.visible ? "Hide Layer" : "Show Layer", divider: true, onClick: () => { closeLayerMenu(); handleToggleVisible(layerMenu.data!.layer); } },
-                { label: layerMenu.data.layer.locked ? "Unlock Layer" : "Lock Layer", onClick: () => { closeLayerMenu(); handleToggleLocked(layerMenu.data!.layer); } },
-                { label: "Move Up", divider: true, disabled: layerMenu.data.layerIndex === 0, onClick: () => { closeLayerMenu(); handleMoveUp(layerMenu.data!.layer, layerMenu.data!.layerIndex); } },
-                { label: "Move Down", disabled: layerMenu.data.layerIndex === layers.length - 1, onClick: () => { closeLayerMenu(); handleMoveDown(layerMenu.data!.layer, layerMenu.data!.layerIndex); } },
-                { label: "Delete", divider: true, danger: true, disabled: doc.layers.length <= 1, onClick: () => { closeLayerMenu(); handleDeleteLayer(layerMenu.data!.layer.id); } },
+                {
+                  label: layerMenu.data.layer.visible
+                    ? "Hide Layer"
+                    : "Show Layer",
+                  divider: true,
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleToggleVisible(layerMenu.data!.layer);
+                  },
+                },
+                {
+                  label: layerMenu.data.layer.locked
+                    ? "Unlock Layer"
+                    : "Lock Layer",
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleToggleLocked(layerMenu.data!.layer);
+                  },
+                },
+                {
+                  label: "Move Up",
+                  divider: true,
+                  disabled: layerMenu.data.layerIndex === 0,
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleMoveUp(
+                      layerMenu.data!.layer,
+                      layerMenu.data!.layerIndex,
+                    );
+                  },
+                },
+                {
+                  label: "Move Down",
+                  disabled: layerMenu.data.layerIndex === layers.length - 1,
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleMoveDown(
+                      layerMenu.data!.layer,
+                      layerMenu.data!.layerIndex,
+                    );
+                  },
+                },
+                {
+                  label: "Delete",
+                  divider: true,
+                  danger: true,
+                  disabled: doc.layers.length <= 1,
+                  onClick: () => {
+                    closeLayerMenu();
+                    handleDeleteLayer(layerMenu.data!.layer.id);
+                  },
+                },
               ]}
               onClose={closeLayerMenu}
             />

@@ -183,15 +183,25 @@ function TwoColumnSections({ sections }: { sections: ShortcutSection[] }) {
   const left = nonEmpty.slice(0, half);
   const right = nonEmpty.slice(half);
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
+    <div
+      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}
+    >
       <div>
         {left.map((s) => (
-          <ShortcutSectionBlock key={s.title} title={s.title} shortcuts={s.shortcuts} />
+          <ShortcutSectionBlock
+            key={s.title}
+            title={s.title}
+            shortcuts={s.shortcuts}
+          />
         ))}
       </div>
       <div>
         {right.map((s) => (
-          <ShortcutSectionBlock key={s.title} title={s.title} shortcuts={s.shortcuts} />
+          <ShortcutSectionBlock
+            key={s.title}
+            title={s.title}
+            shortcuts={s.shortcuts}
+          />
         ))}
       </div>
     </div>
@@ -279,7 +289,9 @@ export default function KeyboardHelpOverlay({
                   }}
                 >
                   Showing shortcuts for{" "}
-                  <span style={{ color: "var(--io-accent)" }}>{moduleLabel}</span>{" "}
+                  <span style={{ color: "var(--io-accent)" }}>
+                    {moduleLabel}
+                  </span>{" "}
                   + global
                 </div>
               )}

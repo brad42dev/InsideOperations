@@ -6,7 +6,12 @@ import SettingsPageLayout from "./SettingsPageLayout";
 import { ArchiveTab } from "./ArchiveSettings";
 import { BackupTab } from "./BackupRestore";
 import { api } from "../../api/client";
-import { inputStyle, labelStyle, btnPrimary, btnSecondary } from "./settingsStyles";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+} from "./settingsStyles";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,7 +44,10 @@ interface InstalledCert {
 // Common IANA timezones grouped by region
 // ---------------------------------------------------------------------------
 
-const TIMEZONE_GROUPS: { label: string; zones: { value: string; label: string }[] }[] = [
+const TIMEZONE_GROUPS: {
+  label: string;
+  zones: { value: string; label: string }[];
+}[] = [
   {
     label: "UTC / Universal",
     zones: [
@@ -59,10 +67,16 @@ const TIMEZONE_GROUPS: { label: string; zones: { value: string; label: string }[
       { value: "Pacific/Honolulu", label: "Hawaii Time (Honolulu)" },
       { value: "America/Toronto", label: "Eastern Time (Toronto)" },
       { value: "America/Vancouver", label: "Pacific Time (Vancouver)" },
-      { value: "America/Regina", label: "Central Time — Saskatchewan (no DST)" },
+      {
+        value: "America/Regina",
+        label: "Central Time — Saskatchewan (no DST)",
+      },
       { value: "America/Mexico_City", label: "Central Time (Mexico City)" },
       { value: "America/Sao_Paulo", label: "Brasília Time (São Paulo)" },
-      { value: "America/Argentina/Buenos_Aires", label: "Argentina Time (Buenos Aires)" },
+      {
+        value: "America/Argentina/Buenos_Aires",
+        label: "Argentina Time (Buenos Aires)",
+      },
       { value: "America/Bogota", label: "Colombia Time (Bogotá)" },
     ],
   },
@@ -139,14 +153,17 @@ const DEFAULT_HOSTNAMES: HostnameEntry[] = [{ hostname: "", cert_name: "" }];
 function GeneralTab() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [hostnames, setHostnames] = useState<HostnameEntry[]>(DEFAULT_HOSTNAMES);
+  const [hostnames, setHostnames] =
+    useState<HostnameEntry[]>(DEFAULT_HOSTNAMES);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
   const { isLoading } = useQuery({
     queryKey: ["app-settings-general"],
     queryFn: async () => {
-      const res = await api.get<Record<string, string>>("/api/settings?category=system");
+      const res = await api.get<Record<string, string>>(
+        "/api/settings?category=system",
+      );
       if (res.success && res.data) {
         const raw = res.data as Record<string, string>;
         setForm((prev) => ({
@@ -158,7 +175,9 @@ function GeneralTab() {
         // Hostnames are stored as JSON under "system.hostnames"
         if (raw["system.hostnames"]) {
           try {
-            const parsed = JSON.parse(raw["system.hostnames"]) as HostnameEntry[];
+            const parsed = JSON.parse(
+              raw["system.hostnames"],
+            ) as HostnameEntry[];
             if (Array.isArray(parsed) && parsed.length > 0) {
               setHostnames(parsed);
             }
@@ -246,7 +265,9 @@ function GeneralTab() {
       });
       const parts = fmt.formatToParts(new Date());
       const offset = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
-      setTzPreview(`Current time: ${parts.find((p) => p.type === "hour")?.value}:${parts.find((p) => p.type === "minute")?.value} ${offset}`);
+      setTzPreview(
+        `Current time: ${parts.find((p) => p.type === "hour")?.value}:${parts.find((p) => p.type === "minute")?.value} ${offset}`,
+      );
     } catch {
       setTzPreview("");
     }
@@ -261,7 +282,14 @@ function GeneralTab() {
   }
 
   return (
-    <div style={{ maxWidth: "720px", display: "flex", flexDirection: "column", gap: "28px" }}>
+    <div
+      style={{
+        maxWidth: "720px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "28px",
+      }}
+    >
       {/* Site Identity */}
       <section>
         <h3
@@ -285,7 +313,13 @@ function GeneralTab() {
               onChange={(e) => set("system.site_name", e.target.value)}
               placeholder="Inside/Operations"
             />
-            <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+              }}
+            >
               Displayed in the browser tab, login page, and email templates.
             </p>
           </div>
@@ -413,7 +447,8 @@ function GeneralTab() {
                             : "";
                         return (
                           <option key={cert.name} value={cert.name}>
-                            {cert.name}{statusText}
+                            {cert.name}
+                            {statusText}
                           </option>
                         );
                       })}
@@ -423,31 +458,36 @@ function GeneralTab() {
                         </option>
                       )}
                     </select>
-                    {entry.cert_name && (() => {
-                      const cert = installedCerts.find(
-                        (c) => c.name === entry.cert_name,
-                      );
-                      if (!cert) return null;
-                      return (
-                        <div
-                          style={{
-                            marginTop: "3px",
-                            fontSize: "11px",
-                            color: cert.is_expired
-                              ? "var(--io-danger)"
-                              : cert.days_remaining < 30
-                                ? "var(--io-warning)"
-                                : "var(--io-text-muted)",
-                          }}
-                        >
-                          {cert.subject} — expires{" "}
-                          {new Date(cert.not_after).toLocaleDateString(
-                            undefined,
-                            { year: "numeric", month: "short", day: "numeric" },
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {entry.cert_name &&
+                      (() => {
+                        const cert = installedCerts.find(
+                          (c) => c.name === entry.cert_name,
+                        );
+                        if (!cert) return null;
+                        return (
+                          <div
+                            style={{
+                              marginTop: "3px",
+                              fontSize: "11px",
+                              color: cert.is_expired
+                                ? "var(--io-danger)"
+                                : cert.days_remaining < 30
+                                  ? "var(--io-warning)"
+                                  : "var(--io-text-muted)",
+                            }}
+                          >
+                            {cert.subject} — expires{" "}
+                            {new Date(cert.not_after).toLocaleDateString(
+                              undefined,
+                              {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              },
+                            )}
+                          </div>
+                        );
+                      })()}
                   </div>
                   <div style={{ paddingLeft: "8px" }}>
                     {hostnames.length > 1 && (
@@ -527,14 +567,26 @@ function GeneralTab() {
               ))}
             </select>
             {tzPreview && (
-              <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontSize: "11px",
+                  color: "var(--io-text-muted)",
+                }}
+              >
                 {tzPreview}
               </p>
             )}
-            <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
-              Affects report timestamps, scheduled backup times, shift schedules,
-              and alarm activation times. Changing this setting does not
-              re-timestamp historical data — it only affects new records and
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+              }}
+            >
+              Affects report timestamps, scheduled backup times, shift
+              schedules, and alarm activation times. Changing this setting does
+              not re-timestamp historical data — it only affects new records and
               display formatting.
             </p>
           </div>
@@ -568,10 +620,16 @@ function GeneralTab() {
                 value={form["system.time_format"]}
                 onChange={(e) => set("system.time_format", e.target.value)}
               >
-                <option value="HH:mm:ss">24-hour with seconds (14:30:00)</option>
+                <option value="HH:mm:ss">
+                  24-hour with seconds (14:30:00)
+                </option>
                 <option value="HH:mm">24-hour without seconds (14:30)</option>
-                <option value="h:mm:ss A">12-hour with seconds (2:30:00 PM)</option>
-                <option value="h:mm A">12-hour without seconds (2:30 PM)</option>
+                <option value="h:mm:ss A">
+                  12-hour with seconds (2:30:00 PM)
+                </option>
+                <option value="h:mm A">
+                  12-hour without seconds (2:30 PM)
+                </option>
               </select>
             </div>
           </div>
@@ -606,7 +664,13 @@ function GeneralTab() {
               set("system.default_idle_timeout_minutes", e.target.value)
             }
           />
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: "11px",
+              color: "var(--io-text-muted)",
+            }}
+          >
             System-wide fallback. Individual roles can override this value under
             Identity &amp; Access → Roles. Set to 0 for no timeout (not
             recommended for production).
@@ -627,11 +691,7 @@ function GeneralTab() {
             fontSize: "13px",
           }}
         >
-          {saveMut.isPending
-            ? "Saving…"
-            : error
-              ? error
-              : "Settings saved."}
+          {saveMut.isPending ? "Saving…" : error ? error : "Settings saved."}
         </div>
       )}
 
@@ -673,7 +733,11 @@ export default function SystemSettings() {
   const [searchParams] = useSearchParams();
   const urlTab = searchParams.get("tab") as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(
-    urlTab === "backup" ? "backup" : urlTab === "archive" ? "archive" : "general",
+    urlTab === "backup"
+      ? "backup"
+      : urlTab === "archive"
+        ? "archive"
+        : "general",
   );
 
   return (

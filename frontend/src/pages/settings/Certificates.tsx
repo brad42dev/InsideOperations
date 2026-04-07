@@ -203,7 +203,8 @@ function GuidePanel({ title, steps, note }: GuidePanelProps) {
             padding: "10px 12px",
             background:
               "color-mix(in srgb, var(--io-warning) 12%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--io-warning) 30%, transparent)",
+            border:
+              "1px solid color-mix(in srgb, var(--io-warning) 30%, transparent)",
             borderRadius: "var(--io-radius)",
             fontSize: "11px",
             color: "var(--io-text-secondary)",
@@ -514,7 +515,13 @@ function InstalledTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
+        }}
+      >
         <button onClick={() => setShowUpload(true)} style={btnPrimary}>
           + Upload Certificate
         </button>
@@ -725,8 +732,7 @@ function InstalledTab() {
                   padding: "10px 14px",
                   background: "var(--io-surface-secondary)",
                   borderRadius: "var(--io-radius)",
-                  border:
-                    "1px solid var(--io-border-subtle, var(--io-border))",
+                  border: "1px solid var(--io-border-subtle, var(--io-border))",
                   fontSize: "12px",
                   color: "var(--io-text-secondary)",
                 }}
@@ -981,7 +987,7 @@ const ACME_DNS01_MANUAL_GUIDE: GuidePanelProps = {
     {
       title: "Add the TXT record to your DNS provider",
       detail:
-        'Log in to your DNS provider and create a TXT record named _acme-challenge.<yourdomain> with the displayed value. Allow a few minutes for DNS propagation.',
+        "Log in to your DNS provider and create a TXT record named _acme-challenge.<yourdomain> with the displayed value. Allow a few minutes for DNS propagation.",
     },
     {
       title: "Click Verify & Issue",
@@ -1075,18 +1081,19 @@ function AcmeSection() {
 
   const issueMut = useMutation({
     mutationFn: async () => {
-      const res = await api.post<{ challenge?: PendingAcmeChallenge; issued?: boolean; message?: string }>(
-        "/api/certificates/acme/issue",
-        {
-          hostname: hostname.trim(),
-          email: email.trim(),
-          challenge_type: challengeType,
-          ...(challengeType === "dns01_auto" && {
-            dns_provider: dnsProvider,
-            dns_api_token: dnsApiToken,
-          }),
-        },
-      );
+      const res = await api.post<{
+        challenge?: PendingAcmeChallenge;
+        issued?: boolean;
+        message?: string;
+      }>("/api/certificates/acme/issue", {
+        hostname: hostname.trim(),
+        email: email.trim(),
+        challenge_type: challengeType,
+        ...(challengeType === "dns01_auto" && {
+          dns_provider: dnsProvider,
+          dns_api_token: dnsApiToken,
+        }),
+      });
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
@@ -1098,7 +1105,10 @@ function AcmeSection() {
         // Pre-fill hostname from the challenge so Verify knows which domain
         setHostname(data.challenge.hostname);
       } else {
-        setResult({ ok: true, message: "Certificate issued and installed successfully." });
+        setResult({
+          ok: true,
+          message: "Certificate issued and installed successfully.",
+        });
         queryClient.invalidateQueries({ queryKey: ["acme-pending-challenge"] });
         queryClient.invalidateQueries({ queryKey: ["certificates"] });
       }
@@ -1118,7 +1128,10 @@ function AcmeSection() {
       return res.data;
     },
     onSuccess: () => {
-      setResult({ ok: true, message: "Certificate issued and installed successfully." });
+      setResult({
+        ok: true,
+        message: "Certificate issued and installed successfully.",
+      });
       queryClient.invalidateQueries({ queryKey: ["acme-pending-challenge"] });
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     },
@@ -1380,9 +1393,9 @@ function AcmeSection() {
                     Challenge created{" "}
                     {new Date(pendingChallenge.created_at).toLocaleString()}.
                     Add the TXT record below to your DNS provider, allow a few
-                    minutes for propagation, then click Verify &amp; Issue.
-                    This page can be safely closed and revisited — the challenge
-                    is preserved.
+                    minutes for propagation, then click Verify &amp; Issue. This
+                    page can be safely closed and revisited — the challenge is
+                    preserved.
                   </div>
                 </div>
                 <button
@@ -1411,7 +1424,9 @@ function AcmeSection() {
                   fontSize: "12px",
                 }}
               >
-                <span style={{ color: "var(--io-text-muted)", fontWeight: 600 }}>
+                <span
+                  style={{ color: "var(--io-text-muted)", fontWeight: 600 }}
+                >
                   Record Name
                 </span>
                 <code
@@ -1423,11 +1438,15 @@ function AcmeSection() {
                 >
                   {pendingChallenge.record_name}
                 </code>
-                <span style={{ color: "var(--io-text-muted)", fontWeight: 600 }}>
+                <span
+                  style={{ color: "var(--io-text-muted)", fontWeight: 600 }}
+                >
                   Record Type
                 </span>
                 <code style={{ fontFamily: "monospace" }}>TXT</code>
-                <span style={{ color: "var(--io-text-muted)", fontWeight: 600 }}>
+                <span
+                  style={{ color: "var(--io-text-muted)", fontWeight: 600 }}
+                >
                   Record Value
                 </span>
                 <code
@@ -1476,7 +1495,9 @@ function AcmeSection() {
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => issueMut.mutate()}
-                disabled={issueMut.isPending || !hostname.trim() || !email.trim()}
+                disabled={
+                  issueMut.isPending || !hostname.trim() || !email.trim()
+                }
                 style={btnPrimary}
               >
                 {issueMut.isPending
@@ -1668,7 +1689,14 @@ function AcmeRenewalSection() {
         </div>
       </div>
 
-      <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+      <div
+        style={{
+          marginTop: "16px",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}
+      >
         <button
           onClick={() => saveMut.mutate()}
           disabled={saveMut.isPending}
@@ -1737,16 +1765,19 @@ function SelfSignedSection() {
 
   const genMut = useMutation({
     mutationFn: async () => {
-      const res = await api.post<{ name: string }>("/api/certificates/self-signed/generate", {
-        common_name: cn.trim(),
-        sans: sans
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        organization: org.trim() || undefined,
-        key_type: keyType,
-        valid_days: parseInt(validDays, 10) || 825,
-      });
+      const res = await api.post<{ name: string }>(
+        "/api/certificates/self-signed/generate",
+        {
+          common_name: cn.trim(),
+          sans: sans
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          organization: org.trim() || undefined,
+          key_type: keyType,
+          valid_days: parseInt(validDays, 10) || 825,
+        },
+      );
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
@@ -1861,7 +1892,10 @@ function SelfSignedSection() {
           <div>
             <label style={labelStyle}>Subject Alternative Names (SANs)</label>
             <textarea
-              style={{ ...textareaStyle, fontFamily: "var(--io-font-mono, monospace)" }}
+              style={{
+                ...textareaStyle,
+                fontFamily: "var(--io-font-mono, monospace)",
+              }}
               value={sans}
               onChange={(e) => setSans(e.target.value)}
               rows={4}
@@ -1980,7 +2014,7 @@ const CSR_GUIDE: GuidePanelProps = {
     {
       title: "Import the signed certificate",
       detail:
-        'Use the Upload Certificate button in the Installed tab. I/O automatically detects that the certificate matches the private key generated in step 4 — you do not need to provide the key again.',
+        "Use the Upload Certificate button in the Installed tab. I/O automatically detects that the certificate matches the private key generated in step 4 — you do not need to provide the key again.",
     },
   ],
 };
@@ -2165,7 +2199,10 @@ function CsrSection() {
           <div>
             <label style={labelStyle}>Subject Alternative Names (SANs)</label>
             <textarea
-              style={{ ...textareaStyle, fontFamily: "var(--io-font-mono, monospace)" }}
+              style={{
+                ...textareaStyle,
+                fontFamily: "var(--io-font-mono, monospace)",
+              }}
               value={sans}
               onChange={(e) => setSans(e.target.value)}
               rows={3}
@@ -2307,9 +2344,10 @@ function ProvisionTab() {
         }}
       >
         Choose how to provision or generate your TLS certificate. Let's Encrypt
-        provides free, publicly-trusted certificates for internet-facing servers.
-        Generate a self-signed certificate for internal use. Use the CSR workflow
-        to obtain a certificate from your corporate certificate authority.
+        provides free, publicly-trusted certificates for internet-facing
+        servers. Generate a self-signed certificate for internal use. Use the
+        CSR workflow to obtain a certificate from your corporate certificate
+        authority.
       </p>
       <AcmeSection />
       <SelfSignedSection />
@@ -2326,7 +2364,9 @@ function HSTSTab() {
   const [enabled, setEnabled] = useState(false);
   const [maxAge, setMaxAge] = useState(63072000);
   const [loaded, setLoaded] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
 
   const { isError: hstsError } = useQuery({
     queryKey: ["hsts-config"],
@@ -2386,8 +2426,7 @@ function HSTSTab() {
         style={{
           padding: "16px 20px",
           marginBottom: "24px",
-          background:
-            "color-mix(in srgb, var(--io-warning) 10%, transparent)",
+          background: "color-mix(in srgb, var(--io-warning) 10%, transparent)",
           border:
             "1px solid color-mix(in srgb, var(--io-warning) 35%, transparent)",
           borderRadius: "var(--io-radius)",

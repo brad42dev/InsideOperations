@@ -2203,9 +2203,7 @@ function TemplatesPanel() {
                   )}
                 </span>
                 <br />
-                <span
-                  style={{ fontSize: 11, color: "var(--io-text-muted)" }}
-                >
+                <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>
                   {tpl.title_template}
                 </span>
               </div>

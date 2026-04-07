@@ -506,7 +506,9 @@ function StageCard({
           .map((ev: EvidenceItem) => (
             <div
               key={ev.id}
-              onContextMenu={(e) => !readOnly && handleEvidenceContextMenu(e, ev)}
+              onContextMenu={(e) =>
+                !readOnly && handleEvidenceContextMenu(e, ev)
+              }
               style={{ cursor: readOnly ? "default" : "context-menu" }}
             >
               <EvidenceRenderer
@@ -783,9 +785,28 @@ function StageCard({
             x={evidenceMenuState.x}
             y={evidenceMenuState.y}
             items={[
-              { label: `${evidenceMenuState.data.evidence_type} evidence`, disabled: true },
-              { label: "Copy Evidence ID", onClick: () => { closeEvidenceMenu(); void navigator.clipboard.writeText(evidenceMenuState.data!.id); } },
-              { label: "Remove Evidence", danger: true, divider: true, onClick: () => { closeEvidenceMenu(); deleteEvidenceMutation.mutate(evidenceMenuState.data!.id); } },
+              {
+                label: `${evidenceMenuState.data.evidence_type} evidence`,
+                disabled: true,
+              },
+              {
+                label: "Copy Evidence ID",
+                onClick: () => {
+                  closeEvidenceMenu();
+                  void navigator.clipboard.writeText(
+                    evidenceMenuState.data!.id,
+                  );
+                },
+              },
+              {
+                label: "Remove Evidence",
+                danger: true,
+                divider: true,
+                onClick: () => {
+                  closeEvidenceMenu();
+                  deleteEvidenceMutation.mutate(evidenceMenuState.data!.id);
+                },
+              },
             ]}
             onClose={closeEvidenceMenu}
           />
@@ -797,8 +818,22 @@ function StageCard({
             y={stageMenuState.y}
             items={[
               { label: stageMenuState.data.name, disabled: true },
-              { label: "Rename Stage", onClick: () => { closeStageMenu(); setEditingName(true); } },
-              { label: "Delete Stage", danger: true, divider: true, onClick: () => { closeStageMenu(); deleteStageMutation.mutate(); } },
+              {
+                label: "Rename Stage",
+                onClick: () => {
+                  closeStageMenu();
+                  setEditingName(true);
+                },
+              },
+              {
+                label: "Delete Stage",
+                danger: true,
+                divider: true,
+                onClick: () => {
+                  closeStageMenu();
+                  deleteStageMutation.mutate();
+                },
+              },
             ]}
             onClose={closeStageMenu}
           />

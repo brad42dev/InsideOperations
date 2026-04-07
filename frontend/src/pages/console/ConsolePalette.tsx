@@ -816,110 +816,110 @@ function WorkspaceThumbnailCard({
             (e.currentTarget as HTMLElement).style.background = "transparent";
         }}
       >
-          {/* Mini layout preview thumbnail */}
-          <div
+        {/* Mini layout preview thumbnail */}
+        <div
+          style={{
+            width: thumbW,
+            height: thumbH,
+            flexShrink: 0,
+            background: "var(--io-surface-sunken)",
+            borderRadius: 3,
+            border: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+          }}
+        >
+          {/* Placeholder grid pattern representing panes */}
+          <svg
+            width={thumbW - 6}
+            height={thumbH - 6}
+            viewBox="0 0 40 30"
+            fill="none"
+          >
+            <rect
+              x="1"
+              y="1"
+              width="18"
+              height="13"
+              rx="1"
+              fill="var(--io-border)"
+              opacity="0.6"
+            />
+            <rect
+              x="21"
+              y="1"
+              width="18"
+              height="13"
+              rx="1"
+              fill="var(--io-border)"
+              opacity="0.6"
+            />
+            <rect
+              x="1"
+              y="16"
+              width="38"
+              height="13"
+              rx="1"
+              fill="var(--io-border)"
+              opacity="0.4"
+            />
+          </svg>
+        </div>
+
+        {/* Name — up to 2 lines in thumbnails, 1 line in grid */}
+        <div
+          style={{
+            flex: gridMode ? undefined : 1,
+            minWidth: 0,
+            textAlign: gridMode ? "center" : "left",
+            width: gridMode ? thumbW : undefined,
+          }}
+        >
+          <span
             style={{
-              width: thumbW,
-              height: thumbH,
-              flexShrink: 0,
-              background: "var(--io-surface-sunken)",
-              borderRadius: 3,
-              border: "1px solid var(--io-border)",
+              fontSize: 11,
+              color: isActive ? "var(--io-accent)" : "var(--io-text-primary)",
+              fontWeight: isActive ? 600 : 400,
+              display: "-webkit-box",
+              WebkitLineClamp: gridMode ? 1 : 2,
+              WebkitBoxOrient: "vertical" as const,
+              overflow: "hidden",
+              lineHeight: 1.3,
+              wordBreak: "break-word",
+            }}
+          >
+            {ws.name}
+          </span>
+        </div>
+
+        {/* Star button — appears on hover or when favorited */}
+        {!gridMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "2px 3px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              overflow: "hidden",
+              borderRadius: 3,
+              flexShrink: 0,
+              opacity: isFavorite || hovering ? 1 : 0,
+              transition: "opacity 0.1s",
             }}
           >
-            {/* Placeholder grid pattern representing panes */}
-            <svg
-              width={thumbW - 6}
-              height={thumbH - 6}
-              viewBox="0 0 40 30"
-              fill="none"
-            >
-              <rect
-                x="1"
-                y="1"
-                width="18"
-                height="13"
-                rx="1"
-                fill="var(--io-border)"
-                opacity="0.6"
-              />
-              <rect
-                x="21"
-                y="1"
-                width="18"
-                height="13"
-                rx="1"
-                fill="var(--io-border)"
-                opacity="0.6"
-              />
-              <rect
-                x="1"
-                y="16"
-                width="38"
-                height="13"
-                rx="1"
-                fill="var(--io-border)"
-                opacity="0.4"
-              />
-            </svg>
-          </div>
-
-          {/* Name — up to 2 lines in thumbnails, 1 line in grid */}
-          <div
-            style={{
-              flex: gridMode ? undefined : 1,
-              minWidth: 0,
-              textAlign: gridMode ? "center" : "left",
-              width: gridMode ? thumbW : undefined,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                color: isActive ? "var(--io-accent)" : "var(--io-text-primary)",
-                fontWeight: isActive ? 600 : 400,
-                display: "-webkit-box",
-                WebkitLineClamp: gridMode ? 1 : 2,
-                WebkitBoxOrient: "vertical" as const,
-                overflow: "hidden",
-                lineHeight: 1.3,
-                wordBreak: "break-word",
-              }}
-            >
-              {ws.name}
-            </span>
-          </div>
-
-          {/* Star button — appears on hover or when favorited */}
-          {!gridMode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite();
-              }}
-              title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "2px 3px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 3,
-                flexShrink: 0,
-                opacity: isFavorite || hovering ? 1 : 0,
-                transition: "opacity 0.1s",
-              }}
-            >
-              <StarIcon filled={isFavorite} />
-            </button>
-          )}
-        </div>
+            <StarIcon filled={isFavorite} />
+          </button>
+        )}
+      </div>
       {menuState && (
         <ContextMenu
           x={menuState.x}

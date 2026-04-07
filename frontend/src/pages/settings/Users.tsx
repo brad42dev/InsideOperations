@@ -145,11 +145,23 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
     >
       <div>
-        <div style={{ fontSize: "13px", color: "var(--io-text-primary)", fontWeight: 500 }}>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "var(--io-text-primary)",
+            fontWeight: 500,
+          }}
+        >
           {label}
         </div>
         {hint && (
-          <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: "2px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginTop: "2px",
+            }}
+          >
             {hint}
           </div>
         )}
@@ -417,17 +429,31 @@ function Field({
       <label style={labelStyle}>
         {label}
         {required && (
-          <span style={{ color: "var(--io-danger)", marginLeft: "2px" }}>*</span>
+          <span style={{ color: "var(--io-danger)", marginLeft: "2px" }}>
+            *
+          </span>
         )}
       </label>
       {children}
       {hint && !error && (
-        <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--io-text-muted)" }}>
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: "11px",
+            color: "var(--io-text-muted)",
+          }}
+        >
           {hint}
         </p>
       )}
       {error && (
-        <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--io-danger)" }}>
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: "12px",
+            color: "var(--io-danger)",
+          }}
+        >
           {error}
         </p>
       )}
@@ -595,12 +621,15 @@ function CreateUserDialog({
             <input
               style={{
                 ...inputStyle,
-                borderColor: fieldErrors.username ? "var(--io-danger)" : undefined,
+                borderColor: fieldErrors.username
+                  ? "var(--io-danger)"
+                  : undefined,
               }}
               value={form.username}
               onChange={(e) => {
                 setForm((f) => ({ ...f, username: e.target.value }));
-                if (fieldErrors.username) setFieldErrors((fe) => ({ ...fe, username: "" }));
+                if (fieldErrors.username)
+                  setFieldErrors((fe) => ({ ...fe, username: "" }));
               }}
               placeholder="jsmith"
               autoComplete="off"
@@ -617,7 +646,8 @@ function CreateUserDialog({
               value={form.email}
               onChange={(e) => {
                 setForm((f) => ({ ...f, email: e.target.value }));
-                if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: "" }));
+                if (fieldErrors.email)
+                  setFieldErrors((fe) => ({ ...fe, email: "" }));
               }}
               placeholder="jane@example.com"
             />
@@ -631,24 +661,34 @@ function CreateUserDialog({
               type="tel"
               style={inputStyle}
               value={form.phone_number}
-              onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, phone_number: e.target.value }))
+              }
               placeholder="+1 555 000 0000"
             />
           </Field>
 
           <SectionHeader title="Security" />
 
-          <Field span={12} label="Password" required error={fieldErrors.password}>
+          <Field
+            span={12}
+            label="Password"
+            required
+            error={fieldErrors.password}
+          >
             <input
               type="password"
               style={{
                 ...inputStyle,
-                borderColor: fieldErrors.password ? "var(--io-danger)" : undefined,
+                borderColor: fieldErrors.password
+                  ? "var(--io-danger)"
+                  : undefined,
               }}
               value={form.password}
               onChange={(e) => {
                 setForm((f) => ({ ...f, password: e.target.value }));
-                if (fieldErrors.password) setFieldErrors((fe) => ({ ...fe, password: "" }));
+                if (fieldErrors.password)
+                  setFieldErrors((fe) => ({ ...fe, password: "" }));
               }}
               autoComplete="new-password"
             />
@@ -667,7 +707,7 @@ function CreateUserDialog({
               onChange={(ids) => setForm((f) => ({ ...f, role_ids: ids }))}
               emptyText="No roles available"
               getLabel={(item) =>
-                (roles.find((r) => r.id === item.id)?.display_name ?? item.id)
+                roles.find((r) => r.id === item.id)?.display_name ?? item.id
               }
             />
           </Field>
@@ -679,7 +719,7 @@ function CreateUserDialog({
               onChange={(ids) => setForm((f) => ({ ...f, group_ids: ids }))}
               emptyText="No groups defined"
               getLabel={(item) =>
-                (groups.find((g) => g.id === item.id)?.name ?? item.id)
+                groups.find((g) => g.id === item.id)?.name ?? item.id
               }
             />
           </Field>
@@ -700,7 +740,11 @@ function CreateUserDialog({
               Cancel
             </button>
           </Dialog.Close>
-          <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+          <button
+            type="submit"
+            style={btnPrimary}
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Creating…" : "Create User"}
           </button>
         </div>
@@ -862,7 +906,9 @@ function EditUserDialog({
               type="email"
               style={inputStyle}
               value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, email: e.target.value }))
+              }
               required
             />
           </Field>
@@ -876,7 +922,9 @@ function EditUserDialog({
               type="tel"
               style={inputStyle}
               value={form.phone_number}
-              onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, phone_number: e.target.value }))
+              }
               placeholder="+1 555 000 0000"
             />
           </Field>
@@ -899,7 +947,9 @@ function EditUserDialog({
               type="password"
               style={inputStyle}
               value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, password: e.target.value }))
+              }
               placeholder="Leave blank to keep current"
               autoComplete="new-password"
             />
@@ -931,7 +981,7 @@ function EditUserDialog({
               onChange={(ids) => setForm((f) => ({ ...f, role_ids: ids }))}
               emptyText="No roles available"
               getLabel={(item) =>
-                (roles.find((r) => r.id === item.id)?.display_name ?? item.id)
+                roles.find((r) => r.id === item.id)?.display_name ?? item.id
               }
             />
           </Field>
@@ -943,7 +993,7 @@ function EditUserDialog({
               onChange={(ids) => setForm((f) => ({ ...f, group_ids: ids }))}
               emptyText="No groups defined"
               getLabel={(item) =>
-                (groups.find((g) => g.id === item.id)?.name ?? item.id)
+                groups.find((g) => g.id === item.id)?.name ?? item.id
               }
             />
           </Field>
@@ -964,7 +1014,11 @@ function EditUserDialog({
               Cancel
             </button>
           </Dialog.Close>
-          <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+          <button
+            type="submit"
+            style={btnPrimary}
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Saving…" : "Save Changes"}
           </button>
         </div>
@@ -997,7 +1051,12 @@ function ConfirmDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100 }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 100,
+          }}
         />
         <Dialog.Content
           aria-describedby={undefined}
@@ -1017,14 +1076,27 @@ function ConfirmDialog({
           }}
         >
           <Dialog.Title
-            style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600, color: "var(--io-text-primary)" }}
+            style={{
+              margin: "0 0 12px",
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             {title}
           </Dialog.Title>
-          <p style={{ margin: "0 0 24px", fontSize: "14px", color: "var(--io-text-secondary)" }}>
+          <p
+            style={{
+              margin: "0 0 24px",
+              fontSize: "14px",
+              color: "var(--io-text-secondary)",
+            }}
+          >
             {message}
           </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}
+          >
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
                 Cancel
@@ -1050,11 +1122,22 @@ function ConfirmDialog({
 // ---------------------------------------------------------------------------
 // TableSkeleton
 // ---------------------------------------------------------------------------
-function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: number }) {
+function TableSkeleton({
+  rows = 5,
+  columns = 7,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
-        <tr style={{ borderBottom: "1px solid var(--io-border)", background: "var(--io-surface-primary)" }}>
+        <tr
+          style={{
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface-primary)",
+          }}
+        >
           {Array.from({ length: columns }).map((_, i) => (
             <th key={i} style={{ padding: "10px 14px", textAlign: "left" }}>
               <div
@@ -1062,7 +1145,8 @@ function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: num
                   height: "10px",
                   borderRadius: "4px",
                   background: "var(--io-border)",
-                  width: i === 0 ? "80px" : i === columns - 1 ? "60px" : "120px",
+                  width:
+                    i === 0 ? "80px" : i === columns - 1 ? "60px" : "120px",
                   animation: "io-shimmer 1.5s ease-in-out infinite",
                 }}
               />
@@ -1074,7 +1158,10 @@ function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: num
         {Array.from({ length: rows }).map((_, ri) => (
           <tr
             key={ri}
-            style={{ borderBottom: ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined }}
+            style={{
+              borderBottom:
+                ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined,
+            }}
           >
             {Array.from({ length: columns }).map((_, ci) => (
               <td key={ci} style={{ padding: "12px 14px" }}>
@@ -1083,7 +1170,12 @@ function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: num
                     height: "12px",
                     borderRadius: "4px",
                     background: "var(--io-surface-primary)",
-                    width: ci === columns - 1 ? "64px" : ci === 0 ? "100px" : "140px",
+                    width:
+                      ci === columns - 1
+                        ? "64px"
+                        : ci === 0
+                          ? "100px"
+                          : "140px",
                     animation: "io-shimmer 1.5s ease-in-out infinite",
                     animationDelay: `${ri * 0.05}s`,
                   }}
@@ -1158,7 +1250,10 @@ export function UsersTab() {
   const disableMutation = useMutation({
     mutationFn: (user: User) => usersApi.update(user.id, { enabled: false }),
     onSuccess: (result) => {
-      if (!result.success) { setBannerError(result.error.message); return; }
+      if (!result.success) {
+        setBannerError(result.error.message);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
   });
@@ -1166,7 +1261,10 @@ export function UsersTab() {
   const enableMutation = useMutation({
     mutationFn: (user: User) => usersApi.update(user.id, { enabled: true }),
     onSuccess: (result) => {
-      if (!result.success) { setBannerError(result.error.message); return; }
+      if (!result.success) {
+        setBannerError(result.error.message);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
   });
@@ -1224,7 +1322,9 @@ export function UsersTab() {
         {usersQuery.isLoading && <TableSkeleton rows={5} columns={7} />}
         {usersQuery.isError && (
           <div style={{ padding: "20px" }}>
-            <ErrorBanner message={usersQuery.error?.message ?? "Failed to load users"} />
+            <ErrorBanner
+              message={usersQuery.error?.message ?? "Failed to load users"}
+            />
           </div>
         )}
         {!usersQuery.isLoading && !usersQuery.isError && (
@@ -1236,25 +1336,31 @@ export function UsersTab() {
                   background: "var(--io-surface-primary)",
                 }}
               >
-                {["User", "Email", "Mobile", "Status", "Auth Provider", "Last Login", "Actions"].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      style={{
-                        padding: "10px 14px",
-                        textAlign: "left",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        color: "var(--io-text-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {col}
-                    </th>
-                  ),
-                )}
+                {[
+                  "User",
+                  "Email",
+                  "Mobile",
+                  "Status",
+                  "Auth Provider",
+                  "Last Login",
+                  "Actions",
+                ].map((col) => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: "10px 14px",
+                      textAlign: "left",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "var(--io-text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -1279,18 +1385,31 @@ export function UsersTab() {
                   key={user.id}
                   style={{
                     borderBottom:
-                      i < users.length - 1 ? "1px solid var(--io-border-subtle)" : undefined,
+                      i < users.length - 1
+                        ? "1px solid var(--io-border-subtle)"
+                        : undefined,
                   }}
                   onContextMenu={(e) => openUserMenu(e, user)}
                 >
                   {/* User column — username + display name */}
                   <td style={cellStyle}>
                     <div>
-                      <span style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
+                      <span
+                        style={{
+                          fontWeight: 500,
+                          color: "var(--io-text-primary)",
+                        }}
+                      >
                         {user.username}
                       </span>
                       {userDisplayName(user) !== user.username && (
-                        <div style={{ fontSize: "12px", color: "var(--io-text-muted)", marginTop: "1px" }}>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--io-text-muted)",
+                            marginTop: "1px",
+                          }}
+                        >
                           {userDisplayName(user)}
                         </div>
                       )}
@@ -1298,23 +1417,43 @@ export function UsersTab() {
                   </td>
                   <td style={cellStyle}>{user.email}</td>
                   <td style={cellStyle}>
-                    <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
                       {user.phone_number ?? "—"}
                     </span>
                   </td>
                   <td style={cellStyle}>
                     <Badge
                       label={user.enabled ? "Active" : "Disabled"}
-                      color={user.enabled ? "var(--io-success)" : "var(--io-text-muted)"}
+                      color={
+                        user.enabled
+                          ? "var(--io-success)"
+                          : "var(--io-text-muted)"
+                      }
                     />
                   </td>
                   <td style={cellStyle}>
-                    <span style={{ fontSize: "12px", color: "var(--io-text-muted)", textTransform: "capitalize" }}>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                        textTransform: "capitalize",
+                      }}
+                    >
                       {user.auth_provider}
                     </span>
                   </td>
                   <td style={cellStyle}>
-                    <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
                       {formatDate(user.last_login_at)}
                     </span>
                   </td>
@@ -1402,14 +1541,25 @@ export function UsersTab() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span>
-              Showing {(page - 1) * limit + 1}–{Math.min(page * limit, pagination.total)} of{" "}
-              {pagination.total} users
+              Showing {(page - 1) * limit + 1}–
+              {Math.min(page * limit, pagination.total)} of {pagination.total}{" "}
+              users
             </span>
-            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+              }}
+            >
               Rows per page:
               <select
                 value={limit}
-                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value));
+                  setPage(1);
+                }}
                 style={{
                   padding: "3px 6px",
                   background: "var(--io-surface-sunken)",
@@ -1420,12 +1570,20 @@ export function UsersTab() {
                   cursor: "pointer",
                 }}
               >
-                {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
           <div style={{ display: "flex", gap: "6px" }}>
-            <button style={btnSecondary} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <button
+              style={btnSecondary}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
               ← Prev
             </button>
             <button
@@ -1462,7 +1620,9 @@ export function UsersTab() {
         message={`Are you sure you want to disable "${confirmUser?.username}"? They will not be able to log in.`}
         confirmLabel="Disable User"
         danger
-        onConfirm={() => { if (confirmUser) disableMutation.mutate(confirmUser); }}
+        onConfirm={() => {
+          if (confirmUser) disableMutation.mutate(confirmUser);
+        }}
       />
 
       {userMenu && (
@@ -1483,10 +1643,17 @@ export function UsersTab() {
                   divider: true,
                   onClick: () => enableMutation.mutate(userMenu.data!),
                 },
-            { label: "View Sessions", onClick: () => setDetailUserId(userMenu.data!.id) },
+            {
+              label: "View Sessions",
+              onClick: () => setDetailUserId(userMenu.data!.id),
+            },
             {
               label: "Copy Username",
-              onClick: () => { navigator.clipboard.writeText(userMenu.data!.username).catch(() => {}); },
+              onClick: () => {
+                navigator.clipboard
+                  .writeText(userMenu.data!.username)
+                  .catch(() => {});
+              },
             },
           ]}
           onClose={closeUserMenu}
@@ -1496,7 +1663,9 @@ export function UsersTab() {
       <UserDetailDialog
         userId={detailUserId ?? ""}
         open={!!detailUserId}
-        onOpenChange={(v) => { if (!v) setDetailUserId(null); }}
+        onOpenChange={(v) => {
+          if (!v) setDetailUserId(null);
+        }}
       />
     </div>
   );

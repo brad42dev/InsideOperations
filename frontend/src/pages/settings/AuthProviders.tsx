@@ -2536,7 +2536,10 @@ function ProviderRow({ provider }: ProviderRowProps) {
   return (
     <>
       <tr
-        style={{ borderBottom: "1px solid var(--io-border)", cursor: "context-menu" }}
+        style={{
+          borderBottom: "1px solid var(--io-border)",
+          cursor: "context-menu",
+        }}
         onContextMenu={(e) => handleContextMenu(e, provider)}
       >
         <td style={cellStyle}>
@@ -2639,9 +2642,30 @@ function ProviderRow({ provider }: ProviderRowProps) {
           y={menuState.y}
           items={[
             { label: menuState.data.display_name, disabled: true },
-            { label: "Edit / View Mappings", onClick: () => { closeMenu(); setExpanded(v => !v); } },
-            { label: "Test Connection", onClick: () => { closeMenu(); void handleTest(); } },
-            { label: "Delete", danger: true, divider: true, permission: "auth:configure", onClick: () => { closeMenu(); setConfirmDeleteOpen(true); } },
+            {
+              label: "Edit / View Mappings",
+              onClick: () => {
+                closeMenu();
+                setExpanded((v) => !v);
+              },
+            },
+            {
+              label: "Test Connection",
+              onClick: () => {
+                closeMenu();
+                void handleTest();
+              },
+            },
+            {
+              label: "Delete",
+              danger: true,
+              divider: true,
+              permission: "auth:configure",
+              onClick: () => {
+                closeMenu();
+                setConfirmDeleteOpen(true);
+              },
+            },
           ]}
           onClose={closeMenu}
         />

@@ -54,14 +54,20 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
         { keys: ["Ctrl", "A"], description: "Select all panes" },
         { keys: ["Ctrl", "C"], description: "Copy selected panes" },
         { keys: ["Ctrl", "V"], description: "Paste panes" },
-        { keys: ["Delete"], description: "Remove selected panes  (or Ctrl+Bksp)" },
+        {
+          keys: ["Delete"],
+          description: "Remove selected panes  (or Ctrl+Bksp)",
+        },
         { keys: ["Esc"], description: "Cancel swap mode / clear selection" },
       ],
     },
     {
       title: "Graphics Pane",
       shortcuts: [
-        { keys: ["Ctrl", "I"], description: "Open Point Detail for hovered point" },
+        {
+          keys: ["Ctrl", "I"],
+          description: "Open Point Detail for hovered point",
+        },
         { keys: ["F11"], description: "Fullscreen selected pane" },
         { keys: ["Esc"], description: "Exit fullscreen" },
         { keys: ["Scroll"], description: "Zoom in / out" },
@@ -81,7 +87,10 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
         { keys: ["-"], description: "Zoom out" },
         { keys: ["Ctrl", "0"], description: "Fit to view" },
         { keys: ["M"], description: "Toggle minimap" },
-        { keys: ["Ctrl", "I"], description: "Open Point Detail for hovered point" },
+        {
+          keys: ["Ctrl", "I"],
+          description: "Open Point Detail for hovered point",
+        },
         { keys: ["Ctrl", "P"], description: "Print view" },
       ],
     },
@@ -113,7 +122,10 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
         { keys: ["Delete"], description: "Delete selected" },
         { keys: ["Ctrl", "G"], description: "Group selection" },
         { keys: ["Ctrl", "Shift", "G"], description: "Ungroup" },
-        { keys: ["Esc"], description: "Cancel drag / exit group / clear selection" },
+        {
+          keys: ["Esc"],
+          description: "Cancel drag / exit group / clear selection",
+        },
       ],
     },
     {

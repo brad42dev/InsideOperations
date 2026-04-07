@@ -609,9 +609,7 @@ function ShapeTile({
             color: "var(--io-text-muted)",
           }}
         >
-          {item.label.length > 12
-            ? item.label.slice(0, 11) + "…"
-            : item.label}
+          {item.label.length > 12 ? item.label.slice(0, 11) + "…" : item.label}
         </div>
       </div>
       {menuState && (
@@ -1796,7 +1794,12 @@ function StencilTile({
   const stencilMenuItems = [
     { label: "Edit", onClick: handleEdit },
     { label: "Export SVG", onClick: handleExportSvg },
-    { label: "Delete", onClick: () => setDeleteOpen(true), danger: true, divider: true },
+    {
+      label: "Delete",
+      onClick: () => setDeleteOpen(true),
+      danger: true,
+      divider: true,
+    },
   ];
 
   if (collapsed) {

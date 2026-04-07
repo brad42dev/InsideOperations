@@ -99,10 +99,35 @@ function TabItem({
   const { menuState, handleContextMenu, closeMenu } = useContextMenu();
 
   const menuItems = [
-    { label: "Close", onClick: () => { closeMenu(); onClose(); } },
-    { label: "Close Others", onClick: () => { closeMenu(); onCloseOthers(); } },
-    { label: "Close All", onClick: () => { closeMenu(); onCloseAll(); } },
-    { label: "Copy Name", divider: true, onClick: () => { closeMenu(); handleCopyName(); } },
+    {
+      label: "Close",
+      onClick: () => {
+        closeMenu();
+        onClose();
+      },
+    },
+    {
+      label: "Close Others",
+      onClick: () => {
+        closeMenu();
+        onCloseOthers();
+      },
+    },
+    {
+      label: "Close All",
+      onClick: () => {
+        closeMenu();
+        onCloseAll();
+      },
+    },
+    {
+      label: "Copy Name",
+      divider: true,
+      onClick: () => {
+        closeMenu();
+        handleCopyName();
+      },
+    },
   ];
 
   return (
@@ -126,9 +151,7 @@ function TabItem({
           whiteSpace: "nowrap",
           fontSize: 12,
           fontWeight: active ? 600 : 400,
-          color: active
-            ? "var(--io-text-primary)"
-            : "var(--io-text-secondary)",
+          color: active ? "var(--io-text-primary)" : "var(--io-text-secondary)",
           background: active
             ? "var(--io-surface-elevated)"
             : hovered

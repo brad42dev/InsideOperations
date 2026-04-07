@@ -772,10 +772,36 @@ export default function ThresholdSearch() {
           x={menuState.x}
           y={menuState.y}
           items={[
-            { label: `${new Date(menuState.data.start).toLocaleString()}`, disabled: true },
-            { label: "Copy Start Time", onClick: () => { closeMenu(); void navigator.clipboard.writeText(new Date(menuState.data!.start).toLocaleString()); } },
-            { label: "Copy Peak Value", onClick: () => { closeMenu(); void navigator.clipboard.writeText(String(menuState.data!.peak_value)); } },
-            { label: "Create Investigation", divider: true, onClick: () => { closeMenu(); setCreatingFor(menuState.data!); } },
+            {
+              label: `${new Date(menuState.data.start).toLocaleString()}`,
+              disabled: true,
+            },
+            {
+              label: "Copy Start Time",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(
+                  new Date(menuState.data!.start).toLocaleString(),
+                );
+              },
+            },
+            {
+              label: "Copy Peak Value",
+              onClick: () => {
+                closeMenu();
+                void navigator.clipboard.writeText(
+                  String(menuState.data!.peak_value),
+                );
+              },
+            },
+            {
+              label: "Create Investigation",
+              divider: true,
+              onClick: () => {
+                closeMenu();
+                setCreatingFor(menuState.data!);
+              },
+            },
           ]}
           onClose={closeMenu}
         />
