@@ -378,17 +378,17 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
             .into_response();
         resp.headers_mut().insert(
             "retry-after",
-            HeaderValue::from_str(&retry_after.to_string()).unwrap(),
+            HeaderValue::from_str(&retry_after.to_string()).expect("numeric string is always a valid header value"),
         );
         resp.headers_mut().insert(
             "x-ratelimit-limit",
-            HeaderValue::from_str(&(limit as u64).to_string()).unwrap(),
+            HeaderValue::from_str(&(limit as u64).to_string()).expect("numeric string is always a valid header value"),
         );
         resp.headers_mut()
-            .insert("x-ratelimit-remaining", HeaderValue::from_str("0").unwrap());
+            .insert("x-ratelimit-remaining", HeaderValue::from_str("0").expect("static string is a valid header value"));
         resp.headers_mut().insert(
             "x-ratelimit-reset",
-            HeaderValue::from_str(&reset_ts.to_string()).unwrap(),
+            HeaderValue::from_str(&reset_ts.to_string()).expect("numeric string is always a valid header value"),
         );
         return resp;
     }
@@ -396,15 +396,15 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
     let mut resp = next.run(req).await;
     resp.headers_mut().insert(
         "x-ratelimit-limit",
-        HeaderValue::from_str(&(limit as u64).to_string()).unwrap(),
+        HeaderValue::from_str(&(limit as u64).to_string()).expect("numeric string is always a valid header value"),
     );
     resp.headers_mut().insert(
         "x-ratelimit-remaining",
-        HeaderValue::from_str(&remaining.to_string()).unwrap(),
+        HeaderValue::from_str(&remaining.to_string()).expect("numeric string is always a valid header value"),
     );
     resp.headers_mut().insert(
         "x-ratelimit-reset",
-        HeaderValue::from_str(&reset_ts.to_string()).unwrap(),
+        HeaderValue::from_str(&reset_ts.to_string()).expect("numeric string is always a valid header value"),
     );
     resp
 }

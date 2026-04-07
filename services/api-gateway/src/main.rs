@@ -1326,6 +1326,22 @@ async fn proxy_history_batch(State(state): State<AppState>, req: Request) -> Res
     .await
 }
 
+/// All 11 backend services: (internal name, port).
+/// Used by both health handlers and any future tooling that needs the service registry.
+const BACKEND_SERVICES: &[(&str, u16)] = &[
+    ("api-gateway", 3000),
+    ("data-broker", 3001),
+    ("opc-service", 3002),
+    ("event-service", 3003),
+    ("parser-service", 3004),
+    ("archive-service", 3005),
+    ("import-service", 3006),
+    ("alert-service", 3007),
+    ("email-service", 3008),
+    ("auth-service", 3009),
+    ("recognition-service", 3010),
+];
+
 /// GET /api/health/services — fan out to all 11 service /health/live endpoints
 /// and return their aggregated status. Requires authentication (JWT middleware).
 async fn service_health_handler(
@@ -1334,22 +1350,8 @@ async fn service_health_handler(
     use futures::future::join_all;
     use serde_json::{json, Value};
 
-    let services: &[(&str, u16)] = &[
-        ("api-gateway", 3000),
-        ("data-broker", 3001),
-        ("opc-service", 3002),
-        ("event-service", 3003),
-        ("parser-service", 3004),
-        ("archive-service", 3005),
-        ("import-service", 3006),
-        ("alert-service", 3007),
-        ("email-service", 3008),
-        ("auth-service", 3009),
-        ("recognition-service", 3010),
-    ];
-
     let client = state.http_client.clone();
-    let tasks: Vec<_> = services
+    let tasks: Vec<_> = BACKEND_SERVICES
         .iter()
         .map(|(name, port)| {
             let client = client.clone();
@@ -1699,24 +1701,10 @@ async fn health_services_detail_handler(
     use futures::future::join_all;
     use serde_json::json;
 
-    let services: &[(&str, u16)] = &[
-        ("api-gateway", 3000),
-        ("data-broker", 3001),
-        ("opc-service", 3002),
-        ("event-service", 3003),
-        ("parser-service", 3004),
-        ("archive-service", 3005),
-        ("import-service", 3006),
-        ("alert-service", 3007),
-        ("email-service", 3008),
-        ("auth-service", 3009),
-        ("recognition-service", 3010),
-    ];
-
     let client = state.http_client.clone();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let tasks: Vec<_> = services
+    let tasks: Vec<_> = BACKEND_SERVICES
         .iter()
         .map(|(name, port)| {
             let client = client.clone();
@@ -1734,14 +1722,12 @@ async fn health_services_detail_handler(
 
                 match outcome {
                     Ok(resp) => {
-                        let http_ok = resp.status().is_success() || resp.status().as_u16() == 503;
                         match resp.json::<serde_json::Value>().await {
                             Ok(body) => {
                                 let raw_status = body["status"].as_str().unwrap_or("unknown");
                                 let status = match raw_status {
                                     "ready" => "healthy",
                                     "degraded" => "degraded",
-                                    _ if http_ok => "unhealthy",
                                     _ => "unhealthy",
                                 };
                                 let uptime_s = body["uptime_seconds"].as_u64().unwrap_or(0);

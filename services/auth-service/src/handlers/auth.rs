@@ -743,7 +743,7 @@ pub async fn verify_password_unlock(
             .into_response());
     }
 
-    let hash = password_hash.as_deref().unwrap();
+    let hash = password_hash.as_deref().expect("password_hash is Some: checked above");
 
     // --- 4. Find the active session for this user/ip to read rate-limit counters ---
     // We match on the most-recently-created non-revoked session for this user.
@@ -776,7 +776,7 @@ pub async fn verify_password_unlock(
             .unwrap_or(false);
 
         if window_active && soft_count >= SOFT_FAIL_LIMIT {
-            let ws = window_start.unwrap();
+            let ws = window_start.expect("window_start is Some when window_active is true");
             let retry_after = (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,

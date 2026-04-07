@@ -121,7 +121,7 @@ pub async fn set_pin(
     let is_sso_only = password_hash.is_none() || auth_provider != "local";
 
     if !is_sso_only {
-        let hash = password_hash.as_deref().unwrap();
+        let hash = password_hash.as_deref().expect("password_hash is Some: checked above");
         let valid = verify_password(&req.current_password, hash)
             .map_err(|e| IoError::Internal(e.to_string()))?;
         if !valid {
@@ -190,7 +190,7 @@ pub async fn delete_pin(
     let is_sso_only = password_hash.is_none() || auth_provider != "local";
 
     if !is_sso_only {
-        let hash = password_hash.as_deref().unwrap();
+        let hash = password_hash.as_deref().expect("password_hash is Some: checked above");
         let valid = verify_password(&req.current_password, hash)
             .map_err(|e| IoError::Internal(e.to_string()))?;
         if !valid {
@@ -289,7 +289,7 @@ pub async fn verify_pin(
             .unwrap_or(false);
 
         if window_active && soft_count >= SOFT_FAIL_LIMIT {
-            let ws = window_start.unwrap();
+            let ws = window_start.expect("window_start is Some when window_active is true");
             let retry_after = (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,

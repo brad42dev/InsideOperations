@@ -242,7 +242,7 @@ pub async fn list_graphics(
     };
 
     let rows = if limit_param_idx {
-        let m = module_bind.unwrap();
+        let m = module_bind.expect("module_bind is Some when limit_param_idx is true");
         match sqlx::query(&data_sql)
             .bind(m)
             .bind(limit as i64)
@@ -769,7 +769,7 @@ pub async fn get_thumbnail(
             .header("Content-Type", "image/png")
             .header("Cache-Control", "public, max-age=3600")
             .body(axum::body::Body::from(bytes))
-            .unwrap()
+            .expect("response builder with static headers")
             .into_response(),
         Err(_) => {
             // Return a 1×1 transparent PNG placeholder rather than a 404
@@ -791,7 +791,7 @@ pub async fn get_thumbnail(
                 .header("Content-Type", "image/png")
                 .header("Cache-Control", "no-cache")
                 .body(axum::body::Body::from(EMPTY_PNG))
-                .unwrap()
+                .expect("response builder with static headers")
                 .into_response()
         }
     }
@@ -814,7 +814,7 @@ pub async fn get_tile(
         return axum::response::Response::builder()
             .status(403)
             .body(axum::body::Body::empty())
-            .unwrap()
+            .expect("response builder with static headers")
             .into_response();
     }
 
@@ -835,7 +835,7 @@ pub async fn get_tile(
         Err(_) => axum::response::Response::builder()
             .status(404)
             .body(axum::body::Body::empty())
-            .unwrap()
+            .expect("response builder with static headers")
             .into_response(),
     }
 }
@@ -1290,7 +1290,7 @@ pub async fn get_image_asset(
         .header("Content-Type", mime_type)
         .header("Cache-Control", "public, max-age=31536000, immutable")
         .body(axum::body::Body::from(content))
-        .unwrap()
+        .expect("response builder with valid mime_type from database")
         .into_response()
 }
 
@@ -1573,7 +1573,7 @@ pub async fn get_image_asset_v1(
         .header("Content-Type", mime_type)
         .header("Cache-Control", "public, max-age=31536000, immutable")
         .body(axum::body::Body::from(content))
-        .unwrap()
+        .expect("response builder with valid mime_type from database")
         .into_response()
 }
 
