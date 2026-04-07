@@ -25,7 +25,12 @@ pub struct UserRow {
     pub id: Uuid,
     pub username: String,
     pub email: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub display_name: Option<String>,
+    /// Legacy field kept for backward compat with auth/oidc/sessions handlers.
     pub full_name: Option<String>,
+    pub phone_number: Option<String>,
     pub enabled: bool,
     pub auth_provider: String,
     pub created_at: DateTime<Utc>,
@@ -33,10 +38,17 @@ pub struct UserRow {
 }
 
 #[derive(Debug, Serialize)]
+pub struct GroupSummary {
+    pub id: Uuid,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct UserDetail {
     #[serde(flatten)]
     pub user: UserRow,
     pub roles: Vec<RoleSummary>,
+    pub groups: Vec<GroupSummary>,
 }
 
 #[derive(Debug, Serialize)]
@@ -54,17 +66,29 @@ pub struct RoleSummary {
 pub struct CreateUserRequest {
     pub username: String,
     pub email: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub display_name: Option<String>,
+    /// Legacy — kept for compat; prefer first_name + last_name.
     pub full_name: Option<String>,
+    pub phone_number: Option<String>,
     pub password: String,
     pub role_ids: Option<Vec<Uuid>>,
+    pub group_ids: Option<Vec<Uuid>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserRequest {
     pub email: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub display_name: Option<String>,
+    /// Legacy — kept for compat.
     pub full_name: Option<String>,
+    pub phone_number: Option<String>,
     pub enabled: Option<bool>,
     pub role_ids: Option<Vec<Uuid>>,
+    pub group_ids: Option<Vec<Uuid>>,
     /// Only settable by admin — forces a password change.
     pub password: Option<String>,
 }
@@ -90,20 +114,18 @@ pub async fn list_users(
     let limit = filter.limit.unwrap_or(50).clamp(1, 100) as u32;
     let offset = ((page - 1) * limit) as i64;
 
-    // Wrap search term in ILIKE wildcards; None means "no filter".
     let q_pattern = filter.q.as_deref().map(|q| format!("%{q}%"));
 
-    // All three optional filters are fully parameterized — no string interpolation of
-    // user-supplied values, so no SQL injection risk.
-    // $1 = q_pattern (text, nullable)  — search across username/email/full_name
-    // $2 = enabled   (bool, nullable)  — exact enabled status
-    // $3 = role name (text, nullable)  — role name sub-select
     let total: i64 = sqlx::query(
         "SELECT COUNT(*) FROM users u
          WHERE u.deleted_at IS NULL
-           AND ($1::text  IS NULL OR u.username  ILIKE $1
-                                  OR u.email     ILIKE $1
-                                  OR u.full_name ILIKE $1)
+           AND ($1::text IS NULL
+                OR u.username     ILIKE $1
+                OR u.email        ILIKE $1
+                OR u.full_name    ILIKE $1
+                OR u.display_name ILIKE $1
+                OR u.first_name   ILIKE $1
+                OR u.last_name    ILIKE $1)
            AND ($2::boolean IS NULL OR u.enabled = $2)
            AND ($3::text IS NULL OR EXISTS (
                SELECT 1 FROM user_roles ur
@@ -119,13 +141,19 @@ pub async fn list_users(
     .map(|r| r.get::<i64, _>(0))?;
 
     let rows = sqlx::query(
-        "SELECT u.id, u.username, u.email, u.full_name, u.enabled, u.auth_provider,
-                u.created_at, u.last_login_at
+        "SELECT u.id, u.username, u.email,
+                u.first_name, u.last_name, u.display_name,
+                u.full_name, u.phone_number,
+                u.enabled, u.auth_provider, u.created_at, u.last_login_at
          FROM users u
          WHERE u.deleted_at IS NULL
-           AND ($1::text  IS NULL OR u.username  ILIKE $1
-                                  OR u.email     ILIKE $1
-                                  OR u.full_name ILIKE $1)
+           AND ($1::text IS NULL
+                OR u.username     ILIKE $1
+                OR u.email        ILIKE $1
+                OR u.full_name    ILIKE $1
+                OR u.display_name ILIKE $1
+                OR u.first_name   ILIKE $1
+                OR u.last_name    ILIKE $1)
            AND ($2::boolean IS NULL OR u.enabled = $2)
            AND ($3::text IS NULL OR EXISTS (
                SELECT 1 FROM user_roles ur
@@ -149,7 +177,11 @@ pub async fn list_users(
             id: r.get("id"),
             username: r.get("username"),
             email: r.get("email"),
+            first_name: r.get("first_name"),
+            last_name: r.get("last_name"),
+            display_name: r.get("display_name"),
             full_name: r.get("full_name"),
+            phone_number: r.get("phone_number"),
             enabled: r.get("enabled"),
             auth_provider: r.get("auth_provider"),
             created_at: r.get("created_at"),
@@ -169,7 +201,10 @@ pub async fn get_user(
     Path(user_id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
     let row = sqlx::query(
-        "SELECT id, username, email, full_name, enabled, auth_provider, created_at, last_login_at
+        "SELECT id, username, email,
+                first_name, last_name, display_name,
+                full_name, phone_number,
+                enabled, auth_provider, created_at, last_login_at
          FROM users WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(user_id)
@@ -181,7 +216,11 @@ pub async fn get_user(
         id: row.get("id"),
         username: row.get("username"),
         email: row.get("email"),
+        first_name: row.get("first_name"),
+        last_name: row.get("last_name"),
+        display_name: row.get("display_name"),
         full_name: row.get("full_name"),
+        phone_number: row.get("phone_number"),
         enabled: row.get("enabled"),
         auth_provider: row.get("auth_provider"),
         created_at: row.get("created_at"),
@@ -207,7 +246,25 @@ pub async fn get_user(
         })
         .collect();
 
-    Ok(Json(ApiResponse::ok(UserDetail { user, roles })))
+    let group_rows = sqlx::query(
+        "SELECT g.id, g.name FROM groups g
+         JOIN user_groups ug ON ug.group_id = g.id
+         WHERE ug.user_id = $1
+         ORDER BY g.name",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let groups: Vec<GroupSummary> = group_rows
+        .into_iter()
+        .map(|r| GroupSummary {
+            id: r.get("id"),
+            name: r.get("name"),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::ok(UserDetail { user, roles, groups })))
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +275,6 @@ pub async fn create_user(
     State(state): State<AppState>,
     Json(req): Json<CreateUserRequest>,
 ) -> IoResult<impl IntoResponse> {
-    // Validate input
     let mut errors: Vec<FieldError> = Vec::new();
     if let Err(e) = io_validate::validate_username(&req.username) {
         errors.push(FieldError::new("username", e.to_string()));
@@ -233,7 +289,6 @@ pub async fn create_user(
         return Err(IoError::Validation(errors));
     }
 
-    // Check uniqueness
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) AND deleted_at IS NULL)",
     )
@@ -263,20 +318,41 @@ pub async fn create_user(
     let password_hash =
         hash_password(&req.password).map_err(|e| IoError::Internal(e.to_string()))?;
 
+    // Derive full_name from first+last if not provided directly.
+    let full_name = req.full_name.clone().or_else(|| {
+        match (req.first_name.as_deref(), req.last_name.as_deref()) {
+            (Some(f), Some(l)) if !f.is_empty() || !l.is_empty() => {
+                Some(format!("{} {}", f, l).trim().to_string())
+            }
+            (Some(f), None) if !f.is_empty() => Some(f.to_string()),
+            (None, Some(l)) if !l.is_empty() => Some(l.to_string()),
+            _ => None,
+        }
+    });
+
+    // display_name: explicit > first+last > username
+    let display_name = req.display_name.clone().or_else(|| full_name.clone());
+
     let user_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO users (id, username, email, full_name, password_hash, enabled, auth_provider)
-         VALUES ($1, $2, $3, $4, $5, true, 'local')",
+        "INSERT INTO users (id, username, email,
+                            first_name, last_name, display_name,
+                            full_name, phone_number,
+                            password_hash, enabled, auth_provider)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, 'local')",
     )
     .bind(user_id)
     .bind(&req.username)
     .bind(&req.email)
-    .bind(&req.full_name)
+    .bind(&req.first_name)
+    .bind(&req.last_name)
+    .bind(&display_name)
+    .bind(&full_name)
+    .bind(&req.phone_number)
     .bind(&password_hash)
     .execute(&state.db)
     .await?;
 
-    // Assign roles if provided
     if let Some(role_ids) = &req.role_ids {
         for role_id in role_ids {
             sqlx::query(
@@ -290,11 +366,28 @@ pub async fn create_user(
         }
     }
 
+    if let Some(group_ids) = &req.group_ids {
+        for group_id in group_ids {
+            sqlx::query(
+                "INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(user_id)
+            .bind(group_id)
+            .execute(&state.db)
+            .await?;
+        }
+    }
+
     let user = UserRow {
         id: user_id,
         username: req.username,
         email: req.email,
-        full_name: req.full_name,
+        first_name: req.first_name,
+        last_name: req.last_name,
+        display_name,
+        full_name,
+        phone_number: req.phone_number,
         enabled: true,
         auth_provider: "local".to_string(),
         created_at: Utc::now(),
@@ -313,7 +406,6 @@ pub async fn update_user(
     Path(user_id): Path<Uuid>,
     Json(req): Json<UpdateUserRequest>,
 ) -> IoResult<impl IntoResponse> {
-    // Verify user exists
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)",
     )
@@ -324,7 +416,6 @@ pub async fn update_user(
         return Err(IoError::NotFound(format!("User {} not found", user_id)));
     }
 
-    // Validate if provided
     let mut errors: Vec<FieldError> = Vec::new();
     if let Some(email) = &req.email {
         if let Err(e) = io_validate::validate_email(email) {
@@ -347,9 +438,46 @@ pub async fn update_user(
             .execute(&state.db)
             .await?;
     }
-    if let Some(full_name) = &req.full_name {
+    if let Some(first_name) = &req.first_name {
+        sqlx::query("UPDATE users SET first_name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(first_name)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(last_name) = &req.last_name {
+        sqlx::query("UPDATE users SET last_name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(last_name)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(display_name) = &req.display_name {
+        sqlx::query("UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(display_name)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    }
+    // Keep full_name in sync for backwards compat with auth/oidc handlers.
+    let derived_full_name = req.full_name.clone().or_else(|| {
+        match (req.first_name.as_deref(), req.last_name.as_deref()) {
+            (Some(f), Some(l)) => Some(format!("{} {}", f, l).trim().to_string()),
+            (Some(f), None) => Some(f.to_string()),
+            (None, Some(l)) => Some(l.to_string()),
+            _ => None,
+        }
+    });
+    if let Some(full_name) = &derived_full_name {
         sqlx::query("UPDATE users SET full_name = $1, updated_at = NOW() WHERE id = $2")
             .bind(full_name)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(phone) = &req.phone_number {
+        sqlx::query("UPDATE users SET phone_number = $1, updated_at = NOW() WHERE id = $2")
+            .bind(phone)
             .bind(user_id)
             .execute(&state.db)
             .await?;
@@ -360,7 +488,6 @@ pub async fn update_user(
             .bind(user_id)
             .execute(&state.db)
             .await?;
-        // If disabling, revoke all sessions
         if !enabled {
             sqlx::query(
                 "UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'account_disabled'
@@ -379,8 +506,6 @@ pub async fn update_user(
             .execute(&state.db)
             .await?;
     }
-
-    // Update role assignments if provided
     if let Some(role_ids) = &req.role_ids {
         sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
             .bind(user_id)
@@ -393,6 +518,22 @@ pub async fn update_user(
             )
             .bind(user_id)
             .bind(role_id)
+            .execute(&state.db)
+            .await?;
+        }
+    }
+    if let Some(group_ids) = &req.group_ids {
+        sqlx::query("DELETE FROM user_groups WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+        for group_id in group_ids {
+            sqlx::query(
+                "INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(user_id)
+            .bind(group_id)
             .execute(&state.db)
             .await?;
         }
@@ -421,7 +562,6 @@ pub async fn delete_user(
         return Err(IoError::NotFound(format!("User {} not found", user_id)));
     }
 
-    // Revoke all sessions
     sqlx::query(
         "UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'account_deleted'
          WHERE user_id = $1 AND revoked_at IS NULL",
@@ -434,20 +574,14 @@ pub async fn delete_user(
 }
 
 // ---------------------------------------------------------------------------
-// GET /auth/me  (returns the currently authenticated user's profile)
-// Extends UserDetail with `is_locked` (from the active session) and
-// `auth_provider` (already on UserRow) so the frontend can render the
-// correct lock-screen unlock UI.
+// GET /auth/me
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct MeDetail {
     #[serde(flatten)]
     pub detail: UserDetail,
-    /// True when the active session has locked_since IS NOT NULL.
     pub is_locked: bool,
-    /// True when the user has set a lock-screen PIN (lock_pin_hash IS NOT NULL).
-    /// The frontend uses this to decide whether to show the PIN or password field.
     pub has_pin: bool,
 }
 
@@ -461,9 +595,11 @@ pub async fn get_me(
         .unwrap_or("");
     let user_id: Uuid = user_id_str.parse().map_err(|_| IoError::Unauthorized)?;
 
-    // Fetch user + roles (delegates to get_user response extraction inline).
     let row = sqlx::query(
-        "SELECT id, username, email, full_name, enabled, auth_provider, created_at, last_login_at
+        "SELECT id, username, email,
+                first_name, last_name, display_name,
+                full_name, phone_number,
+                enabled, auth_provider, created_at, last_login_at
          FROM users WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(user_id)
@@ -475,7 +611,11 @@ pub async fn get_me(
         id: row.get("id"),
         username: row.get("username"),
         email: row.get("email"),
+        first_name: row.get("first_name"),
+        last_name: row.get("last_name"),
+        display_name: row.get("display_name"),
         full_name: row.get("full_name"),
+        phone_number: row.get("phone_number"),
         enabled: row.get("enabled"),
         auth_provider: row.get("auth_provider"),
         created_at: row.get("created_at"),
@@ -501,7 +641,24 @@ pub async fn get_me(
         })
         .collect();
 
-    // Check whether the active session is locked.
+    let group_rows = sqlx::query(
+        "SELECT g.id, g.name FROM groups g
+         JOIN user_groups ug ON ug.group_id = g.id
+         WHERE ug.user_id = $1
+         ORDER BY g.name",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let groups: Vec<GroupSummary> = group_rows
+        .into_iter()
+        .map(|r| GroupSummary {
+            id: r.get("id"),
+            name: r.get("name"),
+        })
+        .collect();
+
     let is_locked: bool = sqlx::query_scalar(
         "SELECT locked_since IS NOT NULL
          FROM user_sessions
@@ -516,7 +673,6 @@ pub async fn get_me(
     .await?
     .unwrap_or(false);
 
-    // Check whether the user has a lock-screen PIN set.
     let has_pin: bool = sqlx::query_scalar(
         "SELECT lock_pin_hash IS NOT NULL FROM users WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -526,7 +682,7 @@ pub async fn get_me(
     .unwrap_or(false);
 
     Ok(Json(ApiResponse::ok(MeDetail {
-        detail: UserDetail { user, roles },
+        detail: UserDetail { user, roles, groups },
         is_locked,
         has_pin,
     })))

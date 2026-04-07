@@ -2798,6 +2798,7 @@ export default function DesignerLeftPalette({
 
   const containerStyle: React.CSSProperties = {
     width,
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",

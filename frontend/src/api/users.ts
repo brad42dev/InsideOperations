@@ -4,7 +4,12 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  /** Legacy field — kept for compat. Derived from first_name + last_name. */
   full_name: string | null;
+  phone_number: string | null;
   enabled: boolean;
   auth_provider: string;
   created_at: string;
@@ -17,23 +22,37 @@ export interface UserRole {
   display_name: string;
 }
 
+export interface UserGroup {
+  id: string;
+  name: string;
+}
+
 export interface UserDetail extends User {
   roles: UserRole[];
+  groups: UserGroup[];
 }
 
 export interface CreateUserRequest {
   username: string;
   email: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  display_name?: string;
+  phone_number?: string;
   password: string;
   role_ids?: string[];
+  group_ids?: string[];
 }
 
 export interface UpdateUserRequest {
   email?: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  display_name?: string;
+  phone_number?: string;
   enabled?: boolean;
   role_ids?: string[];
+  group_ids?: string[];
   password?: string;
 }
 
