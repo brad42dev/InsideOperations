@@ -85,6 +85,17 @@
 
 ---
 
+## Graphics Display Elements
+
+| Token | Value | Notes |
+|---|---|---|
+| `--io-fill-normal` | `rgba(148,163,184,0.3)` | Slate-300 at 30% opacity. Normal (non-alarm) fill for FillGauge and pipe fills |
+| `--io-display-zone-inactive` | `#e5e7eb` | Gray-200. Inactive/undefined zone band in AnalogBar |
+| `--io-display-zone-normal` | `#d1d5db` | Gray-300. Normal operating range zone band |
+| `--io-display-zone-border` | `#d1d5db` | Gray-300. Zone band border/tick marks |
+
+---
+
 ## Semantic Status
 
 | Token | Value | Notes |

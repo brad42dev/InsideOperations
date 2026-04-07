@@ -81,6 +81,17 @@
 
 ---
 
+## Graphics Display Elements
+
+| Token | Value | Notes |
+|---|---|---|
+| `--io-fill-normal` | `#475569` | Slate-600. Normal (non-alarm) fill for FillGauge and pipe fills. **Components apply `opacity: 0.6` on the fill element** — visual result approximates the previous `rgba(71,85,105,0.5)`. |
+| `--io-display-zone-inactive` | `#3f3f46` | Zinc-700. Inactive/undefined zone band in AnalogBar |
+| `--io-display-zone-normal` | `#404048` | Near-Zinc-800. Normal operating range zone band |
+| `--io-display-zone-border` | `#52525b` | Zinc-600. Zone band border/tick marks |
+
+---
+
 ## Semantic Status
 
 | Token | Value | Notes |
