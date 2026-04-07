@@ -1532,8 +1532,7 @@ export default function AppShell() {
                                   position: "absolute",
                                   top: -3,
                                   right: -3,
-                                  background:
-                                    "var(--io-alarm-urgent, #ef4444)",
+                                  background: "var(--io-alarm-urgent, #ef4444)",
                                   color: "#fff",
                                   borderRadius: "50%",
                                   minWidth: 14,

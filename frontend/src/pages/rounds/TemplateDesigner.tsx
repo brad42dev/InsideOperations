@@ -251,9 +251,7 @@ function Field({
       >
         {label}
         {required && (
-          <span
-            style={{ color: "var(--io-alarm-urgent)", marginLeft: "2px" }}
-          >
+          <span style={{ color: "var(--io-alarm-urgent)", marginLeft: "2px" }}>
             *
           </span>
         )}

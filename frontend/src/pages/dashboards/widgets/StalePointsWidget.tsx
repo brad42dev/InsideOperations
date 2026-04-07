@@ -128,8 +128,7 @@ export default function StalePointsWidget({ config }: Props) {
           style={{
             fontSize: "32px",
             fontWeight: 700,
-            color:
-              count > 10 ? "var(--io-alarm-high)" : "var(--io-alarm-low)",
+            color: count > 10 ? "var(--io-alarm-high)" : "var(--io-alarm-low)",
             fontVariantNumeric: "tabular-nums",
           }}
         >
