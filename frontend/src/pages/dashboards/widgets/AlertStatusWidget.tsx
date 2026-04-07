@@ -24,9 +24,9 @@ interface ActiveAlarm {
 // The strings here are CSS custom property references passed directly to
 // inline styles — browsers resolve them at paint time per active theme.
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: "var(--io-alarm-critical)",
+  critical: "var(--io-alarm-urgent)",
   high: "var(--io-alarm-high)",
-  medium: "var(--io-alarm-medium)",
+  medium: "var(--io-alarm-low)",
   low: "var(--io-info)",
   info: "var(--io-text-muted)",
 };

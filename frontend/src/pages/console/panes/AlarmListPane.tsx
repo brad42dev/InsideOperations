@@ -8,7 +8,7 @@ import type { PaneConfig } from "../types";
 
 interface AlarmRow {
   id: string;
-  priority: "critical" | "high" | "medium" | "low";
+  priority: "urgent" | "high" | "low" | "diagnostic";
   tag: string;
   message: string;
   time: string;
@@ -18,7 +18,7 @@ interface AlarmRow {
 interface ApiAlarm {
   id: string;
   title: string;
-  severity: "critical" | "high" | "medium" | "low" | "info";
+  severity: "urgent" | "high" | "low" | "diagnostic" | "info";
   source: string;
   state: string;
   triggered_at: string;
@@ -30,17 +30,17 @@ interface ApiAlarm {
 // ─── Colors / labels ────────────────────────────────────────────────────────
 
 const PRIORITY_COLOR: Record<AlarmRow["priority"], string> = {
-  critical: "#EF4444",
+  urgent: "#EF4444",
   high: "#F97316",
-  medium: "#F59E0B",
-  low: "#3B82F6",
+  low: "#EAB308",
+  diagnostic: "#F4F4F5",
 };
 
 const PRIORITY_LABEL: Record<AlarmRow["priority"], string> = {
-  critical: "CRIT",
+  urgent: "URGNT",
   high: "HIGH",
-  medium: "MED",
   low: "LOW",
+  diagnostic: "DIAG",
 };
 
 function PriorityBadge({ priority }: { priority: AlarmRow["priority"] }) {

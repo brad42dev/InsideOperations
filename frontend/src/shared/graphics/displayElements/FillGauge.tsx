@@ -51,7 +51,8 @@ export function FillGauge({
 
   const fillColor = alarmPriority
     ? `${ALARM_COLORS[alarmPriority]}4D`
-    : "rgba(71,85,105,0.6)";
+    : "var(--io-fill-normal)";
+  const fillOpacity = alarmPriority ? 1 : 0.6;
   const flashClass = unacked && alarmPriority ? "io-alarm-flash" : "";
   const clipId = `fill-clip-${nodeId}`;
 
@@ -103,6 +104,7 @@ export function FillGauge({
           height={fillH}
           rx={1}
           fill={fillColor}
+          opacity={fillOpacity}
         />
         {showLevelLine && fillH > 0 && (
           <line
@@ -154,6 +156,7 @@ export function FillGauge({
         width={vw}
         height={fillH + 20}
         fill={fillColor}
+        opacity={fillOpacity}
         clipPath={`url(#${clipId})`}
       />
       {showLevelLine && fillH > 0 && (

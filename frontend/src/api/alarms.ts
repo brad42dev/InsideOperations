@@ -5,7 +5,7 @@ import {
   type PaginatedResult,
 } from "./client";
 
-export type AlarmPriority = "critical" | "high" | "medium" | "advisory";
+export type AlarmPriority = "urgent" | "high" | "low" | "diagnostic";
 
 export interface AlarmEvent {
   id: string;
@@ -31,7 +31,7 @@ function mapHistoryItem(item: AlarmHistoryItem): AlarmEvent {
   const priority =
     (item.metadata?.priority as AlarmPriority | undefined) ??
     (item.metadata?.alarm_priority as AlarmPriority | undefined) ??
-    "advisory";
+    "diagnostic";
   const point_id = (item.metadata?.point_id as string | undefined) ?? "";
   const message =
     item.comment ??

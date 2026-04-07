@@ -38,9 +38,9 @@ function computeHealthScore(alarms: ActiveAlarm[]): number {
 
 function healthColor(score: number): string {
   if (score >= 80) return "var(--io-alarm-normal)";
-  if (score >= 50) return "var(--io-alarm-medium)";
+  if (score >= 50) return "var(--io-alarm-low)";
   if (score >= 25) return "var(--io-alarm-high)";
-  return "var(--io-alarm-critical)";
+  return "var(--io-alarm-urgent)";
 }
 
 function healthLabel(score: number): string {
@@ -160,7 +160,7 @@ export default function AlarmHealthKpiWidget({ config: _config }: Props) {
               fontWeight: 700,
               color:
                 alarms.length > 0
-                  ? "var(--io-alarm-medium)"
+                  ? "var(--io-alarm-low)"
                   : "var(--io-text-muted)",
               fontVariantNumeric: "tabular-nums",
             }}
@@ -206,7 +206,7 @@ export default function AlarmHealthKpiWidget({ config: _config }: Props) {
               fontWeight: 700,
               color:
                 critical > 0
-                  ? "var(--io-alarm-critical)"
+                  ? "var(--io-alarm-urgent)"
                   : "var(--io-text-muted)",
               fontVariantNumeric: "tabular-nums",
             }}

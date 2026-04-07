@@ -785,7 +785,7 @@ function ErrorState({
         gap: 12,
       }}
     >
-      <div style={{ color: "var(--io-alarm-critical)", fontSize: 14 }}>
+      <div style={{ color: "var(--io-alarm-urgent)", fontSize: 14 }}>
         Failed to load graphic
       </div>
       <div style={{ color: "var(--io-text-muted)", fontSize: 12 }}>

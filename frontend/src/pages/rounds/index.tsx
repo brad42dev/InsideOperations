@@ -46,7 +46,7 @@ function StatusBadge({ status }: { status: InstanceStatus }) {
       text: "var(--io-accent, #4A9EFF)",
     },
     completed: { bg: "rgba(34,197,94,0.12)", text: "var(--io-alarm-normal)" },
-    missed: { bg: "rgba(239,68,68,0.12)", text: "var(--io-alarm-critical)" },
+    missed: { bg: "rgba(239,68,68,0.12)", text: "var(--io-alarm-urgent)" },
     transferred: {
       bg: "var(--io-surface-secondary)",
       text: "var(--io-text-muted)",
@@ -438,7 +438,7 @@ export default function RoundsPage() {
                   padding: "2px 8px",
                   borderRadius: "100px",
                   background: "rgba(239,68,68,0.12)",
-                  color: "var(--io-alarm-critical)",
+                  color: "var(--io-alarm-urgent)",
                   fontWeight: 700,
                   border: "1px solid rgba(239,68,68,0.3)",
                 }}

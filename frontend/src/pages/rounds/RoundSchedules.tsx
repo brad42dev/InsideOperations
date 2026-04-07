@@ -307,7 +307,7 @@ export default function RoundSchedules() {
                 border: "1px solid rgba(239,68,68,0.3)",
                 borderRadius: "6px",
                 fontSize: "13px",
-                color: "var(--io-alarm-critical)",
+                color: "var(--io-alarm-urgent)",
               }}
             >
               {error}

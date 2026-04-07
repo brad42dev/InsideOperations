@@ -414,7 +414,7 @@ function AlertBell() {
               right: "2px",
               minWidth: "14px",
               height: "14px",
-              background: "var(--io-alarm-critical)",
+              background: "var(--io-alarm-urgent)",
               color: "var(--io-text-inverse)",
               borderRadius: "7px",
               fontSize: "9px",
@@ -1533,7 +1533,7 @@ export default function AppShell() {
                                   top: -3,
                                   right: -3,
                                   background:
-                                    "var(--io-alarm-critical, #ef4444)",
+                                    "var(--io-alarm-urgent, #ef4444)",
                                   color: "#fff",
                                   borderRadius: "50%",
                                   minWidth: 14,
@@ -1560,7 +1560,7 @@ export default function AppShell() {
                           (sidebarBadges[item.path] ?? 0) > 0 && (
                             <span
                               style={{
-                                background: "var(--io-alarm-critical, #ef4444)",
+                                background: "var(--io-alarm-urgent, #ef4444)",
                                 color: "#fff",
                                 borderRadius: 10,
                                 minWidth: 18,

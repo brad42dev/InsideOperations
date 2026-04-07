@@ -29,10 +29,10 @@ import { alarmsApi, type AlarmPriority } from "../../api/alarms";
 const SPEEDS: PlaybackSpeed[] = [1, 2, 4, 8, 16, 32];
 
 const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
-  critical: "var(--io-alarm-critical)",
+  urgent: "var(--io-alarm-urgent)",
   high: "var(--io-alarm-high)",
-  medium: "var(--io-alarm-medium)",
-  advisory: "var(--io-alarm-advisory)",
+  low: "var(--io-alarm-low)",
+  diagnostic: "var(--io-alarm-diagnostic)",
 };
 
 function speedLabel(s: PlaybackSpeed): string {

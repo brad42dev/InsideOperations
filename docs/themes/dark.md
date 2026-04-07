@@ -63,12 +63,12 @@
 
 | Token | Value | Priority Level | Notes |
 |---|---|---|---|
-| `--io-alarm-critical` | `#ef4444` | Urgent / P1 | Red-500. HH/LL alarms |
-| `--io-alarm-high` | `#f59e0b` | High / P2 | Amber-500. H/L alarms |
-| `--io-alarm-medium` | `#eab308` | Medium / P3 | Yellow-500. Equipment alarms |
-| `--io-alarm-advisory` | `#06b6d4` | Advisory / P4 | Cyan-500. Non-critical notices |
-| `--io-alarm-custom` | `#7c3aed` | Custom | Violet-700. User-defined |
-| `--io-alarm-fault` | `#d946ef` | Fault | Fuchsia-500. System faults |
+| `--io-alarm-urgent` | `#ef4444` | P1 — Urgent | Red-500. Operator action required immediately. |
+| `--io-alarm-high` | `#f97316` | P2 — High | Orange-500. Operator action required soon. |
+| `--io-alarm-low` | `#eab308` | P3 — Low | Yellow-500. Operator action required eventually. |
+| `--io-alarm-diagnostic` | `#f4f4f5` | P4 — Diagnostic | Zinc-100 (white). Diagnostic/Journal; no urgency implied. |
+| `--io-alarm-custom` | `#60a5fa` | Custom | Blue-400. User-defined; circle indicator shape. |
+| `--io-alarm-shelved` | `#d946ef` | Shelved | Fuchsia-500. Alarm active but operator-suppressed. |
 
 ---
 
@@ -77,8 +77,7 @@
 | Token | Value | Notes |
 |---|---|---|
 | `--io-alarm-normal` | `#22c55e` | Green-500. Point in normal state |
-| `--io-alarm-suppressed` | `#a78bfa` | Violet-400. Suppressed/shelved |
-| `--io-alarm-disabled` | `#71717a` | Zinc-500. Disabled alarm |
+| `--io-alarm-disabled` | `#52525b` | Zinc-600. Disabled alarm; no action possible |
 
 ---
 
@@ -263,3 +262,18 @@ Tokens: `--io-space-0` through `--io-space-48`
 | `--io-text-value-xl` | `1.5rem` |
 | `--io-text-code` | `0.8125rem` |
 | `--io-text-code-sm` | `0.75rem` |
+
+---
+
+## Change Log
+
+### v0.7 — Alarm Token Rename
+- `--io-alarm-critical` → `--io-alarm-urgent` (hex unchanged: `#ef4444`)
+- `--io-alarm-high` hex updated: `#f59e0b` → `#f97316` (Amber → Orange-500)
+- `--io-alarm-medium` → `--io-alarm-low` (hex unchanged: `#eab308`)
+- `--io-alarm-advisory` → `--io-alarm-diagnostic` (hex changed: `#06b6d4` → `#f4f4f5`)
+- `--io-alarm-custom` hex updated: `#7c3aed` → `#60a5fa` (Violet → Blue-400)
+- `--io-alarm-suppressed` → `--io-alarm-shelved`; moved from Operational Status into Alarm Priority block
+- `--io-alarm-fault` removed; usages replaced with `--io-alarm-shelved`
+- `--io-alarm-disabled` hex updated: `#71717a` → `#52525b` (Zinc-500 → Zinc-600)
+- `--io-fill-normal` changed from `rgba(71,85,105,0.5)` to `#475569`; components apply `opacity: 0.6` on fill element

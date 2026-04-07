@@ -23,10 +23,10 @@ import { useQuery } from "@tanstack/react-query";
 import { alarmsApi, type AlarmPriority } from "../../api/alarms";
 
 const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
-  critical: "var(--io-alarm-critical)",
+  urgent: "var(--io-alarm-urgent)",
   high: "var(--io-alarm-high)",
-  medium: "var(--io-alarm-medium)",
-  advisory: "var(--io-alarm-advisory)",
+  low: "var(--io-alarm-low)",
+  diagnostic: "var(--io-alarm-diagnostic)",
 };
 
 const STEP_MS = 60_000; // 1-minute default step

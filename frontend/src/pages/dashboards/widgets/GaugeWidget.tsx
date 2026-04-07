@@ -81,7 +81,7 @@ export default function GaugeWidget({ config }: Props) {
 
   function getColor(val: number): string {
     if (!thresholds) return resolveToken("--io-accent");
-    if (val >= thresholds.critical) return resolveToken("--io-alarm-critical");
+    if (val >= thresholds.critical) return resolveToken("--io-alarm-urgent");
     if (val >= thresholds.warning) return resolveToken("--io-alarm-high");
     return resolveToken("--io-alarm-normal");
   }
@@ -92,7 +92,7 @@ export default function GaugeWidget({ config }: Props) {
     ? [
         [thresholds.warning / max, resolveToken("--io-alarm-normal")],
         [thresholds.critical / max, resolveToken("--io-alarm-high")],
-        [1, resolveToken("--io-alarm-critical")],
+        [1, resolveToken("--io-alarm-urgent")],
       ]
     : [[1, resolveToken("--io-accent")]];
 

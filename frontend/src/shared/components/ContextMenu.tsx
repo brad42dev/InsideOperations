@@ -238,7 +238,7 @@ function MenuItemRow({
   };
 
   const textColor = item.danger
-    ? "var(--io-alarm-critical)"
+    ? "var(--io-alarm-urgent)"
     : item.disabled
       ? "var(--io-text-muted)"
       : "var(--io-text-primary)";

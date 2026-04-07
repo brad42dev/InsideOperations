@@ -103,7 +103,7 @@ export default function RoundsCompletionWidget({ config }: Props) {
     pct >= 90
       ? "var(--io-alarm-normal)"
       : pct >= 70
-        ? "var(--io-alarm-medium)"
+        ? "var(--io-alarm-low)"
         : "var(--io-alarm-high)";
 
   return (

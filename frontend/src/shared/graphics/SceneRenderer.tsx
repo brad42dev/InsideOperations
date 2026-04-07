@@ -1473,7 +1473,8 @@ export function SceneRenderer({
         const bh = cfg.barHeight ?? 90;
         const fillColor = alarmPriority
           ? `${ALARM_COLORS[alarmPriority]}4D`
-          : "rgba(71,85,105,0.6)"; // rgba fallback intentional — no token for translucent fill
+          : "var(--io-fill-normal)"; // token value; opacity applied on fill rect
+        const fillOpacity = alarmPriority ? 1 : 0.6;
         const fmtPct = `${(pct * 100).toFixed(0)}%`;
         const clipId = `fg-clip-${node.id.replace(/[^a-z0-9]/gi, "")}`;
 
@@ -1507,6 +1508,7 @@ export function SceneRenderer({
                 width={bw}
                 height={fillH + 20}
                 fill={fillColor}
+                opacity={fillOpacity}
                 clipPath={`url(#${clipId})`}
               />
               {cfg.showLevelLine && fillH > 0 && (
@@ -1588,6 +1590,7 @@ export function SceneRenderer({
               height={fillH}
               rx={1}
               fill={fillColor}
+              opacity={fillOpacity}
             />
             {cfg.showLevelLine && fillH > 0 && (
               <line
@@ -2710,10 +2713,10 @@ export function SceneRenderer({
 // ---- Helpers ----
 
 const ALARM_PRIORITY_NAMES: Record<number, string> = {
-  1: "critical",
+  1: "urgent",
   2: "high",
-  3: "medium",
-  4: "advisory",
+  3: "low",
+  4: "diagnostic",
   5: "custom",
 };
 

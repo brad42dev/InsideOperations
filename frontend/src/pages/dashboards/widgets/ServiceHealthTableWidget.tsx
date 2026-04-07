@@ -20,8 +20,8 @@ interface Props {
 
 const STATUS_COLORS: Record<string, string> = {
   healthy: "#22c55e",
-  degraded: "var(--io-alarm-medium)",
-  unhealthy: "var(--io-alarm-critical)",
+  degraded: "var(--io-alarm-low)",
+  unhealthy: "var(--io-alarm-urgent)",
   unknown: "var(--io-text-muted)",
 };
 

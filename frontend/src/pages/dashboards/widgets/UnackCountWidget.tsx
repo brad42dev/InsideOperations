@@ -44,9 +44,9 @@ export default function UnackCountWidget({ config }: Props) {
   const unackCount = filtered.filter((a) => !a.acknowledged_at).length;
 
   function getColor(count: number): string {
-    if (count >= criticalThreshold) return "var(--io-alarm-critical)";
+    if (count >= criticalThreshold) return "var(--io-alarm-urgent)";
     if (count >= warnThreshold) return "var(--io-alarm-high)";
-    if (count > 0) return "var(--io-alarm-medium)";
+    if (count > 0) return "var(--io-alarm-low)";
     return "var(--io-alarm-normal)";
   }
 

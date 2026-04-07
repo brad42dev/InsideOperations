@@ -26,13 +26,13 @@ const ALARM_PRIORITY_NAMES: Record<number, string> = {
 
 function getFlashClass(priority: number): string {
   const names: Record<number, string> = {
-    1: "critical",
+    1: "urgent",
     2: "high",
-    3: "medium",
-    4: "advisory",
+    3: "low",
+    4: "diagnostic",
     5: "custom",
   };
-  return `io-alarm-flash-${names[priority] ?? "critical"}`;
+  return `io-alarm-flash-${names[priority] ?? "urgent"}`;
 }
 
 export function AlarmIndicator({

@@ -90,10 +90,10 @@ function buildEChartsTheme(colorKey: "light" | "dark" | "high-contrast") {
 
     // Alarm severity colors for series that use the alarm palette
     alarm: {
-      critical: c.alarmCritical,
+      urgent: c.alarmUrgent,
       high: c.alarmHigh,
-      medium: c.alarmMedium,
-      advisory: c.alarmAdvisory,
+      low: c.alarmLow,
+      diagnostic: c.alarmDiagnostic,
     },
   };
 }

@@ -63,9 +63,9 @@ export default function AlarmKpiWidget({ config }: Props) {
   }
 
   function getColor(count: number): string {
-    if (count >= criticalThreshold) return "var(--io-alarm-critical)";
+    if (count >= criticalThreshold) return "var(--io-alarm-urgent)";
     if (count >= warnThreshold) return "var(--io-alarm-high)";
-    if (count > 0) return "var(--io-alarm-medium)";
+    if (count > 0) return "var(--io-alarm-low)";
     return "var(--io-alarm-normal)";
   }
 

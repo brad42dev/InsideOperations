@@ -1,10 +1,10 @@
 // Alarm priority colors — ISA-18.2, theme-independent (never change)
 export const ALARM_COLORS: Record<number, string> = {
-  1: "var(--io-alarm-critical, #EF4444)", // P1 Critical
-  2: "var(--io-alarm-high,     #F97316)", // P2 High
-  3: "var(--io-alarm-medium,   #EAB308)", // P3 Medium
-  4: "var(--io-alarm-advisory, #06B6D4)", // P4 Advisory
-  5: "var(--io-alarm-custom,   #7C3AED)", // Custom
+  1: "var(--io-alarm-urgent,     #EF4444)", // P1 Urgent
+  2: "var(--io-alarm-high,       #F97316)", // P2 High
+  3: "var(--io-alarm-low,        #EAB308)", // P3 Low
+  4: "var(--io-alarm-diagnostic, #F4F4F5)", // P4 Diagnostic
+  5: "var(--io-alarm-custom,     #60A5FA)", // Custom
 };
 
 // Analog bar zone colors — muted warm-to-cool ramp, theme-independent

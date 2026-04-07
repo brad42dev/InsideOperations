@@ -42,23 +42,22 @@ const darkTokens: Record<string, string> = {
   "--io-focus-ring": "#2dd4bf",
 
   // Alarm Priority (ISA-101 — NOT user-customizable)
-  "--io-alarm-critical": "#ef4444",
-  "--io-alarm-high": "#f59e0b",
-  "--io-alarm-medium": "#eab308",
-  "--io-alarm-advisory": "#06b6d4",
-  "--io-alarm-custom": "#7c3aed",
-  "--io-alarm-fault": "#d946ef",
+  "--io-alarm-urgent": "#ef4444",
+  "--io-alarm-high": "#f97316",
+  "--io-alarm-low": "#eab308",
+  "--io-alarm-diagnostic": "#f4f4f5",
+  "--io-alarm-custom": "#60a5fa",
+  "--io-alarm-shelved": "#d946ef",
 
   // Graphics Display Elements
-  "--io-fill-normal": "rgba(71,85,105,0.5)",
+  "--io-fill-normal": "#475569",
   "--io-display-zone-inactive": "#3f3f46",
   "--io-display-zone-normal": "#404048",
   "--io-display-zone-border": "#52525b",
 
   // Operational Status
   "--io-alarm-normal": "#22c55e",
-  "--io-alarm-suppressed": "#a78bfa",
-  "--io-alarm-disabled": "#71717a",
+  "--io-alarm-disabled": "#52525b",
 
   // Semantic Status
   "--io-danger": "#ef4444",
@@ -239,12 +238,12 @@ const lightTokens: Record<string, string> = {
   "--io-focus-ring": "#14b8a6",
 
   // Alarm Priority
-  "--io-alarm-critical": "#dc2626",
+  "--io-alarm-urgent": "#dc2626",
   "--io-alarm-high": "#d97706",
-  "--io-alarm-medium": "#ca8a04",
-  "--io-alarm-advisory": "#0891b2",
+  "--io-alarm-low": "#ca8a04",
+  "--io-alarm-diagnostic": "#0891b2",
   "--io-alarm-custom": "#6d28d9",
-  "--io-alarm-fault": "#c026d3",
+  "--io-alarm-shelved": "#7c3aed",
 
   // Graphics Display Elements
   "--io-fill-normal": "rgba(148,163,184,0.3)",
@@ -254,7 +253,6 @@ const lightTokens: Record<string, string> = {
 
   // Operational Status
   "--io-alarm-normal": "#16a34a",
-  "--io-alarm-suppressed": "#7c3aed",
   "--io-alarm-disabled": "#9ca3af",
 
   // Semantic Status
@@ -437,12 +435,12 @@ const hphmiTokens: Record<string, string> = {
   "--io-focus-ring": "#14b8a6",
 
   // Alarm Priority
-  "--io-alarm-critical": "#ef4444",
+  "--io-alarm-urgent": "#ef4444",
   "--io-alarm-high": "#f59e0b",
-  "--io-alarm-medium": "#eab308",
-  "--io-alarm-advisory": "#06b6d4",
+  "--io-alarm-low": "#eab308",
+  "--io-alarm-diagnostic": "#06b6d4",
   "--io-alarm-custom": "#7c3aed",
-  "--io-alarm-fault": "#d946ef",
+  "--io-alarm-shelved": "#a78bfa",
 
   // Graphics Display Elements
   "--io-fill-normal": "rgba(71,85,105,0.5)",
@@ -452,7 +450,6 @@ const hphmiTokens: Record<string, string> = {
 
   // Operational Status
   "--io-alarm-normal": "#22c55e",
-  "--io-alarm-suppressed": "#a78bfa",
   "--io-alarm-disabled": "#64748b",
 
   // Semantic Status

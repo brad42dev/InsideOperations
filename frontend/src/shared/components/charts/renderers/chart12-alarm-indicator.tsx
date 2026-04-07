@@ -17,16 +17,16 @@ interface ThresholdEntry {
   value: number;
   color: string;
   label: string;
-  priority?: "critical" | "high" | "medium" | "low";
+  priority?: "urgent" | "high" | "low" | "diagnostic";
 }
 
-type AlarmLevel = "critical" | "high" | "medium" | "low" | "normal";
+type AlarmLevel = "urgent" | "high" | "low" | "diagnostic" | "normal";
 
 const LEVEL_ORDER: AlarmLevel[] = [
-  "critical",
+  "urgent",
   "high",
-  "medium",
   "low",
+  "diagnostic",
   "normal",
 ];
 
@@ -40,14 +40,14 @@ function valueToLevel(value: number, thresholds: ThresholdEntry[]): AlarmLevel {
   for (const t of sorted) {
     if (value >= t.value) {
       const p = t.priority;
-      if (p === "critical") return "critical";
+      if (p === "urgent") return "urgent";
       if (p === "high") return "high";
-      if (p === "medium") return "medium";
       if (p === "low") return "low";
+      if (p === "diagnostic") return "diagnostic";
       // Fall back to ISA-101 heuristic: use color
-      if (t.color?.toLowerCase().includes("red")) return "critical";
+      if (t.color?.toLowerCase().includes("red")) return "urgent";
       if (t.color?.toLowerCase().includes("orange")) return "high";
-      if (t.color?.toLowerCase().includes("yellow")) return "medium";
+      if (t.color?.toLowerCase().includes("yellow")) return "low";
       return "low";
     }
   }
@@ -78,7 +78,7 @@ function AlarmShape({
 
   const opacity = flashing && !vis ? 0.1 : 1;
 
-  if (level === "critical") {
+  if (level === "urgent") {
     return (
       <svg width={56} height={56} viewBox="0 0 56 56" style={{ opacity }}>
         <rect x={4} y={4} width={48} height={48} fill="#EF4444" rx={4} />
@@ -112,7 +112,7 @@ function AlarmShape({
       </svg>
     );
   }
-  if (level === "medium") {
+  if (level === "low") {
     return (
       <svg width={56} height={56} viewBox="0 0 56 56" style={{ opacity }}>
         <polygon points="28,4 52,28 28,52 4,28" fill="#EAB308" />
@@ -129,10 +129,10 @@ function AlarmShape({
       </svg>
     );
   }
-  if (level === "low") {
+  if (level === "diagnostic") {
     return (
       <svg width={56} height={56} viewBox="0 0 56 56" style={{ opacity }}>
-        <circle cx={28} cy={28} r={24} fill="#06B6D4" />
+        <circle cx={28} cy={28} r={24} fill="#F4F4F5" />
         <text
           x={28}
           y={35}
@@ -180,10 +180,10 @@ export default function Chart12AlarmIndicator({ config }: RendererProps) {
   }
 
   const levelLabels: Record<Exclude<AlarmLevel, "normal">, string> = {
-    critical: "CRITICAL",
+    urgent: "URGENT",
     high: "HIGH",
-    medium: "MEDIUM",
     low: "LOW",
+    diagnostic: "DIAGNOSTIC",
   };
 
   return (

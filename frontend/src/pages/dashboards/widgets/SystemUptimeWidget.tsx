@@ -73,7 +73,7 @@ export default function SystemUptimeWidget({ config: _config }: Props) {
     uptimePct >= 99.9
       ? "var(--io-alarm-normal)"
       : uptimePct >= 95
-        ? "var(--io-alarm-medium)"
+        ? "var(--io-alarm-low)"
         : "var(--io-alarm-high)";
 
   return (
@@ -157,7 +157,7 @@ export default function SystemUptimeWidget({ config: _config }: Props) {
                 style={{
                   fontSize: "16px",
                   fontWeight: 700,
-                  color: "var(--io-alarm-medium)",
+                  color: "var(--io-alarm-low)",
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
@@ -180,7 +180,7 @@ export default function SystemUptimeWidget({ config: _config }: Props) {
                 style={{
                   fontSize: "16px",
                   fontWeight: 700,
-                  color: "var(--io-alarm-critical)",
+                  color: "var(--io-alarm-urgent)",
                   fontVariantNumeric: "tabular-nums",
                 }}
               >

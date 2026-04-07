@@ -252,7 +252,7 @@ function Field({
         {label}
         {required && (
           <span
-            style={{ color: "var(--io-alarm-critical)", marginLeft: "2px" }}
+            style={{ color: "var(--io-alarm-urgent)", marginLeft: "2px" }}
           >
             *
           </span>
@@ -405,7 +405,7 @@ function CheckpointEditor({
               background: "none",
               border: "none",
               cursor: "pointer",
-              color: "var(--io-alarm-critical)",
+              color: "var(--io-alarm-urgent)",
               padding: "2px 6px",
             }}
           >
@@ -673,7 +673,7 @@ function CheckpointEditor({
                         border: "1px solid var(--io-border)",
                         borderRadius: "6px",
                         cursor: "pointer",
-                        color: "var(--io-alarm-critical)",
+                        color: "var(--io-alarm-urgent)",
                         padding: "0 10px",
                       }}
                     >
@@ -743,7 +743,7 @@ function CheckpointEditor({
                         border: "1px solid var(--io-border)",
                         borderRadius: "6px",
                         cursor: "pointer",
-                        color: "var(--io-alarm-critical)",
+                        color: "var(--io-alarm-urgent)",
                         padding: "0 10px",
                       }}
                     >
@@ -1338,7 +1338,7 @@ export default function TemplateDesigner() {
               background: "rgba(239,68,68,0.1)",
               border: "1px solid rgba(239,68,68,0.3)",
               borderRadius: "6px",
-              color: "var(--io-alarm-critical)",
+              color: "var(--io-alarm-urgent)",
               fontSize: "13px",
             }}
           >

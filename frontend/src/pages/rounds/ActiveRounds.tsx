@@ -9,10 +9,10 @@ function statusBadge(status: RoundInstance["status"]) {
     pending: { bg: "rgba(251,191,36,0.15)", text: "var(--io-alarm-high)" },
     in_progress: { bg: "rgba(74,158,255,0.15)", text: "var(--io-accent)" },
     completed: { bg: "rgba(34,197,94,0.12)", text: "var(--io-alarm-normal)" },
-    missed: { bg: "rgba(239,68,68,0.12)", text: "var(--io-alarm-critical)" },
+    missed: { bg: "rgba(239,68,68,0.12)", text: "var(--io-alarm-urgent)" },
     transferred: {
       bg: "rgba(168,85,247,0.12)",
-      text: "var(--io-alarm-suppressed)",
+      text: "var(--io-warning)",
     },
   };
   const c = map[status] ?? {
@@ -45,7 +45,7 @@ function DueBadge({ due }: { due?: string }) {
     return (
       <span
         style={{
-          color: "var(--io-alarm-critical)",
+          color: "var(--io-alarm-urgent)",
           fontWeight: 600,
           fontSize: "12px",
         }}

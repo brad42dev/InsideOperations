@@ -68,7 +68,7 @@ function LockedByOtherBanner({
         1 minute, the round will be automatically transferred to you.
       </div>
       {error && (
-        <div style={{ fontSize: "12px", color: "var(--io-alarm-critical)" }}>
+        <div style={{ fontSize: "12px", color: "var(--io-alarm-urgent)" }}>
           {error}
         </div>
       )}
@@ -222,7 +222,7 @@ function IncomingTransferBanner({
         transferred.
       </div>
       {error && (
-        <div style={{ fontSize: "12px", color: "var(--io-alarm-critical)" }}>
+        <div style={{ fontSize: "12px", color: "var(--io-alarm-urgent)" }}>
           {error}
         </div>
       )}
@@ -522,7 +522,7 @@ function BarcodeGate({
           style={{
             marginTop: "8px",
             fontSize: "12px",
-            color: "var(--io-alarm-critical)",
+            color: "var(--io-alarm-urgent)",
           }}
         >
           {scanError}
@@ -668,7 +668,7 @@ function GpsGate({
           style={{
             marginTop: "8px",
             fontSize: "12px",
-            color: "var(--io-alarm-critical)",
+            color: "var(--io-alarm-urgent)",
           }}
         >
           {gpsError}
@@ -701,7 +701,7 @@ function evaluateNumericColor(value: string, cp: Checkpoint): string {
   const n = parseFloat(value);
   if (isNaN(n)) return "var(--io-text-primary)";
   if ((v.hh !== undefined && n >= v.hh) || (v.ll !== undefined && n <= v.ll)) {
-    return "var(--io-alarm-critical)"; // alarm
+    return "var(--io-alarm-urgent)"; // alarm
   }
   if ((v.h !== undefined && n > v.h) || (v.l !== undefined && n < v.l)) {
     return "var(--io-alarm-high)"; // advisory
@@ -998,7 +998,7 @@ function CheckpointInput({
             Video Recording
             {checkpoint.media_requirements.video === "required" && (
               <span
-                style={{ color: "var(--io-alarm-critical)", marginLeft: "4px" }}
+                style={{ color: "var(--io-alarm-urgent)", marginLeft: "4px" }}
               >
                 *
               </span>
@@ -1008,7 +1008,7 @@ function CheckpointInput({
             <div
               style={{
                 fontSize: "12px",
-                color: "var(--io-alarm-critical)",
+                color: "var(--io-alarm-urgent)",
                 marginBottom: "6px",
               }}
             >
@@ -1048,9 +1048,9 @@ function CheckpointInput({
               style={{
                 padding: "10px 16px",
                 background: videoRecording
-                  ? "var(--io-alarm-critical)"
+                  ? "var(--io-alarm-urgent)"
                   : "var(--io-surface-secondary)",
-                border: `1px solid ${videoRecording ? "var(--io-alarm-critical)" : "var(--io-border)"}`,
+                border: `1px solid ${videoRecording ? "var(--io-alarm-urgent)" : "var(--io-border)"}`,
                 borderRadius: "6px",
                 cursor: "pointer",
                 color: videoRecording
@@ -1080,7 +1080,7 @@ function CheckpointInput({
             Audio Note
             {checkpoint.media_requirements.audio === "required" && (
               <span
-                style={{ color: "var(--io-alarm-critical)", marginLeft: "4px" }}
+                style={{ color: "var(--io-alarm-urgent)", marginLeft: "4px" }}
               >
                 *
               </span>
@@ -1090,7 +1090,7 @@ function CheckpointInput({
             <div
               style={{
                 fontSize: "12px",
-                color: "var(--io-alarm-critical)",
+                color: "var(--io-alarm-urgent)",
                 marginBottom: "6px",
               }}
             >
@@ -1130,9 +1130,9 @@ function CheckpointInput({
               style={{
                 padding: "10px 16px",
                 background: audioRecording
-                  ? "var(--io-alarm-critical)"
+                  ? "var(--io-alarm-urgent)"
                   : "var(--io-surface-secondary)",
-                border: `1px solid ${audioRecording ? "var(--io-alarm-critical)" : "var(--io-border)"}`,
+                border: `1px solid ${audioRecording ? "var(--io-alarm-urgent)" : "var(--io-border)"}`,
                 borderRadius: "6px",
                 cursor: "pointer",
                 color: audioRecording
@@ -1161,7 +1161,7 @@ function CheckpointInput({
           Comments
           {checkpoint.media_requirements?.comments === "required" && (
             <span
-              style={{ color: "var(--io-alarm-critical)", marginLeft: "4px" }}
+              style={{ color: "var(--io-alarm-urgent)", marginLeft: "4px" }}
             >
               *
             </span>
@@ -1546,7 +1546,7 @@ export default function RoundPlayer() {
 
   if (!detailResult?.success) {
     return (
-      <div style={{ padding: "24px", color: "var(--io-alarm-critical)" }}>
+      <div style={{ padding: "24px", color: "var(--io-alarm-urgent)" }}>
         {detailResult?.error?.message ?? "Failed to load round."}
       </div>
     );
@@ -1730,7 +1730,7 @@ export default function RoundPlayer() {
             borderBottom: "1px solid rgba(239,68,68,0.3)",
             padding: "8px 16px",
             fontSize: "12px",
-            color: "var(--io-alarm-critical)",
+            color: "var(--io-alarm-urgent)",
             display: "flex",
             alignItems: "center",
             gap: "8px",
@@ -1912,7 +1912,7 @@ export default function RoundPlayer() {
               {cp.required && (
                 <span
                   style={{
-                    color: "var(--io-alarm-critical)",
+                    color: "var(--io-alarm-urgent)",
                     marginLeft: "4px",
                   }}
                 >
@@ -2007,7 +2007,7 @@ export default function RoundPlayer() {
               background: "rgba(239,68,68,0.1)",
               border: "1px solid rgba(239,68,68,0.3)",
               borderRadius: "6px",
-              color: "var(--io-alarm-critical)",
+              color: "var(--io-alarm-urgent)",
               fontSize: "13px",
               marginBottom: "16px",
             }}

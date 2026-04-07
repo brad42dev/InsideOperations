@@ -8,9 +8,9 @@ interface Props {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  emergency: "var(--io-alarm-critical)",
+  emergency: "var(--io-alarm-urgent)",
   critical: "var(--io-alarm-high)",
-  warning: "var(--io-alarm-medium)",
+  warning: "var(--io-alarm-low)",
   info: "var(--io-info)",
 };
 
@@ -122,10 +122,10 @@ export default function OpenAlertsWidget({ config: _config }: Props) {
 
   const countColor =
     emergencyCount > 0
-      ? "var(--io-alarm-critical)"
+      ? "var(--io-alarm-urgent)"
       : criticalCount > 0
         ? "var(--io-alarm-high)"
-        : "var(--io-alarm-medium)";
+        : "var(--io-alarm-low)";
 
   return (
     <div

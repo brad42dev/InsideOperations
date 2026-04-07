@@ -25,7 +25,7 @@ function getTrendColor(
   thresholds?: { warning: number; critical: number },
 ): string {
   if (!thresholds) return "var(--io-text-primary)";
-  if (value >= thresholds.critical) return "var(--io-alarm-critical)";
+  if (value >= thresholds.critical) return "var(--io-alarm-urgent)";
   if (value >= thresholds.warning) return "var(--io-alarm-high)";
   return "var(--io-alarm-normal)";
 }

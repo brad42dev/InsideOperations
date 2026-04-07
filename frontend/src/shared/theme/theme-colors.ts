@@ -23,10 +23,10 @@ export interface ThemeColorSet {
   chartTooltipBg: string;
 
   // Alarm Priority (ISA-101)
-  alarmCritical: string;
+  alarmUrgent: string;
   alarmHigh: string;
-  alarmMedium: string;
-  alarmAdvisory: string;
+  alarmLow: string;
+  alarmDiagnostic: string;
 
   // Pen colors (static across themes)
   pen1: string;
@@ -52,10 +52,10 @@ export const themeColors: Record<
     chartTooltipBg: "#ffffff",
 
     // Alarm Priority — matches lightTokens in tokens.ts
-    alarmCritical: "#dc2626",
+    alarmUrgent: "#dc2626",
     alarmHigh: "#d97706",
-    alarmMedium: "#ca8a04",
-    alarmAdvisory: "#0891b2",
+    alarmLow: "#ca8a04",
+    alarmDiagnostic: "#0891b2",
 
     // Pen colors (static) — matches lightTokens in tokens.ts
     pen1: "#2563eb",
@@ -77,10 +77,10 @@ export const themeColors: Record<
     chartTooltipBg: "#27272a",
 
     // Alarm Priority — matches darkTokens in tokens.ts
-    alarmCritical: "#ef4444",
-    alarmHigh: "#f59e0b",
-    alarmMedium: "#eab308",
-    alarmAdvisory: "#06b6d4",
+    alarmUrgent: "#ef4444",
+    alarmHigh: "#f97316",
+    alarmLow: "#eab308",
+    alarmDiagnostic: "#f4f4f5",
 
     // Pen colors (static) — matches darkTokens in tokens.ts
     pen1: "#2563eb",
@@ -102,10 +102,10 @@ export const themeColors: Record<
     chartTooltipBg: "#1e293b",
 
     // Alarm Priority — matches hphmiTokens in tokens.ts
-    alarmCritical: "#ef4444",
+    alarmUrgent: "#ef4444",
     alarmHigh: "#f59e0b",
-    alarmMedium: "#eab308",
-    alarmAdvisory: "#06b6d4",
+    alarmLow: "#eab308",
+    alarmDiagnostic: "#06b6d4",
 
     // Pen colors (static) — matches hphmiTokens in tokens.ts
     pen1: "#2563eb",

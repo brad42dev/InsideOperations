@@ -18,9 +18,9 @@ interface AlarmSeverityCount {
 // ISA-101 alarm severity token mapping.
 // Values are CSS variable references resolved at paint time.
 const SEVERITY_TOKENS: Record<string, string> = {
-  critical: "var(--io-alarm-critical)",
+  critical: "var(--io-alarm-urgent)",
   high: "var(--io-alarm-high)",
-  medium: "var(--io-alarm-medium)",
+  medium: "var(--io-alarm-low)",
   low: "var(--io-info)",
   info: "var(--io-text-muted)",
 };

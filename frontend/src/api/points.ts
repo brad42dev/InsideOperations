@@ -146,7 +146,7 @@ export interface PointAlarmEvent {
   id: string;
   timestamp: string;
   value: number | null;
-  priority: "critical" | "high" | "medium" | "low" | string;
+  priority: "urgent" | "high" | "low" | "diagnostic" | string;
   state: string;
   message: string | null;
 }

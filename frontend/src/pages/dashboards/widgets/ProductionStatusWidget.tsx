@@ -46,7 +46,7 @@ function deriveStatus(
   if (connectedSources === 0) {
     return {
       label: "OFFLINE",
-      color: "var(--io-alarm-critical)",
+      color: "var(--io-alarm-urgent)",
       detail: `All ${sources.length} sources disconnected`,
     };
   }
@@ -62,7 +62,7 @@ function deriveStatus(
   if (high > 5 || alarms.length > 20) {
     return {
       label: "DEGRADED",
-      color: "var(--io-alarm-medium)",
+      color: "var(--io-alarm-low)",
       detail: `${alarms.length} active alarms`,
     };
   }
@@ -218,7 +218,7 @@ export default function ProductionStatusWidget({ config: _config }: Props) {
               fontWeight: 700,
               color:
                 alarms.length > 0
-                  ? "var(--io-alarm-medium)"
+                  ? "var(--io-alarm-low)"
                   : "var(--io-text-muted)",
               fontVariantNumeric: "tabular-nums",
             }}

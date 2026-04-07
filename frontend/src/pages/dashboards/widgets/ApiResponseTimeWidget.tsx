@@ -21,9 +21,9 @@ interface Props {
 }
 
 function getStatusColor(pct: number): string {
-  if (pct > 1000) return "var(--io-alarm-critical)";
+  if (pct > 1000) return "var(--io-alarm-urgent)";
   if (pct > 500) return "var(--io-alarm-high)";
-  if (pct > 200) return "var(--io-alarm-medium)";
+  if (pct > 200) return "var(--io-alarm-low)";
   return "var(--io-alarm-normal)";
 }
 

@@ -42,9 +42,9 @@ function qualityColor(quality: string): string {
     case "good":
       return "var(--io-alarm-normal)";
     case "bad":
-      return "var(--io-alarm-critical)";
+      return "var(--io-alarm-urgent)";
     case "uncertain":
-      return "var(--io-alarm-medium)";
+      return "var(--io-alarm-low)";
     default:
       return "var(--io-text-muted)";
   }
