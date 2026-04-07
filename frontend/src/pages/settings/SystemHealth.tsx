@@ -69,6 +69,69 @@ function StatusBadge({ status }: { status: ServiceStatus }) {
   );
 }
 
+// ── Service metadata ──────────────────────────────────────────────────────────
+
+const SERVICE_INFO: Record<
+  string,
+  { display: string; description: string; impact: string }
+> = {
+  "api-gateway": {
+    display: "API Gateway",
+    description: "HTTP routing, JWT validation, RBAC enforcement",
+    impact: "All API requests fail. Users cannot log in or access the application.",
+  },
+  "data-broker": {
+    display: "Data Broker",
+    description: "WebSocket broker, subscription registry, backpressure management",
+    impact: "Live data updates stop. All dashboards and consoles show stale values.",
+  },
+  "opc-service": {
+    display: "OPC Service",
+    description: "OPC UA client, metadata crawling, subscription batching",
+    impact: "No new data from plant systems. Historical data still accessible.",
+  },
+  "event-service": {
+    display: "Event Service",
+    description: "ISA-18.2 alarm state machine, event processing",
+    impact: "Alarms stop triggering. Active alarm states freeze until service recovers.",
+  },
+  "parser-service": {
+    display: "Parser Service",
+    description: "SVG, DXF, and DCS native file parsing",
+    impact: "Graphic file imports fail. Existing graphics are unaffected.",
+  },
+  "archive-service": {
+    display: "Archive Service",
+    description: "TimescaleDB management, compression, data retention",
+    impact: "Historical queries fail. Trend charts, forensics, and reports unavailable.",
+  },
+  "import-service": {
+    display: "Import Service",
+    description: "Universal import ETL pipeline, connector templates",
+    impact: "Data imports fail. Scheduled imports will queue and retry on recovery.",
+  },
+  "alert-service": {
+    display: "Alert Service",
+    description: "Alert routing, escalation policies, shift-aware notification dispatch",
+    impact: "Alert notifications stop. No SMS, email, or WebSocket alerts dispatched.",
+  },
+  "email-service": {
+    display: "Email Service",
+    description: "Transactional email, template rendering, delivery queue",
+    impact: "All emails stop. Password resets and alarm notifications via email unavailable.",
+  },
+  "auth-service": {
+    display: "Auth Service",
+    description: "Multi-provider auth (Local/OIDC/SAML/LDAP), MFA, SCIM, API keys",
+    impact: "New logins fail. Active sessions remain valid until JWT expires (15 min).",
+  },
+  "recognition-service": {
+    display: "Recognition Service",
+    description: "P&ID and DCS symbol recognition, .iomodel inference",
+    impact: "Symbol recognition unavailable. Existing graphics unaffected.",
+  },
+};
+
 // ── Tab component ─────────────────────────────────────────────────────────────
 
 type TabId = "services" | "database" | "opc" | "websocket" | "jobs" | "metrics";
@@ -106,17 +169,18 @@ interface DatabaseHealth {
   timescaledb_version?: string;
   compression_ratio?: number;
   replication_lag_ms?: number | null;
+  active_queries?: number | null;
 }
 
 interface OpcSourceStat {
   source_id: string;
   name: string;
   connected: boolean;
+  point_count?: number;
   subscribed_points?: number;
   update_rate?: number;
-  last_successful_update?: string;
-  reconnection_count?: number;
-  recent_errors?: string[];
+  error_count_24h?: number;
+  last_value_at?: string;
 }
 
 interface WebSocketHealth {
@@ -130,9 +194,9 @@ interface WebSocketHealth {
 interface JobsHealth {
   email: { pending: number; sent: number; failed: number; retry: number };
   alerts: {
-    pending: number;
-    dispatched: number;
+    active: number;
     acknowledged: number;
+    resolved: number;
     escalated: number;
   };
   exports: {
@@ -203,13 +267,12 @@ function ServicesTab() {
 
   const cols = [
     "Service",
+    "Port",
     "Status",
     "Uptime",
     "Version",
     "p50 (ms)",
     "p95 (ms)",
-    "Req/s",
-    "Error %",
     "Last Check",
   ];
 
@@ -314,109 +377,128 @@ function ServicesTab() {
                   </td>
                 </tr>
               ) : (
-                all.map((svc, i) => (
-                  <tr
-                    key={svc.name}
-                    style={{
-                      background:
-                        i % 2 === 0
-                          ? "transparent"
-                          : "var(--io-surface-secondary)",
-                      borderTop: "1px solid var(--io-border)",
-                    }}
-                  >
-                    <td
+                all.map((svc, i) => {
+                  const info = SERVICE_INFO[svc.name];
+                  const isUnhealthy = svc.status === "unhealthy";
+                  return (
+                    <tr
+                      key={svc.name}
                       style={{
-                        padding: "10px 12px",
-                        fontWeight: 600,
-                        color: "var(--io-text-primary)",
-                        fontFamily: "var(--io-font-mono, monospace)",
-                        whiteSpace: "nowrap",
+                        background:
+                          i % 2 === 0
+                            ? "transparent"
+                            : "var(--io-surface-secondary)",
+                        borderTop: "1px solid var(--io-border)",
                       }}
                     >
-                      {svc.name}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      <StatusBadge status={svc.status} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-secondary)",
-                      }}
-                    >
-                      {svc.uptime ?? "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-secondary)",
-                        fontFamily: "var(--io-font-mono, monospace)",
-                      }}
-                    >
-                      {svc.version ?? "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-secondary)",
-                      }}
-                    >
-                      {svc.response_p50 != null
-                        ? svc.response_p50.toFixed(1)
-                        : "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-secondary)",
-                      }}
-                    >
-                      {svc.response_p95 != null
-                        ? svc.response_p95.toFixed(1)
-                        : "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-secondary)",
-                      }}
-                    >
-                      {svc.request_rate != null
-                        ? svc.request_rate.toFixed(1)
-                        : "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color:
-                          svc.error_rate != null && svc.error_rate > 0
-                            ? "var(--io-danger)"
-                            : "var(--io-text-secondary)",
-                      }}
-                    >
-                      {svc.error_rate != null
-                        ? `${svc.error_rate.toFixed(2)}%`
-                        : "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 12px",
-                        color: "var(--io-text-muted)",
-                        whiteSpace: "nowrap",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {svc.checked_at
-                        ? new Date(svc.checked_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                          })
-                        : "—"}
-                    </td>
-                  </tr>
-                ))
+                      <td style={{ padding: "10px 12px", minWidth: "220px" }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--io-text-primary)",
+                            fontSize: "13px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {info?.display ?? svc.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--io-text-muted)",
+                            marginTop: "1px",
+                          }}
+                        >
+                          {info?.description ?? ""}
+                        </div>
+                        {isUnhealthy && info?.impact && (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "var(--io-danger)",
+                              marginTop: "3px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            ⚠ {info.impact}
+                          </div>
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-muted)",
+                          fontFamily: "var(--io-font-mono, monospace)",
+                          fontSize: "11px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        :{svc.port}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <StatusBadge status={svc.status} />
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-secondary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {svc.uptime ?? "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-secondary)",
+                          fontFamily: "var(--io-font-mono, monospace)",
+                          fontSize: "11px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {svc.version ?? "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-secondary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {svc.response_p50 != null
+                          ? svc.response_p50.toFixed(1)
+                          : "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-secondary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {svc.response_p95 != null
+                          ? svc.response_p95.toFixed(1)
+                          : "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          color: "var(--io-text-muted)",
+                          whiteSpace: "nowrap",
+                          fontSize: "11px",
+                        }}
+                      >
+                        {svc.checked_at
+                          ? new Date(svc.checked_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            })
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -476,6 +558,13 @@ function DatabaseTab() {
             value:
               data.compression_ratio != null
                 ? `${data.compression_ratio.toFixed(2)}x`
+                : "—",
+          },
+          {
+            label: "Active Queries",
+            value:
+              data.active_queries != null
+                ? data.active_queries.toString()
                 : "—",
           },
           {
@@ -654,10 +743,14 @@ function OpcSourcesTab() {
   const { data, isLoading } = useQuery({
     queryKey: ["health", "opc-sources"],
     queryFn: async (): Promise<OpcSourceStat[]> => {
-      const r = await api.get<OpcSourceStat[]>("/api/opc/sources/stats");
+      const r = await api.get<{
+        data: OpcSourceStat[];
+        pagination: { total: number };
+      }>("/api/opc/sources/stats");
       if (!r.success) return [];
       const d = r.data;
       if (Array.isArray(d)) return d;
+      if (d && Array.isArray(d.data)) return d.data;
       return [];
     },
     refetchInterval: 15_000,
@@ -736,7 +829,11 @@ function OpcSourcesTab() {
           >
             {[
               {
-                label: "Subscribed Points",
+                label: "Total Points",
+                value: src.point_count?.toLocaleString() ?? "—",
+              },
+              {
+                label: "Active (5 min)",
                 value: src.subscribed_points?.toLocaleString() ?? "—",
               },
               {
@@ -748,13 +845,13 @@ function OpcSourcesTab() {
               },
               {
                 label: "Last Update",
-                value: src.last_successful_update
-                  ? new Date(src.last_successful_update).toLocaleTimeString()
+                value: src.last_value_at
+                  ? new Date(src.last_value_at).toLocaleTimeString()
                   : "—",
               },
               {
-                label: "Reconnections",
-                value: src.reconnection_count?.toString() ?? "—",
+                label: "Errors (24h)",
+                value: src.error_count_24h?.toString() ?? "0",
               },
             ].map((m) => (
               <div key={m.label}>
@@ -780,48 +877,6 @@ function OpcSourcesTab() {
               </div>
             ))}
           </div>
-          {/* Error history */}
-          {src.recent_errors && src.recent_errors.length > 0 && (
-            <div style={{ padding: "0 16px 12px" }}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "var(--io-text-muted)",
-                  marginBottom: "6px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                Recent Errors (last {src.recent_errors.length})
-              </div>
-              <div
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--io-danger) 5%, transparent)",
-                  border:
-                    "1px solid color-mix(in srgb, var(--io-danger) 15%, transparent)",
-                  borderRadius: "6px",
-                  padding: "8px 10px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                }}
-              >
-                {src.recent_errors.map((err, j) => (
-                  <div
-                    key={j}
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--io-danger)",
-                      fontFamily: "var(--io-font-mono, monospace)",
-                    }}
-                  >
-                    {err}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -1025,21 +1080,25 @@ function JobsTab() {
         ]}
       />
       <JobSection
-        title="Alerts"
+        title="Alerts (7 days)"
         rows={[
           {
-            label: "Pending",
-            value: data.alerts.pending,
-            color: "var(--io-warning)",
+            label: "Active",
+            value: data.alerts.active,
+            color: "var(--io-danger)",
           },
-          { label: "Dispatched", value: data.alerts.dispatched },
           {
             label: "Acknowledged",
             value: data.alerts.acknowledged,
+            color: "var(--io-warning)",
+          },
+          {
+            label: "Resolved",
+            value: data.alerts.resolved,
             color: "var(--io-success)",
           },
           {
-            label: "Escalated",
+            label: "Expired",
             value: data.alerts.escalated,
             color: "var(--io-danger)",
           },
@@ -1102,16 +1161,20 @@ function JobsTab() {
 // ── Metrics Tab ───────────────────────────────────────────────────────────────
 
 const METRIC_CHARTS: Array<{ metric: string; label: string; unit: string }> = [
-  { metric: "io_http_requests_total", label: "Request Rate", unit: "req/s" },
-  { metric: "io_http_request_duration_p95", label: "Latency p95", unit: "ms" },
-  { metric: "io_http_errors_total", label: "Error Rate", unit: "err/s" },
+  { metric: "io_http_requests_total", label: "HTTP Requests", unit: "req/s" },
   {
-    metric: "io_ws_active_connections",
-    label: "WS Connections",
-    unit: "connections",
+    metric: "io_http_request_duration_seconds",
+    label: "HTTP Latency",
+    unit: "seconds",
   },
-  { metric: "io_opc_update_rate", label: "OPC Update Rate", unit: "updates/s" },
-  { metric: "io_db_pool_utilization", label: "DB Pool Utilization", unit: "%" },
+  { metric: "io_service_health", label: "Service Health Score", unit: "score" },
+  { metric: "io_ws_connections", label: "WS Connections", unit: "connections" },
+  {
+    metric: "io_opc_updates_received_total",
+    label: "OPC Updates",
+    unit: "updates/s",
+  },
+  { metric: "io_db_pool_active", label: "DB Pool Active", unit: "connections" },
 ];
 
 function MetricChart({
@@ -1358,6 +1421,7 @@ export default function SystemHealth() {
   });
 
   const all = services ?? [];
+  const totalServices = 11;
   const healthyCnt = all.filter((s) => s.status === "healthy").length;
   const unhealthyCnt = all.filter((s) => s.status === "unhealthy").length;
   const degradedCnt = all.filter((s) => s.status === "degraded").length;
@@ -1426,13 +1490,24 @@ export default function SystemHealth() {
             >
               <div
                 style={{
-                  fontSize: "26px",
+                  fontSize: "22px",
                   fontWeight: 800,
                   color: s.color,
                   lineHeight: 1,
+                  fontFamily: "var(--io-font-mono, monospace)",
                 }}
               >
                 {s.count}
+                <span
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 400,
+                    opacity: 0.6,
+                    marginLeft: "2px",
+                  }}
+                >
+                  /{totalServices}
+                </span>
               </div>
               <div
                 style={{

@@ -1003,6 +1003,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/health/services", get(service_health_handler))
         .route("/api/health/websocket", get(health_websocket_handler))
         .route("/api/health/database", get(health_database_handler))
+        .route("/api/health/jobs", get(health_jobs_handler))
+        .route("/api/health/metrics", get(health_metrics_handler))
         .route(
             "/api/health/services/detail",
             get(health_services_detail_handler),
@@ -1329,41 +1331,47 @@ async fn proxy_history_batch(State(state): State<AppState>, req: Request) -> Res
 async fn service_health_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
+    use futures::future::join_all;
     use serde_json::{json, Value};
 
-    let services: &[(&str, &str)] = &[
-        ("api-gateway", "http://127.0.0.1:3000"),
-        ("data-broker", "http://127.0.0.1:3001"),
-        ("opc-service", "http://127.0.0.1:3002"),
-        ("event-service", "http://127.0.0.1:3003"),
-        ("parser-service", "http://127.0.0.1:3004"),
-        ("archive-service", "http://127.0.0.1:3005"),
-        ("import-service", "http://127.0.0.1:3006"),
-        ("alert-service", "http://127.0.0.1:3007"),
-        ("email-service", "http://127.0.0.1:3008"),
-        ("auth-service", "http://127.0.0.1:3009"),
-        ("recognition-service", "http://127.0.0.1:3010"),
+    let services: &[(&str, u16)] = &[
+        ("api-gateway", 3000),
+        ("data-broker", 3001),
+        ("opc-service", 3002),
+        ("event-service", 3003),
+        ("parser-service", 3004),
+        ("archive-service", 3005),
+        ("import-service", 3006),
+        ("alert-service", 3007),
+        ("email-service", 3008),
+        ("auth-service", 3009),
+        ("recognition-service", 3010),
     ];
 
-    let client = &state.http_client;
-    let mut results: Vec<Value> = Vec::with_capacity(services.len());
+    let client = state.http_client.clone();
+    let tasks: Vec<_> = services
+        .iter()
+        .map(|(name, port)| {
+            let client = client.clone();
+            let url = format!("http://127.0.0.1:{}/health/live", port);
+            let name = *name;
+            async move {
+                let status = match client
+                    .get(&url)
+                    .timeout(std::time::Duration::from_secs(2))
+                    .send()
+                    .await
+                {
+                    Ok(resp) if resp.status().is_success() => "healthy",
+                    Ok(_) => "unhealthy",
+                    Err(_) => "unhealthy",
+                };
+                json!({ "name": name, "port": port, "status": status })
+            }
+        })
+        .collect();
 
-    for (name, base) in services {
-        let url = format!("{}/health/live", base);
-        let status = match client
-            .get(&url)
-            .timeout(std::time::Duration::from_secs(2))
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => "healthy",
-            Ok(_) => "unhealthy",
-            Err(_) => "unhealthy",
-        };
-        results.push(json!({ "name": name, "status": status }));
-    }
-
-    let _ = state; // keep borrow checker happy
+    let results: Vec<Value> = join_all(tasks).await;
     axum::Json(json!({ "success": true, "data": results }))
 }
 
@@ -1388,85 +1396,403 @@ async fn health_websocket_handler(
     }
 }
 
-/// GET /api/health/database — returns DB size and TimescaleDB info.
+/// GET /api/health/database — DB size, TimescaleDB info, migration version, compression, active queries.
 async fn health_database_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     use serde_json::json;
     use sqlx::Row;
 
-    let size_result = sqlx::query("SELECT pg_database_size(current_database()) AS db_size_bytes")
-        .fetch_one(&state.db)
-        .await;
+    let db = &state.db;
 
-    let ts_result =
-        sqlx::query("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")
-            .fetch_optional(&state.db)
-            .await;
+    let db_size: Option<i64> =
+        sqlx::query_scalar("SELECT pg_database_size(current_database())")
+            .fetch_one(db)
+            .await
+            .ok();
 
-    let db_size_bytes: Option<i64> = size_result
-        .ok()
-        .and_then(|r| r.try_get("db_size_bytes").ok());
-    let timescaledb_version: Option<String> = ts_result
-        .ok()
-        .flatten()
-        .and_then(|r| r.try_get::<String, _>("extversion").ok());
+    let ts_version: Option<String> =
+        sqlx::query_scalar("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten();
+
+    let migration_version: Option<String> = sqlx::query_scalar(
+        "SELECT version::text FROM _sqlx_migrations ORDER BY version DESC LIMIT 1",
+    )
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+
+    // Compression ratio from TimescaleDB compressed chunk stats
+    let compression_ratio: Option<f64> = sqlx::query(
+        r#"
+        SELECT
+            SUM(before_compression_total_bytes)::float8 AS uncompressed,
+            SUM(after_compression_total_bytes)::float8  AS compressed
+        FROM timescaledb_information.compressed_chunk_stats
+        "#,
+    )
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|r| {
+        let unc: Option<f64> = r.try_get("uncompressed").ok();
+        let cmp: Option<f64> = r.try_get("compressed").ok();
+        match (unc, cmp) {
+            (Some(u), Some(c)) if c > 0.0 => Some(u / c),
+            _ => None,
+        }
+    });
+
+    // Active query count (excluding our own connection)
+    let active_queries: Option<i64> = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active' AND pid != pg_backend_pid()",
+    )
+    .fetch_one(db)
+    .await
+    .ok();
 
     axum::Json(json!({
         "success": true,
         "data": {
-            "db_size_bytes": db_size_bytes,
-            "timescaledb_version": timescaledb_version,
+            "db_size_bytes": db_size,
+            "timescaledb_version": ts_version,
+            "migration_version": migration_version,
+            "compression_ratio": compression_ratio,
+            "active_queries": active_queries,
+            "replication_lag_ms": null,
+            "services": [],
         }
     }))
 }
 
-/// GET /api/health/services/detail — fan out to all 11 services, measure round-trip latency.
-async fn health_services_detail_handler(
+/// GET /api/health/jobs — queue depths for email, exports, imports, and alerts.
+async fn health_jobs_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     use serde_json::json;
+    use sqlx::Row;
 
-    let services: &[(&str, &str)] = &[
-        ("api-gateway", "http://127.0.0.1:3000"),
-        ("data-broker", "http://127.0.0.1:3001"),
-        ("opc-service", "http://127.0.0.1:3002"),
-        ("event-service", "http://127.0.0.1:3003"),
-        ("parser-service", "http://127.0.0.1:3004"),
-        ("archive-service", "http://127.0.0.1:3005"),
-        ("import-service", "http://127.0.0.1:3006"),
-        ("alert-service", "http://127.0.0.1:3007"),
-        ("email-service", "http://127.0.0.1:3008"),
-        ("auth-service", "http://127.0.0.1:3009"),
-        ("recognition-service", "http://127.0.0.1:3010"),
-    ];
+    let db = &state.db;
 
-    let client = &state.http_client;
-    let mut results: Vec<serde_json::Value> = Vec::with_capacity(services.len());
+    // Email queue counts by status
+    let email_rows = sqlx::query(
+        "SELECT status, COUNT(*) AS cnt FROM email_queue GROUP BY status",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
 
-    for (name, base) in services {
-        let url = format!("{}/health/live", base);
-        let start = std::time::Instant::now();
-        let outcome = client
-            .get(&url)
-            .timeout(std::time::Duration::from_secs(2))
-            .send()
-            .await;
-        let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
-
-        let (status, response_ms) = match outcome {
-            Ok(resp) if resp.status().is_success() => ("healthy", Some(elapsed_ms)),
-            Ok(_) => ("unhealthy", Some(elapsed_ms)),
-            Err(_) => ("unhealthy", None),
-        };
-
-        results.push(json!({
-            "name": name,
-            "status": status,
-            "response_p50": response_ms,
-            "response_p95": response_ms,
-        }));
+    let mut email_pending = 0i64;
+    let mut email_sent = 0i64;
+    let mut email_failed = 0i64;
+    let mut email_retry = 0i64;
+    for row in &email_rows {
+        let status: String = row.try_get("status").unwrap_or_default();
+        let cnt: i64 = row.try_get("cnt").unwrap_or(0);
+        match status.as_str() {
+            "pending" => email_pending += cnt,
+            "sent" => email_sent += cnt,
+            "failed" => email_failed += cnt,
+            "retry" => email_retry += cnt,
+            _ => {}
+        }
     }
 
+    // Export jobs by status (all time)
+    let export_rows = sqlx::query(
+        "SELECT status, COUNT(*) AS cnt FROM export_jobs GROUP BY status",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    let mut export_active = 0i64;
+    let mut export_queued = 0i64;
+    let mut export_completed = 0i64;
+    let mut export_failed = 0i64;
+    for row in &export_rows {
+        let status: String = row.try_get("status").unwrap_or_default();
+        let cnt: i64 = row.try_get("cnt").unwrap_or(0);
+        match status.as_str() {
+            "processing" => export_active += cnt,
+            "queued" => export_queued += cnt,
+            "completed" => export_completed += cnt,
+            "failed" | "cancelled" => export_failed += cnt,
+            _ => {}
+        }
+    }
+
+    // Import runs — last 7 days
+    let import_rows = sqlx::query(
+        "SELECT status, COUNT(*) AS cnt FROM import_runs WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY status",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    let mut import_running = 0i64;
+    let mut import_scheduled = 0i64;
+    let mut import_completed = 0i64;
+    let mut import_failed = 0i64;
+    for row in &import_rows {
+        let status: String = row.try_get("status").unwrap_or_default();
+        let cnt: i64 = row.try_get("cnt").unwrap_or(0);
+        match status.as_str() {
+            "running" => import_running += cnt,
+            "pending" => import_scheduled += cnt,
+            "completed" | "partial" => import_completed += cnt,
+            "failed" | "cancelled" => import_failed += cnt,
+            _ => {}
+        }
+    }
+
+    // Alert instances — last 7 days
+    let alert_rows = sqlx::query(
+        "SELECT status, COUNT(*) AS cnt FROM alert_instances WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY status",
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    let mut alert_active = 0i64;
+    let mut alert_ack = 0i64;
+    let mut alert_resolved = 0i64;
+    let mut alert_expired = 0i64;
+    for row in &alert_rows {
+        let status: String = row.try_get("status").unwrap_or_default();
+        let cnt: i64 = row.try_get("cnt").unwrap_or(0);
+        match status.as_str() {
+            "active" => alert_active += cnt,
+            "acknowledged" => alert_ack += cnt,
+            "resolved" => alert_resolved += cnt,
+            "expired" => alert_expired += cnt,
+            _ => {}
+        }
+    }
+
+    axum::Json(json!({
+        "success": true,
+        "data": {
+            "email": {
+                "pending": email_pending,
+                "sent": email_sent,
+                "failed": email_failed,
+                "retry": email_retry,
+            },
+            "exports": {
+                "active": export_active,
+                "queued": export_queued,
+                "completed": export_completed,
+                "failed": export_failed,
+            },
+            "imports": {
+                "running": import_running,
+                "scheduled": import_scheduled,
+                "completed": import_completed,
+                "failed": import_failed,
+            },
+            "alerts": {
+                "active": alert_active,
+                "acknowledged": alert_ack,
+                "resolved": alert_resolved,
+                "escalated": alert_expired,
+            },
+        }
+    }))
+}
+
+/// GET /api/health/metrics?metric=<name>&from=<unix>&to=<unix>
+/// Returns time-series samples from io_metrics.samples (raw <= 24h, 5m aggregates > 24h).
+async fn health_metrics_handler(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+    use sqlx::Row;
+
+    let metric = match params.get("metric") {
+        Some(m) => m.clone(),
+        None => {
+            return axum::Json(json!({
+                "success": false,
+                "error": { "code": "BAD_REQUEST", "message": "metric parameter required" }
+            }))
+            .into_response()
+        }
+    };
+
+    let from: i64 = params
+        .get("from")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let to: i64 = params
+        .get("to")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+
+    let range_secs = to - from;
+    let db = &state.db;
+
+    // Use 5m aggregate for ranges > 24h
+    let samples: Vec<serde_json::Value> = if range_secs > 86400 {
+        sqlx::query(
+            r#"
+            SELECT EXTRACT(EPOCH FROM bucket)::bigint AS ts, avg_value AS value
+            FROM io_metrics.samples_5m
+            WHERE metric_name = $1
+              AND bucket BETWEEN to_timestamp($2) AND to_timestamp($3)
+            ORDER BY bucket
+            LIMIT 2000
+            "#,
+        )
+        .bind(&metric)
+        .bind(from)
+        .bind(to)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| {
+            let ts: i64 = r.try_get("ts").unwrap_or(0);
+            let value: f64 = r.try_get("value").unwrap_or(0.0);
+            json!({ "ts": ts, "value": value })
+        })
+        .collect()
+    } else {
+        sqlx::query(
+            r#"
+            SELECT EXTRACT(EPOCH FROM time)::bigint AS ts, value
+            FROM io_metrics.samples
+            WHERE metric_name = $1
+              AND time BETWEEN to_timestamp($2) AND to_timestamp($3)
+            ORDER BY time
+            LIMIT 2000
+            "#,
+        )
+        .bind(&metric)
+        .bind(from)
+        .bind(to)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| {
+            let ts: i64 = r.try_get("ts").unwrap_or(0);
+            let value: f64 = r.try_get("value").unwrap_or(0.0);
+            json!({ "ts": ts, "value": value })
+        })
+        .collect()
+    };
+
+    axum::Json(json!({ "success": true, "data": samples })).into_response()
+}
+
+/// GET /api/health/services/detail — fan out to all 11 services, gather uptime/version from /health/ready.
+async fn health_services_detail_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    use futures::future::join_all;
+    use serde_json::json;
+
+    let services: &[(&str, u16)] = &[
+        ("api-gateway", 3000),
+        ("data-broker", 3001),
+        ("opc-service", 3002),
+        ("event-service", 3003),
+        ("parser-service", 3004),
+        ("archive-service", 3005),
+        ("import-service", 3006),
+        ("alert-service", 3007),
+        ("email-service", 3008),
+        ("auth-service", 3009),
+        ("recognition-service", 3010),
+    ];
+
+    let client = state.http_client.clone();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let tasks: Vec<_> = services
+        .iter()
+        .map(|(name, port)| {
+            let client = client.clone();
+            let now = now.clone();
+            let name = *name;
+            async move {
+                let url = format!("http://127.0.0.1:{}/health/ready", port);
+                let start = std::time::Instant::now();
+                let outcome = client
+                    .get(&url)
+                    .timeout(std::time::Duration::from_secs(3))
+                    .send()
+                    .await;
+                let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+                match outcome {
+                    Ok(resp) => {
+                        let http_ok = resp.status().is_success() || resp.status().as_u16() == 503;
+                        match resp.json::<serde_json::Value>().await {
+                            Ok(body) => {
+                                let raw_status = body["status"].as_str().unwrap_or("unknown");
+                                let status = match raw_status {
+                                    "ready" => "healthy",
+                                    "degraded" => "degraded",
+                                    _ if http_ok => "unhealthy",
+                                    _ => "unhealthy",
+                                };
+                                let uptime_s = body["uptime_seconds"].as_u64().unwrap_or(0);
+                                let uptime = format_uptime(uptime_s);
+                                let version = body["version"].as_str().unwrap_or("—").to_string();
+                                json!({
+                                    "name": name,
+                                    "port": port,
+                                    "status": status,
+                                    "uptime": uptime,
+                                    "version": version,
+                                    "response_p50": elapsed_ms,
+                                    "response_p95": elapsed_ms,
+                                    "checked_at": now,
+                                })
+                            }
+                            Err(_) => json!({
+                                "name": name,
+                                "port": port,
+                                "status": "unhealthy",
+                                "checked_at": now,
+                            }),
+                        }
+                    }
+                    Err(_) => json!({
+                        "name": name,
+                        "port": port,
+                        "status": "unhealthy",
+                        "checked_at": now,
+                    }),
+                }
+            }
+        })
+        .collect();
+
+    let results: Vec<serde_json::Value> = join_all(tasks).await;
     axum::Json(json!({ "success": true, "data": results }))
+}
+
+fn format_uptime(secs: u64) -> String {
+    if secs < 60 {
+        return format!("{}s", secs);
+    }
+    let mins = secs / 60;
+    if mins < 60 {
+        return format!("{}m {}s", mins, secs % 60);
+    }
+    let hours = mins / 60;
+    if hours < 24 {
+        return format!("{}h {}m", hours, mins % 60);
+    }
+    let days = hours / 24;
+    format!("{}d {}h", days, hours % 24)
 }

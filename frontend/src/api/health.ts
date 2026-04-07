@@ -13,8 +13,14 @@ const KNOWN_SERVICES: Omit<ServiceHealth, "status">[] = [
   { name: "api-gateway", port: 3000 },
   { name: "data-broker", port: 3001 },
   { name: "opc-service", port: 3002 },
+  { name: "event-service", port: 3003 },
+  { name: "parser-service", port: 3004 },
   { name: "archive-service", port: 3005 },
+  { name: "import-service", port: 3006 },
+  { name: "alert-service", port: 3007 },
+  { name: "email-service", port: 3008 },
   { name: "auth-service", port: 3009 },
+  { name: "recognition-service", port: 3010 },
 ];
 
 function unknownServices(): ServiceHealth[] {

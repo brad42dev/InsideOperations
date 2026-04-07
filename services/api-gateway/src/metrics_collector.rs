@@ -276,9 +276,9 @@ async fn insert_batch(
     // Build a VALUES clause. SQLx does not support bulk-insert via macros, so we
     // construct the query manually with positional parameters.
     //
-    // Schema: io_metrics.samples(ts, metric_name, labels, value)
+    // Schema: io_metrics.samples(time, metric_name, labels, value)
     let mut query =
-        String::from("INSERT INTO io_metrics.samples (ts, metric_name, labels, value) VALUES ");
+        String::from("INSERT INTO io_metrics.samples (time, metric_name, labels, value) VALUES ");
 
     let mut params_idx = 1usize;
     let mut first = true;
