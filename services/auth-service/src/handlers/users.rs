@@ -264,7 +264,11 @@ pub async fn get_user(
         })
         .collect();
 
-    Ok(Json(ApiResponse::ok(UserDetail { user, roles, groups })))
+    Ok(Json(ApiResponse::ok(UserDetail {
+        user,
+        roles,
+        groups,
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -682,7 +686,11 @@ pub async fn get_me(
     .unwrap_or(false);
 
     Ok(Json(ApiResponse::ok(MeDetail {
-        detail: UserDetail { user, roles, groups },
+        detail: UserDetail {
+            user,
+            roles,
+            groups,
+        },
         is_locked,
         has_pin,
     })))

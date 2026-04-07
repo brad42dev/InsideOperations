@@ -743,7 +743,9 @@ pub async fn verify_password_unlock(
             .into_response());
     }
 
-    let hash = password_hash.as_deref().expect("password_hash is Some: checked above");
+    let hash = password_hash
+        .as_deref()
+        .expect("password_hash is Some: checked above");
 
     // --- 4. Find the active session for this user/ip to read rate-limit counters ---
     // We match on the most-recently-created non-revoked session for this user.
