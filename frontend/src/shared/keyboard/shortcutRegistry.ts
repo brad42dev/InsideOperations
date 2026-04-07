@@ -50,11 +50,11 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
       shortcuts: [
         { keys: ["Ctrl", "S"], description: "Save workspace" },
         { keys: ["Ctrl", "Z"], description: "Undo" },
-        { keys: ["Ctrl", "Y"], description: "Redo" },
+        { keys: ["Ctrl", "Y"], description: "Redo  (or Ctrl+Shift+Z)" },
         { keys: ["Ctrl", "A"], description: "Select all panes" },
         { keys: ["Ctrl", "C"], description: "Copy selected panes" },
         { keys: ["Ctrl", "V"], description: "Paste panes" },
-        { keys: ["Delete"], description: "Remove selected panes" },
+        { keys: ["Delete"], description: "Remove selected panes  (or Ctrl+Bksp)" },
         { keys: ["Esc"], description: "Cancel swap mode / clear selection" },
       ],
     },
@@ -76,7 +76,7 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
     {
       title: "Navigation",
       shortcuts: [
-        { keys: ["↑ ↓ ← →"], description: "Pan graphic" },
+        { keys: ["↑", "↓", "←", "→"], description: "Pan graphic" },
         { keys: ["+"], description: "Zoom in" },
         { keys: ["-"], description: "Zoom out" },
         { keys: ["Ctrl", "0"], description: "Fit to view" },
@@ -104,7 +104,7 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
       title: "Edit",
       shortcuts: [
         { keys: ["Ctrl", "Z"], description: "Undo" },
-        { keys: ["Ctrl", "Y"], description: "Redo" },
+        { keys: ["Ctrl", "Y"], description: "Redo  (or Ctrl+Shift+Z)" },
         { keys: ["Ctrl", "A"], description: "Select all" },
         { keys: ["Ctrl", "C"], description: "Copy" },
         { keys: ["Ctrl", "X"], description: "Cut" },
@@ -127,6 +127,7 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
         { keys: ["Arrow keys"], description: "Nudge selected (1 px)" },
         { keys: ["Shift", "Arrow"], description: "Nudge selected (10 px)" },
         { keys: ["Ctrl", "'"], description: "Toggle grid visibility" },
+        { keys: ["Ctrl", '"'], description: "Toggle snap to grid" },
       ],
     },
     {
@@ -158,7 +159,7 @@ export const MODULE_SHORTCUTS: Record<string, ShortcutSection[]> = {
     {
       title: "Chart",
       shortcuts: [
-        { keys: ["← →"], description: "Shift time range" },
+        { keys: ["←", "→"], description: "Shift time range" },
         { keys: ["+"], description: "Zoom in time range" },
         { keys: ["-"], description: "Zoom out time range" },
       ],

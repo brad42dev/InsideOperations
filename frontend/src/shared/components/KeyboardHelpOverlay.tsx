@@ -210,7 +210,13 @@ export default function KeyboardHelpOverlay({
   const nonEmptyModuleSections = moduleSections.filter(
     (s) => s.shortcuts.length > 0,
   );
-  const moduleLabel = currentModule ? MODULE_LABELS[currentModule] : undefined;
+  // Only surface the module label when there are actually module-specific
+  // shortcuts to show — avoids a misleading "Showing shortcuts for Settings
+  // + global" header when the module's section list is empty.
+  const moduleLabel =
+    currentModule && nonEmptyModuleSections.length > 0
+      ? MODULE_LABELS[currentModule]
+      : undefined;
   const useWide = currentModule === "designer";
 
   return (
