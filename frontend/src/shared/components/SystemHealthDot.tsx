@@ -206,8 +206,13 @@ export function SystemHealthDot() {
   let dotColor: DotColor = "gray";
   const wsDisconnectedTooLong =
     disconnectedAt !== null && Date.now() - disconnectedAt > 30_000;
-  const allOpcOffline = opcStatus?.all_offline ?? (totalOpc > 0 && activeOpc === 0);
-  if (wsDisconnectedTooLong || allOpcOffline || serviceAggregate === "unhealthy") {
+  const allOpcOffline =
+    opcStatus?.all_offline ?? (totalOpc > 0 && activeOpc === 0);
+  if (
+    wsDisconnectedTooLong ||
+    allOpcOffline ||
+    serviceAggregate === "unhealthy"
+  ) {
     dotColor = "red";
   } else if (
     serviceAggregate === "degraded" ||
