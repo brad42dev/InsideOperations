@@ -327,7 +327,7 @@ function LifecycleDialog({
             >
               This will hide{" "}
               <strong style={{ color: "var(--io-text-primary)" }}>
-                {point.tag_name}
+                {point.tagname}
               </strong>{" "}
               from operational views. It can be reactivated later.
             </p>
@@ -342,7 +342,7 @@ function LifecycleDialog({
             >
               Reactivate{" "}
               <strong style={{ color: "var(--io-text-primary)" }}>
-                {point.tag_name}
+                {point.tagname}
               </strong>{" "}
               and restore it to operational views?
             </p>
@@ -662,7 +662,7 @@ function PointConfigDialog({
                     fontFamily: "monospace",
                   }}
                 >
-                  {point.tag_name}
+                  {point.tagname}
                 </div>
               </div>
               <Dialog.Close asChild>
@@ -1197,7 +1197,7 @@ function PointConfigDialog({
                     color: "var(--io-text-primary)",
                   }}
                 >
-                  Custom Conversion — {point.tag_name}
+                  Custom Conversion — {point.tagname}
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button
@@ -1221,8 +1221,8 @@ function PointConfigDialog({
                 onApply={async (ast) => {
                   // Save expression and link it to the point
                   const saveResult = await expressionsApi.create({
-                    name: `Conversion: ${point.tag_name}`,
-                    description: `Custom conversion for ${point.tag_name}`,
+                    name: `Conversion: ${point.tagname}`,
+                    description: `Custom conversion for ${point.tagname}`,
                     context: "point_config",
                     ast,
                     is_shared: false,
@@ -1780,23 +1780,29 @@ export default function PointManagement() {
                           style={{
                             fontWeight: 500,
                             color: "var(--io-text-primary)",
-                            fontSize: "13px",
-                            fontFamily: "monospace",
+                            fontSize: "12px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          {point.tag_name}
+                          {point.tagname}
                         </div>
-                        {point.display_name && (
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "var(--io-text-muted)",
-                              marginTop: "1px",
-                            }}
-                          >
-                            {point.display_name}
-                          </div>
-                        )}
+                        {point.display_name &&
+                          point.display_name !== point.tagname && (
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                color: "var(--io-text-muted)",
+                                marginTop: "1px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {point.display_name}
+                            </div>
+                          )}
                       </td>
 
                       {/* Source */}

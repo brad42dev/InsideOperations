@@ -329,7 +329,7 @@ export const AGG_ACCUMULATION = 4;
 /** Full editable point configuration record */
 export interface PointConfig {
   id: string;
-  tag_name: string;
+  tagname: string;
   display_name: string | null;
   description: string | null;
   unit: string | null;
