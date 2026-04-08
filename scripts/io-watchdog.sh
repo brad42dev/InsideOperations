@@ -20,7 +20,11 @@
 #   * * * * * cd /home/io/io-dev/io && AUTO_RESTART=1 ./scripts/io-watchdog.sh >> /tmp/io-watchdog.log 2>&1
 # =============================================================================
 
-set -euo pipefail
+set -uo pipefail
+# NOTE: deliberately omit -e.  With -e, any function returning a non-zero
+# exit code (e.g. check_health returning 2/3 for degraded/unreachable) would
+# silently abort the script before the case statement that handles it.  All
+# error paths are handled explicitly below.
 
 # Ensure common tools are in PATH even under cron's minimal environment.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
@@ -29,11 +33,14 @@ AUTO_RESTART="${AUTO_RESTART:-0}"
 WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Source .env so restarted services get DATABASE_URL, JWT_SECRET, etc.
-# The file uses KEY=value lines; grep strips comments and blank lines.
+# Use set -a/+a (allexport) + source rather than export $(xargs) — xargs
+# splits on whitespace and breaks values that contain spaces or metacharacters.
 ENV_FILE="$WORK_DIR/.env"
 if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC2046
-  export $(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | xargs)
+  set -a
+  # shellcheck source=/dev/null
+  source "$ENV_FILE"
+  set +a
 fi
 
 # DB URL: prefer IO_DATABASE_URL from .env, fall back to DATABASE_URL arg, then default.
@@ -179,8 +186,11 @@ for svc in "${!SERVICE_PORTS[@]}"; do
   fi
 
   # --- Health endpoint ---
-  check_health "$svc"
-  case $? in
+  # Capture exit code explicitly — do NOT rely on $? after a bare function
+  # call, as -e would abort the script before reaching the case statement.
+  health_rc=0
+  check_health "$svc" || health_rc=$?
+  case $health_rc in
     0) log  "[$svc] healthy" ;;
     3) warn "[$svc] DEGRADED" ; ISSUES=$((ISSUES + 1)) ;;
     2) err  "[$svc] UNREACHABLE (process alive but /health/ready not responding)" ; ISSUES=$((ISSUES + 1)) ;;
@@ -188,8 +198,9 @@ for svc in "${!SERVICE_PORTS[@]}"; do
 done
 
 # --- OPC data flow (DB direct — independent of all services) ---
-check_opc_data_flow
-case $? in
+opc_rc=0
+check_opc_data_flow || opc_rc=$?
+case $opc_rc in
   0) log  "[opc-data-flow] ok" ;;
   1) warn "[opc-data-flow] STALE — no data in last 5 minutes" ; ISSUES=$((ISSUES + 1)) ;;
   2) err  "[opc-data-flow] NO ACTIVE SOURCES" ; ISSUES=$((ISSUES + 1)) ;;
