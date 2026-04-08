@@ -1408,13 +1408,16 @@ async fn service_health_handler(
 /// Requires authentication (any valid JWT) but no specific RBAC permission.
 /// Used by SystemHealthDot to avoid the `settings:read` requirement of
 /// `/api/opc/sources/stats`, which caused silent 403s that masked OPC outages.
+///
+/// DB failure is surfaced as `db_error: true` with `all_offline: true` so the
+/// dot goes red — a DB problem is at least as bad as an OPC disconnect.
 async fn health_opc_status_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     use serde_json::json;
 
     // Active vs total enabled OPC sources.
-    let (sources_active, sources_total): (i64, i64) = sqlx::query_as(
+    let sources_result: Result<(i64, i64), _> = sqlx::query_as(
         "SELECT \
             COUNT(*) FILTER (WHERE status = 'active'), \
             COUNT(*) \
@@ -1422,8 +1425,10 @@ async fn health_opc_status_handler(
          WHERE enabled = true",
     )
     .fetch_one(&state.db)
-    .await
-    .unwrap_or((0, 0));
+    .await;
+
+    let db_error = sources_result.is_err();
+    let (sources_active, sources_total) = sources_result.unwrap_or((0, 0));
 
     // Most recent data point timestamp.
     let last_data_at: Option<chrono::DateTime<chrono::Utc>> =
@@ -1432,19 +1437,25 @@ async fn health_opc_status_handler(
             .await
             .unwrap_or(None);
 
-    // Stale = last data older than 5 minutes (300s).
+    // Stale = last data older than 2 minutes (fast early warning before watchdog).
     let data_stale = last_data_at
-        .map(|t| (chrono::Utc::now() - t).num_seconds() > 300)
+        .map(|t| (chrono::Utc::now() - t).num_seconds() > 120)
         .unwrap_or(false);
+
+    // all_offline is true when:
+    //  a) sources are configured but none are active, OR
+    //  b) the DB itself is unreachable (db_error) — flag red, not silent green
+    let all_offline = db_error || (sources_total > 0 && sources_active == 0);
 
     axum::Json(json!({
         "success": true,
         "data": {
             "sources_active": sources_active,
             "sources_total": sources_total,
-            "all_offline": sources_total > 0 && sources_active == 0,
+            "all_offline": all_offline,
             "last_data_at": last_data_at.map(|t| t.to_rfc3339()),
             "data_stale": data_stale,
+            "db_error": db_error,
         }
     }))
 }

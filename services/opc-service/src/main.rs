@@ -70,7 +70,9 @@ async fn main() -> anyhow::Result<()> {
     // OPC-specific checks: degrade the service when no sources are connected or
     // when data has stopped flowing (both non-critical so the service stays reachable).
     health.register(io_health::OpcActiveSourcesCheck::new(db.clone()));
-    health.register(io_health::OpcDataFlowCheck::new(db.clone(), 300));
+    // 120s threshold: fires before the 5-min watchdog triggers, catching
+    // cases where status column writes fail but data has actually stopped flowing.
+    health.register(io_health::OpcDataFlowCheck::new(db.clone(), 120));
     health.mark_startup_complete();
 
     let app_state = AppState {

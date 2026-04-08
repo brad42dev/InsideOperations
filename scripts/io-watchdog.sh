@@ -2,32 +2,44 @@
 # =============================================================================
 # io-watchdog.sh — Layer 3 external process watchdog
 #
-# Runs every minute (via cron or systemd timer). Independently checks:
+# Runs every minute (via cron). Independently checks:
 #   1. Process liveness  — is each service PID alive?
 #   2. Health endpoint   — does /health/ready respond with "ready" or "degraded"?
-#   3. OPC data flow     — is live data reaching the DB within the last 10 minutes?
+#   3. OPC data flow     — is live data reaching the DB within the last 5 minutes?
 #
-# If any service is dead and AUTO_RESTART=1, it is restarted.
-# All events are logged to LOG_FILE.
+# If any service is dead and AUTO_RESTART=1, it is restarted with the correct
+# environment sourced from WORK_DIR/.env.
 #
 # Usage:
-#   ./io-watchdog.sh             # check-only (no restarts)
-#   AUTO_RESTART=1 ./io-watchdog.sh  # check + restart dead services
+#   ./scripts/io-watchdog.sh                   # check-only
+#   AUTO_RESTART=1 ./scripts/io-watchdog.sh    # check + restart dead services
 #
-# Cron example (every minute):
+# IMPORTANT — cron must cd into the repo first.  Install with:
+#   crontab -e
+#   PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   * * * * * cd /home/io/io-dev/io && AUTO_RESTART=1 ./scripts/io-watchdog.sh >> /tmp/io-watchdog.log 2>&1
-#
-# Systemd timer: see scripts/io-watchdog.timer (not yet created)
 # =============================================================================
 
 set -euo pipefail
 
-LOG_FILE="${LOG_FILE:-/tmp/io-watchdog.log}"
+# Ensure common tools are in PATH even under cron's minimal environment.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
 AUTO_RESTART="${AUTO_RESTART:-0}"
 WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DB_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/io_dev}"
 
-# Base ports for each service (matches BACKEND_SERVICES in api-gateway)
+# Source .env so restarted services get DATABASE_URL, JWT_SECRET, etc.
+# The file uses KEY=value lines; grep strips comments and blank lines.
+ENV_FILE="$WORK_DIR/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC2046
+  export $(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | xargs)
+fi
+
+# DB URL: prefer IO_DATABASE_URL from .env, fall back to DATABASE_URL arg, then default.
+DB_URL="${IO_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/io_dev}}"
+
+# Base ports for each service (matches BACKEND_SERVICES in api-gateway/src/main.rs)
 declare -A SERVICE_PORTS=(
   ["api-gateway"]=3000
   ["data-broker"]=3001
@@ -42,8 +54,7 @@ declare -A SERVICE_PORTS=(
   ["recognition-service"]=3010
 )
 
-# Binary names match service names exactly (no prefix needed).
-# Maps to target/debug/<binary> — override if production paths differ.
+# Binary names match service names exactly in target/debug/.
 declare -A SERVICE_BINS=(
   ["api-gateway"]="api-gateway"
   ["data-broker"]="data-broker"
@@ -58,8 +69,7 @@ declare -A SERVICE_BINS=(
   ["recognition-service"]="recognition-service"
 )
 
-TS() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
-
+TS()   { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 log()  { echo "$(TS) [INFO]  $*"; }
 warn() { echo "$(TS) [WARN]  $*"; }
 err()  { echo "$(TS) [ERROR] $*"; }
@@ -68,65 +78,62 @@ err()  { echo "$(TS) [ERROR] $*"; }
 # Check 1 — Process liveness
 # =============================================================================
 check_process() {
-  local svc="$1"
-  local bin="${SERVICE_BINS[$svc]:-$svc}"
-  if pgrep -x "$bin" > /dev/null 2>&1; then
-    return 0  # alive
-  fi
-  return 1  # dead
+  pgrep -x "${SERVICE_BINS[$1]:-$1}" > /dev/null 2>&1
 }
 
 # =============================================================================
-# Check 2 — Health endpoint responsiveness
+# Check 2 — Health endpoint
+# Returns: 0=healthy  3=degraded  2=unreachable/not_ready
 # =============================================================================
 check_health() {
-  local svc="$1"
-  local port="${SERVICE_PORTS[$svc]}"
-  local url="http://127.0.0.1:${port}/health/ready"
+  local port="${SERVICE_PORTS[$1]}"
   local body
-  body=$(curl -sf --max-time 3 "$url" 2>/dev/null) || { return 2; }  # unreachable
-  local status
-  status=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
-  case "$status" in
-    ready)   return 0 ;;   # healthy
-    degraded) return 3 ;;  # degraded (alive but not fully healthy)
-    *)        return 2 ;;  # not_ready / unknown
-  esac
+  body=$(curl -sf --max-time 3 "http://127.0.0.1:${port}/health/ready" 2>/dev/null) || return 2
+  # Extract status field without python3/jq dependency: match "ready" or "degraded" in body.
+  if echo "$body" | grep -q '"status":"ready"'; then
+    return 0
+  elif echo "$body" | grep -q '"status":"degraded"'; then
+    return 3
+  else
+    return 2
+  fi
 }
 
 # =============================================================================
-# Check 3 — OPC data flow (direct DB query, no dependency on any service)
+# Check 3 — OPC data flow (direct DB query — completely independent of services)
+# Returns: 0=ok  1=stale  2=no_active_sources
+# Skipped silently if psql is not available.
 # =============================================================================
 check_opc_data_flow() {
-  # Returns 0 (ok), 1 (stale), 2 (no data / no sources)
-  if ! command -v psql > /dev/null 2>&1; then
-    return 0  # psql not available — skip check
-  fi
+  command -v psql > /dev/null 2>&1 || return 0
 
   local result
   result=$(psql "$DB_URL" -t -A -c "
     SELECT
       CASE
         WHEN COUNT(*) FILTER (WHERE status = 'active') = 0
-             AND COUNT(*) > 0 THEN 'no_active_sources'
-        WHEN (SELECT MAX(updated_at) FROM points_current) < NOW() - INTERVAL '10 minutes'
-             AND (SELECT COUNT(*) FROM points_current) > 0 THEN 'stale'
+             AND COUNT(*) > 0
+             THEN 'no_active_sources'
+        WHEN (SELECT MAX(updated_at) FROM points_current) < NOW() - INTERVAL '5 minutes'
+             AND (SELECT COUNT(*) FROM points_current) > 0
+             THEN 'stale'
         ELSE 'ok'
       END
     FROM point_sources
     WHERE enabled = true
-  " 2>/dev/null) || { return 0; }  # DB unreachable — skip
+  " 2>/dev/null) || return 0  # DB unreachable — skip (DB check is separate)
 
-  case "$result" in
-    ok)               return 0 ;;
-    stale)            return 1 ;;
+  case "${result}" in
+    ok)                return 0 ;;
+    stale)             return 1 ;;
     no_active_sources) return 2 ;;
-    *)                return 0 ;;
+    *)                 return 0 ;;
   esac
 }
 
 # =============================================================================
-# Restart a service (dev mode: kill existing and re-launch from target/debug)
+# Restart a service
+# Sources WORK_DIR/.env so the process has all required env vars.
 # =============================================================================
 restart_service() {
   local svc="$1"
@@ -138,12 +145,13 @@ restart_service() {
     return 1
   fi
 
-  warn "[$svc] Restarting..."
+  warn "[$svc] Dead — restarting from $binary"
   pkill -x "$bin" 2>/dev/null || true
   sleep 1
 
-  # Inherit environment (DATABASE_URL, etc.) — in production use systemd restart
-  nohup "$binary" > "/tmp/${svc}.log" 2>&1 &
+  # Run with the full environment already exported above (via .env source).
+  # Log to /tmp/<svc>.log so failures are diagnosable.
+  nohup "$binary" >> "/tmp/${svc}.log" 2>&1 &
   local pid=$!
   sleep 2
   if kill -0 "$pid" 2>/dev/null; then
@@ -154,49 +162,38 @@ restart_service() {
 }
 
 # =============================================================================
-# Main loop
+# Main
 # =============================================================================
 ISSUES=0
-
-log "=== io-watchdog run START ==="
+log "=== io-watchdog START ==="
 
 for svc in "${!SERVICE_PORTS[@]}"; do
-  proc_ok=true
-  health_ok=true
-
   # --- Process liveness ---
   if ! check_process "$svc"; then
-    err "[$svc] Process NOT RUNNING"
-    proc_ok=false
+    err "[$svc] NOT RUNNING"
     ISSUES=$((ISSUES + 1))
-
     if [[ "$AUTO_RESTART" == "1" ]]; then
       restart_service "$svc"
     fi
-    continue  # skip health check if process is dead
+    continue  # skip health check — port is dead too
   fi
 
   # --- Health endpoint ---
   check_health "$svc"
-  health_rc=$?
-  case $health_rc in
-    0) log "[$svc] healthy" ;;
-    3) warn "[$svc] DEGRADED (process alive but health/ready reports degraded)" ; ISSUES=$((ISSUES + 1)) ;;
-    2) err  "[$svc] UNREACHABLE (process alive but health/ready not responding)" ; ISSUES=$((ISSUES + 1)) ;;
-    *) warn "[$svc] unknown health state" ;;
+  case $? in
+    0) log  "[$svc] healthy" ;;
+    3) warn "[$svc] DEGRADED" ; ISSUES=$((ISSUES + 1)) ;;
+    2) err  "[$svc] UNREACHABLE (process alive but /health/ready not responding)" ; ISSUES=$((ISSUES + 1)) ;;
   esac
 done
 
-# --- OPC data flow (independent of service checks) ---
+# --- OPC data flow (DB direct — independent of all services) ---
 check_opc_data_flow
-opc_rc=$?
-case $opc_rc in
-  0) log "[opc-data-flow] ok" ;;
-  1) warn "[opc-data-flow] STALE — no data in last 10 minutes (OPC may be disconnected)" ; ISSUES=$((ISSUES + 1)) ;;
-  2) err  "[opc-data-flow] NO ACTIVE SOURCES — all OPC sources offline" ; ISSUES=$((ISSUES + 1)) ;;
+case $? in
+  0) log  "[opc-data-flow] ok" ;;
+  1) warn "[opc-data-flow] STALE — no data in last 5 minutes" ; ISSUES=$((ISSUES + 1)) ;;
+  2) err  "[opc-data-flow] NO ACTIVE SOURCES" ; ISSUES=$((ISSUES + 1)) ;;
 esac
 
-log "=== io-watchdog run END — issues: $ISSUES ==="
-
-# Exit non-zero if any issues found (useful for cron alerting)
+log "=== io-watchdog END — issues: $ISSUES ==="
 exit $ISSUES

@@ -220,21 +220,6 @@ pub async fn run_source(
                 warn!(source = %source.name, error = %e, "Failed to set source status to error");
             }
 
-            // Self-restart: if we have been unable to reconnect for >15 minutes,
-            // exit the process so the external watchdog can bring it back with
-            // a clean OPC UA library state.  This is a last resort — the watchdog
-            // must be running for this to be effective.
-            if let Some(start) = error_streak_start {
-                if start.elapsed() >= SELF_RESTART_AFTER {
-                    error!(
-                        source = %source.name,
-                        elapsed_secs = start.elapsed().as_secs(),
-                        "OPC reconnect failed for >15 minutes — forcing process exit for supervisor restart"
-                    );
-                    std::process::exit(1);
-                }
-            }
-
             // Wait longer, but still honour manual reconnect requests.
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(config.reconnect_max_secs)) => {}
@@ -306,6 +291,10 @@ pub async fn run_source(
             }
             Err(e) => {
                 let msg = e.to_string();
+                // Start tracking the error streak on first failure.
+                if error_streak_start.is_none() {
+                    error_streak_start = Some(std::time::Instant::now());
+                }
                 warn!(
                     source = %source.name,
                     attempt,
@@ -314,10 +303,20 @@ pub async fn run_source(
                     "OPC UA reconnect attempt failed"
                 );
                 last_error = Some(msg);
-                // Start tracking the error streak on first failure.
-                if error_streak_start.is_none() {
-                    error_streak_start = Some(std::time::Instant::now());
-                }
+            }
+        }
+
+        // Check error streak on every attempt (not just at attempt > 10) so the
+        // 15-minute exit fires close to the actual threshold rather than at the
+        // next attempt-10 boundary (~17–18 minutes otherwise).
+        if let Some(start) = error_streak_start {
+            if start.elapsed() >= SELF_RESTART_AFTER {
+                error!(
+                    source = %source.name,
+                    elapsed_secs = start.elapsed().as_secs(),
+                    "OPC reconnect failed for >15 minutes — forcing process exit for supervisor restart"
+                );
+                std::process::exit(1);
             }
         }
 
