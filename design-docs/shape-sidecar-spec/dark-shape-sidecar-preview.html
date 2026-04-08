@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>I/O Shape Library — Sidecar Display Element Preview (Dark Theme)</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════
+     COLOR MAP — All values defined in shape-sidecar-spec.md.
+     This file is self-contained. Do not reference external docs.
+     ═══════════════════════════════════════════════════════════ */
+  :root {
+    /* Surface (shape-sidecar-spec.md Dark) */
+    --io-surface-primary:   #09090B;   /* zinc-950 — main background */
+    --io-surface-secondary: #18181B;   /* zinc-900 — cards, panels */
+
+    /* Text (shape-sidecar-spec.md Dark) */
+    --io-text-primary:   #F9FAFB;
+    --io-text-secondary: #A1A1AA;
+    --io-text-muted:     #71717A;
+
+    /* Accent — Midnight Teal, Dark = accent-400 (shape-sidecar-spec.md) */
+    --io-accent: #2DD4BF;
+
+    /* Borders (shape-sidecar-spec.md Dark) */
+    --io-border:        #3F3F46;
+    --io-border-subtle: #27272A;
+    --io-border-strong: #52525B;
+
+    /* ISA-101 equipment baseline (shape-sidecar-spec.md — theme-independent) */
+    --equip-stroke: #808080;
+
+    /* Alarm priority colors — ISA-18.2 / ISA-101 (4 priorities + suppression states) */
+    --al-urgent:   #EF4444;  /* P1 severity 900 — Red.   Operator action required immediately.    */
+    --al-high:     #F97316;  /* P2 severity 600 — Orange. Operator action required soon.          */
+    --al-low:      #EAB308;  /* P3 severity 300 — Yellow. Operator action required eventually.    */
+    --al-diag:     #F4F4F5;  /* P4 severity 100 — White.  Diagnostic/Journal; no urgency implied. */
+    --al-shelved:  #D946EF;  /* Shelved/Suppressed — Magenta. Distinct from all active priorities. */
+    --al-disabled: #52525B;  /* Disabled — Dark grey. Clearly inactive; no action possible.       */
+    --al-custom:   #60A5FA;  /* Custom user alarm — blue-400. Distinct from teal accent and shelved magenta. */
+
+    /* Operational state (shape-sidecar-spec.md CSS — same all themes) */
+    --op-running-fill:   #059669;
+    --op-running-stroke: #047857;
+
+    /* Status tokens (shape-sidecar-spec.md Dark) */
+    --io-success: #22C55E;
+    --io-warning: #F59E0B;
+    --io-info:    #3B82F6;
+
+    /* Display element tokens (shape-sidecar-spec.md graphics-specific) */
+    --io-surface-elevated: #27272A;    /* readout boxes, sparkline bgs */
+    --io-display-zone-inactive: #3F3F46; /* analog bar inactive zones, digital status normal bg */
+    --io-display-zone-normal: #404048;   /* analog bar normal operating zone */
+    --io-display-zone-border: #52525B;   /* analog bar zone strokes, fill gauge border */
+    --io-fill-normal: #475569;            /* fill gauge level — #475569 @ 60% opacity (applied via opacity: 0.6 on element) */
+    --io-text-stale:  #636363;            /* stale data value text — dimmer than muted, visibly different */
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--io-surface-primary);
+    color: var(--io-text-primary);
+    padding: 32px;
+  }
+  h1 { font-size: 22px; font-weight: 600; color: var(--io-accent); margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: var(--io-text-secondary); margin-bottom: 32px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 28px;
+  }
+  .card {
+    background: var(--io-surface-secondary);
+    border: 1px solid var(--io-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .card-header {
+    background: #1C1C20; /* slightly lighter than secondary for differentiation */
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--io-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card-header h2 { font-size: 15px; font-weight: 600; color: var(--io-text-primary); }
+  .card-header .cat {
+    font-size: 11px; color: var(--io-accent);
+    background: #042F2E; /* accent-950 */
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .card-body {
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    background:
+      radial-gradient(circle at 1px 1px, var(--io-border-subtle) 0.5px, transparent 0) 0 0 / 20px 20px;
+  }
+
+  /* ═══ SHAPE RENDERING ═══ */
+  /* Equipment stroke: ISA-101 #808080, NOT themed */
+  .io-shape-body * {
+    stroke: var(--equip-stroke);
+    fill: none;
+  }
+
+  /* Process piping stubs */
+  .conn-stub { stroke: var(--io-border-strong); stroke-width: 1.4; stroke-linecap: round; }
+  .conn-dot { fill: var(--io-accent); stroke: none; }
+
+  /* Tag name (textZone) */
+  .tag-text {
+    font-family: Inter, sans-serif; font-size: 9px;
+    fill: var(--io-text-muted); text-anchor: middle;
+  }
+
+  /* Card description block — annotation text moved out of SVG */
+  .card-desc {
+    padding: 12px 16px;
+    border-top: 1px solid var(--io-border);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px;
+  }
+  .desc-src {
+    color: var(--io-border-strong);
+    font-size: 10px;
+    margin-bottom: 8px;
+  }
+  .card-desc dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+  .card-desc dt { color: var(--io-accent); font-weight: 500; white-space: nowrap; }
+  .card-desc dd { color: var(--io-text-muted); margin: 0; }
+
+  /* ═══ TEXT READOUT (shape-sidecar-spec.md §Text Readout) ═══ */
+  .ro-bg {
+    fill: var(--io-surface-elevated);  /* #27272A — NOT surface-primary */
+    stroke: var(--io-border);          /* #3F3F46 — 1px solid */
+    stroke-width: 1; rx: 2; ry: 2;    /* border-radius 2px per spec */
+  }
+  .ro-bg.al-u-border {
+    stroke: var(--al-urgent); stroke-width: 2;  /* P1 Urgent — 2px alarm border per spec */
+    fill: color-mix(in srgb, var(--al-urgent) 20%, var(--io-surface-elevated));
+  }
+  .ro-bg.al-h-border {
+    stroke: var(--al-high); stroke-width: 2;    /* P2 High */
+    fill: color-mix(in srgb, var(--al-high) 20%, var(--io-surface-elevated));
+  }
+  .ro {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; fill: var(--io-text-secondary);  /* #A1A1AA normal — promoted to primary only in alarm */
+    text-anchor: middle; dominant-baseline: central;
+  }
+  .ro-bg.al-u-border + .ro,
+  .ro-bg.al-h-border + .ro { fill: var(--io-text-primary); }  /* promoted in alarm */
+  .ro-u { font-family: Inter, sans-serif; font-size: 9px; fill: var(--io-text-muted); }
+
+  /* ═══ ALARM INDICATORS — ISA-18.2 priority shapes ═══
+     Shape codes: u=Urgent(P1,rect), h=High(P2,tri-up), l=Low(P3,tri-dn),
+                  d=Diagnostic(P4,ellipse), s=Shelved(diamond), dis=Disabled(grey rect)
+     All stroke-only. Flash: alarm color ↔ #808080 (NOT opacity toggle) at 1Hz step-end.
+  ═══════════════════════════════════════════════════════════════════════════════════ */
+  .al { fill: none; stroke-width: 1.8; }
+  .al.u   { stroke: var(--al-urgent); }
+  .al.h   { stroke: var(--al-high); }
+  .al.l   { stroke: var(--al-low); }
+  .al.d   { stroke: var(--al-diag); }
+  .al.s   { stroke: var(--al-shelved); }
+  .al.dis { stroke: var(--al-disabled); stroke-width: 1.2; stroke-dasharray: 3 2; }
+  .al.cu  { stroke: var(--al-custom); }
+  .at {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 600;
+    text-anchor: middle; dominant-baseline: central;
+  }
+  .at.u   { fill: var(--al-urgent); }
+  .at.h   { fill: var(--al-high); }
+  .at.l   { fill: var(--al-low); }
+  .at.d   { fill: var(--al-diag); }
+  .at.s   { fill: var(--al-shelved); }
+  .at.dis { fill: var(--al-disabled); }
+  .at.cu  { fill: var(--al-custom); }
+
+  /* Flash keyframes — alarm color ↔ #808080, step-end (sharp, no fade) */
+  @keyframes al-flash-u {
+    0%,49.99% { stroke: var(--al-urgent); }
+    50%,100%  { stroke: #808080; }
+  }
+  @keyframes al-flash-u-text {
+    0%,49.99% { fill: var(--al-urgent); }
+    50%,100%  { fill: #808080; }
+  }
+  @keyframes al-flash-h {
+    0%,49.99% { stroke: var(--al-high); }
+    50%,100%  { stroke: #808080; }
+  }
+  @keyframes al-flash-h-text {
+    0%,49.99% { fill: var(--al-high); }
+    50%,100%  { fill: #808080; }
+  }
+  @keyframes al-flash-l {
+    0%,49.99% { stroke: var(--al-low); }
+    50%,100%  { stroke: #808080; }
+  }
+  @keyframes al-flash-l-text {
+    0%,49.99% { fill: var(--al-low); }
+    50%,100%  { fill: #808080; }
+  }
+  .flash-u .al   { animation: al-flash-u 1s step-end infinite; }
+  .flash-u .at   { animation: al-flash-u-text 1s step-end infinite; }
+  .flash-h .al   { animation: al-flash-h 1s step-end infinite; }
+  .flash-h .at   { animation: al-flash-h-text 1s step-end infinite; }
+  .flash-l .al   { animation: al-flash-l 1s step-end infinite; }
+  .flash-l .at   { animation: al-flash-l-text 1s step-end infinite; }
+  @keyframes al-flash-cu {
+    0%,49.99% { stroke: var(--al-custom); }
+    50%,100%  { stroke: #808080; }
+  }
+  @keyframes al-flash-cu-text {
+    0%,49.99% { fill: var(--al-custom); }
+    50%,100%  { fill: #808080; }
+  }
+  .flash-cu .al  { animation: al-flash-cu 1s step-end infinite; }
+  .flash-cu .at  { animation: al-flash-cu-text 1s step-end infinite; }
+
+  /* ═══ ANALOG BAR (shape-sidecar-spec.md §Analog Bar Indicator) ═══ */
+  /* Runtime: only active zone lights up, others --io-display-zone-inactive.
+     Preview: zones shown at ~30% alarm color so the reader understands
+     what each zone represents. Active zone shown at 50%. */
+  .bb { fill: var(--io-surface-elevated); stroke: var(--io-display-zone-border); stroke-width: 0.5; }
+  .bz { stroke: var(--io-display-zone-border); stroke-width: 0.5; }
+  /* Analog bar has TWO visual layers:
+     1. THRESHOLD ZONES (always visible): neutral muted ramp showing range structure.
+        Cool-to-warm, no alarm color association. Fixed by zone position.
+     2. ALARM ACTIVATION (only when in alarm): zone switches to ISA alarm priority
+        color at full intensity. Replaces the threshold color.
+     Preview shows the threshold ramp (normal operation). */
+  .bz { stroke: var(--io-display-zone-border); stroke-width: 0.5; }
+  .bz.hh { fill: #5C3A3A; }  /* warm brown-red, muted — "far above normal" */
+  .bz.bh { fill: #5C4A32; }  /* warm brown, muted — "above normal" */
+  .bz.bn { fill: var(--io-display-zone-normal); }  /* neutral gray — "normal" */
+  .bz.bl { fill: #32445C; }  /* cool blue-gray, muted — "below normal" */
+  .bz.ll { fill: #2E3A5C; }  /* deep cool blue, muted — "far below normal" */
+  .bp { fill: var(--io-text-secondary); stroke: none; }
+  .bt { stroke: var(--io-display-zone-border); stroke-width: 0.5; }
+  .blbl { font-family: 'JetBrains Mono', monospace; font-size: 7px; fill: var(--io-text-muted); text-anchor: end; }
+
+  /* ═══ FILL GAUGE (shape-sidecar-spec.md §Fill Gauge) ═══ */
+  /* Normal: #475569 @ 60% opacity — muted blue-gray. Clips to vessel interior via <clipPath>.
+     In alarm: alarm priority color @ 30% opacity. Unacknowledged: flashes 1Hz (color ↔ transparent). */
+  .go { fill: none; stroke: var(--io-display-zone-border); stroke-width: 0.5; }
+  .fill-normal { fill: #475569; opacity: 0.6; }  /* spec: 60% opacity */
+  .fill-line { stroke: #64748b; stroke-width: 1; stroke-dasharray: 5 3; }  /* level line */
+
+  /* ═══ SPARKLINE (shape-sidecar-spec.md §Sparkline Trend) ═══ */
+  /* Fixed size: 110×18 (within 100-120 × 14-20 spec range).
+     Normal: zinc-500 (#71717A) — muted, clearly distinct from diagnostic white (#F4F4F5).
+     In alarm: full ISA alarm priority color matching the firing priority.
+     Shelved/Suppressed: magenta (point is suppressed, value still trends).
+     Disabled: dark grey (point not active; flat or stale).
+     Standalone sparklines in shape preview cards use .sl (no modifier, accent teal) —
+     that is preview-only decoration, not a runtime state. */
+  .sb { fill: var(--io-surface-elevated); stroke: none; rx: 1; }
+  .sl         { fill: none; stroke: var(--io-accent);    stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }  /* preview decoration only */
+  .sl.normal  { stroke: #71717A; }          /* normal: zinc-500 --io-text-muted — passive/background, clearly below diagnostic white */
+  .sl.diag    { stroke: var(--al-diag); }   /* P4 Diagnostic — white */
+  .sl.low     { stroke: var(--al-low); }    /* P3 Low — yellow */
+  .sl.high    { stroke: var(--al-high); }   /* P2 High — orange */
+  .sl.urgent  { stroke: var(--al-urgent); } /* P1 Urgent — red */
+  .sl.custom  { stroke: var(--al-custom); }   /* custom user alarm — blue */
+  .sl.shelved { stroke: var(--al-shelved); stroke-dasharray: 4 3; } /* shelved — magenta dashed */
+  .sl.disabled{ stroke: var(--al-disabled); stroke-dasharray: 2 4; } /* disabled — dark grey sparse dashed */
+
+  /* ═══ DIGITAL STATUS (shape-sidecar-spec.md §Digital Status Indicator) ═══ */
+  /* Normal: gray pill. Color only for ABNORMAL states.
+     Abnormal pill color = configured alarm priority for that point's OffNormal condition.
+     P3 Low (yellow) and P4 Diagnostic (white) require dark text for contrast. */
+  .sp { stroke-width: 0; rx: 2; ry: 2; }  /* border-radius 2px per spec, no stroke */
+  .sp.norm   { fill: var(--io-display-zone-inactive); }   /* normal: gray #3F3F46 */
+  .sp.abnorm { fill: var(--al-urgent); }                  /* P1 Urgent red (backward-compat alias) */
+  .sp.abn-u  { fill: var(--al-urgent); }                  /* P1 Urgent — red */
+  .sp.abn-h  { fill: var(--al-high); }                    /* P2 High — orange */
+  .sp.abn-l  { fill: var(--al-low); }                     /* P3 Low — yellow (needs dark text) */
+  .sp.abn-d  { fill: var(--al-diag); }                    /* P4 Diagnostic — white (needs dark text) */
+  .st {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-anchor: middle; dominant-baseline: central;
+  }
+  .st.norm   { fill: var(--io-text-secondary); }  /* normal: #A1A1AA */
+  .st.abnorm { fill: var(--io-text-primary); }    /* P1 Urgent text: white */
+  .st.abn-u  { fill: var(--io-text-primary); }    /* P1 Urgent text: white */
+  .st.abn-h  { fill: var(--io-text-primary); }    /* P2 High text: white */
+  .st.abn-l  { fill: #18181B; }                   /* P3 Low text: dark (yellow bg) */
+  .st.abn-d  { fill: #18181B; }                   /* P4 Diagnostic text: dark (white bg) */
+
+  /* ═══ SIGNAL LINE ═══ */
+  .sig { stroke: var(--io-border-strong); stroke-width: 0.75; stroke-dasharray: 3 2; fill: none; }
+
+  /* ═══ ANNOTATIONS (preview-only, not part of spec) ═══ */
+  .an { font-family: Inter, sans-serif; font-size: 8px; fill: var(--io-accent); }
+  .ad { font-family: Inter, sans-serif; font-size: 7px; fill: var(--io-text-muted); }
+  .src { font-family: 'JetBrains Mono', monospace; font-size: 7.5px; fill: var(--io-border); }
+
+  .card.fw { grid-column: 1 / -1; }
+
+  /* ─── Text Readout HTML state cells (for the all-states reference section) ─── */
+  .ro-cell {
+    background: var(--io-surface-elevated);
+    border: 1px solid var(--io-border);
+    border-radius: 3px;
+    padding: 5px 12px;
+    min-width: 92px;
+    display: flex; align-items: center; justify-content: center;
+    height: 30px; box-sizing: border-box;
+  }
+  .ro-val { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; font-weight: 500; color: var(--io-text-secondary); }
+  .ro-stale { color: var(--io-text-stale); }
+  .ro-nc    { color: var(--io-text-muted); }
+  .ro-cell.al-u  { border: 2px solid var(--al-urgent);  background: color-mix(in srgb, var(--al-urgent)  20%, var(--io-surface-elevated)); }
+  .ro-cell.al-h  { border: 2px solid var(--al-high);    background: color-mix(in srgb, var(--al-high)    20%, var(--io-surface-elevated)); }
+  .ro-cell.al-l  { border: 2px solid var(--al-low);     background: color-mix(in srgb, var(--al-low)     20%, var(--io-surface-elevated)); }
+  .ro-cell.al-d  { border: 2px solid var(--al-diag);    background: color-mix(in srgb, var(--al-diag)     8%, var(--io-surface-elevated)); }
+  .ro-cell.al-s  { border: 2px solid var(--al-shelved); background: color-mix(in srgb, var(--al-shelved) 20%, var(--io-surface-elevated)); }
+  .ro-cell.al-cu { border: 2px solid var(--al-custom);  background: color-mix(in srgb, var(--al-custom)  20%, var(--io-surface-elevated)); }
+  .ro-cell.al-dis{ border: 2px dashed var(--io-border-strong); }
+  @keyframes ro-flash-u { 0%,49.99%{ border: 2px solid var(--al-urgent);  background: color-mix(in srgb,var(--al-urgent)  20%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  @keyframes ro-flash-h { 0%,49.99%{ border: 2px solid var(--al-high);    background: color-mix(in srgb,var(--al-high)    20%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  @keyframes ro-flash-l { 0%,49.99%{ border: 2px solid var(--al-low);     background: color-mix(in srgb,var(--al-low)     20%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  @keyframes ro-flash-d { 0%,49.99%{ border: 2px solid var(--al-diag);    background: color-mix(in srgb,var(--al-diag)     8%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  @keyframes ro-flash-s { 0%,49.99%{ border: 2px solid var(--al-shelved); background: color-mix(in srgb,var(--al-shelved) 20%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  .ro-cell.al-u-un { animation: ro-flash-u 1s step-end infinite; }
+  .ro-cell.al-h-un { animation: ro-flash-h 1s step-end infinite; }
+  .ro-cell.al-l-un { animation: ro-flash-l 1s step-end infinite; }
+  .ro-cell.al-d-un { animation: ro-flash-d 1s step-end infinite; }
+  .ro-cell.al-s-un  { animation: ro-flash-s  1s step-end infinite; }
+  @keyframes ro-flash-cu { 0%,49.99%{ border: 2px solid var(--al-custom);  background: color-mix(in srgb,var(--al-custom)  20%,var(--io-surface-elevated)); } 50%,100%{ border: 1px solid var(--io-border); background: var(--io-surface-elevated); } }
+  .ro-cell.al-cu-un { animation: ro-flash-cu 1s step-end infinite; }
+  .al-u-un  .ro-val { color: var(--al-urgent);  }
+  .al-h-un  .ro-val { color: var(--al-high);    }
+  .al-l-un  .ro-val { color: var(--al-low);     }
+  .al-d-un  .ro-val { color: var(--al-diag);    }
+  .al-s-un  .ro-val { color: var(--al-shelved); }
+  .al-cu-un .ro-val { color: var(--al-custom);  }
+  .ro-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ro-tag   { font-size: 9px; color: var(--io-text-secondary); font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+  .ro-label { font-size: 10px; color: var(--io-text-muted); text-align: center; white-space: nowrap; }
+  .ro-section-label { font-size: 11px; font-weight: 600; color: var(--io-text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+  .ro-row   { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 20px; }
+  .ro-note  { font-size: 11px; color: var(--io-text-muted); margin-top: 6px; font-style: italic; }
+  /* Stale clock and Bad quality warning icons */
+  .ro-clock { font-size: 1em; color: var(--io-text-stale); margin-left: 7px; line-height: 1; }
+  .ro-warn  { font-size: 1em; color: var(--io-text-stale); margin-left: 7px; line-height: 1; }
+  /* Value update animation — brief bg flash (150ms), repeats every 3s to demo the 2s cooldown concept */
+  @keyframes ro-update-demo { 0%,100%{ background: var(--io-surface-elevated); border: 1px solid var(--io-border); } 4%{ background: color-mix(in srgb, #ffffff 12%, var(--io-surface-elevated)); border: 1px solid var(--io-border-strong); } }
+  .ro-update-demo { animation: ro-update-demo 3s ease-out infinite; }
+
+  /* ═══ BAD QUALITY HATCH PATTERN HELPER CLASSES ═══ */
+  /* bad-hatch pattern is defined inline in SVG <defs> per section */
+  .bar-stale-icon, .bar-bad-icon { font-size: 11px; fill: var(--io-text-stale); }
+
+  /* ═══ LEGEND ═══ */
+  .legend {
+    margin-top: 32px; padding: 20px 24px;
+    background: var(--io-surface-secondary);
+    border: 1px solid var(--io-border);
+    border-radius: 8px;
+  }
+  .legend h3 { font-size: 14px; color: var(--io-accent); margin-bottom: 12px; }
+  .lg { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+  .li { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--io-text-secondary); }
+  .ls { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<!--
+  PLAYWRIGHT VISUAL REGRESSION BASELINE
+  This file is the authoritative visual reference for I/O sidecar display elements.
+  Each distinct visual state has a data-testid attribute for Playwright screenshot targeting.
+  Usage:
+    await page.goto('file:///absolute/path/to/dark-shape-sidecar-preview.html');
+    const el = page.locator('[data-testid="text-readout-p1-unacknowledged"]');
+    await expect(el).toHaveScreenshot('text-readout-p1-unacknowledged.png');
+  Match implementation render output against these baselines before shipping.
+-->
+
+<h1>Shape Library — Sidecar Display Element Preview</h1>
+<p class="subtitle">Shape geometry (FROZEN) with sidecar display elements. <strong>Dark theme.</strong> ISA-18.2/ISA-101 4-priority alarm scheme: P1 Urgent · P2 High · P3 Low · P4 Diagnostic + Shelved + Disabled. Authoritative spec: <code>shape-sidecar-spec.md</code></p>
+
+<div class="grid">
+
+<!-- ================================================================ -->
+<!-- 1. CENTRIFUGAL PUMP Opt1 — viewBox 0 0 48 48, scale 3×          -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Centrifugal Pump (Opt 1)</h2>
+    <span class="cat">pump-centrifugal-opt1 &bull; Text Readout</span>
+  </div>
+  <div class="card-body">
+    <svg width="300" height="220" viewBox="0 0 300 220">
+      <g transform="translate(54,30) scale(3)">
+        <g class="io-shape-body">
+          <circle cx="24" cy="24" r="20" stroke-width="1.5"/>
+          <line x1="4" y1="24" x2="44" y2="24" stroke-width="1.5"/>
+          <line x1="24" y1="4" x2="44" y2="24" stroke-width="1.5"/>
+          <line x1="24" y1="44" x2="44" y2="24" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Connections -->
+      <line x1="25" y1="102" x2="54" y2="102" class="conn-stub"/>
+      <circle cx="25" cy="102" r="4" class="conn-dot"/>
+      <line x1="186" y1="102" x2="220" y2="102" class="conn-stub"/>
+      <circle cx="220" cy="102" r="4" class="conn-dot"/>
+      <!-- textZone: tagname -->
+      <text x="126" y="20" class="tag-text">P-101A</text>
+      <!-- valueAnchor [0.5, 1.15] text_readout -->
+      <rect x="80" y="186" width="92" height="24" class="ro-bg"/>
+      <text x="126" y="198" class="ro">485.3 <tspan class="ro-u">PSI</tspan></text>
+      <!-- alarmAnchor [1.1, -0.1] — HIGH, unacknowledged (flashing) -->
+      <g class="flash-h" transform="translate(200, 28)">
+        <polygon points="0,-12 12,8 -12,8" class="al h"/>
+        <text x="0" y="1" class="at h">2</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">pump-centrifugal-opt1 · viewBox 0 0 48 48 · ×3</p>
+    <dl>
+      <dt>textZone</dt><dd>tagname · --io-text-muted · Inter 9px · text-anchor middle</dd>
+      <dt>valueAnchor [0.5, 1.15]</dt><dd>text_readout · bottom slot · 6px below bbox</dd>
+      <dt>alarmAnchor [1.1, -0.1]</dt><dd>P2 High · orange triangle-up · --al-high #F97316 · flashes 1Hz step-end (color↔#808080) when unacked</dd>
+      <dt>Equipment shape</dt><dd>stroke #808080 ISA-101 baseline · fill: none · never changes on alarm</dd>
+      <dt>Text readout bg</dt><dd>--io-surface-elevated #27272A · border: --io-border #3F3F46 1px · rx=2px</dd>
+      <dt>Value text</dt><dd>JetBrains Mono 11px · --io-text-secondary #A1A1AA (normal) · promoted to primary on alarm</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 2. VERTICAL VESSEL — viewBox 0 0 40 80, scale 2.5×              -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Vertical Vessel (Welded)</h2>
+    <span class="cat">vessel-vertical &bull; Fill Gauge + Analog Bar</span>
+  </div>
+  <div class="card-body">
+    <svg width="320" height="260" viewBox="0 0 320 260">
+      <g transform="translate(65,30) scale(2.5)">
+        <g class="io-shape-body">
+          <path d="M10,12 A10,5 0 0,1 30,12" stroke-width="1.5"/>
+          <line x1="10" y1="12" x2="10" y2="68" stroke-width="1.5"/>
+          <line x1="30" y1="12" x2="30" y2="68" stroke-width="1.5"/>
+          <path d="M10,68 A10,5 0 0,0 30,68" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Fill gauge inside vessel — 62% -->
+      <!-- clipPath follows actual vessel interior including bottom elliptical head -->
+      <!-- Vessel walls: x=90→140, y=60→200. Bottom arc ry=12.5, bulges to ~y=213 -->
+      <!-- data-testid on the fill group; analog bar testid on its group below -->
+      <defs>
+        <clipPath id="vc">
+          <path d="M90,60 L90,200 A25,12.5 0 0,0 140,200 L140,60 A25,12.5 0 0,1 90,60 Z"/>
+        </clipPath>
+      </defs>
+      <!-- Fill rect extends past wall bottoms (y=200) into arc region (y=213) so clipPath shapes it -->
+      <g data-testid="fill-gauge-normal">
+        <rect x="88" y="113" width="54" height="102" class="fill-normal" clip-path="url(#vc)"/>
+        <line x1="92" y1="113" x2="138" y2="113" class="fill-line"/>
+      </g>
+      <!-- Connections -->
+      <line x1="35" y1="80" x2="90" y2="80" class="conn-stub"/>
+      <circle cx="35" cy="80" r="4" class="conn-dot"/>
+      <line x1="35" y1="180" x2="90" y2="180" class="conn-stub"/>
+      <circle cx="35" cy="180" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="115" y="28" class="tag-text">V-201</text>
+      <!-- valueAnchor primary [0.5, 1.08] text_readout -->
+      <rect x="79" y="220" width="72" height="22" class="ro-bg"/>
+      <text x="115" y="231" class="ro">62 <tspan class="ro-u">%</tspan></text>
+      <!-- valueAnchor secondary [1.2, 0.5] analog_bar to right -->
+      <!-- Threshold ramp (normal operation — no alarms active) -->
+      <g data-testid="analog-bar-normal" transform="translate(158, 58)">
+        <rect x="0" y="0" width="18" height="150" class="bb"/>
+        <rect x="1" y="1"   width="16" height="15" class="bz hh"/>
+        <rect x="1" y="16"  width="16" height="26" class="bz bh"/>
+        <rect x="1" y="42"  width="16" height="66" class="bz bn"/>
+        <rect x="1" y="108" width="16" height="26" class="bz bl"/>
+        <rect x="1" y="134" width="16" height="15" class="bz ll"/>
+        <line x1="0" y1="16" x2="5" y2="16" class="bt"/>
+        <line x1="0" y1="42" x2="5" y2="42" class="bt"/>
+        <line x1="0" y1="108" x2="5" y2="108" class="bt"/>
+        <line x1="0" y1="134" x2="5" y2="134" class="bt"/>
+        <text x="-3" y="10" class="blbl">HH</text>
+        <text x="-3" y="30" class="blbl">H</text>
+        <text x="-3" y="120" class="blbl">L</text>
+        <text x="-3" y="143" class="blbl">LL</text>
+        <polygon points="18,54 25,57 18,60" class="bp"/>
+        <line x1="1" y1="57" x2="17" y2="57" stroke="#A1A1AA" stroke-width="1"/>
+      </g>
+      <path d="M 140,130 L 158,130" class="sig"/>
+      <!-- alarmAnchor [1.15, -0.05] — ghost (inactive) -->
+      <g transform="translate(155, 44)" opacity="0.25">
+        <rect x="-11" y="-9" width="22" height="18" rx="2" stroke="#808080" stroke-width="1" fill="none"/>
+        <text x="0" y="0" font-family="monospace" font-size="8" fill="#808080" text-anchor="middle" dominant-baseline="central">—</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">vessel-vertical · viewBox 0 0 40 80 · ×2.5</p>
+    <dl>
+      <dt>valueAnchor [1.2, 0.5]</dt><dd>analog_bar Mode B · positioned to right of vessel</dd>
+      <dt>Zones (Dark)</dt><dd>HH #5C3A3A · H #5C4A32 · Normal #404048 · L #32445C · LL #2E3A5C</dd>
+      <dt>Pointer</dt><dd>--io-text-secondary #A1A1AA · right edge · bar border: --io-display-zone-border #52525B 0.5px</dd>
+      <dt>fill_gauge (vessel-clipped)</dt><dd>fill: --io-fill-normal #475569 @ 60% opacity · level line: #64748b 1px dashed 5 3 · clips to vessel interior via &lt;clipPath&gt;</dd>
+      <dt>fill_gauge in alarm</dt><dd>alarm priority color @ 30% opacity</dd>
+      <dt>alarmAnchor [1.15, -0.05]</dt><dd>ghost (inactive) · opacity 0.25 · #808080 · no active alarm</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 3. CONTROL VALVE — viewBox 0 0 48 44, scale 3×                  -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Control Valve</h2>
+    <span class="cat">valve-control &bull; Sparkline + Status + Alarm</span>
+  </div>
+  <div class="card-body">
+    <svg width="320" height="200" viewBox="0 0 320 200">
+      <g transform="translate(50,30) scale(3)">
+        <g class="io-shape-body">
+          <polygon points="0,20 24,32 0,44" stroke-width="1.5"/>
+          <polygon points="48,20 24,32 48,44" stroke-width="1.5"/>
+          <line x1="24" y1="32" x2="24" y2="12" stroke-width="1.5"/>
+          <path d="M 14,12 A 10,10 0 0,1 34,12 Z" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Connections -->
+      <line x1="15" y1="126" x2="50" y2="126" class="conn-stub"/>
+      <circle cx="15" cy="126" r="4" class="conn-dot"/>
+      <line x1="194" y1="126" x2="235" y2="126" class="conn-stub"/>
+      <circle cx="235" cy="126" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="122" y="20" class="tag-text">FV-301</text>
+      <!-- valueAnchor [1.2, 0.5] text_readout to right -->
+      <rect x="226" y="88" width="80" height="22" class="ro-bg al-u-border"/>
+      <text x="266" y="99" class="ro">73.4 <tspan class="ro-u">%</tspan></text>
+      <path d="M 194,99 L 226,99" class="sig"/>
+      <!-- Sparkline below valve (fixed 110×18) — y=170 clears valve bottom at y=162 -->
+      <rect x="67" y="170" width="110" height="18" class="sb"/>
+      <polyline points="70,184 78,181 86,182 94,176 102,178 110,173 118,178 126,175 134,172 142,177 150,175 158,180 166,177 174,178" class="sl normal"/>
+      <!-- Digital Status to right of dome — AUTO is normal for this valve -->
+      <rect x="226" y="52" width="52" height="22" class="sp norm"/>
+      <text x="252" y="63" class="st norm">AUTO</text>
+      <path d="M 194,66 Q 210,63 226,63" class="sig"/>
+      <!-- alarmAnchor — P1 URGENT, unacknowledged (flashing color↔gray) -->
+      <g class="flash-u" transform="translate(210, 32)">
+        <rect x="-12" y="-10" width="24" height="20" rx="2" class="al u"/>
+        <text x="0" y="0" class="at u">1</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">valve-control · viewBox 0 0 48 44 · ×3</p>
+    <dl>
+      <dt>alarmAnchor [1.1, -0.1]</dt><dd>P1 Urgent · rect shape · --al-urgent #EF4444 · stroke-width 1.8 · fill: none · unack'd flashing 1Hz step-end</dd>
+      <dt>digital_status (normal)</dt><dd>pill shape · fill: --io-display-zone-inactive #3F3F46 · text: --io-text-secondary #A1A1AA · JetBrains Mono 9px · AUTO = normal state for this controller</dd>
+      <dt>text_readout (in P1 alarm)</dt><dd>border: 2px --al-urgent #EF4444 · bg: 20% tint · value text promoted to --io-text-primary #F9FAFB</dd>
+      <dt>sparkline [0.5, 1.3]</dt><dd>fixed 110×18px · bg: --io-surface-elevated #27272A · normal state: stroke zinc-500 #71717A (--io-text-muted) · in alarm: full ISA priority color · shelved: magenta dashed</dd>
+      <dt>signal line</dt><dd>--io-border-strong #52525B · 0.75px dashed 3 2</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 4. DISTILLATION COLUMN Trayed-6 — viewBox 0 0 44 120, scale 2.5×-->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Distillation Column (Trayed-6)</h2>
+    <span class="cat">column-distillation-trayed &bull; Multi-anchor</span>
+  </div>
+  <div class="card-body">
+    <svg width="330" height="340" viewBox="0 0 330 340">
+      <g transform="translate(50,20) scale(2.5)">
+        <g class="io-shape-body">
+          <path d="M10,10 A12,5 0 0,1 34,10" stroke-width="1.5"/>
+          <line x1="10" y1="10" x2="10" y2="110" stroke-width="1.5"/>
+          <line x1="34" y1="10" x2="34" y2="110" stroke-width="1.5"/>
+          <path d="M10,110 A12,5 0 0,0 34,110" stroke-width="1.5"/>
+          <line x1="10" y1="24" x2="34" y2="24" stroke-width="0.75"/>
+          <line x1="10" y1="40" x2="34" y2="40" stroke-width="0.75"/>
+          <line x1="10" y1="56" x2="34" y2="56" stroke-width="0.75"/>
+          <line x1="10" y1="72" x2="34" y2="72" stroke-width="0.75"/>
+          <line x1="10" y1="88" x2="34" y2="88" stroke-width="0.75"/>
+          <line x1="10" y1="100" x2="34" y2="100" stroke-width="0.75"/>
+        </g>
+      </g>
+      <!-- Connections -->
+      <line x1="20" y1="170" x2="75" y2="170" class="conn-stub"/>
+      <circle cx="20" cy="170" r="4" class="conn-dot"/>
+      <line x1="105" y1="45" x2="105" y2="16" class="conn-stub"/>
+      <circle cx="105" cy="16" r="4" class="conn-dot"/>
+      <line x1="105" y1="295" x2="105" y2="324" class="conn-stub"/>
+      <circle cx="105" cy="324" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="105" y="10" class="tag-text">C-401</text>
+      <!-- valueAnchor [1.2, 0.5] text_readout — overhead temp -->
+      <text x="154" y="118" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">TI-401 Overhead</text>
+      <rect x="152" y="122" width="98" height="22" class="ro-bg"/>
+      <text x="201" y="133" class="ro">312.5 <tspan class="ro-u">°F</tspan></text>
+      <path d="M 135,132 L 152,133" class="sig"/>
+      <!-- Mid-tray temp -->
+      <text x="154" y="168" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">TI-402 Mid-tray</text>
+      <rect x="152" y="172" width="98" height="22" class="ro-bg"/>
+      <text x="201" y="183" class="ro">387.1 <tspan class="ro-u">°F</tspan></text>
+      <path d="M 135,183 L 152,183" class="sig"/>
+      <!-- valueAnchor [1.15, 0.3] analog_bar -->
+      <g transform="translate(155, 210)">
+        <rect x="0" y="0" width="16" height="80" class="bb"/>
+        <rect x="1" y="1"  width="14" height="9"  class="bz hh"/>
+        <rect x="1" y="10" width="14" height="16" class="bz bh"/>
+        <rect x="1" y="26" width="14" height="28" class="bz bn"/>
+        <rect x="1" y="54" width="14" height="16" class="bz bl"/>
+        <rect x="1" y="70" width="14" height="9"  class="bz ll"/>
+        <polygon points="16,32 22,35 16,38" class="bp"/>
+        <line x1="1" y1="35" x2="15" y2="35" stroke="#F9FAFB" stroke-width="0.8"/>
+      </g>
+      <text x="178" y="208" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">LI-401</text>
+      <path d="M 135,250 L 155,250" class="sig"/>
+      <!-- alarmAnchor [1.1, -0.03] — P3 LOW -->
+      <g transform="translate(148, 30)">
+        <polygon points="0,10 10,-8 -10,-8" class="al l"/>
+        <text x="0" y="-1" class="at l">3</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">column-distillation-trayed · viewBox 0 0 44 120 · ×2.5</p>
+    <dl>
+      <dt>alarmAnchor [1.1, -0.03]</dt><dd>P3 Low · inverted triangle · --al-low #EAB308 · ISA-18.2 shape: tri-down for P3 Low · ack'd (steady)</dd>
+      <dt>feed connection</dt><dd>conn-stub #52525B · conn-dot accent #2DD4BF</dd>
+      <dt>Multiple valueAnchors</dt><dd>TI-401 [1.2, 0.3] · TI-402 [1.2, 0.5] · LI-401 [1.15, 0.65]</dd>
+      <dt>analog_bar</dt><dd>16px wide × 80px tall · Mode B (vessel interior)</dd>
+      <dt>valueAnchor labels</dt><dd>Inter 8px fill #A1A1AA above each readout</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 5. SHELL & TUBE HX Opt1 — viewBox 0 0 50 50, scale 3×           -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Shell &amp; Tube HX (Opt 1)</h2>
+    <span class="cat">hx-shell-tube-opt1 &bull; Readout + Advisory</span>
+  </div>
+  <div class="card-body">
+    <svg width="300" height="225" viewBox="0 0 300 225">
+      <g transform="translate(55,30) scale(3)">
+        <g class="io-shape-body">
+          <circle cx="25" cy="25" r="20" stroke-width="1.5"/>
+          <polyline points="5,25 12,25 19,13 31,37 38,25 45,25" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Connections -->
+      <line x1="30" y1="105" x2="70" y2="105" class="conn-stub"/>
+      <circle cx="30" cy="105" r="4" class="conn-dot"/>
+      <line x1="190" y1="105" x2="235" y2="105" class="conn-stub"/>
+      <circle cx="235" cy="105" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="130" y="18" class="tag-text">E-501A</text>
+      <!-- valueAnchor [0.5, 1.15] text_readout -->
+      <rect x="84" y="190" width="92" height="24" class="ro-bg"/>
+      <text x="130" y="202" class="ro">245.8 <tspan class="ro-u">°F</tspan></text>
+      <text x="86" y="186" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">TI-501 Outlet</text>
+      <!-- alarmAnchor [1.1, -0.1] — P4 Diagnostic (white ellipse) -->
+      <g transform="translate(202, 28)">
+        <ellipse cx="0" cy="0" rx="14" ry="10" class="al d"/>
+        <text x="0" y="0" class="at d">4</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">hx-shell-tube-opt1 · viewBox 0 0 50 50 · ×3</p>
+    <dl>
+      <dt>alarmAnchor [1.1, -0.1]</dt><dd>P4 Diagnostic · ellipse shape · --al-diag #F4F4F5 zinc-100 · rx=14 ry=10 · stroke-width 1.8 · fill: none · steady (no flash) · P4 = informational; no urgency implied by ISA-18.2</dd>
+      <dt>text_readout (normal)</dt><dd>bg --io-surface-elevated · border --io-border · value: 11px JetBrains Mono · --io-text-secondary #A1A1AA</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 6. GATE VALVE — viewBox 0 0 48 24, scale 3.5×                   -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Gate Valve</h2>
+    <span class="cat">valve-gate &bull; Digital Status</span>
+  </div>
+  <div class="card-body">
+    <svg width="300" height="210" viewBox="0 0 300 210">
+      <g transform="translate(62,40) scale(3.5)">
+        <g class="io-shape-body">
+          <polygon points="0,0 24,12 0,24" stroke-width="1.5"/>
+          <polygon points="48,0 24,12 48,24" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Process line -->
+      <line x1="20" y1="82" x2="62" y2="82" class="conn-stub"/>
+      <circle cx="20" cy="82" r="4" class="conn-dot"/>
+      <line x1="230" y1="82" x2="275" y2="82" class="conn-stub"/>
+      <circle cx="275" cy="82" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="146" y="28" class="tag-text">HV-102</text>
+      <!-- valueAnchor [0.5, 1.3] digital_status — OPEN is normal for this valve -->
+      <rect x="110" y="142" width="60" height="22" class="sp norm"/>
+      <text x="140" y="153" class="st norm">OPEN</text>
+      <!-- text_readout below -->
+      <rect x="110" y="172" width="72" height="20" class="ro-bg"/>
+      <text x="146" y="182" class="ro">100 <tspan class="ro-u">%</tspan></text>
+      <!-- alarmAnchor [1.1, -0.2] — ghost -->
+      <g transform="translate(240, 30)" opacity="0.25">
+        <rect x="-11" y="-9" width="22" height="18" rx="2" stroke="#808080" stroke-width="1" fill="none"/>
+        <text x="0" y="0" font-family="monospace" font-size="8" fill="#808080" text-anchor="middle" dominant-baseline="central">—</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">valve-gate · viewBox 0 0 48 24 · ×3.5</p>
+    <dl>
+      <dt>alarmAnchor [1.1, -0.2]</dt><dd>ghost placeholder · opacity 0.25 · shown when no alarm is configured for this point</dd>
+      <dt>digital_status (normal)</dt><dd>fill: --io-display-zone-inactive #3F3F46 · no stroke · text: --io-text-secondary · JetBrains Mono 9px · rx=2px · OPEN = normal for hand valve (ISA: always configured)</dd>
+      <dt>text_readout (normal)</dt><dd>bg: --io-surface-elevated #27272A · border: --io-border 1px · 100% open position reading</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 7. CONE ROOF TANK — viewBox 0 0 70 70, scale 2.5×               -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Storage Tank (Cone Roof)</h2>
+    <span class="cat">tank-storage-cone-roof &bull; Internal Fill</span>
+  </div>
+  <div class="card-body">
+    <svg width="320" height="245" viewBox="0 0 320 245">
+      <g transform="translate(72,30) scale(2.5)">
+        <g class="io-shape-body">
+          <rect x="10" y="20" width="50" height="40" stroke-width="1.5"/>
+          <polyline points="10,20 35,6 60,20" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Fill inside tank — 55% -->
+      <defs>
+        <clipPath id="tc">
+          <rect x="98" y="81" width="123" height="98"/>
+        </clipPath>
+      </defs>
+      <rect x="98" y="125" width="123" height="55" class="fill-normal" clip-path="url(#tc)"/>
+      <line x1="99" y1="125" x2="220" y2="125" class="fill-line"/>
+      <!-- Connections -->
+      <line x1="45" y1="120" x2="97" y2="120" class="conn-stub"/>
+      <circle cx="45" cy="120" r="4" class="conn-dot"/>
+      <line x1="159" y1="180" x2="159" y2="210" class="conn-stub"/>
+      <circle cx="159" cy="210" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="159" y="26" class="tag-text">TK-301</text>
+      <!-- valueAnchor [0.5, 1.1] text_readout -->
+      <rect x="118" y="220" width="82" height="22" class="ro-bg"/>
+      <text x="159" y="231" class="ro">55 <tspan class="ro-u">%</tspan></text>
+      <!-- Sparkline to right (fixed 110×18) -->
+      <g transform="translate(230, 100)">
+        <rect x="0" y="0" width="110" height="18" class="sb"/>
+        <polyline points="3,14 11,11 19,13 27,8 35,10 43,6 51,11 59,9 67,5 75,10 83,8 91,13 99,10 107,12" class="sl high"/>
+      </g>
+      <!-- alarmAnchor [1.1, -0.05] — HIGH -->
+      <g class="flash-h" transform="translate(232, 40)">
+        <polygon points="0,-12 12,8 -12,8" class="al h"/>
+        <text x="0" y="1" class="at h">2</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">tank-storage-cone-roof · viewBox 0 0 70 70 · ×2.5</p>
+    <dl>
+      <dt>alarmAnchor [1.1, -0.05]</dt><dd>P2 High · triangle-up · --al-high #F97316 · unack'd: flashing 1Hz step-end color↔#808080</dd>
+      <dt>fill_gauge [0.5, 0.5] vessel_overlay</dt><dd>fill: --io-fill-normal #475569 @ 60% opacity · level line: #64748b 1px dashed · clips to tank rect · in alarm: alarm priority color @ 30% opacity</dd>
+      <dt>sparkline (preview decoration)</dt><dd>preview uses accent teal (not a runtime state) · runtime normal: #71717A · in alarm: ISA priority color</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 8. REACTOR Base — viewBox 0 0 40 80, scale 2.5×                 -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Reactor (Base)</h2>
+    <span class="cat">reactor &bull; Multiple Readouts + Alarm</span>
+  </div>
+  <div class="card-body">
+    <svg width="320" height="260" viewBox="0 0 320 260">
+      <g transform="translate(60,30) scale(2.5)">
+        <g class="io-shape-body">
+          <path d="M10,12 A10,5 0 0,1 30,12" stroke-width="1.5"/>
+          <line x1="10" y1="12" x2="10" y2="68" stroke-width="1.5"/>
+          <line x1="30" y1="12" x2="30" y2="68" stroke-width="1.5"/>
+          <line x1="10" y1="68" x2="30" y2="68" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Connections -->
+      <line x1="30" y1="90" x2="85" y2="90" class="conn-stub"/>
+      <circle cx="30" cy="90" r="4" class="conn-dot"/>
+      <line x1="30" y1="180" x2="85" y2="180" class="conn-stub"/>
+      <circle cx="30" cy="180" r="4" class="conn-dot"/>
+      <line x1="110" y1="48" x2="110" y2="18" class="conn-stub"/>
+      <circle cx="110" cy="18" r="4" class="conn-dot"/>
+      <!-- textZone -->
+      <text x="110" y="12" class="tag-text">R-101</text>
+      <!-- Catalyst bed fill -->
+      <defs>
+        <clipPath id="rc">
+          <rect x="86" y="50" width="48" height="150" rx="6"/>
+        </clipPath>
+      </defs>
+      <rect x="86" y="120" width="48" height="80" class="fill-normal" clip-path="url(#rc)"/>
+      <!-- valueAnchors — temp, pressure, conversion -->
+      <text x="156" y="80" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">TI-101 Bed Temp</text>
+      <rect x="154" y="84" width="98" height="22" class="ro-bg"/>
+      <text x="203" y="95" class="ro">725.4 <tspan class="ro-u">°F</tspan></text>
+      <path d="M 135,95 L 154,95" class="sig"/>
+      <text x="156" y="138" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">PI-101 Pressure</text>
+      <rect x="154" y="142" width="98" height="22" class="ro-bg"/>
+      <text x="203" y="153" class="ro">2,145 <tspan class="ro-u">PSI</tspan></text>
+      <path d="M 135,153 L 154,153" class="sig"/>
+      <rect x="72" y="220" width="76" height="22" class="ro-bg"/>
+      <text x="110" y="231" class="ro">98.7 <tspan class="ro-u">%</tspan></text>
+      <text x="73" y="215" font-size="8" fill="#A1A1AA" font-family="Inter, sans-serif">Conversion</text>
+      <!-- alarmAnchor [1.15, -0.05] — HIGH, flashing -->
+      <g class="flash-h" transform="translate(150, 44)">
+        <polygon points="0,-12 12,8 -12,8" class="al h"/>
+        <text x="0" y="1" class="at h">2</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">reactor (base) · viewBox 0 0 40 80 · ×2.5</p>
+    <dl>
+      <dt>alarmAnchor [1.15, -0.05]</dt><dd>P2 High alarm · unacknowledged (flashing) · triangle-up shape</dd>
+      <dt>3 text_readouts</dt><dd>TI-101 [1.2, 0.3] · PI-101 [1.2, 0.55] · Conversion [0.5, 1.08] · each: bg --io-surface-elevated · label Inter 8px #A1A1AA</dd>
+      <dt>fill_gauge</dt><dd>catalyst bed · --io-fill-normal @ 60% opacity</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 9. ANALOG BAR MODE B — vessel-interior (non-level variable)      -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Analog Bar — Mode B (Vessel-Interior)</h2>
+    <span class="cat">analog_bar · vessel-interior slot · zone bands span full vessel height · non-level variable</span>
+  </div>
+  <div class="card-body">
+    <svg width="320" height="210" viewBox="0 0 320 210">
+      <!-- Vessel outline: reactor with domed top + flat bottom -->
+      <g transform="translate(65,25) scale(2.5)">
+        <g class="io-shape-body">
+          <path d="M10,12 A10,5 0 0,1 30,12" stroke-width="1.5"/>
+          <line x1="10" y1="12" x2="10" y2="68" stroke-width="1.5"/>
+          <line x1="30" y1="12" x2="30" y2="68" stroke-width="1.5"/>
+          <line x1="10" y1="68" x2="30" y2="68" stroke-width="1.5"/>
+        </g>
+      </g>
+      <!-- Mode B analog bar: clips to vessel interior -->
+      <!-- Interior walls: x=90–140 (50px), top arc apex ~y=42, flat bottom y=195 -->
+      <defs>
+        <clipPath id="mbc">
+          <path d="M90,55 A25,12.5 0 0,1 140,55 L140,195 L90,195 Z"/>
+        </clipPath>
+      </defs>
+      <!-- Zone bands: x=103–128 (50% of 50px interior), full height, clipped to vessel -->
+      <!-- Zones extend past arc/bottom — clipPath handles exact shape -->
+      <g clip-path="url(#mbc)">
+        <rect x="103" y="38" width="25" height="20" class="bz hh"/>
+        <rect x="103" y="58" width="25" height="28" class="bz bh"/>
+        <rect x="103" y="86" width="25" height="56" class="bz bn"/>
+        <rect x="103" y="142" width="25" height="28" class="bz bl"/>
+        <rect x="103" y="170" width="25" height="30" class="bz ll"/>
+        <!-- Zone divider lines -->
+        <line x1="103" y1="58"  x2="128" y2="58"  class="bt"/>
+        <line x1="103" y1="86"  x2="128" y2="86"  class="bt"/>
+        <line x1="103" y1="142" x2="128" y2="142" class="bt"/>
+        <line x1="103" y1="170" x2="128" y2="170" class="bt"/>
+        <!-- Value indicator line at y=110 (normal zone) -->
+        <line x1="103" y1="110" x2="128" y2="110" stroke="var(--io-text-primary)" stroke-width="1" opacity="0.9"/>
+      </g>
+      <!-- Bar border (draws above clip, visible on vessel walls) -->
+      <rect x="103" y="38" width="25" height="162" fill="none" stroke="var(--io-display-zone-border)" stroke-width="0.5" clip-path="url(#mbc)"/>
+      <!-- Value pointer: triangle exits right edge of bar into vessel space -->
+      <polygon points="128,110 135,107 135,113" class="bp"/>
+      <!-- Signal line: pointer tip → text readout -->
+      <path d="M135,110 L168,126" class="sig"/>
+      <!-- valueAnchor [1.3, 0.45] text_readout -->
+      <rect x="168" y="115" width="86" height="22" class="ro-bg"/>
+      <text x="211" y="126" class="ro">285.3 <tspan class="ro-u">°F</tspan></text>
+      <!-- Zone labels: right of vessel wall -->
+      <text x="144" y="52"  font-family="JetBrains Mono,monospace" font-size="7" fill="var(--io-text-muted)" text-anchor="start">HH</text>
+      <text x="144" y="74"  font-family="JetBrains Mono,monospace" font-size="7" fill="var(--io-text-muted)" text-anchor="start">H</text>
+      <text x="144" y="156" font-family="JetBrains Mono,monospace" font-size="7" fill="var(--io-text-muted)" text-anchor="start">L</text>
+      <text x="144" y="183" font-family="JetBrains Mono,monospace" font-size="7" fill="var(--io-text-muted)" text-anchor="start">LL</text>
+      <!-- textZone: tag name above vessel -->
+      <text x="115" y="14" class="tag-text">TI-201</text>
+      <!-- alarmAnchor [1.1, -0.05] — ghost (no active alarm) -->
+      <g transform="translate(152, 42)" opacity="0.25">
+        <rect x="-11" y="-9" width="22" height="18" rx="2" stroke="#808080" stroke-width="1" fill="none"/>
+        <text x="0" y="0" font-family="monospace" font-size="8" fill="#808080" text-anchor="middle" dominant-baseline="central">—</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">reactor-base · viewBox 0 0 40 80 · ×2.5 · analog_bar at vessel-interior slot</p>
+    <dl>
+      <dt>Analog Bar Mode B</dt><dd>vessel-interior slot · zones span full vessel height (not fill-from-bottom)</dd>
+      <dt>Zone colors</dt><dd>HH #5C3A3A · H #5C4A32 · Normal #404048 · L #32445C · LL #2E3A5C</dd>
+      <dt>Bar width</dt><dd>≈50% interior · centered · clipped to vessel clipPath</dd>
+      <dt>Zone labels</dt><dd>7px JetBrains Mono · --io-text-muted #71717A · right of vessel wall</dd>
+      <dt>Pointer</dt><dd>--io-text-secondary #A1A1AA triangle · exits right edge of bar</dd>
+      <dt>Use for</dt><dd>temperature, pressure, concentration (non-level variables) · distinguish from Fill Gauge: zone structure vs fill-from-bottom level</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 10. ANALOG BAR MODE A — Standalone Floating Bar                  -->
+<!-- ================================================================ -->
+<div class="card">
+  <div class="card-header">
+    <h2>Analog Bar — Mode A (Standalone Floating)</h2>
+    <span class="cat">analog_bar · standalone · vertical bar outside vessel · pointer + zones · setpoint diamond</span>
+  </div>
+  <div class="card-body">
+    <svg width="420" height="340" viewBox="0 0 420 340">
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- EXAMPLE 1: Normal operation — pointer in Normal zone    -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <text x="40" y="18" font-family="Inter,sans-serif" font-size="9" fill="#71717A" text-anchor="middle">Example 1: Normal operation</text>
+      <text x="40" y="28" font-family="Inter,sans-serif" font-size="8" fill="#52525B" text-anchor="middle">pointer in Normal zone</text>
+
+      <!-- Tag name above bar -->
+      <text x="40" y="44" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA" text-anchor="middle">TI-110</text>
+
+      <!-- Bar outline: 20px wide × 120px tall, top-left at x=30 y=50 -->
+      <rect x="30" y="50" width="20" height="120" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+
+      <!-- Zone bands (top-to-bottom): HH=10%, H=10%, Normal=60%, L=10%, LL=10% -->
+      <rect x="31" y="51" width="18" height="12" fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="31" y="63" width="18" height="12" fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="31" y="75" width="18" height="72" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="31" y="147" width="18" height="12" fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="31" y="159" width="18" height="12" fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+
+      <!-- Zone divider tick lines on left edge (at zone boundaries) -->
+      <line x1="30" y1="63" x2="35" y2="63" stroke="#52525B" stroke-width="0.5"/>
+      <line x1="30" y1="75" x2="35" y2="75" stroke="#52525B" stroke-width="0.5"/>
+      <line x1="30" y1="147" x2="35" y2="147" stroke="#52525B" stroke-width="0.5"/>
+      <line x1="30" y1="159" x2="35" y2="159" stroke="#52525B" stroke-width="0.5"/>
+
+      <!-- Zone labels on left: HH/H/L/LL at zone midpoints -->
+      <text x="27" y="58"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+      <text x="27" y="70"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">H</text>
+      <text x="27" y="154" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+      <text x="27" y="166" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+
+      <!-- Value pointer: triangle pointing inward from right edge at ~60% (y=122, Normal zone) -->
+      <polygon points="50,122 57,119 57,125" fill="#A1A1AA" stroke="none"/>
+      <!-- Horizontal value line across bar width -->
+      <line x1="31" y1="122" x2="49" y2="122" stroke="#A1A1AA" stroke-width="1"/>
+
+      <!-- Setpoint diamond at ~50% (y=110), left edge, accent color, no fill -->
+      <polygon points="30,110 34,107 38,110 34,113" fill="none" stroke="#2DD4BF" stroke-width="1.2"/>
+
+      <!-- Signal line from pointer to text readout -->
+      <path d="M57,122 L90,122" stroke="#52525B" stroke-width="0.75" stroke-dasharray="3 2" fill="none"/>
+      <!-- Text readout -->
+      <rect x="90" y="111" width="72" height="22" fill="#27272A" stroke="#3F3F46" stroke-width="1" rx="2"/>
+      <text x="126" y="122" font-family="JetBrains Mono,monospace" font-size="11" fill="#A1A1AA" text-anchor="middle" dominant-baseline="central">247.3 <tspan font-family="Inter,sans-serif" font-size="9" fill="#71717A">°F</tspan></text>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- EXAMPLE 2: H zone alarm — zone highlighted in alarm color -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <text x="40" y="246" font-family="Inter,sans-serif" font-size="9" fill="#71717A" text-anchor="middle">Example 2: H zone active alarm</text>
+      <text x="40" y="258" font-family="Inter,sans-serif" font-size="8" fill="#52525B" text-anchor="middle">pointer in H zone · --al-high overlay</text>
+
+      <!-- Bar outline -->
+      <rect x="20" y="265" width="20" height="68" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+
+      <!-- Zone bands (proportional): HH=7, H=7, Normal=40, L=7, LL=7 -->
+      <rect x="21" y="266" width="18" height="7"  fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+      <!-- H zone: base color + orange alarm overlay at 50% opacity -->
+      <rect x="21" y="273" width="18" height="7"  fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="21" y="273" width="18" height="7"  fill="#F97316" opacity="0.5"/>
+      <!-- H active alarm: 2px orange border on zone -->
+      <rect x="20" y="272" width="20" height="9"  fill="none" stroke="#F97316" stroke-width="1.5"/>
+      <rect x="21" y="280" width="18" height="40" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="21" y="320" width="18" height="7"  fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+      <rect x="21" y="327" width="18" height="6"  fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+
+      <!-- Pointer at H zone midpoint (y=277) -->
+      <polygon points="40,277 47,274 47,280" fill="#A1A1AA" stroke="none"/>
+      <line x1="21" y1="277" x2="39" y2="277" stroke="#A1A1AA" stroke-width="1"/>
+
+      <!-- Zone labels -->
+      <text x="17" y="271" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+      <text x="17" y="279" font-family="JetBrains Mono,monospace" font-size="7" fill="#F97316" text-anchor="end">H</text>
+      <text x="17" y="327" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+      <text x="17" y="333" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">analog_bar Mode A · standalone floating · 20px wide × 120px tall · zones HH/H/Normal/L/LL</p>
+    <dl>
+      <dt>Mode A structure</dt><dd>standalone floating · bar 20px wide × 120px tall · not clipped to vessel</dd>
+      <dt>Zone proportions</dt><dd>HH 10% (#5C3A3A warm brown-red) · H 10% (#5C4A32 warm brown) · Normal 60% (#404048 neutral gray) · L 10% (#32445C cool blue-gray) · LL 10% (#2E3A5C deep cool blue)</dd>
+      <dt>Pointer</dt><dd>triangle · fill: --io-text-secondary #A1A1AA + horizontal line · points inward from right edge</dd>
+      <dt>Setpoint diamond</dt><dd>stroke: --io-accent #2DD4BF · no fill · anchored to left edge · optional</dd>
+      <dt>Zone labels</dt><dd>7px JetBrains Mono · --io-text-muted #71717A · HH/H/L/LL on left side · text-anchor: end</dd>
+      <dt>H zone in alarm (Ex 2)</dt><dd>base zone color + --al-high #F97316 @ 50% opacity overlay + 1.5px --al-high border on active zone · H label → alarm color when zone is active</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 11. REFERENCE — All 6 Display Element Types + Alarm Priorities   -->
+<!-- ================================================================ -->
+<div class="card fw">
+  <div class="card-header">
+    <h2>Display Element Type Reference</h2>
+    <span class="cat">All 6 types + ISA-18.2 / ISA-101 Alarm Priorities (4 levels + suppression)</span>
+  </div>
+  <div class="card-body" style="flex-direction:column;gap:8px;">
+    <svg width="700" height="310" viewBox="0 0 700 310">
+      <!-- 1. Text Readout -->
+      <g transform="translate(20,20)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">1. Text Readout</text>
+        <rect x="0" y="0" width="92" height="24" class="ro-bg"/>
+        <text x="46" y="12" class="ro">485.3 <tspan class="ro-u">PSI</tspan></text>
+        <rect x="0" y="34" width="92" height="24" class="ro-bg al-h-border"/>
+        <text x="46" y="46" class="ro">512.0 <tspan class="ro-u">PSI</tspan></text>
+      </g>
+      <!-- 2. Analog Bar (threshold ramp — warm↔cool, no alarm colors) -->
+      <g transform="translate(170,20)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">2. Analog Bar</text>
+        <rect x="18" y="0" width="18" height="90" class="bb"/>
+        <rect x="19" y="1"  width="16" height="10" class="bz hh"/>
+        <rect x="19" y="11" width="16" height="18" class="bz bh"/>
+        <rect x="19" y="29" width="16" height="32" class="bz bn"/>
+        <rect x="19" y="61" width="16" height="18" class="bz bl"/>
+        <rect x="19" y="79" width="16" height="10" class="bz ll"/>
+        <text x="15" y="7" class="blbl">HH</text>
+        <text x="15" y="21" class="blbl">H</text>
+        <text x="15" y="72" class="blbl">L</text>
+        <text x="15" y="85" class="blbl">LL</text>
+        <polygon points="36,35 43,38 36,41" class="bp"/>
+        <line x1="19" y1="38" x2="35" y2="38" stroke="#A1A1AA" stroke-width="0.8"/>
+      </g>
+      <!-- 3. Fill Gauge -->
+      <g transform="translate(270,20)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">3. Fill Gauge</text>
+        <!-- Standalone mode -->
+        <rect x="0" y="0" width="24" height="90" rx="2" class="go"/>
+        <rect x="1" y="33" width="22" height="56" rx="1" class="fill-normal"/>
+        <text x="12" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#A1A1AA" text-anchor="middle" dominant-baseline="central">62%</text>
+        <!-- Vessel-clipped mode: small sphere demo -->
+        <circle cx="60" cy="45" r="30" fill="none" stroke="#808080" stroke-width="1.5"/>
+        <defs><clipPath id="sphere-clip"><circle cx="60" cy="45" r="29"/></clipPath></defs>
+        <rect x="30" y="40" width="60" height="36" class="fill-normal" clip-path="url(#sphere-clip)"/>
+        <line x1="32" y1="40" x2="88" y2="40" class="fill-line" clip-path="url(#sphere-clip)"/>
+        <text x="60" y="58" font-family="JetBrains Mono,monospace" font-size="8" fill="#A1A1AA" text-anchor="middle">55%</text>
+      </g>
+      <!-- 4. Sparkline (fixed 110×18) -->
+      <g transform="translate(390,20)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">4. Sparkline (110×18px)</text>
+        <!-- Normal: barely visible gray — "nothing interesting" -->
+        <rect x="0" y="0" width="110" height="18" class="sb"/>
+        <polyline points="3,12 11,10 19,11 27,8 35,10 43,7 51,9 59,8 67,6 75,9 83,7 91,10 99,8 107,9" class="sl normal"/>
+        <!-- In alarm: full ISA priority color -->
+        <rect x="0" y="28" width="110" height="18" class="sb"/>
+        <polyline points="3,42 11,39 19,41 27,35 35,37 43,33 51,38 59,36 67,32 75,37 83,35 91,40 99,37 107,32" class="sl high"/>
+      </g>
+      <!-- 5. Alarm Indicators — ISA-18.2 / ISA-101 4-priority + suppression states -->
+      <g transform="translate(20,140)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">5. Alarm Indicators — ISA-18.2 / ISA-101 (stroke-only · fill: none · stroke-width 1.8)</text>
+        <!-- P1 Urgent — Red rectangle -->
+        <g data-testid="alarm-indicator-p1-acknowledged" transform="translate(28,18)">
+          <rect x="-13" y="-11" width="26" height="22" rx="2" class="al u"/>
+          <text x="0" y="0" class="at u">1</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Urgent</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">P1 / sev 900</text>
+        </g>
+        <!-- P2 High — Orange triangle up -->
+        <g data-testid="alarm-indicator-p2-acknowledged" transform="translate(88,18)">
+          <polygon points="0,-12 13,10 -13,10" class="al h"/>
+          <text x="0" y="3" class="at h">2</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">High</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">P2 / sev 600</text>
+        </g>
+        <!-- P3 Low — Yellow inverted triangle -->
+        <g data-testid="alarm-indicator-p3-acknowledged" transform="translate(148,18)">
+          <polygon points="0,12 13,-10 -13,-10" class="al l"/>
+          <text x="0" y="0" class="at l">3</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Low</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">P3 / sev 300</text>
+        </g>
+        <!-- P4 Diagnostic — White ellipse -->
+        <g data-testid="alarm-indicator-p4-acknowledged" transform="translate(208,18)">
+          <ellipse cx="0" cy="0" rx="15" ry="11" class="al d"/>
+          <text x="0" y="0" class="at d">4</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Diagnostic</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">P4 / sev 100</text>
+        </g>
+        <!-- Shelved/Suppressed — Magenta diamond -->
+        <g data-testid="alarm-indicator-shelved" transform="translate(278,18)">
+          <polygon points="0,-13 13,0 0,13 -13,0" class="al s"/>
+          <text x="0" y="0" class="at s">S</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Shelved</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">suppressed</text>
+        </g>
+        <!-- Disabled — Dark grey dashed rectangle -->
+        <g data-testid="alarm-indicator-disabled" transform="translate(348,18)">
+          <rect x="-13" y="-11" width="26" height="22" rx="2" class="al dis"/>
+          <text x="0" y="0" class="at dis">—</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Disabled</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">inactive</text>
+        </g>
+        <!-- Custom user alarm — Blue circle -->
+        <g data-testid="alarm-indicator-custom-acknowledged" transform="translate(418,18)">
+          <circle cx="0" cy="0" r="13" class="al cu"/>
+          <text x="0" y="0" class="at cu">C</text>
+          <text x="0" y="22" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Custom</text>
+          <text x="0" y="30" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">user-defined</text>
+        </g>
+        <!-- Unacknowledged flash demo (P1 Urgent) -->
+        <g data-testid="alarm-indicator-p1-unacknowledged" class="flash-u" transform="translate(488,18)">
+          <rect x="-13" y="-11" width="26" height="22" rx="2" class="al u"/>
+          <text x="0" y="0" class="at u">1</text>
+        </g>
+        <text x="488" y="40" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Unack'd</text>
+        <text x="488" y="48" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">flashing</text>
+        <!-- Ghost/inactive placeholder -->
+        <g data-testid="alarm-indicator-inactive" transform="translate(558,18)" opacity="0.25">
+          <rect x="-11" y="-9" width="22" height="18" rx="2" stroke="#808080" stroke-width="1" fill="none"/>
+          <text x="0" y="0" font-family="monospace" font-size="8" fill="#808080" text-anchor="middle" dominant-baseline="central">—</text>
+        </g>
+        <text x="558" y="40" font-size="7" fill="#71717A" text-anchor="middle" font-family="Inter">Inactive</text>
+        <text x="558" y="48" font-size="6" fill="#52525B" text-anchor="middle" font-family="Inter">no alarm</text>
+      </g>
+      <!-- 6. Digital Status (shape-sidecar-spec.md: normal=gray, abnormal=alarm color) -->
+      <g transform="translate(20,215)">
+        <text x="0" y="-6" font-family="Inter,sans-serif" font-size="9" fill="#2DD4BF">6. Digital Status — pill shape (rx=2px · no stroke)</text>
+        <!-- Row 1: Normal states -->
+        <g data-testid="digital-status-normal">
+          <rect x="0"   y="2" width="54" height="22" class="sp norm"/>
+          <text x="27"  y="13" class="st norm">RUNNING</text>
+          <rect x="62"  y="2" width="38" height="22" class="sp norm"/>
+          <text x="81"  y="13" class="st norm">OPEN</text>
+          <rect x="108" y="2" width="54" height="22" class="sp norm"/>
+          <text x="135" y="13" class="st norm">CASCADE</text>
+        </g>
+        <!-- Row 2: Abnormal states — priority varies per point config -->
+        <g data-testid="digital-status-p2-abnormal">
+          <rect x="0"   y="32" width="54" height="22" class="sp abn-h"/>
+          <text x="27"  y="43" class="st abn-h">STOPPED</text>
+          <rect x="62"  y="32" width="48" height="22" class="sp abn-h"/>
+          <text x="86"  y="43" class="st abn-h">MANUAL</text>
+        </g>
+        <g data-testid="digital-status-p1-abnormal">
+          <rect x="118" y="32" width="42" height="22" class="sp abn-u"/>
+          <text x="139" y="43" class="st abn-u">FAULT</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <div class="card-desc">
+    <p class="desc-src">shape-sidecar-spec.md §Display Element Types</p>
+    <dl>
+      <dt>1. Text Readout (normal)</dt><dd>bg --io-surface-elevated #27272A · border: --io-border #3F3F46 1px · rx=2px · value: JetBrains Mono 11px #A1A1AA</dd>
+      <dt>1. Text Readout (P2 alarm)</dt><dd>2px --al-high #F97316 border + 20% tint bg · value promoted to --io-text-primary · unit: --io-text-muted 9px</dd>
+      <dt>2. Analog Bar zones</dt><dd>HH #5C3A3A warm brown-red · H #5C4A32 warm brown · Normal --io-display-zone-normal #404048 · L #32445C cool blue-gray · LL #2E3A5C deep cool blue · pointer: --io-text-secondary #A1A1AA triangle · labels: 7px JetBrains Mono --io-text-muted</dd>
+      <dt>3. Fill Gauge (standalone)</dt><dd>fill: --io-fill-normal #475569 @ 60% opacity · container: --io-display-zone-border stroke 0.5px</dd>
+      <dt>3. Fill Gauge (vessel-clipped)</dt><dd>clips to vessel interior via clipPath · level line: #64748b dashed · in alarm: priority color @ 30% opacity</dd>
+      <dt>4. Sparkline (normal)</dt><dd>fixed 110×18px · bg: --io-surface-elevated #27272A · stroke: zinc-500 #71717A · width 1.5px · no border on bg rect · rx=1px</dd>
+      <dt>4. Sparkline (in alarm)</dt><dd>full ISA priority color · P4 diag=white #F4F4F5 · shelved=magenta dashed · disabled=dark grey sparse-dashed</dd>
+      <dt>5. Alarm Indicators</dt><dd>stroke-only · fill: none · stroke-width 1.8 · P1 Urgent=rect · P2 High=tri-up · P3 Low=tri-dn · P4 Diagnostic=ellipse · Shelved=diamond · Disabled=dashed rect</dd>
+      <dt>6. Digital Status (normal)</dt><dd>fill: --io-display-zone-inactive #3F3F46 · no stroke · text: --io-text-secondary #A1A1AA · JetBrains Mono 9px</dd>
+      <dt>6. Digital Status (abnormal)</dt><dd>fill = configured alarm priority color · P1/P2 → white text · P3/P4 → dark text #18181B · OffNormal fires when state ≠ configured normal</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 10. DIGITAL STATE TYPE REFERENCE — SimBLAH Demo DCS             -->
+<!-- ================================================================ -->
+<div class="card fw">
+  <div class="card-header">
+    <h2>Digital State Type Reference — SimBLAH Demo DCS</h2>
+    <span class="cat">OffNormal alarm mechanism · 8 state categories · pill color = representative default priority</span>
+  </div>
+  <div class="card-body" style="flex-direction:column; align-items:flex-start; padding:28px 36px;">
+    <svg width="680" height="305" viewBox="0 0 680 305">
+
+      <!-- Description -->
+      <text x="10" y="13" font-family="Inter,sans-serif" font-size="9" fill="#71717A">OffNormal fires when current state ≠ configured normal state. Abnormal pill color = representative default priority (configurable per point).</text>
+
+      <!-- Column headers -->
+      <text x="10"  y="31" font-family="Inter,sans-serif" font-size="8" fill="#2DD4BF">State Type</text>
+      <text x="130" y="31" font-family="Inter,sans-serif" font-size="8" fill="#2DD4BF">Normal</text>
+      <text x="258" y="31" font-family="Inter,sans-serif" font-size="8" fill="#2DD4BF">Abnormal states →</text>
+      <line x1="10" y1="37" x2="670" y2="37" stroke="#3F3F46" stroke-width="0.5"/>
+      <!-- Normal / Abnormal column divider -->
+      <line x1="250" y1="37" x2="250" y2="275" stroke="#27272A" stroke-width="1"/>
+
+      <!-- ─── Row 1: Boolean / Digital ─── -->
+      <text x="10" y="61" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Boolean / Digital</text>
+      <rect x="130" y="50" width="54" height="22" class="sp norm"/><text x="157" y="61" class="st norm">RUNNING</text>
+      <rect x="192" y="50" width="38" height="22" class="sp norm"/><text x="211" y="61" class="st norm">OPEN</text>
+      <rect x="258" y="50" width="54" height="22" class="sp abn-h"/><text x="285" y="61" class="st abn-h">STOPPED</text>
+      <rect x="320" y="50" width="48" height="22" class="sp abn-h"/><text x="344" y="61" class="st abn-h">CLOSED</text>
+      <rect x="376" y="50" width="42" height="22" class="sp abn-u"/><text x="397" y="61" class="st abn-u">FAULT</text>
+      <line x1="10" y1="78" x2="670" y2="78" stroke="#27272A" stroke-width="0.5"/>
+
+      <!-- ─── Row 2: Controller Mode ─── -->
+      <text x="10" y="101" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Controller Mode</text>
+      <rect x="130" y="90" width="54" height="22" class="sp norm"/><text x="157" y="101" class="st norm">CASCADE</text>
+      <rect x="258" y="90" width="48" height="22" class="sp abn-h"/><text x="282" y="101" class="st abn-h">MANUAL</text>
+      <rect x="314" y="90" width="38" height="22" class="sp abn-l"/><text x="333" y="101" class="st abn-l">AUTO</text>
+      <line x1="10" y1="118" x2="670" y2="118" stroke="#27272A" stroke-width="0.5"/>
+
+      <!-- ─── Row 3: Pump / Motor Status ─── -->
+      <text x="10" y="141" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Pump / Motor</text>
+      <rect x="130" y="130" width="54" height="22" class="sp norm"/><text x="157" y="141" class="st norm">RUNNING</text>
+      <rect x="258" y="130" width="60" height="22" class="sp abn-l"/><text x="288" y="141" class="st abn-l">STARTING</text>
+      <rect x="326" y="130" width="60" height="22" class="sp abn-l"/><text x="356" y="141" class="st abn-l">STOPPING</text>
+      <rect x="394" y="130" width="42" height="22" class="sp abn-u"/><text x="415" y="141" class="st abn-u">FAULT</text>
+      <rect x="444" y="130" width="54" height="22" class="sp abn-u"/><text x="471" y="141" class="st abn-u">TRIPPED</text>
+      <line x1="10" y1="158" x2="670" y2="158" stroke="#27272A" stroke-width="0.5"/>
+
+      <!-- ─── Row 4: Compressor Status ─── -->
+      <text x="10" y="181" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Compressor</text>
+      <rect x="130" y="170" width="54" height="22" class="sp norm"/><text x="157" y="181" class="st norm">RUNNING</text>
+      <rect x="258" y="170" width="66" height="22" class="sp abn-l"/><text x="291" y="181" class="st abn-l">UNLOADING</text>
+      <rect x="332" y="170" width="42" height="22" class="sp abn-u"/><text x="353" y="181" class="st abn-u">SURGE</text>
+      <rect x="382" y="170" width="42" height="22" class="sp abn-u"/><text x="403" y="181" class="st abn-u">FAULT</text>
+      <line x1="10" y1="198" x2="670" y2="198" stroke="#27272A" stroke-width="0.5"/>
+
+      <!-- ─── Row 5: Analyzer Status ─── -->
+      <text x="10" y="221" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Analyzer</text>
+      <rect x="130" y="210" width="48" height="22" class="sp norm"/><text x="154" y="221" class="st norm">ONLINE</text>
+      <rect x="258" y="210" width="76" height="22" class="sp abn-d"/><text x="296" y="221" class="st abn-d">CALIBRATING</text>
+      <rect x="342" y="210" width="48" height="22" class="sp abn-h"/><text x="366" y="221" class="st abn-h">BYPASS</text>
+      <rect x="398" y="210" width="42" height="22" class="sp abn-u"/><text x="419" y="221" class="st abn-u">FAULT</text>
+      <line x1="10" y1="238" x2="670" y2="238" stroke="#27272A" stroke-width="0.5"/>
+
+      <!-- ─── Row 6: Tank Operating State ─── -->
+      <text x="10" y="261" font-family="Inter,sans-serif" font-size="9" fill="#A1A1AA">Tank State</text>
+      <rect x="130" y="250" width="48" height="22" class="sp norm"/><text x="154" y="261" class="st norm">STATIC</text>
+      <rect x="258" y="250" width="54" height="22" class="sp abn-d"/><text x="285" y="261" class="st abn-d">FILLING</text>
+      <rect x="320" y="250" width="60" height="22" class="sp abn-d"/><text x="350" y="261" class="st abn-d">EMPTYING</text>
+      <rect x="388" y="250" width="36" height="22" class="sp abn-h"/><text x="406" y="261" class="st abn-h">OOS</text>
+      <rect x="432" y="250" width="66" height="22" class="sp abn-d"/><text x="465" y="261" class="st abn-d">CERTIFIED</text>
+
+      <!-- Footer note -->
+      <text x="10" y="292" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Priority key — Orange=P2 High · Yellow=P3 Low (dark text) · White=P4 Diagnostic (dark text) · Red=P1 Urgent · BMS and Rail Loading follow Pump/Motor pattern.</text>
+
+    </svg>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 11. SPARKLINE STATE REFERENCE — All runtime stroke states        -->
+<!-- ================================================================ -->
+<div class="card fw">
+  <div class="card-header">
+    <h2>Sparkline — All Runtime States</h2>
+    <span class="cat">Normal (zinc-300) + 4 alarm priorities + suppression states</span>
+  </div>
+  <div class="card-body" style="flex-direction:column; align-items:flex-start; gap:0; padding:28px 36px;">
+    <svg width="660" height="258" viewBox="0 0 660 258">
+
+      <!-- Column headers -->
+      <text x="130" y="12" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State</text>
+      <text x="280" y="12" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">Sparkline</text>
+      <text x="430" y="12" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Notes</text>
+
+      <!-- Row 1: Normal -->
+      <g data-testid="sparkline-normal">
+        <text x="10"  y="37" font-family="JetBrains Mono,monospace" font-size="10" fill="#D4D4D8">Normal</text>
+        <text x="10"  y="49" font-family="Inter,sans-serif" font-size="8" fill="#52525B">no alarm active</text>
+        <rect x="225" y="24" width="110" height="18" class="sb"/>
+        <polyline points="228,38 236,35 244,36 252,31 260,33 268,29 276,34 284,32 292,29 300,33 308,31 316,35 324,32 332,34" class="sl normal"/>
+        <text x="350" y="30" font-family="Inter,sans-serif" font-size="9" fill="#71717A">stroke: zinc-500 #71717A (--io-text-muted) · width 1.5px step-end linejoin</text>
+        <text x="350" y="40" font-family="Inter,sans-serif" font-size="9" fill="#52525B">bg: --io-surface-elevated #27272A · no stroke on bg rect · rx=1px</text>
+      </g>
+
+      <!-- Row 2: P4 Diagnostic -->
+      <g data-testid="sparkline-p4-diagnostic">
+        <text x="10"  y="75" font-family="JetBrains Mono,monospace" font-size="10" fill="#F4F4F5">P4 Diagnostic</text>
+        <text x="10"  y="87" font-family="Inter,sans-serif" font-size="8" fill="#52525B">severity 100</text>
+        <rect x="225" y="62" width="110" height="18" class="sb"/>
+        <polyline points="228,76 236,73 244,74 252,69 260,71 268,67 276,72 284,70 292,67 300,71 308,69 316,73 324,70 332,72" class="sl diag"/>
+        <text x="350" y="73" font-family="Inter,sans-serif" font-size="9" fill="#71717A">White #F4F4F5 — stands out from normal; no urgency implied</text>
+      </g>
+
+      <!-- Row 3: P3 Low -->
+      <g data-testid="sparkline-p3-low">
+        <text x="10"  y="113" font-family="JetBrains Mono,monospace" font-size="10" fill="#EAB308">P3 Low</text>
+        <text x="10"  y="125" font-family="Inter,sans-serif" font-size="8" fill="#52525B">severity 300</text>
+        <rect x="225" y="100" width="110" height="18" class="sb"/>
+        <polyline points="228,114 236,110 244,112 252,106 260,108 268,103 276,109 284,106 292,102 300,107 308,104 316,109 324,106 332,108" class="sl low"/>
+        <text x="350" y="111" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Yellow #EAB308 — action required eventually</text>
+      </g>
+
+      <!-- Row 4: P2 High -->
+      <g data-testid="sparkline-p2-high">
+        <text x="10"  y="151" font-family="JetBrains Mono,monospace" font-size="10" fill="#F97316">P2 High</text>
+        <text x="10"  y="163" font-family="Inter,sans-serif" font-size="8" fill="#52525B">severity 600</text>
+        <rect x="225" y="138" width="110" height="18" class="sb"/>
+        <polyline points="228,152 236,148 244,150 252,144 260,146 268,141 276,147 284,144 292,140 300,145 308,142 316,147 324,144 332,146" class="sl high"/>
+        <text x="350" y="149" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Orange #F97316 — action required soon</text>
+      </g>
+
+      <!-- Row 5: P1 Urgent -->
+      <g data-testid="sparkline-p1-urgent">
+        <text x="10"  y="189" font-family="JetBrains Mono,monospace" font-size="10" fill="#EF4444">P1 Urgent</text>
+        <text x="10"  y="201" font-family="Inter,sans-serif" font-size="8" fill="#52525B">severity 900</text>
+        <rect x="225" y="176" width="110" height="18" class="sb"/>
+        <polyline points="228,189 236,183 244,186 252,178 260,181 268,175 276,182 284,179 292,174 300,180 308,177 316,182 324,178 332,181" class="sl urgent"/>
+        <text x="350" y="187" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Red #EF4444 — immediate action required</text>
+      </g>
+
+      <!-- Row 6: Custom user alarm -->
+      <g data-testid="sparkline-custom">
+        <text x="10"  y="227" font-family="JetBrains Mono,monospace" font-size="10" fill="#60A5FA">Custom</text>
+        <text x="10"  y="239" font-family="Inter,sans-serif" font-size="8" fill="#52525B">user-defined</text>
+        <rect x="225" y="214" width="110" height="18" class="sb"/>
+        <polyline points="228,227 236,222 244,224 252,218 260,221 268,216 276,222 284,220 292,216 300,221 308,218 316,222 324,219 332,221" class="sl custom"/>
+        <text x="350" y="225" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Blue #60A5FA — user-configured alarm on graphic</text>
+      </g>
+
+    </svg>
+    <!-- Second SVG: suppression states side by side -->
+    <svg width="660" height="100" viewBox="0 0 660 100" style="margin-top:8px; border-top:1px solid #27272A; padding-top:12px;">
+
+      <text x="10" y="14" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Suppression states (point still has a live value but operator action is blocked or deferred):</text>
+
+      <!-- Shelved -->
+      <text x="10"  y="42" font-family="JetBrains Mono,monospace" font-size="10" fill="#D946EF">Shelved</text>
+      <text x="10"  y="54" font-family="Inter,sans-serif" font-size="8" fill="#52525B">alarm suppressed</text>
+      <rect x="130" y="30" width="110" height="18" class="sb"/>
+      <polyline points="133,44 141,41 149,42 157,37 165,39 173,35 181,40 189,38 197,34 205,39 213,37 221,41 229,38 237,40" class="sl shelved"/>
+      <text x="255" y="41" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Magenta #D946EF dashed — point is trending, alarm is suppressed</text>
+
+      <!-- Disabled -->
+      <text x="10"  y="82" font-family="JetBrains Mono,monospace" font-size="10" fill="#52525B">Disabled</text>
+      <text x="10"  y="94" font-family="Inter,sans-serif" font-size="8" fill="#52525B">point not active</text>
+      <rect x="130" y="68" width="110" height="18" class="sb"/>
+      <polyline points="133,77 141,77 149,77 157,77 165,77 173,77 181,77 189,77 197,77 205,77 213,77 221,77 229,77 237,77" class="sl disabled"/>
+      <text x="255" y="79" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Dark grey #52525B sparse-dashed — flat/stale, point inactive</text>
+
+    </svg>
+  </div>
+</div>
+
+
+<!-- ================================================================ -->
+<!-- NEW: ANALOG BAR — Stale, Bad Quality, and Alarm Zone States       -->
+<!-- ================================================================ -->
+<div class="card fw">
+  <div class="card-header">
+    <h2>Analog Bar — Stale, Bad Quality &amp; Alarm Zone States</h2>
+    <span class="cat">analog_bar · data quality and alarm overlays · Dark theme</span>
+  </div>
+  <div class="card-body" style="flex-direction:column; align-items:flex-start; gap:0; padding:28px 36px;">
+    <svg width="780" height="300" viewBox="0 0 780 300">
+      <defs>
+        <!-- Hatch for Bad Phase 1: dark/HPHMI uses #636363 stroke -->
+        <pattern id="bad-hatch-dark" patternUnits="userSpaceOnUse" width="4" height="4">
+          <line x1="0" y1="4" x2="4" y2="0" stroke="#636363" stroke-width="0.8"/>
+        </pattern>
+      </defs>
+
+      <!-- Column headers -->
+      <text x="40"  y="18" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 1 — Stale</text>
+      <text x="200" y="18" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 2 — Bad Phase 1</text>
+      <text x="360" y="18" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 3 — Bad Phase 2</text>
+      <text x="520" y="18" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 4 — Alarm Zone Active</text>
+
+      <!-- ─── STATE 1: STALE (pointer in stale color, ⏱ icon) ─── -->
+      <g data-testid="analog-bar-stale" transform="translate(22, 30)">
+        <!-- Bar bg + zones: HH=15%, H=15%, N=40%, L=15%, LL=15% of 120px -->
+        <rect x="0" y="0" width="18" height="120" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="1"   width="16" height="18" fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="19"  width="16" height="18" fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="37"  width="16" height="48" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="85"  width="16" height="18" fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="103" width="16" height="16" fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Zone labels -->
+        <text x="-3" y="12"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+        <text x="-3" y="30"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">H</text>
+        <text x="-3" y="94"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+        <text x="-3" y="113" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+        <!-- Pointer at 55% from top → y=66, in stale color #636363 -->
+        <polygon points="18,66 25,63 25,69" fill="#636363" stroke="none"/>
+        <line x1="1" y1="66" x2="17" y2="66" stroke="#636363" stroke-width="1"/>
+        <!-- ⏱ icon below bar -->
+        <text x="2" y="138" font-family="Inter,sans-serif" font-size="11" fill="#636363">⏱</text>
+        <!-- State annotation -->
+        <text x="32" y="66" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Pointer → --io-text-stale #636363</text>
+        <text x="32" y="76" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Line same stale color · ⏱ 11px below bar</text>
+        <text x="32" y="86" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Zone bands unchanged · border unchanged</text>
+      </g>
+
+      <!-- ─── STATE 2: BAD PHASE 1 (stale pointer + hatch overlay + ⚠) ─── -->
+      <g data-testid="analog-bar-bad-phase1" transform="translate(182, 30)">
+        <rect x="0" y="0" width="18" height="120" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="1"   width="16" height="18" fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="19"  width="16" height="18" fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="37"  width="16" height="48" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="85"  width="16" height="18" fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="103" width="16" height="16" fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Zone labels -->
+        <text x="-3" y="12"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+        <text x="-3" y="30"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">H</text>
+        <text x="-3" y="94"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+        <text x="-3" y="113" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+        <!-- Pointer at 55% → y=66, stale color -->
+        <polygon points="18,66 25,63 25,69" fill="#636363" stroke="none"/>
+        <line x1="1" y1="66" x2="17" y2="66" stroke="#636363" stroke-width="1"/>
+        <!-- Hatch overlay on pointer area (rect at pointer region) at 60% opacity -->
+        <rect x="1" y="62" width="24" height="8" fill="url(#bad-hatch-dark)" opacity="0.6"/>
+        <!-- ⚠ icon below bar -->
+        <text x="2" y="138" font-family="Inter,sans-serif" font-size="11" fill="#636363">⚠</text>
+        <!-- Annotation -->
+        <text x="32" y="56" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Hatch additive over stale pointer area</text>
+        <text x="32" y="66" font-family="Inter,sans-serif" font-size="8" fill="#52525B">pattern: #636363 diag lines · 60% opacity</text>
+        <text x="32" y="76" font-family="Inter,sans-serif" font-size="8" fill="#52525B">⚠ 11px · --io-text-stale · ISA: 0–30s</text>
+        <text x="32" y="86" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Zone bands always visible at full opacity</text>
+      </g>
+
+      <!-- ─── STATE 3: BAD PHASE 2 (no pointer, "BAD" text, zones still visible) ─── -->
+      <g data-testid="analog-bar-bad-phase2" transform="translate(342, 30)">
+        <rect x="0" y="0" width="18" height="120" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="1"   width="16" height="18" fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="19"  width="16" height="18" fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="37"  width="16" height="48" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="85"  width="16" height="18" fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="103" width="16" height="16" fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Zone labels -->
+        <text x="-3" y="12"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+        <text x="-3" y="30"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">H</text>
+        <text x="-3" y="94"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+        <text x="-3" y="113" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+        <!-- No pointer, no setpoint. "BAD" text centered on bar -->
+        <text x="9" y="62" font-family="JetBrains Mono,Consolas,monospace" font-size="9" fill="#71717A" text-anchor="middle" dominant-baseline="central">BAD</text>
+        <!-- Annotation -->
+        <text x="32" y="46" font-family="Inter,sans-serif" font-size="8" fill="#71717A">No pointer rendered (30s+ bad quality)</text>
+        <text x="32" y="56" font-family="Inter,sans-serif" font-size="8" fill="#52525B">No setpoint marker</text>
+        <text x="32" y="66" font-family="Inter,sans-serif" font-size="8" fill="#52525B">"BAD" centered on bar · 9px JetBrains Mono</text>
+        <text x="32" y="76" font-family="Inter,sans-serif" font-size="8" fill="#52525B">--io-text-muted #71717A</text>
+        <text x="32" y="86" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Zone bands still visible at normal opacity</text>
+      </g>
+
+      <!-- ─── STATE 4: ALARM ZONE ACTIVE (pointer in H zone, H zone lit up) ─── -->
+      <g data-testid="analog-bar-alarm-zone" transform="translate(502, 30)">
+        <rect x="0" y="0" width="18" height="120" fill="#27272A" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="1"   width="16" height="18" fill="#5C3A3A" stroke="#52525B" stroke-width="0.5"/>
+        <!-- H zone: base color + alarm high (#F97316) at 50% opacity -->
+        <rect x="1" y="19"  width="16" height="18" fill="#5C4A32" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="19"  width="16" height="18" fill="#F97316" opacity="0.5"/>
+        <!-- 1.5px alarm high border on active zone -->
+        <rect x="0" y="18"  width="18" height="20" fill="none" stroke="#F97316" stroke-width="1.5"/>
+        <rect x="1" y="37"  width="16" height="48" fill="#404048" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="85"  width="16" height="18" fill="#32445C" stroke="#52525B" stroke-width="0.5"/>
+        <rect x="1" y="103" width="16" height="16" fill="#2E3A5C" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Zone labels: H label in alarm color -->
+        <text x="-3" y="12"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">HH</text>
+        <text x="-3" y="30"  font-family="JetBrains Mono,monospace" font-size="7" fill="#F97316" text-anchor="end">H</text>
+        <text x="-3" y="94"  font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">L</text>
+        <text x="-3" y="113" font-family="JetBrains Mono,monospace" font-size="7" fill="#71717A" text-anchor="end">LL</text>
+        <!-- Pointer at H zone midpoint (y≈28), in alarm high color -->
+        <polygon points="18,28 25,25 25,31" fill="#F97316" stroke="none"/>
+        <line x1="1" y1="28" x2="17" y2="28" stroke="#F97316" stroke-width="1"/>
+        <!-- Annotation -->
+        <text x="32" y="18" font-family="Inter,sans-serif" font-size="8" fill="#71717A">H zone: base fill + --al-high #F97316 @50%</text>
+        <text x="32" y="28" font-family="Inter,sans-serif" font-size="8" fill="#52525B">+ 1.5px #F97316 border on active zone</text>
+        <text x="32" y="38" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Pointer and line in alarm high color</text>
+        <text x="32" y="48" font-family="Inter,sans-serif" font-size="8" fill="#52525B">H label → alarm color (zone active)</text>
+      </g>
+
+      <!-- Bottom notes -->
+      <text x="10" y="220" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Dark theme zone colors: HH=#5C3A3A · H=#5C4A32 · Normal=#404048 · L=#32445C · LL=#2E3A5C</text>
+      <text x="10" y="234" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Bad Phase 1 hatch pattern is additive over stale color — not a replacement. Zone bands always visible in Phase 2.</text>
+      <text x="10" y="248" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Hatch pattern id="bad-hatch-dark": diag lines stroke #636363 · patternUnits userSpaceOnUse · width=4 height=4</text>
+      <text x="10" y="262" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Alarm zone active: zone switches to ISA priority color at 50% overlay — replaces threshold visual cue during alarm.</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- NEW: FILL GAUGE — Stale, Bad Quality, and Alarm States            -->
+<!-- ================================================================ -->
+<div class="card fw">
+  <div class="card-header">
+    <h2>Fill Gauge — Stale, Bad Quality &amp; Alarm States</h2>
+    <span class="cat">fill_gauge · data quality and alarm overlays · Dark theme</span>
+  </div>
+  <div class="card-body" style="flex-direction:column; align-items:flex-start; gap:0; padding:28px 36px;">
+    <svg width="700" height="280" viewBox="0 0 700 280">
+      <defs>
+        <clipPath id="fg-clip-stale"><rect x="1" y="1" width="38" height="98" rx="2"/></clipPath>
+        <clipPath id="fg-clip-bad1"><rect x="1" y="1" width="38" height="98" rx="2"/></clipPath>
+        <clipPath id="fg-clip-bad2"><rect x="1" y="1" width="38" height="98" rx="2"/></clipPath>
+        <clipPath id="fg-clip-alarm"><rect x="1" y="1" width="38" height="98" rx="2"/></clipPath>
+        <pattern id="fg-bad-hatch" patternUnits="userSpaceOnUse" width="4" height="4">
+          <line x1="0" y1="4" x2="4" y2="0" stroke="#636363" stroke-width="0.8"/>
+        </pattern>
+      </defs>
+
+      <!-- Column headers -->
+      <text x="60"  y="16" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 1 — Stale</text>
+      <text x="220" y="16" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 2 — Bad Phase 1</text>
+      <text x="380" y="16" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 3 — Bad Phase 2</text>
+      <text x="540" y="16" font-family="Inter,sans-serif" font-size="9" fill="#52525B" text-anchor="middle">State 4 — Alarm (HH zone)</text>
+
+      <!-- ─── STATE 1: STALE ─── -->
+      <g data-testid="fill-gauge-stale" transform="translate(40, 30)">
+        <!-- Vessel outline -->
+        <rect x="0" y="0" width="40" height="100" rx="2" fill="none" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Fill at ~60% level, 30% opacity (stale rule) -->
+        <rect x="1" y="41" width="38" height="58" fill="#475569" opacity="0.3" clip-path="url(#fg-clip-stale)"/>
+        <!-- Level line -->
+        <line x1="2" y1="41" x2="38" y2="41" stroke="#64748b" stroke-width="1" stroke-dasharray="5 3" opacity="0.5"/>
+        <!-- ⏱ icon centered -->
+        <text x="20" y="66" font-family="Inter,sans-serif" font-size="11" fill="#636363" text-anchor="middle">⏱</text>
+        <!-- Annotation -->
+        <text x="48" y="35" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Fill at 30% opacity</text>
+        <text x="48" y="45" font-family="Inter,sans-serif" font-size="8" fill="#52525B">(stale: opacity 0.3)</text>
+        <text x="48" y="55" font-family="Inter,sans-serif" font-size="8" fill="#52525B">⏱ 11px · --io-text-stale</text>
+        <text x="48" y="65" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Level line dims</text>
+      </g>
+
+      <!-- ─── STATE 2: BAD PHASE 1 ─── -->
+      <g data-testid="fill-gauge-bad-phase1" transform="translate(200, 30)">
+        <rect x="0" y="0" width="40" height="100" rx="2" fill="none" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Fill at 30% opacity (stale base) -->
+        <rect x="1" y="41" width="38" height="58" fill="#475569" opacity="0.3" clip-path="url(#fg-clip-bad1)"/>
+        <!-- Hatch overlay on fill area at 60% opacity -->
+        <rect x="1" y="41" width="38" height="58" fill="url(#fg-bad-hatch)" opacity="0.6" clip-path="url(#fg-clip-bad1)"/>
+        <!-- ⚠ icon centered on fill area -->
+        <text x="20" y="68" font-family="Inter,sans-serif" font-size="11" fill="#636363" text-anchor="middle">⚠</text>
+        <!-- Annotation -->
+        <text x="48" y="35" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Stale opacity + hatch overlay</text>
+        <text x="48" y="45" font-family="Inter,sans-serif" font-size="8" fill="#52525B">opacity 0.3 + hatch @60%</text>
+        <text x="48" y="55" font-family="Inter,sans-serif" font-size="8" fill="#52525B">⚠ 11px centered on fill</text>
+        <text x="48" y="65" font-family="Inter,sans-serif" font-size="8" fill="#52525B">ISA: 0–30s bad quality</text>
+      </g>
+
+      <!-- ─── STATE 3: BAD PHASE 2 ─── -->
+      <g data-testid="fill-gauge-bad-phase2" transform="translate(360, 30)">
+        <rect x="0" y="0" width="40" height="100" rx="2" fill="none" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Fill frozen at ~60%, 15% opacity (never drops to 0) -->
+        <rect x="1" y="41" width="38" height="58" fill="#475569" opacity="0.15" clip-path="url(#fg-clip-bad2)"/>
+        <!-- "BAD" text centered on fill area -->
+        <text x="20" y="68" font-family="JetBrains Mono,Consolas,monospace" font-size="10" fill="#71717A" text-anchor="middle" dominant-baseline="central">BAD</text>
+        <!-- Annotation -->
+        <text x="48" y="35" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Frozen fill ~15% opacity</text>
+        <text x="48" y="45" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Never shows 0 — last known</text>
+        <text x="48" y="55" font-family="Inter,sans-serif" font-size="8" fill="#52525B">"BAD" 10px JetBrains Mono</text>
+        <text x="48" y="65" font-family="Inter,sans-serif" font-size="8" fill="#52525B">--io-text-muted #71717A</text>
+        <text x="48" y="75" font-family="Inter,sans-serif" font-size="8" fill="#52525B">ISA: 30s+ bad quality</text>
+      </g>
+
+      <!-- ─── STATE 4: ALARM — fill in HH zone ─── -->
+      <g data-testid="fill-gauge-alarm" transform="translate(520, 30)">
+        <rect x="0" y="0" width="40" height="100" rx="2" fill="none" stroke="#52525B" stroke-width="0.5"/>
+        <!-- Fill at 30% opacity, alarm urgent color (#EF4444) tint — level near-full (HH alarm) -->
+        <rect x="1" y="5" width="38" height="94" fill="#EF4444" opacity="0.3" clip-path="url(#fg-clip-alarm)"/>
+        <!-- Level line -->
+        <line x1="2" y1="5" x2="38" y2="5" stroke="#EF4444" stroke-width="1" stroke-dasharray="5 3" opacity="0.7"/>
+        <!-- Annotation -->
+        <text x="48" y="15" font-family="Inter,sans-serif" font-size="8" fill="#71717A">Fill → alarm priority color</text>
+        <text x="48" y="25" font-family="Inter,sans-serif" font-size="8" fill="#52525B">--al-urgent #EF4444 @30% opacity</text>
+        <text x="48" y="35" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Level line in alarm color</text>
+        <text x="48" y="45" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Fill in HH zone (near-full)</text>
+        <text x="48" y="55" font-family="Inter,sans-serif" font-size="8" fill="#52525B">Unack'd: flashes 1Hz step-end</text>
+      </g>
+
+      <!-- Bottom notes -->
+      <text x="10" y="210" font-family="Inter,sans-serif" font-size="9" fill="#71717A">Fill gauge normal: --io-fill-normal #475569 @ 60% opacity. Stale: 30% opacity. Bad Phase 2: 15% opacity (never 0%).</text>
+      <text x="10" y="224" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Alarm: fill switches to ISA alarm priority color at 30% opacity. Unacknowledged alarm: fill flashes 1Hz step-end (color ↔ transparent).</text>
+      <text x="10" y="238" font-family="Inter,sans-serif" font-size="9" fill="#52525B">Hatch pattern additive over stale opacity — not a replacement. Level line dims in stale, uses alarm color in alarm state.</text>
+    </svg>
+  </div>
+</div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <h3>Legend — Sidecar JSON → Visual Elements</h3>
+  <div class="lg">
+    <div class="li"><div class="ls" style="background:#2DD4BF"></div>Connection point — <code>connections[]</code> (accent-400)</div>
+    <div class="li"><div class="ls" style="background:#808080"></div>Equipment shape — <code>.io-stateful</code> #808080 ISA baseline</div>
+    <div class="li"><div class="ls" style="background:#27272A;border:1px solid #3F3F46"></div>Text Readout — <code>--io-surface-elevated</code> bg, <code>--io-border</code> stroke</div>
+    <div class="li"><div class="ls" style="background:#3F3F46;border:1px solid #52525B"></div>Analog Bar — inactive zones <code>--io-display-zone-inactive</code>, only active zone lights up</div>
+    <div class="li"><div class="ls" style="background:#475569;opacity:0.6;border:1px solid #52525B"></div>Fill Gauge — <code>--io-fill-normal</code> (#475569), clips to vessel interior via <code>&lt;clipPath&gt;</code></div>
+    <div class="li"><div class="ls" style="background:#27272A;position:relative"><div style="position:absolute;top:5px;left:2px;right:2px;height:2px;background:#71717A"></div></div>Sparkline — fixed 110×18, normal=zinc-500 (#71717A); P4 Diagnostic=white; P3–P1=ISA priority colors; shelved=magenta dashed; disabled=dark grey</div>
+    <div class="li"><div class="ls" style="background:#3F3F46;border-radius:2px"></div>Digital Status — normal=<code>--io-display-zone-inactive</code> gray, abnormal=alarm color</div>
+    <div class="li"><div class="ls" style="border:2px solid #EF4444;border-radius:2px"></div>Alarm Indicator — <code>alarmAnchor</code> (ISA-18.2 / ISA-101: P1 Urgent red · P2 High orange · P3 Low yellow · P4 Diagnostic white)</div>
+    <div class="li"><div class="ls" style="border:1px dashed #52525B"></div>Signal Line — dashed connector (0.75px)</div>
+    <div class="li"><div class="ls" style="background:#A1A1AA;border-radius:50%;width:12px;height:12px;margin:2px"></div>textZone — <code>textZones[]</code> (tagname, value)</div>
+  </div>
+</div>
+
+<div class="legend" style="margin-top:16px">
+  <h3>Color Source Map</h3>
+  <div style="font-size:12px;color:#A1A1AA;line-height:2">
+    <table style="border-collapse:collapse;width:100%">
+      <tr style="border-bottom:1px solid #3F3F46">
+        <th style="text-align:left;padding:4px 12px 4px 0;color:#F9FAFB;font-size:11px">Element</th>
+        <th style="text-align:left;padding:4px 12px;color:#F9FAFB;font-size:11px">Hex (Dark)</th>
+        <th style="text-align:left;padding:4px 12px;color:#F9FAFB;font-size:11px">Token / Source</th>
+      </tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Background</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#09090B</td><td style="padding:3px 12px"><code>--io-surface-primary</code> (shape-sidecar-spec.md Dark)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Card / Panel</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#18181B</td><td style="padding:3px 12px"><code>--io-surface-secondary</code> (shape-sidecar-spec.md Dark)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Equipment stroke</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#808080</td><td style="padding:3px 12px">ISA-101 baseline (shape-sidecar-spec.md — all themes)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Accent / connections</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#2DD4BF</td><td style="padding:3px 12px"><code>--accent-400</code> Midnight Teal (shape-sidecar-spec.md Dark)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">P1 Urgent (sev 900)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#EF4444</td><td style="padding:3px 12px"><code>--al-urgent</code> red-500 — immediate action required</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">P2 High (sev 600)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#F97316</td><td style="padding:3px 12px"><code>--al-high</code> orange-500 — action required soon</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">P3 Low (sev 300)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#EAB308</td><td style="padding:3px 12px"><code>--al-low</code> yellow-500 — action required eventually</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">P4 Diagnostic (sev 100)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#F4F4F5</td><td style="padding:3px 12px"><code>--al-diag</code> zinc-100 white — informational; no urgency implied</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Custom (user-defined)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#60A5FA</td><td style="padding:3px 12px"><code>--al-custom</code> blue-400 — user-configured alarm on a graphic; circle shape</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Shelved / Suppressed</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#D946EF</td><td style="padding:3px 12px"><code>--al-shelved</code> fuchsia-500 magenta — alarm active but suppressed</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Disabled</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#52525B</td><td style="padding:3px 12px"><code>--al-disabled</code> zinc-600 dark grey — point not active</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Running/Open fill</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#059669</td><td style="padding:3px 12px"><code>.io-running .io-stateful</code> (shape-sidecar-spec.md)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Flash behavior</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">color ↔ #808080</td><td style="padding:3px 12px"><code>@keyframes io-alarm-flash</code> (shape-sidecar-spec.md)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Readout/sparkline bg</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#27272A</td><td style="padding:3px 12px"><code>--io-surface-elevated</code> (shape-sidecar-spec.md)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Value text (normal)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#A1A1AA</td><td style="padding:3px 12px"><code>--io-text-secondary</code> — promoted to primary only in alarm</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Sparkline stroke (normal)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#71717A</td><td style="padding:3px 12px">zinc-500 <code>--io-text-muted</code> — passive/muted, clearly below diagnostic white (#F4F4F5)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Fill gauge (normal)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#475569 @ 60%</td><td style="padding:3px 12px"><code>--io-fill-normal</code> — muted blue-gray (shape-sidecar-spec.md)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Zone inactive</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#3F3F46</td><td style="padding:3px 12px"><code>--io-display-zone-inactive</code> (shape-sidecar-spec.md)</td></tr>
+      <tr style="border-bottom:1px solid #27272A"><td style="padding:3px 12px 3px 0">Digital status (normal)</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#3F3F46</td><td style="padding:3px 12px"><code>--io-display-zone-inactive</code> — gray pill, color only for abnormal</td></tr>
+      <tr><td style="padding:3px 12px 3px 0">Primary text</td><td style="padding:3px 12px;font-family:monospace;font-size:11px">#F9FAFB</td><td style="padding:3px 12px"><code>--io-text-primary</code> (shape-sidecar-spec.md Dark)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TEXT READOUT — ALL STATES                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="legend" style="margin-top:32px">
+  <h3>Text Readout — All States</h3>
+  <p style="font-size:12px;color:var(--io-text-muted);margin-bottom:20px">Point Name label color never changes on alarm (ISA-101). Border, tint, and value text respond to state. Open in browser for live flash animation.</p>
+
+  <div class="ro-section-label">Data Quality</div>
+  <div class="ro-row">
+    <div class="ro-group" data-testid="text-readout-normal"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Normal<br><span style="font-size:9px;color:#52525B">--io-text-secondary #A1A1AA · JetBrains Mono 11px</span></div></div>
+    <div class="ro-group" data-testid="text-readout-stale"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val ro-stale">87.3 °F</span><span class="ro-clock">⏱</span></div><div class="ro-label">Stale<br><span style="font-size:9px;color:#52525B">--io-text-stale #636363 · ⏱ 1em · no border change</span></div></div>
+    <div class="ro-group" data-testid="text-readout-no-connection"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val ro-nc">N/C</span></div><div class="ro-label">No Connection<br><span style="font-size:9px;color:#52525B">--io-text-muted #71717A · literal "N/C"</span></div></div>
+    <div class="ro-group" data-testid="text-readout-disabled"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-dis"><span class="ro-val ro-nc">—</span></div><div class="ro-label">Disabled<br><span style="font-size:9px;color:#52525B">--al-disabled dashed border · no value</span></div></div>
+  </div>
+
+  <div class="ro-section-label">OPC Bad Quality</div>
+  <div class="ro-row">
+    <div class="ro-group" data-testid="text-readout-bad-phase1"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val ro-stale">87.3 °F</span><span class="ro-warn">⚠</span></div><div class="ro-label">Bad — Phase 1<br><span style="font-size:9px;color:#52525B">last good + ⚠ (0–30s) · stale color · ISA: transmitter fault</span></div></div>
+    <div class="ro-group" data-testid="text-readout-bad-phase2"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val ro-nc">BAD</span></div><div class="ro-label">Bad — Phase 2<br><span style="font-size:9px;color:#52525B">after 30s · value replaced · --io-text-muted</span></div></div>
+  </div>
+  <div class="ro-note">OPC Bad ≠ Stale: Phase 1 (⚠) = transmitter fault, last value shown. Phase 2 (BAD) = value unreliable, not displayed. 3s onset debounce / 5s recovery debounce prevents 1Hz flicker.</div>
+
+  <div class="ro-section-label" style="margin-top:16px">Value Update Animation</div>
+  <div class="ro-row">
+    <div class="ro-group" data-testid="text-readout-update-animation"><div class="ro-tag">24-TI-0101</div><div class="ro-cell ro-update-demo"><span class="ro-val">87.3 °F</span></div><div class="ro-label">On update (default on)<br><span style="font-size:9px;color:#52525B">bg flash ~150ms · @keyframes · 2s cooldown</span></div></div>
+    <div class="ro-group" data-testid="text-readout-silent"><div class="ro-tag">24-TI-0101</div><div class="ro-cell"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Silent (animation off)<br><span style="font-size:9px;color:#52525B">per-element toggle · no animation</span></div></div>
+  </div>
+  <div class="ro-note">Update flash: background briefly brightens on new WebSocket value. Configurable per element (default on). 2-second cooldown between flashes prevents shimmer at 1Hz+ update rates.</div>
+
+  <div class="ro-section-label" style="margin-top:16px">Alarm — Acknowledged</div>
+  <div class="ro-row">
+    <div class="ro-group" data-testid="text-readout-p1-acknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-u"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P1 Urgent<br><span style="font-size:9px;color:#52525B">2px --al-urgent #EF4444 border · 20% tint bg</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p2-acknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-h"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P2 High<br><span style="font-size:9px;color:#52525B">2px --al-high #F97316 border · 20% tint bg</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p3-acknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-l"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P3 Low<br><span style="font-size:9px;color:#52525B">2px --al-low #EAB308 border · 20% tint bg</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p4-acknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-d"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P4 Diagnostic<br><span style="font-size:9px;color:#52525B">2px --al-diag #F4F4F5 border · 8% tint bg</span></div></div>
+    <div class="ro-group" data-testid="text-readout-shelved"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-s"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Shelved<br><span style="font-size:9px;color:#52525B">--al-shelved #D946EF magenta · steady</span></div></div>
+    <div class="ro-group" data-testid="text-readout-custom-acknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-cu"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Custom<br><span style="font-size:9px;color:#52525B">--al-custom #60A5FA blue · acknowledged</span></div></div>
+  </div>
+
+  <div class="ro-section-label">Alarm — Unacknowledged (live in browser)</div>
+  <div class="ro-row">
+    <div class="ro-group" data-testid="text-readout-p1-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-u-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P1 Urgent<br><span style="font-size:9px;color:#52525B">1s step-end flash · color↔normal border</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p2-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-h-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P2 High<br><span style="font-size:9px;color:#52525B">1s step-end flash · value text → alarm color</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p3-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-l-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P3 Low<br><span style="font-size:9px;color:#52525B">1s step-end flash</span></div></div>
+    <div class="ro-group" data-testid="text-readout-p4-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-d-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">P4 Diagnostic<br><span style="font-size:9px;color:#52525B">steady (no flash per ISA for P4)</span></div></div>
+    <div class="ro-group" data-testid="text-readout-shelved-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-s-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Shelved<br><span style="font-size:9px;color:#52525B">steady (suppressed; no flash)</span></div></div>
+    <div class="ro-group" data-testid="text-readout-custom-unacknowledged"><div class="ro-tag">24-TI-0101</div><div class="ro-cell al-cu-un"><span class="ro-val">87.3 °F</span></div><div class="ro-label">Custom<br><span style="font-size:9px;color:#52525B">1s step-end flash · --al-custom blue</span></div></div>
+  </div>
+  <div class="ro-note">Unacknowledged: border flashes 1s step-end. Value text promotes to alarm priority color. P1–P3 and Custom flash; P4, Shelved, Disabled are steady.</div>
+</div>
+
+<div class="legend" style="margin-top:16px">
+  <h3>Normalized Position Reference (shape-sidecar-spec.md §Value Display Anchors)</h3>
+  <div style="font-size:12px;color:#A1A1AA;line-height:1.8">
+    <code>valueAnchors[].position</code> uses normalized coordinates relative to shape bounding box:<br>
+    <code>[0,0]</code> = top-left &bull; <code>[1,1]</code> = bottom-right &bull; <code>[0.5, 0.5]</code> = center<br>
+    Values <strong>&gt; 1.0</strong> = outside shape with clear gap &bull; Values <strong>&lt; 0</strong> = above/left of shape<br><br>
+    <strong>Patterns from frozen shapes:</strong><br>
+    &bull; <strong>Compact (circle/square, ~1:1)</strong>: value below <code>[0.5, 1.15]</code>, alarm <code>[1.1, -0.1]</code> — pumps, HX, motors, instruments<br>
+    &bull; <strong>Tall (vessels, columns, reactors)</strong>: value to right <code>[1.2, 0.5]</code> or below <code>[0.5, 1.08]</code>, fill gauge overlay at <code>[0.5, 0.5]</code><br>
+    &bull; <strong>Wide/short (horizontal vessel, plate HX, air cooler)</strong>: value below <code>[0.5, 1.3]</code>, alarm above right end<br>
+    &bull; <strong>Equipment shapes never change color for alarms</strong> — alarm indication is 100% via separate Alarm Indicator elements (ISA-101)
+  </div>
+</div>
+
+</body>
+</html>
