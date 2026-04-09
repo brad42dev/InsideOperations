@@ -7418,9 +7418,7 @@ export default function DesignerCanvas({
                     },
                     binding: config.pointBindings[0]?.pointId
                       ? { pointId: config.pointBindings[0].pointId }
-                      : config.pointBindings[0]?.pointTag
-                        ? { pointTag: config.pointBindings[0].pointTag }
-                        : {},
+                      : {},
                     config: makeDefaultDisplayConfig(dt),
                     opacity: 1,
                     visible: true,
@@ -7451,9 +7449,7 @@ export default function DesignerCanvas({
                   stateBinding:
                     config.pointBindings[0]?.pointId
                       ? { pointId: config.pointBindings[0].pointId }
-                      : config.pointBindings[0]?.pointTag
-                        ? { pointTag: config.pointBindings[0].pointTag }
-                        : undefined,
+                      : undefined,
                 };
                 const dropParentId = useUiStore.getState().activeGroupId;
                 executeCmd(new AddNodeCommand(si, dropParentId));
