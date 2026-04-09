@@ -34,6 +34,12 @@ Thumbs.db
 # Development screenshots (UAT/debugging PNGs in repo root)
 /*.png
 
+# Playwright MCP screenshots/snapshots
+/.playwright-mcp/
+
+# Scheduled task lock
+.claude/scheduled_tasks.lock
+
 # Installer artifacts
 /dist/
 /packages/
