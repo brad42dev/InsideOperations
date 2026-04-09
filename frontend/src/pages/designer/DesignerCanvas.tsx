@@ -1705,6 +1705,15 @@ function RenderNode({
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: inner }}
           />
+          {/* Render display element children in symbol-relative space */}
+          {si.children.map((child) => (
+            <RenderNode
+              key={child.id}
+              node={child}
+              getShapeSvg={getShapeSvg}
+              selectedIds={selectedIds}
+            />
+          ))}
         </g>
       );
     }
@@ -6413,13 +6422,15 @@ export default function DesignerCanvas({
     const sidecar = libEntry?.sidecar;
     const defaultSlots = sidecar?.defaultSlots ?? {};
 
-    // Compute shape bbox for slot resolution
+    // Compute shape bbox relative to symbol origin (0,0).
+    // Display elements are children of the symbol instance group which is already
+    // translated to the symbol's canvas position — positions must be relative.
     const geo = sidecar?.geometry;
     const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 64;
     const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 64;
     const bbox = {
-      x: sym.transform.position.x,
-      y: sym.transform.position.y,
+      x: 0,
+      y: 0,
       width: naturalW * (sym.transform.scale.x ?? 1),
       height: naturalH * (sym.transform.scale.y ?? 1),
     };
@@ -7404,27 +7415,65 @@ export default function DesignerCanvas({
                 const cy = snap(
                   (dropPending.rawY - rect.top - vp.panY) / vp.zoom,
                 );
+                // Resolve slot positions relative to shape origin (0,0).
+                // Display elements are children of the symbol instance group which
+                // is already translated to (cx, cy), so positions must be relative.
+                const dropLibEntry = useLibraryStore
+                  .getState()
+                  .cache.get(config.shapeId);
+                const dropSidecar = dropLibEntry?.sidecar;
+                const dropGeo = dropSidecar?.geometry;
+                const dropW = dropGeo?.baseSize?.[0] ?? dropGeo?.width ?? 64;
+                const dropH = dropGeo?.baseSize?.[1] ?? dropGeo?.height ?? 64;
+                const dropRelBbox = { x: 0, y: 0, width: dropW, height: dropH };
+                const dropDefaultSlots =
+                  (dropSidecar?.defaultSlots as Record<string, string>) ?? {};
+                // Map snake_case DisplayElementType → PascalCase sidecar key
+                const DE_SIDECAR_KEY: Record<string, string> = {
+                  text_readout: "TextReadout",
+                  alarm_indicator: "AlarmIndicator",
+                  analog_bar: "AnalogBar",
+                  fill_gauge: "FillGauge",
+                  sparkline: "Sparkline",
+                  digital_status: "DigitalStatus",
+                  point_name_label: "PointNameLabel",
+                };
+                const DE_DEFAULT_SLOTS: Record<string, string> = {
+                  TextReadout: "bottom",
+                  AlarmIndicator: "top-right",
+                  AnalogBar: "right",
+                  FillGauge: "right",
+                  Sparkline: "right-top",
+                  DigitalStatus: "bottom",
+                  PointNameLabel: "top",
+                };
                 const children: DisplayElement[] = (
                   config.displayElements as DisplayElementType[]
-                ).map((dt) => ({
-                    id: crypto.randomUUID(),
-                    type: "display_element" as const,
-                    displayType: dt,
-                    transform: {
-                      position: { x: 0, y: -20 },
-                      rotation: 0,
-                      scale: { x: 1, y: 1 },
-                      mirror: "none" as const,
-                    },
-                    binding: config.pointBindings[0]?.pointId
-                      ? { pointId: config.pointBindings[0].pointId }
-                      : {},
-                    config: makeDefaultDisplayConfig(dt),
-                    opacity: 1,
-                    visible: true,
-                    locked: false,
-                    name: dt,
-                  }));
+                ).map((dt) => {
+                    const key = DE_SIDECAR_KEY[dt] ?? dt;
+                    const slotName =
+                      dropDefaultSlots[key] ?? DE_DEFAULT_SLOTS[key] ?? "bottom";
+                    const pos = resolveNamedSlot(slotName, dropRelBbox);
+                    return {
+                      id: crypto.randomUUID(),
+                      type: "display_element" as const,
+                      displayType: dt,
+                      transform: {
+                        position: pos,
+                        rotation: 0,
+                        scale: { x: 1, y: 1 },
+                        mirror: "none" as const,
+                      },
+                      binding: config.pointBindings[0]?.pointId
+                        ? { pointId: config.pointBindings[0].pointId }
+                        : {},
+                      config: makeDefaultDisplayConfig(dt),
+                      opacity: 1,
+                      visible: true,
+                      locked: false,
+                      name: dt,
+                    };
+                  });
                 const si: SymbolInstance = {
                   id: crypto.randomUUID(),
                   type: "symbol_instance",
@@ -7504,14 +7553,53 @@ export default function DesignerCanvas({
                 const existingTypes = new Set(
                   node.children.map((c) => c.displayType),
                 );
+                const editLibEntry = useLibraryStore
+                  .getState()
+                  .cache.get(config.shapeId);
+                const editSidecar = editLibEntry?.sidecar;
+                const editGeo = editSidecar?.geometry;
+                const editW =
+                  editGeo?.baseSize?.[0] ?? editGeo?.width ?? 64;
+                const editH =
+                  editGeo?.baseSize?.[1] ?? editGeo?.height ?? 64;
+                const editRelBbox = {
+                  x: 0,
+                  y: 0,
+                  width: editW * (node.transform.scale.x ?? 1),
+                  height: editH * (node.transform.scale.y ?? 1),
+                };
+                const editDefaultSlots =
+                  (editSidecar?.defaultSlots as Record<string, string>) ?? {};
+                const EDIT_SIDECAR_KEY: Record<string, string> = {
+                  text_readout: "TextReadout",
+                  alarm_indicator: "AlarmIndicator",
+                  analog_bar: "AnalogBar",
+                  fill_gauge: "FillGauge",
+                  sparkline: "Sparkline",
+                  digital_status: "DigitalStatus",
+                  point_name_label: "PointNameLabel",
+                };
+                const EDIT_DE_SLOTS: Record<string, string> = {
+                  TextReadout: "bottom",
+                  AlarmIndicator: "top-right",
+                  AnalogBar: "right",
+                  FillGauge: "right",
+                  Sparkline: "right-top",
+                  DigitalStatus: "bottom",
+                  PointNameLabel: "top",
+                };
                 config.displayElements.forEach((dt) => {
                   if (existingTypes.has(dt as DisplayElementType)) return;
+                  const editKey = EDIT_SIDECAR_KEY[dt] ?? dt;
+                  const slotName =
+                    editDefaultSlots[editKey] ?? EDIT_DE_SLOTS[editKey] ?? "bottom";
+                  const pos = resolveNamedSlot(slotName, editRelBbox);
                   const el: DisplayElement = {
                     id: crypto.randomUUID(),
                     type: "display_element",
                     displayType: dt as DisplayElementType,
                     transform: {
-                      position: { x: 0, y: -20 },
+                      position: pos,
                       rotation: 0,
                       scale: { x: 1, y: 1 },
                       mirror: "none",
@@ -7602,9 +7690,10 @@ export default function DesignerCanvas({
                     const geo = libEntry?.sidecar?.geometry;
                     const nw = geo?.baseSize?.[0] ?? geo?.width ?? 48;
                     const nh = geo?.baseSize?.[1] ?? geo?.height ?? 48;
+                    // Relative bbox — position is relative to symbol origin (0,0)
                     const slotPos = resolveNamedSlot(slotPopover.slotId, {
-                      x: sym.transform.position.x,
-                      y: sym.transform.position.y,
+                      x: 0,
+                      y: 0,
                       width: nw * (sym.transform.scale.x ?? 1),
                       height: nh * (sym.transform.scale.y ?? 1),
                     });
