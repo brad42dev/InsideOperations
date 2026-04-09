@@ -22,6 +22,7 @@ import type {
   FillGaugeConfig,
   SparklineConfig,
   DigitalStatusConfig,
+  PointNameLabelConfig,
   Stencil,
   DimensionLineConfig,
   NorthArrowConfig,
@@ -41,6 +42,7 @@ import { wsManager } from "../hooks/useWebSocket";
 import type { PointValue as WsPointValue } from "../hooks/useWebSocket";
 import { wsWorkerConnector } from "../hooks/useWsWorker";
 import type { AlarmStateUpdate } from "../hooks/useWsWorker";
+import { SharedSvgDefs } from "./svgDefs";
 
 // ---- Point value types received from WebSocket ----
 
@@ -58,6 +60,8 @@ export interface PointValue {
   /** True when point is in manual/forced override */
   manual?: boolean;
   description?: string;
+  /** Client-side receipt timestamp (ms) — set to Date.now() when WS message arrives */
+  lastUpdateMs?: number;
 }
 
 // ---- Props ----
@@ -87,6 +91,11 @@ export interface SceneRendererProps {
    * Set false for designer mode and historical/playback mode (those pass pointValues prop).
    */
   liveSubscribe?: boolean;
+  /**
+   * Override the zoom-derived LOD level. When set, this level is forced for all shapes
+   * regardless of the current zoom. Useful for the global LOD toggle in Console/Process.
+   */
+  forceLod?: 1 | 2 | 3;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -104,6 +113,7 @@ export function SceneRenderer({
   onNodeClick,
   preserveAspectRatio = "xMidYMid meet",
   liveSubscribe = false,
+  forceLod,
   className,
   style,
 }: SceneRendererProps) {
@@ -132,6 +142,8 @@ export function SceneRenderer({
   // LOD level from zoom (process-implementation-spec §4.3)
   const lodLevel =
     vp.zoom < 0.15 ? 0 : vp.zoom < 0.4 ? 1 : vp.zoom < 0.8 ? 2 : 3;
+  // forceLod overrides zoom-derived level (global LOD toggle from Console/Process toolbar)
+  const effectiveLod: number = forceLod ?? lodLevel;
 
   // Apply LOD class to container div (process-implementation-spec §4.3.3)
   const containerDivRef = useRef<HTMLDivElement>(null);
@@ -139,8 +151,8 @@ export function SceneRenderer({
     const el = containerDivRef.current;
     if (!el) return;
     el.classList.remove("lod-0", "lod-1", "lod-2", "lod-3");
-    el.classList.add(`lod-${lodLevel}`);
-  }, [lodLevel]);
+    el.classList.add(`lod-${effectiveLod}`);
+  }, [effectiveLod]);
 
   // ---- Live DOM mutation path (spec §5.1 Real-Time Update Pipeline) ----
   // nodeId → {displayType, config, binding} for applyPointValue lookups
@@ -159,6 +171,8 @@ export function SceneRenderer({
   const lastPvRef = useRef<Map<string, WsPointValue>>(new Map());
   // Current alarm state per point — merged into PV on each DOM apply
   const alarmStateRef = useRef<Map<string, AlarmStateUpdate>>(new Map());
+  // pointId → last client-side receipt timestamp (ms) for staleness detection
+  const lastUpdateTimestampsRef = useRef<Map<string, number>>(new Map());
 
   // Collect all point IDs from the scene graph for metadata fetching.
   // UUID regex to skip tag-name bindings (those are resolved via resolvedTagMap).
@@ -284,17 +298,38 @@ export function SceneRenderer({
     const pointIds = Array.from(map.keys());
     if (pointIds.length === 0) return;
 
+    // Staleness check — run on each rAF tick and periodically via interval.
+    // Adds/removes 'io-stale' class on SVG elements for CSS-driven stale styling.
+    const STALE_THRESHOLD_MS = 60_000;
+    function checkStaleness() {
+      const now = Date.now();
+      for (const [pid, lastMs] of lastUpdateTimestampsRef.current) {
+        const els = pointToElementsRef.current.get(pid);
+        if (!els) continue;
+        const isStale = now - lastMs > STALE_THRESHOLD_MS;
+        for (const el of els) {
+          if (isStale) el.classList.add("io-stale");
+          else el.classList.remove("io-stale");
+        }
+      }
+    }
+
     const handler = (pv: WsPointValue) => {
-      // Merge current alarm state into pv before buffering
+      // Record receipt timestamp and merge current alarm state before buffering
+      const now = Date.now();
+      lastUpdateTimestampsRef.current.set(pv.pointId, now);
       const alarm = alarmStateRef.current.get(pv.pointId);
-      const pvWithAlarm: WsPointValue = alarm
-        ? {
-            ...pv,
-            alarmPriority: (alarm.active || alarm.unacknowledged
-              ? alarm.priority
-              : null) as 1 | 2 | 3 | 4 | 5 | null,
-          }
-        : pv;
+      const pvWithAlarm: WsPointValue = {
+        ...(alarm
+          ? {
+              ...pv,
+              alarmPriority: (alarm.active || alarm.unacknowledged
+                ? alarm.priority
+                : null) as 1 | 2 | 3 | 4 | 5 | null,
+            }
+          : pv),
+        lastUpdateMs: now,
+      };
       lastPvRef.current.set(pv.pointId, pvWithAlarm);
       pendingDomRef.current.set(pv.pointId, pvWithAlarm);
       if (!domRafPendingRef.current) {
@@ -323,6 +358,7 @@ export function SceneRenderer({
               );
             }
           }
+          checkStaleness();
         });
       }
     };
@@ -360,11 +396,18 @@ export function SceneRenderer({
 
     pointIds.forEach((id) => wsManager.subscribe(id, handler));
     const unsubAlarm = wsWorkerConnector.onAlarmStateChange(alarmHandler);
+
+    // Periodic staleness sweep — catches points that stop receiving updates.
+    // Runs every 5s; 60s threshold applied inside checkStaleness().
+    const staleInterval = setInterval(checkStaleness, 5_000);
+
     return () => {
       pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
       unsubAlarm();
+      clearInterval(staleInterval);
       pendingDomRef.current.clear();
       lastPvRef.current.clear();
+      lastUpdateTimestampsRef.current.clear();
     };
   }, [document.id, children, liveSubscribe, resolvedTagMap]);
 
@@ -616,7 +659,7 @@ export function SceneRenderer({
 
   function renderPipe(node: Pipe): React.ReactElement {
     const color = PIPE_SERVICE_COLORS[node.serviceType] ?? "#6B8CAE";
-    const gapColor = canvas.backgroundColor ?? "#1E1E2E";
+    const gapColor = canvas.backgroundColor ?? "var(--io-surface-primary)";
     const commonProps = {
       d: node.pathData,
       fill: "none" as const,
@@ -1006,7 +1049,6 @@ export function SceneRenderer({
 
       case "alarm_indicator": {
         const active = !!pv?.alarmPriority;
-        if (!active && !designerMode) return null;
         const priority = (pv?.alarmPriority ?? 1) as 1 | 2 | 3 | 4 | 5;
         const unacked = pv?.unacknowledged ?? false;
         const isGhost = !active && designerMode;
@@ -1019,17 +1061,21 @@ export function SceneRenderer({
             : "";
         const label = isGhost ? "—" : String(priority);
         const shapeEl = renderAlarmShape(priority, isGhost, color);
+        // Always render (even when inactive in live view) so the DOM element
+        // exists for applyPointValue to show/hide on real-time alarm updates.
         return (
           <g
             key={node.id}
             className={`io-alarm-indicator ${flashClass}`}
             data-node-id={node.id}
             data-lod="1"
+            data-lod-override="always"
             opacity={isGhost ? 0.25 : node.opacity}
             transform={deTransform}
             data-point-tag={pointTag}
             data-display-type="alarm_indicator"
             data-point-id={pvKey}
+            style={{ display: active || designerMode ? undefined : "none" }}
           >
             {shapeEl}
             <text
@@ -1054,8 +1100,21 @@ export function SceneRenderer({
           pv?.value !== undefined && pv.value !== null
             ? String(pv.value)
             : null;
+        const dsMeta = pvKey ? pointMetaMapRef.current.get(pvKey) : undefined;
+        const dsDiscreteLabel =
+          dsMeta &&
+          dsMeta.point_category !== "analog" &&
+          typeof pv?.value === "number"
+            ? resolvePointLabel(
+                pv.value,
+                dsMeta.point_category,
+                dsMeta.enum_labels,
+              )
+            : null;
         const label =
-          rawVal !== null ? (cfg.stateLabels[rawVal] ?? rawVal) : "---";
+          rawVal !== null
+            ? (cfg.stateLabels[rawVal] ?? dsDiscreteLabel ?? rawVal)
+            : "---";
         const isNormal = rawVal === null || cfg.normalStates.includes(rawVal);
         const fill = isNormal
           ? DE_COLORS.displayZoneInactive
@@ -1638,6 +1697,58 @@ export function SceneRenderer({
         );
       }
 
+      case "point_name_label": {
+        const cfg = node.config as PointNameLabelConfig;
+        const text = cfg.staticText ?? pointTag ?? pvKey ?? "";
+        const AREA_COLOR = "#52525B";
+        const UNIT_COLOR = "#71717A";
+        const TAG_COLOR = "#A1A1AA";
+        const SEP_COLOR = "#3F3F46";
+
+        let labelContent: React.ReactNode;
+        if (cfg.style === "hierarchy" && text.includes(".")) {
+          const parts = text.split(".");
+          const last = parts.length - 1;
+          const secondLast = parts.length - 2;
+          const spans: React.ReactNode[] = [];
+          parts.forEach((part, i) => {
+            if (i > 0)
+              spans.push(<tspan key={`sep-${i}`} fill={SEP_COLOR}>.</tspan>);
+            const color =
+              i === last ? TAG_COLOR : i === secondLast ? UNIT_COLOR : AREA_COLOR;
+            spans.push(<tspan key={`part-${i}`} fill={color}>{part}</tspan>);
+          });
+          labelContent = spans;
+        } else {
+          labelContent = text;
+        }
+
+        return (
+          <g
+            key={node.id}
+            className="io-display-element"
+            data-node-id={node.id}
+            data-lod="2"
+            opacity={node.opacity}
+            transform={deTransform}
+            data-point-tag={pointTag}
+            data-display-type="point_name_label"
+          >
+            <text
+              x={0}
+              y={0}
+              fontFamily="Inter"
+              fontSize={9}
+              fill={cfg.style === "uniform" ? UNIT_COLOR : undefined}
+              dominantBaseline="hanging"
+              style={{ pointerEvents: "none" }}
+            >
+              {labelContent}
+            </text>
+          </g>
+        );
+      }
+
       default:
         return null;
     }
@@ -1663,6 +1774,8 @@ export function SceneRenderer({
             preferredElement?: string;
           }>;
           alarmAnchor?: { nx: number; ny: number };
+          /** Normalized [nx, ny] position for each named attachment slot */
+          anchorSlots?: Record<string, [number, number]>;
         }
       | undefined;
 
@@ -1670,9 +1783,12 @@ export function SceneRenderer({
     // Inject geometry dimensions so nested SVGs don't default to 300×150.
     // Fall back to parsing the SVG's own viewBox when sidecar.geometry is absent.
     let svgContent = shapeData?.svg ?? "";
+    // Hoisted so the LOD chip below can reference them after the if block.
+    let shapeW: number | undefined = sidecar?.geometry?.width;
+    let shapeH: number | undefined = sidecar?.geometry?.height;
     if (svgContent) {
-      let w: number | undefined = sidecar?.geometry?.width;
-      let h: number | undefined = sidecar?.geometry?.height;
+      let w: number | undefined = shapeW;
+      let h: number | undefined = shapeH;
       if (w == null || h == null) {
         const vbMatch = svgContent.match(/viewBox=["']([^"']+)["']/);
         if (vbMatch) {
@@ -1680,6 +1796,8 @@ export function SceneRenderer({
           if (parts.length >= 4) {
             w = parseFloat(parts[2]);
             h = parseFloat(parts[3]);
+            shapeW = w;
+            shapeH = h;
           }
         }
       }
@@ -1778,6 +1896,10 @@ export function SceneRenderer({
     });
 
     // Render composable parts (actuators, supports, etc.) — spec §Shape Library: Composable Parts
+    // Each part is positioned at its named attachment slot from sidecar.anchorSlots.
+    // Slot value = normalized [nx, ny] on the base shape bbox. Default: top-center [0.5, 0.0].
+    const partGeoW = sidecar?.geometry?.width ?? 40;
+    const partGeoH = sidecar?.geometry?.height ?? 40;
     const composablePartElements = (node.composableParts ?? []).map((part) => {
       // DB may store partId as snake_case (part_id) — handle both
       const pid =
@@ -1785,109 +1907,36 @@ export function SceneRenderer({
       if (!pid) return null;
       const partData = shapeMap.get(pid);
       if (!partData?.svg) return null;
+      const slot = sidecar?.anchorSlots?.[part.attachment];
+      const nx = Array.isArray(slot) ? slot[0] : 0.5;
+      const ny = Array.isArray(slot) ? slot[1] : 0.0;
+      const partTx = nx * partGeoW;
+      const partTy = ny * partGeoH;
       return (
         <g
           key={`part-${pid}`}
+          transform={`translate(${partTx},${partTy})`}
           dangerouslySetInnerHTML={{ __html: partData.svg }}
         />
       );
     });
 
-    // Sidecar auto-overlays — value text and alarm indicator driven by stateBinding point.
-    // Always rendered (even when statePv is null) so DOM-mutation path can update them.
-    // Scale-compensation group (scale 1/sx, 1/sy) cancels parent transform so overlays
-    // render at consistent visual size regardless of symbol scale.
-    const sx = node.transform.scale.x || 1;
-    const sy = node.transform.scale.y || 1;
-    const geoW = sidecar?.geometry?.width ?? 40;
-    const geoH = sidecar?.geometry?.height ?? 40;
-    const firstValueAnchor = sidecar?.valueAnchors?.[0];
-    const alarmAnchorPos = sidecar?.alarmAnchor;
-
-    const sidecarValueOverlay =
-      statePvKey && firstValueAnchor
-        ? (() => {
-            const ax = firstValueAnchor.nx * geoW;
-            const ay = firstValueAnchor.ny * geoH;
-            const rawVal = statePv?.value ?? null;
-            const alarmPri = statePv?.alarmPriority as
-              | (1 | 2 | 3 | 4 | 5)
-              | undefined;
-            const valueColor = alarmPri
-              ? (ALARM_COLORS[alarmPri] ?? DE_COLORS.textSecondary)
-              : DE_COLORS.textSecondary;
-            const valueStr =
-              rawVal === null ? "---" : formatValue(rawVal, "%auto");
-            return (
-              <g
-                key="sv"
-                transform={`translate(${ax},${ay}) scale(${1 / sx},${1 / sy})`}
-              >
-                <text
-                  data-role="sidecar-value"
-                  x={0}
-                  y={0}
-                  textAnchor="middle"
-                  dominantBaseline="hanging"
-                  fontFamily="JetBrains Mono"
-                  fontSize={11}
-                  fill={valueColor}
-                  style={{ fontVariantNumeric: "tabular-nums" as const }}
-                >
-                  {valueStr}
-                </text>
-              </g>
-            );
-          })()
-        : null;
-
-    const sidecarAlarmOverlay =
-      statePvKey && alarmAnchorPos
-        ? (() => {
-            const ax = alarmAnchorPos.nx * geoW;
-            const ay = alarmAnchorPos.ny * geoH;
-            const alarmPri = (statePv?.alarmPriority ?? 0) as
-              | 0
-              | 1
-              | 2
-              | 3
-              | 4
-              | 5;
-            const visible = alarmPri > 0;
-            const priority = (alarmPri || 1) as 1 | 2 | 3 | 4 | 5;
-            const unacked = statePv?.unacknowledged ?? false;
-            const color = ALARM_COLORS[priority] ?? ALARM_COLORS[1];
-            const flashClass =
-              visible && unacked
-                ? `io-alarm-flash-${ALARM_PRIORITY_NAMES[priority]}`
-                : "";
-            return (
-              <g
-                key="sa"
-                data-role="sidecar-alarm"
-                className={`io-alarm-indicator ${flashClass}`}
-                transform={`translate(${ax},${ay}) scale(${1 / sx},${1 / sy})`}
-                style={{ display: visible ? "" : "none" }}
-              >
-                {renderAlarmShape(priority, false, color)}
-                <text
-                  x={0}
-                  y={0}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontFamily="JetBrains Mono"
-                  fontSize={9}
-                  fontWeight={600}
-                  fill={color}
-                >
-                  {String(priority)}
-                </text>
-              </g>
-            );
-          })()
-        : null;
-
     const isSelected = designerMode && selectedNodeIds.has(node.id);
+    // LOD chip — shown in live view when effectiveLod > 1, positioned at shape bottom-right
+    const lodChip =
+      !designerMode && effectiveLod > 1 && shapeW != null && shapeH != null ? (
+        <text
+          x={shapeW - 2}
+          y={shapeH - 2}
+          fontSize={9}
+          textAnchor="end"
+          fill="var(--io-text-muted)"
+          opacity={0.6}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          L{effectiveLod}
+        </text>
+      ) : null;
     return (
       <g
         key={node.id}
@@ -1909,8 +1958,6 @@ export function SceneRenderer({
         {svgContent && <g dangerouslySetInnerHTML={{ __html: svgContent }} />}
         {composablePartElements}
         {textZoneElements}
-        {sidecarValueOverlay}
-        {sidecarAlarmOverlay}
         {node.children.map((child) =>
           renderDisplayElement(
             child,
@@ -1918,6 +1965,7 @@ export function SceneRenderer({
             sidecar?.vesselInteriorPath,
           ),
         )}
+        {lodChip}
       </g>
     );
   }
@@ -2258,7 +2306,7 @@ export function SceneRenderer({
             width={boxW}
             height={boxH}
             rx={4}
-            fill={cfg.backgroundColor ?? "#1E1E2E"}
+            fill={cfg.backgroundColor ?? "var(--io-surface-primary)"}
             stroke={cfg.borderColor ?? "#3F3F46"}
             strokeWidth={1}
           />
@@ -2570,7 +2618,7 @@ export function SceneRenderer({
   return (
     <div
       ref={containerDivRef}
-      className={["io-canvas-container", `lod-${lodLevel}`, className]
+      className={["io-canvas-container", `lod-${effectiveLod}`, className]
         .filter(Boolean)
         .join(" ")}
       style={{
@@ -2595,6 +2643,8 @@ export function SceneRenderer({
         preserveAspectRatio={preserveAspectRatio}
         xmlns="http://www.w3.org/2000/svg"
       >
+        {/* Bad-phase1 hatch pattern + any future shared defs */}
+        <SharedSvgDefs />
         {/* Shared pattern definitions — OOS hatch (spec §Shape Library: Operational State CSS) */}
         <defs>
           <pattern
@@ -3169,6 +3219,34 @@ function applyPointValue(
       break;
     }
 
+    case "alarm_indicator": {
+      const active = !!pv.alarmPriority;
+      // Show or hide the element based on alarm activity
+      el.style.display = active ? "" : "none";
+      const flashClasses = Array.from(el.classList).filter((c: string) =>
+        c.startsWith("io-alarm-flash-"),
+      );
+      flashClasses.forEach((c: string) => el.classList.remove(c));
+      if (!active) break;
+      const priority = (pv.alarmPriority ?? 1) as 1 | 2 | 3 | 4 | 5;
+      const unacked = pv.unacknowledged ?? false;
+      const color = ALARM_COLORS[priority] ?? ALARM_COLORS[1];
+      if (unacked) {
+        el.classList.add(`io-alarm-flash-${ALARM_PRIORITY_NAMES[priority]}`);
+      }
+      // Update priority label and color
+      const textEl = el.querySelector<SVGTextElement>("text");
+      if (textEl) {
+        textEl.textContent = String(priority);
+        textEl.setAttribute("fill", color);
+      }
+      break;
+    }
+
+    case "point_name_label":
+      // Tag name label — driven by point metadata, not live values; no DOM mutation needed.
+      break;
+
     case "symbol_state": {
       // Update operational state CSS class on the symbol instance g element
       const stateVal = String(value).toLowerCase();
@@ -3187,45 +3265,6 @@ function applyPointValue(
         "io-oos",
       );
       if (newClass) el.classList.add(newClass);
-
-      // Update sidecar value overlay text
-      const sidecarValueText = el.querySelector<SVGTextElement>(
-        '[data-role="sidecar-value"]',
-      );
-      if (sidecarValueText) {
-        const alarmPri = pv.alarmPriority as (1 | 2 | 3 | 4 | 5) | undefined;
-        const valueStr = isCommFail
-          ? "COMM"
-          : isBad
-            ? "????"
-            : formatValue(value, "%auto");
-        sidecarValueText.textContent = valueStr;
-        sidecarValueText.setAttribute(
-          "fill",
-          alarmPri
-            ? (ALARM_COLORS[alarmPri] ?? DE_COLORS.textSecondary)
-            : DE_COLORS.textSecondary,
-        );
-      }
-
-      // Update sidecar alarm indicator overlay
-      const sidecarAlarmG = el.querySelector<SVGGElement>(
-        '[data-role="sidecar-alarm"]',
-      );
-      if (sidecarAlarmG) {
-        const alarmPri = pv.alarmPriority as (1 | 2 | 3 | 4 | 5) | undefined;
-        if (alarmPri) {
-          sidecarAlarmG.style.display = "";
-          const color = ALARM_COLORS[alarmPri] ?? ALARM_COLORS[1];
-          const numText = sidecarAlarmG.querySelector<SVGTextElement>("text");
-          if (numText) {
-            numText.textContent = String(alarmPri);
-            numText.setAttribute("fill", color);
-          }
-        } else {
-          sidecarAlarmG.style.display = "none";
-        }
-      }
       break;
     }
   }

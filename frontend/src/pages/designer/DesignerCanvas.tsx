@@ -85,6 +85,14 @@ import { SaveAsStencilDialog } from "./components/SaveAsStencilDialog";
 import { PromoteToShapeWizard } from "./components/PromoteToShapeWizard";
 import PointPickerModal from "./components/PointPickerModal";
 import PointContextMenu from "../../shared/components/PointContextMenu";
+import {
+  ShapeDropDialog,
+  type PlacedShapeConfig,
+} from "./components/ShapeDropDialog";
+import {
+  NAMED_SLOT_POSITIONS,
+  resolveNamedSlot,
+} from "../../shared/graphics/anchorSlots";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -2204,7 +2212,7 @@ function RenderNode({
           const lCfg =
             an.config as import("../../shared/types/graphics").LegendConfig;
           const lFs = lCfg.fontSize ?? 10;
-          const lBg = lCfg.backgroundColor ?? "#27272A";
+          const lBg = lCfg.backgroundColor ?? "var(--io-surface-primary)";
           const lBorder = lCfg.borderColor ?? "#3F3F46";
           const entries = lCfg.entries ?? [];
           const rowH = lFs + 8;
@@ -3206,6 +3214,25 @@ export default function DesignerCanvas({
 
   // Bind Point dialog — holds the nodeId to bind when PointPickerModal confirms
   const [bindingNodeId, setBindingNodeId] = useState<NodeId | null>(null);
+
+  // Shape Drop Dialog — opened when a shape is dragged from the palette
+  const [dropPending, setDropPending] = useState<{
+    shapeId: string;
+    displayName: string;
+    rawX: number;
+    rawY: number;
+  } | null>(null);
+
+  // Shape Configuration dialog (edit mode) — opened from right-click context menu
+  const [shapeConfigNodeId, setShapeConfigNodeId] = useState<NodeId | null>(null);
+
+  // Slot handle popover — set when user clicks a "+" slot handle on a selected SymbolInstance
+  const [slotPopover, setSlotPopover] = useState<{
+    instanceId: NodeId;
+    slotId: string;
+    screenX: number;
+    screenY: number;
+  } | null>(null);
 
   // Save-as-stencil dialog — holds the selected nodes to save
   const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null);
@@ -5811,38 +5838,18 @@ export default function DesignerCanvas({
   useEffect(() => {
     function onShapeDrop(e: Event) {
       const ce = e as CustomEvent<{ shapeId: string; x: number; y: number }>;
-      const rect = getRect();
-      if (!rect || !docRef.current) return;
-      const vp = viewportRef.current;
-      const cx = snap((ce.detail.x - rect.left - vp.panX) / vp.zoom);
-      const cy = snap((ce.detail.y - rect.top - vp.panY) / vp.zoom);
-
-      const si: SymbolInstance = {
-        id: crypto.randomUUID(),
-        type: "symbol_instance",
-        name: ce.detail.shapeId,
-        transform: {
-          position: { x: cx, y: cy },
-          rotation: 0,
-          scale: { x: 1, y: 1 },
-          mirror: "none",
-        },
-        visible: true,
-        locked: false,
-        opacity: 1,
-        shapeRef: { shapeId: ce.detail.shapeId, variant: "default" },
-        composableParts: [],
-        textZoneOverrides: {},
-        children: [],
-        propertyOverrides: {},
-      };
-      const dropParentId = useUiStore.getState().activeGroupId;
-      executeCmd(new AddNodeCommand(si, dropParentId));
-      selectedIdsRef.current = new Set([si.id]);
-      useUiStore.getState().setSelectedNodes([si.id]);
-
-      // Load the shape SVG in the background
-      useLibraryStore.getState().loadShape(ce.detail.shapeId);
+      if (!docRef.current) return;
+      const indexItem = useLibraryStore
+        .getState()
+        .index.find((i) => i.id === ce.detail.shapeId);
+      setDropPending({
+        shapeId: ce.detail.shapeId,
+        displayName: indexItem?.label ?? ce.detail.shapeId,
+        rawX: ce.detail.x,
+        rawY: ce.detail.y,
+      });
+      // Pre-load shape so the dialog has sidecar data immediately
+      void useLibraryStore.getState().loadShape(ce.detail.shapeId);
     }
 
     document.addEventListener("io:shape-drop", onShapeDrop);
@@ -6105,6 +6112,8 @@ export default function DesignerCanvas({
               normalStates: [],
               abnormalPriority: 3,
             };
+          case "point_name_label":
+            return { displayType: "point_name_label", style: "hierarchy" };
         }
       })();
 
@@ -6345,7 +6354,7 @@ export default function DesignerCanvas({
   const canvasH = autoHeightEnabled
     ? Math.max(declaredH, contentBoundingBoxBottom + 80)
     : declaredH;
-  const bgColor = doc?.canvas.backgroundColor ?? "#09090b";
+  const bgColor = doc?.canvas.backgroundColor ?? "var(--io-surface-primary)";
 
   // Stable shape SVG getter that re-evaluates when the library cache changes (version triggers re-render)
   const getShapeSvgMemo = useCallback(
@@ -6400,52 +6409,110 @@ export default function DesignerCanvas({
     if (!hitNode || hitNode.type !== "symbol_instance") return;
 
     const sym = hitNode as SymbolInstance;
-
-    // Determine anchor position from sidecar valueAnchors first, else fall back below-shape
-    const bounds = getNodeBounds(sym);
-    let anchorX = bounds.x;
-    let anchorY = bounds.y + bounds.h + 4;
     const libEntry = useLibraryStore.getState().cache.get(sym.shapeRef.shapeId);
-    const valueAnchors = libEntry?.sidecar?.valueAnchors as
-      | Array<{ nx: number; ny: number; preferredElement?: string }>
-      | undefined;
-    const anchor = valueAnchors?.[0];
-    if (anchor) {
-      // Normalized anchor coordinates → absolute position using shape bounds
-      anchorX = sym.transform.position.x + anchor.nx * bounds.w;
-      anchorY = sym.transform.position.y + anchor.ny * bounds.h;
-    }
+    const sidecar = libEntry?.sidecar;
+    const defaultSlots = sidecar?.defaultSlots ?? {};
 
-    // Create a DisplayElement (text_readout) at the anchor position
-    const de: DisplayElement = {
-      id: crypto.randomUUID(),
-      type: "display_element",
-      name: `${pointData.displayName} readout`,
-      transform: {
-        position: { x: anchorX, y: anchorY },
-        rotation: 0,
-        scale: { x: 1, y: 1 },
-        mirror: "none",
-      },
-      visible: true,
-      locked: false,
-      opacity: 1,
-      displayType: "text_readout",
-      config: {
-        displayType: "text_readout",
-        showBox: true,
-        showLabel: true,
-        labelText: pointData.displayName,
-        showUnits: !!pointData.unit,
-        valueFormat: "%.2f",
-        minWidth: 60,
-      },
-      binding: { pointId: pointData.pointId },
+    // Compute shape bbox for slot resolution
+    const geo = sidecar?.geometry;
+    const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 64;
+    const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 64;
+    const bbox = {
+      x: sym.transform.position.x,
+      y: sym.transform.position.y,
+      width: naturalW * (sym.transform.scale.x ?? 1),
+      height: naturalH * (sym.transform.scale.y ?? 1),
     };
 
-    executeCmd(new AddNodeCommand(de, null));
-    selectedIdsRef.current = new Set([de.id]);
-    useUiStore.getState().setSelectedNodes([de.id]);
+    const binding: PointBinding = {
+      pointId: pointData.pointId,
+    };
+
+    const children = sym.children ?? [];
+    const cmds: SceneCommand[] = [];
+
+    // TextReadout — update existing or create new
+    const existingReadout = children.find(
+      (c) => c.displayType === "text_readout",
+    );
+    if (existingReadout) {
+      cmds.push(
+        new ChangeBindingCommand(
+          existingReadout.id,
+          binding,
+          existingReadout.binding ?? { pointId: "" },
+        ),
+      );
+    } else {
+      const textPos = resolveNamedSlot(defaultSlots["TextReadout"] ?? "bottom", bbox);
+      const textDE: DisplayElement = {
+        id: crypto.randomUUID(),
+        type: "display_element",
+        name: `${pointData.displayName} readout`,
+        transform: {
+          position: textPos,
+          rotation: 0,
+          scale: { x: 1, y: 1 },
+          mirror: "none",
+        },
+        visible: true,
+        locked: false,
+        opacity: 1,
+        displayType: "text_readout",
+        config: {
+          displayType: "text_readout",
+          showBox: true,
+          showLabel: false,
+          labelText: "",
+          showUnits: !!pointData.unit,
+          valueFormat: "%.2f",
+          minWidth: 60,
+        },
+        binding,
+      };
+      cmds.push(new AddDisplayElementCommand(sym.id, textDE));
+    }
+
+    // AlarmIndicator — update existing or create new
+    const existingAlarm = children.find(
+      (c) => c.displayType === "alarm_indicator",
+    );
+    if (existingAlarm) {
+      cmds.push(
+        new ChangeBindingCommand(
+          existingAlarm.id,
+          binding,
+          existingAlarm.binding ?? { pointId: "" },
+        ),
+      );
+    } else {
+      const alarmPos = resolveNamedSlot(
+        defaultSlots["AlarmIndicator"] ?? "top-right",
+        bbox,
+      );
+      const alarmDE: DisplayElement = {
+        id: crypto.randomUUID(),
+        type: "display_element",
+        name: `${pointData.displayName} alarm`,
+        transform: {
+          position: alarmPos,
+          rotation: 0,
+          scale: { x: 1, y: 1 },
+          mirror: "none",
+        },
+        visible: true,
+        locked: false,
+        opacity: 1,
+        displayType: "alarm_indicator",
+        config: { displayType: "alarm_indicator", mode: "single" },
+        binding,
+      };
+      cmds.push(new AddDisplayElementCommand(sym.id, alarmDE));
+    }
+
+    executeCmd(
+      new CompoundCommand(`Bind ${pointData.displayName}`, cmds),
+    );
   }
 
   return (
@@ -6468,7 +6535,7 @@ export default function DesignerCanvas({
             flex: 1,
             overflow: "hidden",
             position: "relative",
-            background: "#0a0a0b",
+            background: "var(--io-surface-sunken)",
             outline: "none",
             cursor: cursorMap[activeTool] ?? "default",
             ...style,
@@ -6486,7 +6553,16 @@ export default function DesignerCanvas({
               inset: 0,
             }}
           >
-            {/* Grid (screen-space pattern behind canvas rect) */}
+            {/* Canvas background rect */}
+            <rect
+              x={panX}
+              y={panY}
+              width={canvasW * zoom}
+              height={canvasH * zoom}
+              style={{ fill: bgColor, pointerEvents: "none" }}
+            />
+
+            {/* Grid overlay (drawn on top of canvas background) */}
             {gridVisible && doc && (
               <>
                 <defs>
@@ -6501,7 +6577,7 @@ export default function DesignerCanvas({
                     <path
                       d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`}
                       fill="none"
-                      stroke="rgba(255,255,255,0.05)"
+                      stroke="rgba(128,128,128,0.2)"
                       strokeWidth={0.5}
                     />
                   </pattern>
@@ -6516,16 +6592,6 @@ export default function DesignerCanvas({
                 />
               </>
             )}
-
-            {/* Canvas background rect */}
-            <rect
-              x={panX}
-              y={panY}
-              width={canvasW * zoom}
-              height={canvasH * zoom}
-              fill={bgColor}
-              style={{ pointerEvents: "none" }}
-            />
 
             {/* Dashboard 12-column grid overlay (spec §11.2) */}
             {gridVisible &&
@@ -6737,6 +6803,93 @@ export default function DesignerCanvas({
                   dragActive={isDraggingCanvas}
                 />
               )}
+
+              {/* Slot "+" handles — rendered when a single SymbolInstance is selected */}
+              {doc &&
+                (() => {
+                  const selArr = Array.from(selectedIdsRef.current);
+                  if (selArr.length !== 1) return null;
+                  const node = doc.children.find((n) => n.id === selArr[0]);
+                  if (!node || node.type !== "symbol_instance") return null;
+                  const sym = node as SymbolInstance;
+                  const shapeEntry = useLibraryStore
+                    .getState()
+                    .getShape(sym.shapeRef.shapeId);
+                  const anchorSlots = shapeEntry?.sidecar.anchorSlots;
+                  if (!anchorSlots) return null;
+
+                  const geo = shapeEntry.sidecar.geometry;
+                  const nw = geo?.baseSize?.[0] ?? geo?.width ?? 48;
+                  const nh = geo?.baseSize?.[1] ?? geo?.height ?? 48;
+                  const bbox = {
+                    x: sym.transform.position.x,
+                    y: sym.transform.position.y,
+                    width: nw * (sym.transform.scale.x ?? 1),
+                    height: nh * (sym.transform.scale.y ?? 1),
+                  };
+
+                  const slotIds = new Set<string>();
+                  for (const slots of Object.values(anchorSlots)) {
+                    if (Array.isArray(slots))
+                      for (const s of slots) slotIds.add(s);
+                  }
+
+                  const r = 6 / zoom;
+                  const sw = 1 / zoom;
+                  const fs = Math.max(8 / zoom, 4);
+
+                  return (
+                    <g style={{ pointerEvents: "all" }}>
+                      {Array.from(slotIds).map((slotId) => {
+                        const norm = NAMED_SLOT_POSITIONS[slotId];
+                        if (!norm) return null;
+                        const sx = bbox.x + norm.nx * bbox.width;
+                        const sy = bbox.y + norm.ny * bbox.height;
+                        return (
+                          <g
+                            key={slotId}
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              const rect =
+                                containerRef.current?.getBoundingClientRect();
+                              if (!rect) return;
+                              const { panX, panY } =
+                                useUiStore.getState().viewport;
+                              setSlotPopover({
+                                instanceId: sym.id,
+                                slotId,
+                                screenX: sx * zoom + panX + rect.left,
+                                screenY: sy * zoom + panY + rect.top,
+                              });
+                            }}
+                            style={{ cursor: "crosshair" }}
+                          >
+                            <circle
+                              cx={sx}
+                              cy={sy}
+                              r={r}
+                              fill="var(--io-surface-elevated, #27272a)"
+                              stroke="var(--io-accent)"
+                              strokeWidth={sw}
+                            />
+                            <text
+                              x={sx}
+                              y={sy}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontSize={fs}
+                              fill="var(--io-accent)"
+                              style={{ pointerEvents: "none", userSelect: "none" }}
+                            >
+                              +
+                            </text>
+                            <title>{slotId}</title>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  );
+                })()}
 
               {/* Lock indicators */}
               {doc && <LockOverlay doc={doc} zoom={zoom} />}
@@ -7226,6 +7379,267 @@ export default function DesignerCanvas({
               setBindingNodeId(null);
             }}
           />
+
+          {/* Shape Drop Dialog — opens when a shape is dragged from the palette */}
+          {dropPending && (
+            <ShapeDropDialog
+              open={true}
+              shapeId={dropPending.shapeId}
+              shapeDisplayName={dropPending.displayName}
+              onCancel={() => setDropPending(null)}
+              onPlace={(config: PlacedShapeConfig) => {
+                if (!docRef.current) {
+                  setDropPending(null);
+                  return;
+                }
+                const rect = getRect();
+                if (!rect) {
+                  setDropPending(null);
+                  return;
+                }
+                const vp = viewportRef.current;
+                const cx = snap(
+                  (dropPending.rawX - rect.left - vp.panX) / vp.zoom,
+                );
+                const cy = snap(
+                  (dropPending.rawY - rect.top - vp.panY) / vp.zoom,
+                );
+                const children: DisplayElement[] = (
+                  config.displayElements as DisplayElementType[]
+                ).map((dt) => ({
+                    id: crypto.randomUUID(),
+                    type: "display_element" as const,
+                    displayType: dt,
+                    transform: {
+                      position: { x: 0, y: -20 },
+                      rotation: 0,
+                      scale: { x: 1, y: 1 },
+                      mirror: "none" as const,
+                    },
+                    binding: config.pointBindings[0]?.pointId
+                      ? { pointId: config.pointBindings[0].pointId }
+                      : config.pointBindings[0]?.pointTag
+                        ? { pointTag: config.pointBindings[0].pointTag }
+                        : {},
+                    config: makeDefaultDisplayConfig(dt),
+                    opacity: 1,
+                    visible: true,
+                    locked: false,
+                    name: dt,
+                  }));
+                const si: SymbolInstance = {
+                  id: crypto.randomUUID(),
+                  type: "symbol_instance",
+                  name: dropPending.displayName,
+                  transform: {
+                    position: { x: cx, y: cy },
+                    rotation: 0,
+                    scale: { x: 1, y: 1 },
+                    mirror: "none",
+                  },
+                  visible: true,
+                  locked: false,
+                  opacity: 1,
+                  shapeRef: {
+                    shapeId: config.shapeId,
+                    variant: config.variant,
+                  },
+                  composableParts: config.composableParts,
+                  textZoneOverrides: {},
+                  children,
+                  propertyOverrides: {},
+                  stateBinding:
+                    config.pointBindings[0]?.pointId
+                      ? { pointId: config.pointBindings[0].pointId }
+                      : config.pointBindings[0]?.pointTag
+                        ? { pointTag: config.pointBindings[0].pointTag }
+                        : undefined,
+                };
+                const dropParentId = useUiStore.getState().activeGroupId;
+                executeCmd(new AddNodeCommand(si, dropParentId));
+                selectedIdsRef.current = new Set([si.id]);
+                useUiStore.getState().setSelectedNodes([si.id]);
+                void useLibraryStore.getState().loadShape(config.shapeId);
+                setDropPending(null);
+              }}
+            />
+          )}
+
+          {/* Shape Configuration Dialog — edit mode, opened from context menu */}
+          {shapeConfigNodeId && (
+            <ShapeDropDialog
+              open={true}
+              editMode
+              shapeId={
+                (
+                  docRef.current?.children.find(
+                    (n) => n.id === shapeConfigNodeId,
+                  ) as SymbolInstance | undefined
+                )?.shapeRef.shapeId ?? ""
+              }
+              shapeDisplayName={
+                (
+                  docRef.current?.children.find(
+                    (n) => n.id === shapeConfigNodeId,
+                  ) as SymbolInstance | undefined
+                )?.name ?? "Shape"
+              }
+              onCancel={() => setShapeConfigNodeId(null)}
+              onPlace={(config: PlacedShapeConfig) => {
+                if (!shapeConfigNodeId || !docRef.current) {
+                  setShapeConfigNodeId(null);
+                  return;
+                }
+                const node = docRef.current.children.find(
+                  (n) => n.id === shapeConfigNodeId,
+                ) as SymbolInstance | undefined;
+                if (!node) {
+                  setShapeConfigNodeId(null);
+                  return;
+                }
+                const cmds: SceneCommand[] = [
+                  new ChangePropertyCommand(
+                    shapeConfigNodeId,
+                    "composableParts",
+                    config.composableParts,
+                    node.composableParts,
+                  ),
+                ];
+                const existingTypes = new Set(
+                  node.children.map((c) => c.displayType),
+                );
+                config.displayElements.forEach((dt) => {
+                  if (existingTypes.has(dt as DisplayElementType)) return;
+                  const el: DisplayElement = {
+                    id: crypto.randomUUID(),
+                    type: "display_element",
+                    displayType: dt as DisplayElementType,
+                    transform: {
+                      position: { x: 0, y: -20 },
+                      rotation: 0,
+                      scale: { x: 1, y: 1 },
+                      mirror: "none",
+                    },
+                    binding: {},
+                    config: makeDefaultDisplayConfig(dt as DisplayElementType),
+                    opacity: 1,
+                    visible: true,
+                    locked: false,
+                    name: dt,
+                  };
+                  cmds.push(new AddDisplayElementCommand(shapeConfigNodeId, el));
+                });
+                executeCmd(
+                  cmds.length === 1
+                    ? cmds[0]
+                    : new CompoundCommand("Configure Shape", cmds),
+                );
+                setShapeConfigNodeId(null);
+              }}
+            />
+          )}
+          {/* Slot handle popover — add display element at a named slot */}
+          {slotPopover && docRef.current && (
+            <div
+              style={{
+                position: "fixed",
+                left: slotPopover.screenX + 8,
+                top: slotPopover.screenY - 8,
+                zIndex: 2000,
+                background: "var(--io-surface-elevated, #27272a)",
+                border: "1px solid var(--io-border, #3f3f46)",
+                borderRadius: "var(--io-radius, 4px)",
+                padding: "6px 0",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                minWidth: 160,
+              }}
+              onMouseLeave={() => setSlotPopover(null)}
+            >
+              <div
+                style={{
+                  padding: "3px 12px 6px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  color: "var(--io-text-muted)",
+                }}
+              >
+                Add at {slotPopover.slotId}
+              </div>
+              {(
+                [
+                  ["text_readout", "Text Readout"],
+                  ["alarm_indicator", "Alarm Indicator"],
+                  ["analog_bar", "Analog Bar"],
+                  ["fill_gauge", "Fill Gauge"],
+                  ["sparkline", "Sparkline"],
+                  ["digital_status", "Digital Status"],
+                ] as Array<[DisplayElementType, string]>
+              ).map(([dtype, label]) => (
+                <div
+                  key={dtype}
+                  style={{
+                    padding: "5px 12px",
+                    fontSize: 12,
+                    color: "var(--io-text-primary)",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background =
+                      "var(--io-surface-hover, #3f3f46)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background = "";
+                  }}
+                  onClick={() => {
+                    const sym = docRef.current?.children.find(
+                      (n) => n.id === slotPopover.instanceId,
+                    ) as SymbolInstance | undefined;
+                    if (!sym) {
+                      setSlotPopover(null);
+                      return;
+                    }
+                    const libEntry = useLibraryStore
+                      .getState()
+                      .cache.get(sym.shapeRef.shapeId);
+                    const geo = libEntry?.sidecar?.geometry;
+                    const nw = geo?.baseSize?.[0] ?? geo?.width ?? 48;
+                    const nh = geo?.baseSize?.[1] ?? geo?.height ?? 48;
+                    const slotPos = resolveNamedSlot(slotPopover.slotId, {
+                      x: sym.transform.position.x,
+                      y: sym.transform.position.y,
+                      width: nw * (sym.transform.scale.x ?? 1),
+                      height: nh * (sym.transform.scale.y ?? 1),
+                    });
+                    const de: DisplayElement = {
+                      id: crypto.randomUUID(),
+                      type: "display_element",
+                      name: dtype,
+                      displayType: dtype,
+                      transform: {
+                        position: slotPos,
+                        rotation: 0,
+                        scale: { x: 1, y: 1 },
+                        mirror: "none",
+                      },
+                      binding: {},
+                      config: makeDefaultDisplayConfig(dtype),
+                      visible: true,
+                      locked: false,
+                      opacity: 1,
+                    };
+                    executeCmd(
+                      new AddDisplayElementCommand(slotPopover.instanceId, de),
+                    );
+                    setSlotPopover(null);
+                  }}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </ContextMenuPrimitive.Trigger>
 
@@ -7248,6 +7662,7 @@ export default function DesignerCanvas({
         setPromoteSourceType={setPromoteSourceType}
         setPromoteSourceNodeId={setPromoteSourceNodeId}
         setBindingNodeId={setBindingNodeId}
+        setShapeConfigNodeId={setShapeConfigNodeId}
         setActiveGroup={setActiveGroup}
         containerRef={containerRef}
         fitToCanvas={fitToCanvas}
@@ -7636,6 +8051,8 @@ function makeDefaultDisplayConfig(
         stateLabels: {},
         abnormalPriority: 3,
       };
+    case "point_name_label":
+      return { displayType: "point_name_label", style: "hierarchy" };
   }
 }
 
@@ -7661,6 +8078,7 @@ interface DesignerContextMenuContentProps {
   setPromoteSourceType: (t: "group" | undefined) => void;
   setPromoteSourceNodeId: (id: string | undefined) => void;
   setBindingNodeId: (id: NodeId | null) => void;
+  setShapeConfigNodeId: (id: NodeId | null) => void;
   setActiveGroup: (id: NodeId | null) => void;
   containerRef: React.RefObject<HTMLDivElement>;
   fitToCanvas: (w: number, h: number, vw: number, vh: number) => void;
@@ -7695,6 +8113,7 @@ function DesignerContextMenuContent({
   setPromoteSourceType,
   setPromoteSourceNodeId,
   setBindingNodeId,
+  setShapeConfigNodeId,
   setActiveGroup,
   containerRef,
   fitToCanvas,
@@ -8540,9 +8959,20 @@ function DesignerContextMenuContent({
               </>
             )}
 
-            {/* Symbol-instance: Export Shape SVG, Bind Point, Add Display Element */}
+            {/* Symbol-instance: Shape Configuration, Export SVG, Bind Point, Add Display Element */}
             {symbolInstance && (
               <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item
+                  style={itemStyle}
+                  disabled={!nodeId}
+                  onSelect={() => {
+                    if (nodeId) setShapeConfigNodeId(nodeId);
+                  }}
+                >
+                  Shape Configuration…
+                </ContextMenuPrimitive.Item>
+
                 <ContextMenuPrimitive.Separator style={sepStyle} />
                 <ContextMenuPrimitive.Item
                   style={itemStyle}
