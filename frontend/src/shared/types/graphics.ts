@@ -145,7 +145,8 @@ export type DisplayElementType =
   | "fill_gauge"
   | "sparkline"
   | "alarm_indicator"
-  | "digital_status";
+  | "digital_status"
+  | "point_name_label";
 
 export interface TextReadoutConfig {
   displayType: "text_readout";
@@ -230,13 +231,22 @@ export interface DigitalStatusConfig {
   showSignalLine?: boolean;
 }
 
+export interface PointNameLabelConfig {
+  displayType: "point_name_label";
+  /** "hierarchy" = ISA-colored dot-separated levels; "uniform" = plain muted text */
+  style: "hierarchy" | "uniform";
+  /** Override text — if unset, falls back to resolved tag name */
+  staticText?: string;
+}
+
 export type DisplayElementConfig =
   | TextReadoutConfig
   | AnalogBarConfig
   | FillGaugeConfig
   | SparklineConfig
   | AlarmIndicatorConfig
-  | DigitalStatusConfig;
+  | DigitalStatusConfig
+  | PointNameLabelConfig;
 
 export interface DisplayElement extends SceneNodeBase {
   type: "display_element";

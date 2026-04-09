@@ -27,6 +27,8 @@ export interface PointValue {
   manual?: boolean;
   alarmPriority?: 1 | 2 | 3 | 4 | 5 | null;
   unacknowledged?: boolean;
+  /** Client-side receipt timestamp (ms) — set to Date.now() when WS message arrives */
+  lastUpdateMs?: number;
 }
 
 type PointUpdateHandler = (update: PointValue) => void;

@@ -1635,6 +1635,11 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
         normalStates: [],
         abnormalPriority: 3,
       };
+    case "point_name_label":
+      return {
+        displayType: "point_name_label",
+        style: "hierarchy" as const,
+      };
   }
 }
 

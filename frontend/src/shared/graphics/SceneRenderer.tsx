@@ -1711,7 +1711,7 @@ export function SceneRenderer({
           const last = parts.length - 1;
           const secondLast = parts.length - 2;
           const spans: React.ReactNode[] = [];
-          parts.forEach((part, i) => {
+          parts.forEach((part: string, i: number) => {
             if (i > 0)
               spans.push(<tspan key={`sep-${i}`} fill={SEP_COLOR}>.</tspan>);
             const color =
