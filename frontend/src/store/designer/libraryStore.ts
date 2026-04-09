@@ -82,10 +82,33 @@ export interface ShapeSidecar {
   /** Alarm anchor — either normalized [nx, ny] tuple or {nx, ny} object */
   alarmAnchor?: [number, number] | { nx: number; ny: number };
   states?: Record<string, string> | string[];
-  /** Optional variant files */
+  /** Optional variant files — normalized flat array (populated from `variants.options` on load) */
   options?: Array<{ id: string; file: string; label: string }>;
+  /** Raw variant structure from JSON sidecar — normalized into `options` on load */
+  variants?: { options?: Record<string, { file: string; label: string }> };
   /** Optional configuration files */
   configurations?: Array<{ id: string; label: string; file: string }>;
+  addons?: Array<{
+    id: string;
+    file: string;
+    label: string;
+    group?: string;
+    exclusive?: boolean;
+  }>;
+  anchorSlots?: Partial<
+    Record<
+      | "PointNameLabel"
+      | "AlarmIndicator"
+      | "TextReadout"
+      | "AnalogBar"
+      | "FillGauge"
+      | "Sparkline"
+      | "DigitalStatus",
+      string[]
+    >
+  >;
+  defaultSlots?: Record<string, string>;
+  bindableParts?: Array<{ partId: string; label: string; category: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -369,35 +392,55 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
           const indexItem = get().index.find((item) => item.id === id);
           const category = indexItem?.category;
 
-          let svgUrl: string;
-          let jsonUrl: string;
+          // Fetch sidecar JSON first so we can resolve the correct SVG filename
+          // (shapes with variants don't have a bare {id}.svg — only opt1/opt2 files).
+          const jsonUrl = category
+            ? `/shapes/${category}/${id}.json`
+            : `/shapes/${id}.json`;
 
-          if (category) {
-            svgUrl = `/shapes/${category}/${id}.svg`;
-            jsonUrl = `/shapes/${category}/${id}.json`;
-          } else {
-            // Fallback: try root shapes directory
-            svgUrl = `/shapes/${id}.svg`;
-            jsonUrl = `/shapes/${id}.json`;
+          const jsonRes = await fetch(jsonUrl);
+          if (!jsonRes.ok) {
+            console.warn(`[libraryStore] Shape ${id}: json=${jsonRes.status}`);
+            return null;
           }
 
-          const [svgRes, jsonRes] = await Promise.all([
-            fetch(svgUrl),
-            fetch(jsonUrl),
-          ]);
+          const rawSidecar = (await jsonRes.json()) as ShapeSidecar;
 
-          if (!svgRes.ok || !jsonRes.ok) {
+          // Normalize variants.options Record → flat options Array so all
+          // consumers (variant picker, getShapeSvg) use the same structure.
+          const sidecar: ShapeSidecar = rawSidecar;
+          if (!sidecar.options && sidecar.variants?.options) {
+            sidecar.options = Object.entries(sidecar.variants.options).map(
+              ([optId, opt]) => ({ id: optId, file: opt.file, label: opt.label }),
+            );
+          }
+
+          // Resolve SVG filename: prefer opt1 variant, fall back to {id}.svg.
+          // Mirrors shapeCache.ts resolveSvgFilename().
+          let svgFilename: string;
+          if (sidecar.options && sidecar.options.length > 0) {
+            const opt1 =
+              sidecar.options.find((o) => o.id === "opt1") ?? sidecar.options[0];
+            svgFilename = opt1.file;
+          } else {
+            svgFilename = `${id}.svg`;
+          }
+
+          // Variant file may include a path component — only prepend category if it's a bare filename.
+          const svgUrl =
+            category && !svgFilename.includes("/")
+              ? `/shapes/${category}/${svgFilename}`
+              : `/shapes/${svgFilename}`;
+
+          const svgRes = await fetch(svgUrl);
+          if (!svgRes.ok) {
             console.warn(
-              `[libraryStore] Shape ${id}: svg=${svgRes.status} json=${jsonRes.status}`,
+              `[libraryStore] Shape ${id}: svg=${svgRes.status} (${svgUrl})`,
             );
             return null;
           }
 
-          const [svg, sidecar] = await Promise.all([
-            svgRes.text(),
-            jsonRes.json() as Promise<ShapeSidecar>,
-          ]);
-
+          const svg = await svgRes.text();
           entry = { id, svg, sidecar };
           return entry;
         } catch (err) {
@@ -410,7 +453,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             const loadingIds = new Set(state.loadingIds);
             loadingIds.delete(id);
             if (entry) {
-              const cache = new Map(state.cache);
+              const cache = new Map<string, ShapeEntry>(state.cache);
               cacheSet(cache, id, entry);
               return { cache, loadingIds };
             }
