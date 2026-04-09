@@ -1,0 +1,1 @@
+-- Nothing to undo: backfill rows will be cleared when alarms_current itself is dropped.

@@ -109,40 +109,590 @@ no TypeScript errors were introduced. Report what was changed.
 
 ---
 
-## Phase 2 — JSON Sidecar Schema Update
+## Phase 2A — JSON Sidecar Schema: Types + Index + Simple Shapes
 
-**After all Phase 1 batches complete.**
+**After all Phase 1 batches complete. Phase 2 is split — 2A handles types and simple shapes (no addons), 2B handles complex shapes (valves, reactors, vessels, tanks, columns) + backend seed.**
 
-### 2.1 Update TypeScript Types
+### 2A.1 Update TypeScript Types
 
 **Files:**
 - `frontend/src/shared/graphics/shapeCache.ts` — `ShapeSidecar` interface
-- `frontend/src/store/designer/libraryStore.ts` — `ShapeEntry` type
+- `frontend/src/store/designer/libraryStore.ts` — `ShapeEntry` sidecar type
 
-Add fields:
-- `addons: Array<{ id, file, label, group?, exclusive? }>`
-- `anchorSlots: Record<DisplayElementType, string[]>`
-- `defaultSlots: Record<string, string>`
-- `bindableParts: Array<{ partId, label, category }>`
+Add optional fields:
+- `addons?: Array<{ id, file, label, group?, exclusive? }>`
+- `anchorSlots?: Partial<Record<DisplayElementType, string[]>>`
+- `defaultSlots?: Record<string, string>`
+- `bindableParts?: Array<{ partId, label, category }>`
 
-### 2.2 Rebuild All Sidecar JSON Files
+Also extend `resolveSvgFilename` → `resolveShapeFiles` returning `{ base: string, addons: string[] }`.
 
-For each of the 85 shape SVGs, create/update the `.json` sidecar with:
-- `variants.options` — all variants from `shape-variants-addons.md`
-- `addons` array — composable parts available for this shape
-- `anchorSlots` — named slot positions per display element type
-- `defaultSlots` — sensible defaults per shape category
-- `bindableParts` — body + composable parts with binding sections
+### 2A.2 Update JSON Schema
 
-### 2.3 Update shapeCache.ts SVG Resolution
+**File:** `frontend/public/shapes/_schema/io-shape-v1.schema.json`
 
-The `resolveSvgFilename` function must handle composed shapes (base SVG + part SVGs).
+Add the four new optional properties to the schema.
 
-### 2.4 Rebuild Backend Seed
+### 2A.3 Rebuild index.json
+
+**File:** `frontend/public/shapes/index.json`
+
+Add entries for all new SVGs (heat-transfer, instrumentation, indicators, actuators categories). Remove entries for deleted SVGs.
+
+### 2A.4 Simple Shape Sidecar JSONs
+
+**Simple = no addons:** pumps, rotating, heat-transfer, instrumentation, filters, mixers, interlocks, annunciators, agitators, supports, indicators, actuators (part-* shapes).
+
+For each category: list SVGs, delete stale JSONs (SVG was deleted), update existing JSONs (add new fields), create new JSONs (SVG exists but no JSON yet).
+
+New fields for all simple shapes:
+- `"addons": []`
+- `"anchorSlots"` per spec §"Named Slots by Element Type"
+- `"defaultSlots"` per spec §"Default Slots by Shape Category"
+- `"bindableParts": [{"partId": "body", "label": "Equipment Body", "category": "process"}]`
+  (actuator parts use `"partId": "actuator"`, `"category": "control"`)
+
+### Phase 2A Kickoff Prompt
+
+```
+You are implementing Phase 2A of the I/O shape library rebuild — TypeScript type updates,
+index.json rebuild, and sidecar JSON files for SIMPLE shapes (no composable addons).
+
+Phase 1 (18-batch SVG extraction) and Phase 0 (token fixes) are COMPLETE.
+Phase 2 is split: 2A = types + index + simple shapes. 2B = complex shapes + Rust seed.
+Simple shapes = no addons: pumps, rotating, heat-transfer, instrumentation, filters,
+mixers, interlocks, annunciators, agitators, supports, indicators, actuators.
+Complex shapes (valves, reactors, vessels, tanks, columns) are deferred to Phase 2B.
+
+## Read these files first (in order):
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md — full plan
+2. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-sidecar-spec.md — read the
+   §"Named Slots by Element Type" and §"Default Slots by Shape Category" tables carefully
+3. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-variants-addons.md — for
+   simple shapes, confirm they have no addons (actuator parts, plain equipment)
+4. /home/io/io-dev/io/frontend/src/shared/graphics/shapeCache.ts — current ShapeSidecar
+5. /home/io/io-dev/io/frontend/src/store/designer/libraryStore.ts — ShapeEntry type
+6. /home/io/io-dev/io/frontend/public/shapes/_schema/io-shape-v1.schema.json — current schema
+7. /home/io/io-dev/io/frontend/public/shapes/pumps/pump-centrifugal.json — sidecar template
+
+Before writing any JSON, list the SVG files in each simple-shape directory to know
+exactly what to create/update/delete.
+
+## TASK 1 — TypeScript types
+
+### shapeCache.ts
+Add optional fields to ShapeSidecar:
+  addons?: Array<{ id: string; file: string; label: string; group?: string; exclusive?: boolean }>;
+  anchorSlots?: Partial<Record<
+    "PointNameLabel" | "AlarmIndicator" | "TextReadout" | "AnalogBar" |
+    "FillGauge" | "Sparkline" | "DigitalStatus",
+    string[]
+  >>;
+  defaultSlots?: Record<string, string>;
+  bindableParts?: Array<{ partId: string; label: string; category: string }>;
+
+Add a new function (or update resolveSvgFilename):
+  export function resolveShapeFiles(
+    sidecar: ShapeSidecar,
+    variantKey: string,
+    addonIds: string[]
+  ): { base: string; addons: string[] }
+  — Returns the base SVG file for the selected variant plus the file for each selected addon.
+  — For shapes with no addons field, returns { base: "<shape>.svg", addons: [] }.
+
+### libraryStore.ts
+If the file defines its own sidecar interface (not imported from shapeCache.ts), update it
+to add the same four optional fields. Import the ShapeSidecar type from shapeCache.ts if
+it is locally redeclared — remove the duplicate.
+
+## TASK 2 — JSON schema
+
+File: frontend/public/shapes/_schema/io-shape-v1.schema.json
+
+Add these four optional properties to the "properties" object:
+  "addons": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": ["id", "file", "label"],
+      "properties": {
+        "id": { "type": "string" },
+        "file": { "type": "string" },
+        "label": { "type": "string" },
+        "group": { "type": "string" },
+        "exclusive": { "type": "boolean" }
+      }
+    }
+  },
+  "anchorSlots": {
+    "type": "object",
+    "additionalProperties": { "type": "array", "items": { "type": "string" } }
+  },
+  "defaultSlots": {
+    "type": "object",
+    "additionalProperties": { "type": "string" }
+  },
+  "bindableParts": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": ["partId", "label", "category"],
+      "properties": {
+        "partId": { "type": "string" },
+        "label": { "type": "string" },
+        "category": { "type": "string" }
+      }
+    }
+  }
+
+## TASK 3 — index.json
+
+File: frontend/public/shapes/index.json
+
+Read the current file. Then list all SVG files across ALL shape directories. Add a
+JSON entry for every SVG that lacks one. Remove entries for SVGs that were deleted in
+Phase 1 batch cleanup. Each entry must have: id (shape_id), category, label, and
+optionally subcategory.
+
+SVGs known to be deleted (entries to remove if present):
+  pump-centrifugal (bare, no opt1/opt2 suffix)
+  pump-positive-displacement (bare)
+  compressor (bare)
+  fan-blower (bare)
+  motor (bare)
+  interlock-opt2 (moved to instrumentation as interlock-padlock)
+
+New categories to add entries for: heat-transfer, instrumentation, indicators, actuators.
+
+## TASK 4 — Simple shape sidecar JSON files
+
+### The anchorSlots template (same for ALL simple shapes — no vessel-interior)
+{
+  "anchorSlots": {
+    "PointNameLabel": ["top", "right", "bottom", "left"],
+    "AlarmIndicator": ["top-right", "top-left", "bottom-right", "bottom-left"],
+    "TextReadout":    ["top", "right", "bottom", "left"],
+    "AnalogBar":      ["right", "left"],
+    "FillGauge":      ["right", "left"],
+    "Sparkline":      ["right-top", "right-bottom", "left-top", "left-bottom"],
+    "DigitalStatus":  ["top", "right", "bottom", "left"]
+  }
+}
+
+### The defaultSlots by category (from spec §"Default Slots by Shape Category")
+Pumps, rotating equip, heat-transfer, filters, mixers, agitators:
+  { "AlarmIndicator": "top-right", "TextReadout": "bottom",
+    "Sparkline": "right-top", "PointNameLabel": "top" }
+
+Instrumentation, indicators, interlocks, annunciators:
+  { "AlarmIndicator": "top-right", "TextReadout": "right",
+    "Sparkline": "right-top", "PointNameLabel": "top" }
+
+Actuator parts (part-* shapes):
+  { "AlarmIndicator": "top-right", "TextReadout": "bottom",
+    "Sparkline": "right-top", "PointNameLabel": "top" }
+
+### bindableParts
+Standard equipment: [{ "partId": "body", "label": "Equipment Body", "category": "process" }]
+Actuator parts:     [{ "partId": "actuator", "label": "Actuator", "category": "control" }]
+Fail-indicator parts: [{ "partId": "indicator", "label": "Fail Indicator", "category": "control" }]
+
+### Stale JSON files to DELETE (SVGs were removed in batch 1r cleanup)
+Only delete if the corresponding SVG NO LONGER EXISTS. Check before deleting.
+  pumps/pump-centrifugal.json       → pump-centrifugal.svg was deleted
+  pumps/pump-positive-displacement.json → deleted
+  rotating/compressor.json          → deleted
+  rotating/fan-blower.json          → deleted
+  rotating/motor.json               → deleted
+  interlocks/interlock-opt2.json    → check if interlock-opt2.svg still exists
+
+### JSON files to UPDATE (add new fields to existing)
+For each existing JSON in simple shape directories that is missing addons/anchorSlots/
+defaultSlots/bindableParts — add those fields. Do not change any existing fields.
+
+### JSON files to CREATE (SVG exists, no JSON)
+For each SVG in simple shape directories that has no matching JSON, create a new sidecar.
+Use pump-centrifugal.json as the structural template. Populate:
+  shape_id: the SVG base filename (without .svg)
+  display_name: human readable label
+  category: the directory name
+  subcategory: equipment subtype
+  tags: relevant search keywords
+  recognition_class: snake_case identifier
+  geometry: read viewBox from the SVG file → { viewBox, width, height }
+  connections: read from <g class="io-connections"> circles in the SVG
+               cx/cy of each circle → x/y, data-io-conn-id → id
+               Infer direction from position relative to viewBox center.
+               Infer type: "process" for most, "signal" for instrument nozzles
+  variants: { "options": { "default": { "file": "<name>.svg", "label": "Standard" } },
+              "configurations": [] }
+            (if the shape has opt1/opt2 siblings, list both as options)
+  textZones: [{ "id": "tagname", "x": <cx of shape>, "y": -6,
+                "width": <viewBox width>, "anchor": "middle", "fontSize": 11 }]
+  valueAnchors: [{ "nx": 0.5, "ny": 1.15, "preferredElement": "text_readout" }]
+  alarmAnchor: { "nx": 1.1, "ny": -0.1 }
+  alarmBinding: copy standard block (stateSource: "point_alarm_state", etc.)
+  states: { "running": "io-running", "stopped": "io-stopped", "fault": "io-fault",
+            "transitioning": "io-transitioning", "oos": "io-oos" }
+  + all four new fields (addons, anchorSlots, defaultSlots, bindableParts)
+
+Do NOT invent connection data. Read it from the SVG.
+For part shapes (isPart: true), set isPart: true and omit states.
+
+## TASK 5 — Verify
+
+Run from /home/io/io-dev/io/frontend:
+  pnpm build   — must complete with no TypeScript errors
+  pnpm test    — must pass
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 2B Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 2B.
+```
+
+---
+
+## Phase 2B — Complex Shape Sidecars + Backend Seed
+
+**After Phase 2A is complete. TypeScript types and schema are already updated.**
+
+### 2B.1 Complex Shape Sidecar JSONs
+
+**Complex = has addons:** valves (6), reactors (4), vessels (8), tanks (6), columns (6).
+
+For each: add `addons` array from `shape-variants-addons.md`, `anchorSlots` (include
+`vessel-interior` for vessels/tanks/reactors/columns), `defaultSlots`, `bindableParts`
+(body + each addon part).
+
+### 2B.2 Rebuild Backend Seed
 
 **File:** `services/api-gateway/src/seed_shapes.rs`
 
-Rebuild shape seed array with new filenames, correct SVG data, updated sidecar JSON strings.
+For every entry in the seed: (a) update the inline SVG to match the current file content
+from `frontend/public/shapes/`, and (b) update the sidecar JSON string to include all new
+fields. Run `cargo build` when done.
+
+### Phase 2B Kickoff Prompt
+
+```
+You are implementing Phase 2B of the I/O shape library rebuild — complex shape sidecar
+JSON files (valves, reactors, vessels, tanks, columns) and the Rust backend seed rebuild.
+
+Phase 2A is COMPLETE: TypeScript types updated, schema updated, index.json rebuilt,
+all simple shape sidecars updated/created.
+
+## Read these files first:
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md — full plan
+2. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-variants-addons.md — THIS IS
+   THE PRIMARY SOURCE. All addon definitions, variant lists, and bindable part data live here.
+3. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-sidecar-spec.md — anchor slots
+   §"Named Slots by Element Type" and §"Default Slots by Shape Category"
+4. /home/io/io-dev/io/frontend/src/shared/graphics/shapeCache.ts — ShapeSidecar type
+   (already updated in 2A — addons/anchorSlots/defaultSlots/bindableParts are present)
+5. Existing complex shape JSON for reference (read one valve and one vessel JSON)
+6. /home/io/io-dev/io/services/api-gateway/src/seed_shapes.rs — current seed file
+
+## TASK 1 — Complex shape sidecar JSONs
+
+### Directories: valves/, reactors/, vessels/, tanks/, columns/
+
+For each shape, update the existing JSON (or create if missing) to add:
+  - "addons": populated from shape-variants-addons.md for this specific shape
+  - "anchorSlots": same as simple shapes PLUS "vessel-interior" for AnalogBar and FillGauge
+                   (applies to: vessels, tanks, reactors, columns)
+    Valve/instrument-category shapes do NOT get vessel-interior.
+  - "defaultSlots": per spec §"Default Slots by Shape Category":
+      Tall vessels, reactors:
+        { "AlarmIndicator": "top-right", "TextReadout": "bottom",
+          "FillGauge": "vessel-interior", "Sparkline": "right-top", "PointNameLabel": "top" }
+      Distillation columns:
+        { "AlarmIndicator": "top-right", "TextReadout": "right",
+          "AnalogBar": "right", "Sparkline": "right-top", "PointNameLabel": "top" }
+      Storage tanks:
+        { "AlarmIndicator": "top-right", "TextReadout": "bottom",
+          "FillGauge": "vessel-interior", "Sparkline": "right-top", "PointNameLabel": "top" }
+      Control valves, relief valves:
+        { "AlarmIndicator": "top-right", "TextReadout": "right",
+          "Sparkline": "right-top", "PointNameLabel": "top" }
+      Gate/globe/ball/butterfly valves:
+        { "AlarmIndicator": "top-right", "DigitalStatus": "bottom",
+          "Sparkline": "right-top", "PointNameLabel": "top" }
+  - "bindableParts": body + each addon part defined in shape-variants-addons.md
+      Example for valve-gate: body + each actuator option as a separate bindable part
+
+The anchorSlots for vessel/tank/reactor/column shapes (with vessel-interior):
+  "anchorSlots": {
+    "PointNameLabel": ["top", "right", "bottom", "left"],
+    "AlarmIndicator": ["top-right", "top-left", "bottom-right", "bottom-left"],
+    "TextReadout":    ["top", "right", "bottom", "left"],
+    "AnalogBar":      ["right", "left", "vessel-interior"],
+    "FillGauge":      ["vessel-interior", "right", "left"],
+    "Sparkline":      ["right-top", "right-bottom", "left-top", "left-bottom"],
+    "DigitalStatus":  ["top", "right", "bottom", "left"]
+  }
+
+Valve anchorSlots (no vessel-interior, same as simple shapes):
+  "anchorSlots": {
+    "PointNameLabel": ["top", "right", "bottom", "left"],
+    "AlarmIndicator": ["top-right", "top-left", "bottom-right", "bottom-left"],
+    "TextReadout":    ["top", "right", "bottom", "left"],
+    "AnalogBar":      ["right", "left"],
+    "FillGauge":      ["right", "left"],
+    "Sparkline":      ["right-top", "right-bottom", "left-top", "left-bottom"],
+    "DigitalStatus":  ["top", "right", "bottom", "left"]
+  }
+
+## TASK 2 — Rebuild backend seed
+
+File: services/api-gateway/src/seed_shapes.rs
+
+For EVERY ShapeSeed entry in the file:
+  1. Read the actual current SVG content from frontend/public/shapes/<category>/<file>.svg
+     and update the inline svg field in the seed entry.
+  2. Read the actual current JSON sidecar from frontend/public/shapes/<category>/<file>.json
+     and update the inline sidecar JSON string in the seed entry.
+  3. Add entries for any new shapes (from new categories) that are not yet in the seed.
+  4. Remove entries for deleted shapes.
+
+Be careful with Rust string escaping — the sidecar is a &'static str with escaped JSON.
+After editing, the file must compile. Run cargo build to check:
+  cd /home/io/io-dev/io && cargo build -p io-api-gateway
+
+## TASK 3 — Verify
+
+Frontend:  cd /home/io/io-dev/io/frontend && pnpm build
+Backend:   cd /home/io/io-dev/io && cargo build -p io-api-gateway
+
+Both must succeed before declaring Phase 2B done.
+
+## FINAL STEP
+
+After the builds pass, output the complete "### Phase 3 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 3.
+```
+
+### Phase 3 Kickoff Prompt
+
+```
+You are implementing Phase 3 of the I/O shape library rebuild — a ground-up rebuild of all
+7 point value display element components plus 3 new shared utilities.
+
+Phase 2B is COMPLETE: all shape sidecar JSONs updated, backend seed rebuilt, both builds pass.
+Phase 0 may or may not have run — check tokens.ts before starting Task 1.
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 3.
+
+2. /home/io/spec_docs/display-elements-implementation-spec.md
+   — THIS IS THE PRIMARY AUTHORITY. Pixel-perfect specs for all 7 element types.
+   Read it completely before touching any component file.
+
+3. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-sidecar-spec.md
+   — Color token values and state machine timing rules.
+
+4. Current component files (read each before rewriting):
+   - frontend/src/shared/graphics/displayElements/TextReadout.tsx
+   - frontend/src/shared/graphics/displayElements/AnalogBar.tsx
+   - frontend/src/shared/graphics/displayElements/FillGauge.tsx
+   - frontend/src/shared/graphics/displayElements/Sparkline.tsx
+   - frontend/src/shared/graphics/displayElements/AlarmIndicator.tsx
+   - frontend/src/shared/graphics/displayElements/DigitalStatus.tsx
+   - frontend/src/shared/graphics/displayElements/index.ts
+
+5. frontend/src/shared/theme/tokens.ts — verify Phase 0 tokens exist before starting
+   (--io-text-stale, --io-zone-hh/h/l/ll, --io-fill-normal-opacity, --io-fill-stale-opacity)
+
+6. frontend/src/shared/graphics/displayElementColors.ts — verify Phase 0 additions exist
+
+## TASK 0 — Phase 0 prerequisite check
+
+If Phase 0 tokens are missing from tokens.ts or displayElementColors.ts, apply them now
+before proceeding. Do not rebuild display elements without correct tokens.
+
+Phase 0 tokens to add if missing (all three theme maps: dark, light, HPHMI):
+  --io-text-stale: Dark #636363, Light #9CA3AF, HPHMI #475569
+  --io-zone-hh:  Dark #5C3A3A, Light #F87171, HPHMI #7C3AED (muted zone fill colors)
+  --io-zone-h:   Dark #5C4A32, Light #FCA87A, HPHMI #2563EB
+  --io-zone-l:   Dark #32445C, Light #60A5FA, HPHMI #16A34A
+  --io-zone-ll:  Dark #2E3A5C, Light #3B82F6, HPHMI #65A30D
+  --io-fill-normal-opacity: Dark 0.6, Light 0.45, HPHMI 0.5
+  --io-fill-stale-opacity:  Dark 0.3, Light 0.15, HPHMI 0.2
+  --equip-stroke: #808080 (same in all themes)
+  Light theme alarm fixes: --al-urgent: #b91c1c, --al-high: #ea580c,
+    --al-low: #a16207, --al-diag: #15803d, --al-shelved: #7e22ce, --al-disabled: #3f3f46
+
+operationalState.css fault color fix (if not done):
+  Fault: fill #D946EF, stroke #C026D3 (magenta — NOT red #dc2626)
+
+## TASK 1 — Create shared utilities
+
+Create these three files (they do not exist yet):
+
+### frontend/src/shared/graphics/dataQuality.ts
+
+Export:
+- `DataQualityState` enum: Normal | Stale | BadPhase1 | BadPhase2 | NotConnected
+- `BAD_ONSET_DEBOUNCE_MS = 3000`
+- `BAD_PHASE1_DURATION_MS = 30000`
+- `BAD_RECOVERY_DEBOUNCE_MS = 5000`
+- `STALE_THRESHOLD_MS = 60000`
+- `useDataQuality(lastUpdateMs: number, quality: string): DataQualityState` hook
+  Stale = >60s since last update. Bad onset = 3s debounce before BadPhase1.
+  BadPhase1 lasts 30s, then BadPhase2. Recovery from bad = 5s debounce.
+  State precedence: Bad > Stale. Alarm tint continues during stale.
+
+### frontend/src/shared/graphics/valueUpdateFlash.ts
+
+Export:
+- `UPDATE_FLASH_DURATION_MS = 150`
+- `UPDATE_FLASH_COOLDOWN_MS = 2000`
+- `useValueUpdateFlash(value: unknown, isInAlarm: boolean): boolean` hook
+  Returns true for 150ms after value changes, then false. 2s cooldown between flashes.
+  Suppressed (always returns false) when isInAlarm=true.
+
+### frontend/src/shared/graphics/svgDefs.tsx
+
+Export:
+- `<SharedSvgDefs />` React component — renders SVG <defs> block with:
+  - bad-phase1 diagonal hatch pattern (id="bad-phase1-hatch"):
+    pattern units="userSpaceOnUse" 4×4px, 45° diagonal lines, stroke #808080 at 40% opacity
+- `BAD_PHASE1_HATCH_URL = "url(#bad-phase1-hatch)"`
+- Must be rendered once per canvas, above all display elements
+
+## TASK 2 — Rebuild display element components
+
+Rebuild each component to exactly match display-elements-implementation-spec.md.
+
+### State machine behavior (applies to ALL elements):
+
+Stale (>60s no update):
+- Text/numeric values: color changes to --io-text-stale (#636363)
+- Boxes/backgrounds: no fill change
+- Update flash: suppressed
+- Alarm tint: continues if alarm active
+
+Bad Phase 1 (0–30s of bad quality):
+- Overlay: bad-phase1-hatch pattern on background/box fill area
+- Value text: remains visible underneath hatch
+- Box border: changes to #52525B
+
+Bad Phase 2 (>30s of bad quality):
+- Value hidden: show "---" or "COMM FAIL" text in --io-text-muted color
+- Hatch remains
+
+Not Connected:
+- Same as Bad Phase 2 display
+
+Unacknowledged alarm:
+- 1Hz step-end flash on box border + tint color
+- Value text NEVER flashes — only the box/indicator
+
+### TextReadout.tsx
+
+Box: rect with border-radius 2px, fill --io-surface-elevated (#27272A), border --io-border (#3F3F46)
+Normal value: JetBrains Mono 11px #A1A1AA, tabular-nums
+In alarm: value text → #F9FAFB (promoted), border → alarm priority color, bg tint = priority at 15%
+Label: Inter 8px #71717A, above value
+Units: Inter 9px #71717A, inline after value
+Width modes: auto (content-fit) | fixed (user-set px width, text truncates)
+Value-only mode: no box, just raw text (for standalone numeric overlay)
+Update flash: 150ms border brightens to #71717A, then returns to normal
+
+### AnalogBar.tsx
+
+Orientation: vertical (default) | horizontal
+Zones: HH / H / Normal / L / LL — proportional heights from config thresholds
+Zone colors: HH #5C3A3A, H #5C4A32, Normal #404048, L #32445C, LL #2E3A5C
+In-alarm zone: replace zone color with ISA priority color
+Value pointer: horizontal line (vertical bar) or vertical line (horizontal bar)
+  Pointer fill: #A1A1AA, no stroke
+Zone labels: HH/H/L/LL text, JetBrains Mono 7px #71717A, right of bar (vertical)
+Bad Phase 1: hatch overlay on bar background
+Bad Phase 2: bar hidden, show "---" centered
+
+### FillGauge.tsx
+
+Vessel clip path: from shape's sidecar `vesselInteriorPath` (SVG path string)
+  When attached to vessel: clip fill to interior path
+  Standalone: clip to rect with rx=2
+Fill color: #475569 at --io-fill-normal-opacity (60% dark)
+Stale: fill opacity drops to --io-fill-stale-opacity (30% dark)
+In alarm: fill color = priority color at 30% opacity
+  Unacknowledged: fill flashes 1Hz between priority-color and transparent
+Scale: fill height = (value - min) / (max - min) * 100% of interior height
+Border (standalone): 1px #52525B
+
+### Sparkline.tsx
+
+Background: rect, fill --io-surface-elevated (#27272A)
+Normal stroke: #71717A (NOT teal — spec explicitly says muted gray)
+In alarm: stroke = alarm priority color
+Shelved: stroke = --al-shelved (#D946EF), dash-array: 4 2
+Disabled: stroke = --al-disabled (#52525B), dash-array: 2 2
+Stale: stroke opacity 40%
+Bad Phase 1: hatch overlay on background
+Update flash: background brightens briefly (150ms)
+
+### AlarmIndicator.tsx
+
+7 shapes (by priority):
+  P1 Critical: Rectangle 24×18, rx=2, fill --io-alarm-critical (#EF4444)
+  P2 High:     Triangle pointing up, ~20px base, fill --io-alarm-high (#F97316)
+  P3 Medium:   Inverted triangle, ~20px base, fill --io-alarm-medium (#EAB308)
+  P4 Advisory: Ellipse rx=14 ry=10, fill --io-alarm-advisory (#06B6D4)
+  Custom:      Diamond ~20px diagonal, fill --io-alarm-custom (#7C3AED)
+  RTN (Return-to-Normal): Dashed outline only (no fill), stroke = prior priority color
+  No active alarm (designer ghost): semi-transparent gray placeholder, 50% opacity
+
+Text inside indicator: JetBrains Mono 9px 600 weight, same color as stroke
+Multiple alarm count badge: small number badge bottom-right corner
+Unacknowledged: entire indicator flashes 1Hz
+Designer mode (no bound point): show ghost placeholder (gray, semi-transparent)
+
+### DigitalStatus.tsx
+
+Shape: rounded pill, width = auto (content) or fixed
+Normal: fill --io-display-zone-inactive (#3F3F46), text #A1A1AA, JetBrains Mono 9px
+Abnormal state: fill = state color (from shape's states map), text #F9FAFB
+  Contrast-aware text: if fill is bright (luminance > 0.5), use dark text (#09090B)
+Stale: fill opacity 60%, text → --io-text-stale
+Width modes: auto | fixed (truncate with ellipsis)
+
+### PointNameLabel.tsx (NEW — does not exist yet)
+
+Purpose: tag name / label display. NOT affected by alarm state.
+Two styles (from config):
+  hierarchy: shows full "AREA.UNIT.TAG" with each level in a slightly different opacity
+    - System/Area: #52525B (muted), Unit: #71717A, Tag: #A1A1AA (most prominent)
+  uniform: single string, all #71717A, Inter 8-9px
+
+No box/background. Purely a text node.
+Updates: only when point metadata changes (not on every value tick)
+
+## TASK 3 — Update index.ts
+
+File: frontend/src/shared/graphics/displayElements/index.ts
+Export PointNameLabel from the new file.
+Verify all 7 components are exported.
+
+## TASK 4 — Verify
+
+Run from /home/io/io-dev/io/frontend:
+  pnpm build
+
+Must compile with no TypeScript errors. Fix any import issues.
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 4 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 4.
+```
 
 ---
 
@@ -177,6 +727,119 @@ Rebuild shape seed array with new filenames, correct SVG data, updated sidecar J
 - Update flash: 150ms, 2s cooldown, suppressed during active alarm
 - Unacknowledged: 1Hz `step-end` flash on box border + tint; text NEVER flashes
 
+### Phase 4 Kickoff Prompt
+
+```
+You are implementing Phase 4 of the I/O shape library rebuild — SceneRenderer integration.
+
+Phase 3 is COMPLETE: all 7 display element components rebuilt with data quality state machine,
+3 shared utilities created (dataQuality.ts, valueUpdateFlash.ts, svgDefs.tsx), pnpm build passes.
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 4.
+
+2. /home/io/spec_docs/graphics-scene-graph-implementation-spec.md
+   — THIS IS THE PRIMARY AUTHORITY for SceneRenderer changes.
+
+3. /home/io/spec_docs/display-elements-implementation-spec.md
+   — Shape attachment system (valueAnchors, anchorSlots, normalized coordinates).
+
+4. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-sidecar-spec.md
+   — Anchor slot layout rules and composable part rules.
+
+5. Current files (read each before editing):
+   - frontend/src/shared/graphics/SceneRenderer.tsx
+   - frontend/src/shared/graphics/displayElements/index.ts
+   - frontend/src/shared/graphics/svgDefs.tsx
+   - frontend/src/shared/types/graphics.ts
+
+## TASK 1 — Integrate SharedSvgDefs into SceneRenderer
+
+File: frontend/src/shared/graphics/SceneRenderer.tsx
+
+Import SharedSvgDefs from './svgDefs'.
+Render <SharedSvgDefs /> as the first child of the root <svg> element.
+This makes the bad-phase1-hatch pattern available to ALL display elements on the canvas.
+
+## TASK 2 — Wire data quality into the display element render path
+
+The SceneRenderer renders display elements in the React path (pointValues prop).
+PointValue already has quality?: string field but no lastUpdateMs.
+
+2a. Add lastUpdateMs?: number to the PointValue interface in SceneRenderer.tsx.
+    Populate it when receiving WebSocket updates (use Date.now() at receipt time).
+
+2b. When rendering TextReadout, AnalogBar, FillGauge, Sparkline, DigitalStatus:
+    Pass pointValue.quality and pointValue.lastUpdateMs as props to each component.
+    The display element components already accept these props from Phase 3.
+
+2c. For the live DOM mutation path (liveSubscribe=true):
+    The rAF applyPointValue function applies updates directly to the SVG DOM.
+    Add lastUpdateMs to the WsPointValue type (set to Date.now() at subscription receive).
+    The DOM mutation path does NOT need to call useDataQuality — that is React-only.
+    For the live path, apply visual staleness via a separate staleness check:
+    Keep a Map<pointId, number> of lastUpdateTimestamps in the SceneRenderer.
+    On each rAF tick, check if any tracked point exceeds 60s — add class 'io-stale'
+    to its SVG elements so CSS can style stale state (for a future CSS-driven approach).
+
+## TASK 3 — Composable shape rendering
+
+File: frontend/src/shared/graphics/SceneRenderer.tsx
+
+When rendering a SymbolInstance node with composableParts:
+- The base shape SVG is already fetched via fetchShapes() / shapeCache.
+- For each ComposablePart in si.composableParts:
+  - Fetch the part SVG from the shape cache (shape ID = part.partId).
+  - The sidecar's anchorSlots field lists where parts attach.
+  - Look up the slot position from si.shapeRef → sidecar → anchorSlots[part.attachment].
+  - Render the part SVG at that position, overlaid on the base shape.
+
+Part positioning rules (from sidecar anchorSlots):
+  - Slot value is a normalized [nx, ny] position on the base shape bbox.
+  - nx=0.5, ny=0 = top-center; nx=1.0, ny=0.5 = mid-right; etc.
+  - Convert to absolute coords: x = bbox.x + nx * bbox.width, y = bbox.y + ny * bbox.height.
+
+For now: if anchorSlots is not in the sidecar, render the part at [0.5, 0.0] (top-center default).
+
+## TASK 4 — Anchor slot positioning for display elements
+
+Create: frontend/src/shared/graphics/anchorSlots.ts
+
+Export:
+- resolveAnchorPosition(sidecar: Record<string, unknown>, slotId: string, bbox: DOMRect): {x: number, y: number}
+  Reads sidecar.anchorSlots[slotId] → normalized coords → absolute position within bbox.
+  Falls back to sidecar.valueAnchors[0].position if slotId not found.
+
+- DEFAULT_VALUE_ANCHOR_POSITION = {nx: 0.5, ny: 1.15} (below center of shape)
+- DEFAULT_ALARM_ANCHOR_POSITION = {nx: 1.1, ny: -0.1} (upper-right of shape)
+
+When placing display elements attached to a SymbolInstance:
+  Use the SymbolInstance bbox (from the rendered SVG g element getBBox()) to resolve positions.
+  Position each display element's translate() based on resolved anchor coords.
+
+## TASK 5 — LOD override
+
+In SceneRenderer, when applying per-element LOD hiding:
+  Check for data-lod-override="always" attribute on the element's <g>.
+  If present, never hide the element regardless of viewport zoom.
+  AlarmIndicator elements should always be visible — set data-lod-override="always" on their <g>.
+
+## TASK 6 — Verify
+
+Run from /home/io/io-dev/io/frontend:
+  pnpm build
+
+Must compile with no TypeScript errors. Fix any import issues.
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 5 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 5.
+```
+
 ---
 
 ## Phase 4 — SceneRenderer Integration
@@ -191,6 +854,119 @@ Rebuild shape seed array with new filenames, correct SVG data, updated sidecar J
 4. **LOD override** — `data-lod-override="always"` ignores LOD thresholds
 5. **Value update flash** — integrate into rAF DOM mutation path
 
+### Phase 5 Kickoff Prompt
+
+```
+You are implementing Phase 5 of the I/O shape library rebuild — the Shape Drop Dialog.
+
+Phase 4 is COMPLETE: SceneRenderer has SharedSvgDefs, data quality wiring (lastUpdateMs),
+composable part anchor-slot positioning, anchorSlots.ts utility, LOD override for alarm
+indicators, and pnpm build passes.
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 5.
+
+2. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-variants-addons.md
+   — PRIMARY AUTHORITY for dialog content: variant names, add-on checkboxes, bindable
+     parts, SVG file names. Read ALL of it before writing any code.
+
+3. /home/io/spec_docs/designer-implementation-spec.md
+   — Designer interaction model, SceneCommand pattern, how drops land on canvas.
+
+4. /home/io/spec_docs/designer-ui-prompt.md
+   — Visual layout, dialog dimensions, Radix UI usage, theme tokens.
+
+5. Current files (read each before editing):
+   - frontend/src/pages/designer/components/ (read existing components for pattern)
+   - frontend/src/shared/types/graphics.ts (SymbolInstance, ComposablePart types)
+   - frontend/src/shared/graphics/SceneRenderer.tsx (how shapeRef + composableParts render)
+
+## TASK 1 — Create ShapeDropDialog.tsx
+
+File: frontend/src/pages/designer/components/ShapeDropDialog.tsx
+
+This dialog opens when the user drops a shape from the shape library panel onto the canvas.
+It is a 2-step Radix Dialog.
+
+### Step 1 — Variant Picker + Add-on Checkboxes
+
+- Shows a visual grid of variant thumbnails (SVG previews, 80×80px each)
+- Each thumbnail is a bordered card; selected variant gets an accent border
+- Below the variant grid: add-on checkboxes (enabled per the shape-variants-addons.md rules)
+  — Add-ons are checkboxes, not radio buttons; multiple can be selected
+  — Checkboxes that are not applicable to the selected variant must be disabled (not hidden)
+- "Use Defaults" button: selects the first variant, no add-ons, skips to placement immediately
+- Single-variant shapes auto-skip Step 1 entirely and open at Step 2 (or place directly)
+
+### Step 2 — Sidecar Pre-Attachment
+
+- One binding section per bindable part (from shape-variants-addons.md "Bindable parts")
+- Each section: a point picker (search by tag name) + element checklist
+- Element checklist: which display elements to attach (Text Readout, Alarm Indicator, etc.)
+  — Defaults from the shape sidecar's defaultElements array (if present), else all checked
+- "Back" button returns to Step 1
+- "Place" button closes dialog and initiates canvas placement (snap-to-grid)
+- "Skip Binding" button: places shape with no point bindings
+
+### Dialog Props
+
+```typescript
+interface ShapeDropDialogProps {
+  shapeId: string;           // e.g. "valve-control"
+  shapeDisplayName: string;  // e.g. "Control Valve"
+  onPlace: (config: PlacedShapeConfig) => void;
+  onCancel: () => void;
+  open: boolean;
+}
+
+interface PlacedShapeConfig {
+  shapeId: string;
+  variant: string;           // selected variant key
+  composableParts: Array<{ partId: string; attachment: string }>;
+  pointBindings: Array<{
+    partKey: string;         // 'body' | composable part ID
+    pointId?: string;
+    pointTag?: string;
+  }>;
+  displayElements: string[]; // display element types to pre-attach
+}
+```
+
+## TASK 2 — Wire the dialog into the shape library panel drop flow
+
+The shape library panel already handles drag-and-drop. When a drop lands on the canvas:
+- Instead of immediately placing the SymbolInstance, open ShapeDropDialog
+- Pass the shapeId and display name from the dragged item
+- On onPlace: create the SymbolInstance SceneCommand with the chosen config
+- On onCancel: no-op (the shape is not placed)
+
+Find where the drop is currently handled in the designer (search for "dropShape", "onDrop",
+or shape library panel component) and wire in the dialog there.
+
+## TASK 3 — Post-placement re-open
+
+Right-click on a placed SymbolInstance should include "Shape Configuration…" in the context
+menu (alongside the existing context menu items). This re-opens ShapeDropDialog in edit mode
+(Step 2 only — variant cannot change after placement). On Place: update the scene graph node's
+composableParts and children (display elements). This integrates with the existing right-click
+context menu system.
+
+## TASK 4 — Verify
+
+Run from /home/io/io-dev/io/frontend:
+  pnpm build
+
+Must compile with no TypeScript errors. Fix any import issues.
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 6 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 6.
+```
+
 ---
 
 ## Phase 5 — Designer UX: Shape Drop Dialog
@@ -204,6 +980,113 @@ Rebuild shape seed array with new filenames, correct SVG data, updated sidecar J
 - Shortcuts: "Use Defaults" skips to placement; single-variant shapes auto-skip Step 1
 - Post-placement: right-click "Shape Configuration…" re-opens dialog
 
+### Phase 6 Kickoff Prompt
+
+```
+You are implementing Phase 6 of the I/O shape library rebuild — Anchor System + Designer Sidebar.
+
+Phase 5 is COMPLETE: ShapeDropDialog exists (2-step variant picker + binding), wired into
+DesignerCanvas drop flow, "Shape Configuration…" context menu item added, pnpm build passes.
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 6.
+
+2. /home/io/spec_docs/designer-implementation-spec.md
+   — Anchor snap system rules, right panel spec, display element section behavior.
+
+3. /home/io/spec_docs/designer-ui-prompt.md
+   — Right panel visual layout, slot picker UI, LOD toggle placement.
+
+4. /home/io/io-dev/io/design-docs/shape-sidecar-spec/shape-sidecar-spec.md
+   — Named slot definitions, slot coordinate math, defaultSlots per category.
+
+5. Current files (read each before editing):
+   - frontend/src/pages/designer/DesignerCanvas.tsx (drag/drop events, existing right panel wiring)
+   - frontend/src/pages/designer/DesignerRightPanel.tsx (current right panel implementation)
+   - frontend/src/shared/types/graphics.ts (SymbolInstance, DisplayElement, ComposablePart)
+   - frontend/src/shared/graphics/anchorSlots.ts (resolveAnchorPosition utility)
+
+## TASK 1 — Create useSnapToSlot.ts
+
+File: frontend/src/shared/graphics/useSnapToSlot.ts
+
+Hook that activates when a display element is being dragged onto a SymbolInstance:
+- Reads the target SymbolInstance's sidecar anchorSlots
+- Computes absolute slot positions from the shape's rendered bbox + normalized coords
+- Returns ghost target positions (one per slot) for rendering during drag
+- Snaps to nearest slot when cursor is within 12px
+- Provides the slot name for the tooltip ("top-right", "bottom", etc.)
+
+Export:
+  export function useSnapToSlot(
+    targetInstanceId: NodeId | null,
+    cursorPos: { x: number; y: number } | null
+  ): {
+    snapTarget: { slotId: string; x: number; y: number } | null;
+    ghostTargets: Array<{ slotId: string; x: number; y: number }>;
+  }
+
+When targetInstanceId is null or cursor is null, return empty results.
+Read the sidecar from useLibraryStore.getState().getShape(shapeId).
+Resolve slot absolute coords using resolveAnchorPosition from anchorSlots.ts.
+
+## TASK 2 — Update DesignerRightPanel: Display Elements section
+
+File: frontend/src/pages/designer/DesignerRightPanel.tsx
+
+When a SymbolInstance is selected, the right panel shows a "Display Elements" section:
+- Lists all children (DisplayElement nodes) of the selected SymbolInstance
+- Each row: element type icon + slot selector dropdown + point tag input
+  - Slot selector: populated from sidecar.anchorSlots[elementType] for that element type
+  - Point tag input: shows current binding.pointId resolved to tag (or binding.pointTag)
+- "+" button per element type (from defaultSlots): adds a new display element at the default slot
+- LOD override toggle per element (maps to data-lod attribute on the element node)
+- Hide/show toggle per element (sets visible: false — recoverable, not deleted)
+
+Delete key behavior for display elements attached to a SymbolInstance:
+  - HIDE (set visible: false) rather than delete — sidecar elements are recoverable
+  - Add a "Remove" option in the element's context menu for permanent deletion
+
+## TASK 3 — Quick bind: point drag-to-shape
+
+File: frontend/src/pages/designer/DesignerCanvas.tsx (or DesignerLeftPalette.tsx)
+
+When a point is dragged from the point list and dropped onto a SymbolInstance on canvas:
+- Create a Text Readout display element at the shape's default TextReadout slot
+- Create an Alarm Indicator display element at the shape's default AlarmIndicator slot
+- Bind both to the dropped point (pointId from the point list entry)
+- Execute as a single CompoundCommand
+
+The point drag uses the existing "application/io-point" dataTransfer type from handleDrop.
+The existing handleDrop already checks for "application/io-point" — extend it to add the
+two display elements when dropping onto a symbol_instance node.
+
+## TASK 4 — Slot "+" handles on hover
+
+In DesignerCanvas, when hovering over a selected SymbolInstance:
+- Show small "+" handle circles at each available slot position (from anchorSlots)
+- Clicking a "+" handle opens a small popover: "Add display element" with a type picker
+- On type select: add that element at the clicked slot with no binding
+
+Slot positions: compute from the rendered SVG g element's bbox + normalized anchorSlots coords.
+Render slot handles as SVG circles (radius 6, stroke var(--io-accent)) overlaid on canvas.
+
+## TASK 5 — Verify
+
+Run from /home/io/io-dev/io/frontend:
+  pnpm build
+
+Must compile with no TypeScript errors. Fix any import issues.
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 7 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 7.
+```
+
 ---
 
 ## Phase 6 — Designer UX: Anchor System + Sidebar
@@ -215,6 +1098,159 @@ Rebuild shape seed array with new filenames, correct SVG data, updated sidecar J
 - Quick bind: point drag-to-shape creates Text Readout + Alarm Indicator at default slots
 - Slot `+` handles on hover; association highlight on element click
 - Hide vs. Remove distinction (hide is recoverable; delete key = hide for sidecar elements)
+
+### Phase 7 Kickoff Prompt
+
+```
+You are implementing Phase 7 of the I/O shape library rebuild — OPC Alarm Priority Mapping.
+
+Phase 6 is COMPLETE: useSnapToSlot.ts created, DesignerRightPanel Display Elements section
+enhanced (slot selector, point tag input, LOD toggle, hide/show, add buttons), quick bind
+(point drag-to-shape creates TextReadout + AlarmIndicator at defaultSlots), slot "+" handles
+on selected SymbolInstance, pnpm build passes.
+
+Phase 7 is INDEPENDENT — it can run any time after Phase 0 and does not depend on Phase 6.
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 7.
+
+2. /home/io/spec_docs/opc-server-protocol-spec.md
+   — OPC alarm event model, severity values (1–1000), existing priority enum definitions.
+
+3. /home/io/io-dev/io/services/opc-service/src/db.rs
+   — Read severity_to_priority_enum() (lines ~410–418) — this is the function you must
+   make configurable. Also read write_opc_events() (~420–512) to understand event insertion.
+
+4. /home/io/io-dev/io/services/api-gateway/src/handlers/points.rs
+   — Existing OPC source API handlers (reconnect, stats). Add alarm_priority_mapping
+   CRUD alongside these.
+
+5. /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx
+   — Reference for the OPC settings UI pattern (table, detail panel layout).
+
+6. /home/io/io-dev/io/frontend/src/pages/settings/SettingsPageLayout.tsx
+   — Standard settings layout wrapper — use it for AlarmPriorityMapping.tsx.
+
+## TASK 1 — DB migration
+
+File: services/api-gateway/migrations/  (find the next sequential migration number)
+
+Add column to `point_sources`:
+  ALTER TABLE point_sources
+    ADD COLUMN IF NOT EXISTS alarm_priority_mapping JSONB;
+
+The JSONB schema (store as-is, validate in Rust):
+  {
+    "mode": "range" | "discrete" | "custom_property",
+    "ranges": [              // mode=range only
+      { "from": 800, "to": 1000, "priority": "urgent" },
+      { "from": 600, "to": 799, "priority": "high" },
+      { "from": 400, "to": 599, "priority": "medium" },
+      { "from": 1,   "to": 399, "priority": "low" }
+    ],
+    "discrete": {            // mode=discrete only
+      "1000": "urgent",
+      "700": "high"
+    },
+    "customProperty": "io:Priority"  // mode=custom_property only
+  }
+
+Run migration with sqlx migrate run against the dev database.
+
+## TASK 2 — API endpoint
+
+File: services/api-gateway/src/handlers/points.rs (or a new opc_mapping.rs handler)
+
+Add two routes:
+  GET  /api/v1/opc/sources/:id/alarm-priority-mapping
+       → reads alarm_priority_mapping JSONB from point_sources WHERE id = :id
+       → returns { data: <mapping or null> }
+
+  PUT  /api/v1/opc/sources/:id/alarm-priority-mapping
+       → body: { mapping: <mapping object or null> }
+       → validates mode field; rejects unknown modes with 400
+       → writes to point_sources.alarm_priority_mapping
+       → returns { data: <updated mapping> }
+
+Wire these routes in the router (find where /api/v1/opc routes are registered).
+RBAC: require permission "opc:sources:write" for PUT; "opc:sources:read" for GET.
+Run cargo build -p io-api-gateway to verify.
+
+## TASK 3 — Rust OPC service: apply mapping at alarm processing time
+
+File: services/opc-service/src/db.rs
+
+The current severity_to_priority_enum() uses a fixed mapping. Make it accept an
+optional mapping config:
+
+  fn severity_to_priority_enum(
+    severity: u16,
+    mapping: Option<&AlarmPriorityMapping>,
+  ) -> &'static str
+
+Where AlarmPriorityMapping is a Rust struct deserialised from the JSONB (use serde).
+
+Behaviour:
+  - mapping=None → use existing fixed ranges (unchanged default behaviour)
+  - mode="range" → find first range where from <= severity <= to, use that priority
+  - mode="discrete" → look up exact severity as string key, fall back to existing default
+  - mode="custom_property" → SKIP severity mapping; priority is read from a named OPC
+    alarm property. For now: if the property is absent in the event, fall back to default.
+
+Load the mapping when the OPC source starts up. Store it in the OpcDriver struct (or pass
+it through write_opc_events). Reload it if the PUT endpoint writes a new value — use a
+tokio::watch channel or re-read from DB on each alarm batch (simpler, acceptable latency).
+
+Run cargo build -p io-opc-service to verify.
+
+## TASK 4 — Frontend: AlarmPriorityMapping settings page
+
+File: frontend/src/pages/settings/AlarmPriorityMapping.tsx
+
+A settings page (use SettingsPageLayout) shown under Settings → OPC Sources → [source] →
+"Alarm Priority Mapping" tab or as a standalone settings section.
+
+Three mode tabs/radio buttons: Range | Discrete | Custom Property
+
+Range mode UI:
+  Four rows (HH/Urgent, H/High, L/Medium, LL/Low) with two number inputs each:
+    From [___] To [___] → Priority: urgent/high/medium/low (fixed per row)
+  Pre-populated with OPC ISA-18.2 defaults: 800–1000=urgent, 600–799=high,
+    400–599=medium, 1–399=low
+
+Discrete mode UI:
+  Key-value table: OPC Severity [___] → Priority [dropdown]
+  "+ Add mapping" button to add rows; "✕" to remove
+
+Custom Property mode UI:
+  Single text input: Property name (e.g. "io:Priority")
+  Help text: "OPC alarm event property whose value matches an I/O priority name
+  (urgent, high, medium, low, diagnostic)"
+
+Save button → PUT /api/v1/opc/sources/:id/alarm-priority-mapping
+Load on mount → GET /api/v1/opc/sources/:id/alarm-priority-mapping
+
+The page receives the OPC source ID from route params or a parent component. If no
+source is selected yet, show a "Select an OPC source first" empty state.
+
+Register the route in the router if it needs one. Use TanStack Query for GET; use a
+mutation for PUT.
+
+## TASK 5 — Verify
+
+Frontend: cd /home/io/io-dev/io/frontend && pnpm build
+Backend:  cd /home/io/io-dev/io && cargo build -p io-api-gateway -p io-opc-service
+
+All three must compile with no errors before declaring Phase 7 done.
+
+## FINAL STEP
+
+After the builds pass, output the complete "### Phase 8 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 8.
+```
 
 ---
 
@@ -238,6 +1274,141 @@ Rebuild shape seed array with new filenames, correct SVG data, updated sidecar J
 - Touch: 500ms long-press = context menu, 60px touch targets
 - LOD active indicator chip (bottom-right, auto-hides)
 - Global LOD toggle in Console/Process top bars
+
+### Phase 8 Kickoff Prompt
+
+```
+You are implementing Phase 8 of the I/O shape library rebuild — Live Canvas Polish.
+
+Phase 7 is COMPLETE: alarm_priority_mapping DB column added, GET/PUT API endpoints
+wired, Rust opc-service severity_to_priority_enum is now configurable, frontend
+AlarmPriorityMapping.tsx settings page built, all three compile clean.
+
+Phase 8 requires Phase 4 (composable shape rendering in SceneRenderer) and Phase 6
+(display elements — TextReadout, AlarmIndicator etc. as SymbolInstance children).
+
+## Read these files FIRST (in order):
+
+1. /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+   — Full plan; you are implementing Phase 8.
+
+2. /home/io/spec_docs/console-implementation-spec.md
+   — Read §Real-time update pipeline and §Pane interactions. The hot path
+     mutates the SVG DOM directly — do NOT use React state for hover events.
+
+3. /home/io/io-dev/io/frontend/src/pages/console/panes/GraphicPane.tsx
+   — Read lines ~500–600 (existing hover tooltip implementation) and
+     lines ~940–960 (tooltip JSX render). You will extend this.
+
+4. /home/io/io-dev/io/frontend/src/pages/process/index.tsx
+   — Read lines ~1600–1650 (lodLevel, zoom-to-LOD). Global LOD toggle goes here.
+
+5. /home/io/io-dev/io/frontend/src/shared/components/PointContextMenu.tsx
+   — Existing PointContextMenu component — reuse it for right-click on
+     sidecar display elements in Console/Process live views.
+
+6. /home/io/io-dev/io/frontend/src/shared/graphics/SceneRenderer.tsx
+   — Central rendering engine. DisplayElement nodes already render here
+     (Phase 4). LOD indicator chip and touch targets go here.
+
+## TASK 1 — Hover tooltip on sidecar display elements (Console + Process)
+
+Console — GraphicPane.tsx:
+  The existing `findPointInfo` looks for data-point-id attributes on SVG elements.
+  Sidecar display elements (TextReadout etc.) rendered inside SymbolInstance
+  children should also expose data-point-id so the existing 400ms hover timer
+  picks them up. Verify SceneRenderer emits data-point-id on display element
+  root nodes. If not, add it.
+
+  The tooltip must show: tag, value, quality, alarm state, timestamp.
+  Alarm state comes from `points_current.metadata.alarm_state` via the existing
+  pointValues map. Add alarm_state to the tooltip render (it is already in the
+  pane's point value cache via the WebSocket pipeline).
+
+Process — index.tsx:
+  Process renders the scene via SVG. Apply the same data-point-id approach so
+  hovering over a display element shows the same tooltip after 400ms.
+  Process already has a hover tooltip pattern (check for one, or implement
+  mirroring GraphicPane's approach with a useRef timer + portal div).
+
+## TASK 2 — Right-click Point Context Menu on display elements in live views
+
+Console (GraphicPane.tsx):
+  When right-clicking on an element with data-point-id, open PointContextMenu
+  at cursor position. PointContextMenu is already imported in DesignerCanvas
+  for test mode — import it in GraphicPane and reuse it here.
+
+  Wire the onContextMenu handler on the SVG container:
+    - Read data-point-id from event.target (walk up the DOM, same as findPointInfo)
+    - Store { pointId, x, y } in state
+    - Render <PointContextMenu pointId={...} x={...} y={...} onClose={() => ...} />
+
+Process (index.tsx):
+  Same pattern — right-click on data-point-id element opens PointContextMenu.
+
+## TASK 3 — Touch: 500ms long-press = context menu on display elements
+
+In GraphicPane and Process canvas, attach onTouchStart/onTouchEnd/onTouchMove
+to the SVG container:
+  - onTouchStart: record touch target + position; set a 500ms timer
+  - onTouchEnd / onTouchMove (if movement > 8px): cancel the timer
+  - Timer fires: open PointContextMenu at touch position (same as right-click)
+
+Touch targets: display element root SVG groups that carry data-point-id should
+have a minimum hit area of 60×60 canvas units. If the rendered element is smaller
+(e.g. alarm indicator badge), wrap it in a transparent <rect> sized to 60×60.
+Add this in SceneRenderer.tsx for all DisplayElement types when `liveMode` is true
+(do not add in designer/edit mode — it would interfere with drag selection).
+
+## TASK 4 — LOD active indicator chip
+
+In SceneRenderer.tsx, when rendering a SymbolInstance in live mode (not in the
+Designer), render an LOD chip overlay in the bottom-right of the shape's bounding
+box when the current effective LOD > 1:
+
+  <text
+    x={bbox.x + bbox.width - 2}
+    y={bbox.y + bbox.height - 2}
+    fontSize={9}
+    textAnchor="end"
+    fill="var(--io-text-muted)"
+    opacity={0.6}
+    style={{ pointerEvents: "none", userSelect: "none" }}
+  >L{effectiveLod}</text>
+
+"effectiveLod" is the LOD level actually applied (from the global toggle or
+zoom-derived value). Hide the chip entirely at L1 (default — no chip needed).
+The chip auto-hides when effectiveLod returns to 1.
+
+## TASK 5 — Global LOD toggle in Console + Process top bars
+
+Console — the console workspace toolbar (find the top bar in the console layout):
+  Add a 3-option segmented control: Auto | L2 | L3.
+    Auto = LOD derived from zoom level (existing behaviour).
+    L2 / L3 = force the given LOD level for all shapes in the current workspace.
+  Store the selection in WorkspaceStore (persists with auto-save).
+  Pass the resolved LOD level down through the GraphicPane to SceneRenderer.
+
+Process — process top toolbar (find it in index.tsx):
+  Same 3-option segmented control. Process already computes `lodLevel` from
+  `zoomToLod(viewport.zoom)` at line ~1612. Add a manual override stored in
+  local state (no persistence needed for process — it resets on navigation).
+
+SceneRenderer must accept a `forceLod?: 1 | 2 | 3` prop. When present, it
+overrides the per-element lodLevel fields on DisplayElement nodes.
+
+## TASK 6 — Verify
+
+cd /home/io/io-dev/io/frontend && pnpm build
+
+Must compile with no TypeScript errors before declaring Phase 8 done.
+
+## FINAL STEP
+
+After the build passes, output the complete "### Phase 9 Kickoff Prompt" code block
+verbatim from /home/io/io-dev/io/design-docs/shape-sidecar-spec/implementation-plan.md
+so the user can copy-paste it to start Phase 9.
+```
 
 ---
 

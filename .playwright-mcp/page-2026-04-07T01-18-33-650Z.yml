@@ -1,0 +1,244 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary:
+      - button "I/O" [ref=e5] [cursor=pointer]:
+        - generic [ref=e6]: I/O
+      - navigation "Main navigation" [ref=e7]:
+        - generic:
+          - link "Console" [ref=e8] [cursor=pointer]:
+            - /url: /console
+            - img [ref=e10]
+          - link "Process" [ref=e12] [cursor=pointer]:
+            - /url: /process
+            - img [ref=e14]
+          - link "Dashboards" [ref=e18] [cursor=pointer]:
+            - /url: /dashboards
+            - img [ref=e20]
+        - generic:
+          - link "Reports" [ref=e25] [cursor=pointer]:
+            - /url: /reports
+            - img [ref=e27]
+          - link "Forensics" [ref=e30] [cursor=pointer]:
+            - /url: /forensics
+            - img [ref=e32]
+        - generic:
+          - link "Log" [ref=e35] [cursor=pointer]:
+            - /url: /log
+            - img [ref=e37]
+          - link "Rounds" [ref=e39] [cursor=pointer]:
+            - /url: /rounds
+            - img [ref=e41]
+          - link "Alerts" [ref=e44] [cursor=pointer]:
+            - /url: /alerts
+            - img [ref=e46]
+          - link "Shifts" [ref=e49] [cursor=pointer]:
+            - /url: /shifts
+            - img [ref=e51]
+        - generic:
+          - link "Designer" [ref=e56] [cursor=pointer]:
+            - /url: /designer
+            - img [ref=e58]
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e65]
+      - button "Hide sidebar (Ctrl+\\)"
+      - button "Health status unknown" [ref=e71] [cursor=pointer]
+    - generic [ref=e73]:
+      - banner [ref=e74]:
+        - generic [ref=e75]:
+          - heading "Settings" [level=1] [ref=e76]
+          - generic "Breadcrumb" [ref=e77]:
+            - link "Settings" [ref=e79] [cursor=pointer]:
+              - /url: /settings
+            - generic [ref=e80]:
+              - generic [ref=e81]: ›
+              - generic [ref=e82]: Points
+        - generic [ref=e83]:
+          - button "⌕ Search ⌃K" [ref=e84] [cursor=pointer]:
+            - generic [ref=e85]: ⌕
+            - generic [ref=e86]: Search
+            - generic [ref=e87]: ⌃K
+          - button "Alerts" [ref=e88] [cursor=pointer]:
+            - img [ref=e89]
+          - button "▲" [ref=e92] [cursor=pointer]
+          - button "A admin ▾" [ref=e94] [cursor=pointer]:
+            - generic [ref=e95]: A
+            - generic [ref=e96]: admin
+            - generic [ref=e97]: ▾
+      - main [ref=e98]:
+        - generic [ref=e99]:
+          - complementary [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]: Identity & Access
+              - link "Users & Roles" [ref=e103] [cursor=pointer]:
+                - /url: /settings/identity
+            - generic [ref=e104]:
+              - generic [ref=e105]: Authentication
+              - link "Auth Providers" [ref=e106] [cursor=pointer]:
+                - /url: /settings/auth-providers
+              - link "MFA Policy" [ref=e107] [cursor=pointer]:
+                - /url: /settings/mfa
+              - link "SCIM Provisioning" [ref=e108] [cursor=pointer]:
+                - /url: /settings/scim
+            - generic [ref=e109]:
+              - generic [ref=e110]: Data Sources
+              - link "OPC Sources" [ref=e111] [cursor=pointer]:
+                - /url: /settings/opc-sources
+              - link "Point Management" [ref=e112] [cursor=pointer]:
+                - /url: /settings/points
+              - link "Expressions" [ref=e113] [cursor=pointer]:
+                - /url: /settings/expressions
+              - link "Import & Streaming" [ref=e114] [cursor=pointer]:
+                - /url: /settings/import
+            - generic [ref=e115]:
+              - generic [ref=e116]: Notifications
+              - link "Email" [ref=e117] [cursor=pointer]:
+                - /url: /settings/email
+              - link "SMS Providers" [ref=e118] [cursor=pointer]:
+                - /url: /settings/sms-providers
+            - generic [ref=e119]:
+              - generic [ref=e120]: System
+              - link "System Health" [ref=e121] [cursor=pointer]:
+                - /url: /settings/system-health
+              - link "Archive & Backup" [ref=e122] [cursor=pointer]:
+                - /url: /settings/system
+              - link "Certificates" [ref=e123] [cursor=pointer]:
+                - /url: /settings/certificates
+            - generic [ref=e124]:
+              - generic [ref=e125]: Content & Export
+              - link "Report Scheduling" [ref=e126] [cursor=pointer]:
+                - /url: /settings/report-scheduling
+              - link "Export Presets" [ref=e127] [cursor=pointer]:
+                - /url: /settings/export-presets
+              - link "Bulk Update" [ref=e128] [cursor=pointer]:
+                - /url: /settings/bulk-update
+              - link "Change Snapshots" [ref=e129] [cursor=pointer]:
+                - /url: /settings/snapshots
+            - generic [ref=e130]:
+              - generic [ref=e131]: About
+              - link "EULA" [ref=e132] [cursor=pointer]:
+                - /url: /settings/eula
+              - link "About" [ref=e133] [cursor=pointer]:
+                - /url: /settings/about
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - generic [ref=e137]:
+                - heading "Points" [level=2] [ref=e138]
+                - paragraph [ref=e139]: Configure per-point aggregation types, application settings, and lifecycle
+              - generic [ref=e140]:
+                - button "Export" [ref=e141] [cursor=pointer]
+                - button "Quick format export" [ref=e142] [cursor=pointer]: ▾
+            - generic [ref=e143]:
+              - textbox "Search tag name..." [ref=e144]
+              - generic [ref=e145]:
+                - button "active" [ref=e146] [cursor=pointer]
+                - button "inactive" [ref=e147] [cursor=pointer]
+                - button "all" [ref=e148] [cursor=pointer]
+              - combobox [ref=e149] [cursor=pointer]:
+                - option "All Sources" [selected]
+              - textbox "Filter by area..." [ref=e150]
+            - table [ref=e153]:
+              - rowgroup [ref=e154]:
+                - row "Tag Name Source Area Criticality Status Aggregation Actions" [ref=e155]:
+                  - columnheader [ref=e156]:
+                    - checkbox [ref=e157] [cursor=pointer]
+                  - columnheader "Tag Name" [ref=e158]
+                  - columnheader "Source" [ref=e159]
+                  - columnheader "Area" [ref=e160]
+                  - columnheader "Criticality" [ref=e161]
+                  - columnheader "Status" [ref=e162]
+                  - columnheader "Aggregation" [ref=e163]
+                  - columnheader "Actions" [ref=e164]
+              - rowgroup [ref=e165]:
+                - row [ref=e166]:
+                  - cell [ref=e167]
+                  - cell [ref=e169]
+                  - cell [ref=e171]
+                  - cell [ref=e173]
+                  - cell [ref=e175]
+                  - cell [ref=e177]
+                  - cell [ref=e179]
+                  - cell [ref=e181]
+                - row [ref=e183]:
+                  - cell [ref=e184]
+                  - cell [ref=e186]
+                  - cell [ref=e188]
+                  - cell [ref=e190]
+                  - cell [ref=e192]
+                  - cell [ref=e194]
+                  - cell [ref=e196]
+                  - cell [ref=e198]
+                - row [ref=e200]:
+                  - cell [ref=e201]
+                  - cell [ref=e203]
+                  - cell [ref=e205]
+                  - cell [ref=e207]
+                  - cell [ref=e209]
+                  - cell [ref=e211]
+                  - cell [ref=e213]
+                  - cell [ref=e215]
+                - row [ref=e217]:
+                  - cell [ref=e218]
+                  - cell [ref=e220]
+                  - cell [ref=e222]
+                  - cell [ref=e224]
+                  - cell [ref=e226]
+                  - cell [ref=e228]
+                  - cell [ref=e230]
+                  - cell [ref=e232]
+                - row [ref=e234]:
+                  - cell [ref=e235]
+                  - cell [ref=e237]
+                  - cell [ref=e239]
+                  - cell [ref=e241]
+                  - cell [ref=e243]
+                  - cell [ref=e245]
+                  - cell [ref=e247]
+                  - cell [ref=e249]
+                - row [ref=e251]:
+                  - cell [ref=e252]
+                  - cell [ref=e254]
+                  - cell [ref=e256]
+                  - cell [ref=e258]
+                  - cell [ref=e260]
+                  - cell [ref=e262]
+                  - cell [ref=e264]
+                  - cell [ref=e266]
+                - row [ref=e268]:
+                  - cell [ref=e269]
+                  - cell [ref=e271]
+                  - cell [ref=e273]
+                  - cell [ref=e275]
+                  - cell [ref=e277]
+                  - cell [ref=e279]
+                  - cell [ref=e281]
+                  - cell [ref=e283]
+                - row [ref=e285]:
+                  - cell [ref=e286]
+                  - cell [ref=e288]
+                  - cell [ref=e290]
+                  - cell [ref=e292]
+                  - cell [ref=e294]
+                  - cell [ref=e296]
+                  - cell [ref=e298]
+                  - cell [ref=e300]
+                - row [ref=e302]:
+                  - cell [ref=e303]
+                  - cell [ref=e305]
+                  - cell [ref=e307]
+                  - cell [ref=e309]
+                  - cell [ref=e311]
+                  - cell [ref=e313]
+                  - cell [ref=e315]
+                  - cell [ref=e317]
+                - row [ref=e319]:
+                  - cell [ref=e320]
+                  - cell [ref=e322]
+                  - cell [ref=e324]
+                  - cell [ref=e326]
+                  - cell [ref=e328]
+                  - cell [ref=e330]
+                  - cell [ref=e332]
+                  - cell [ref=e334]
+  - region "Notifications (F8)":
+    - list

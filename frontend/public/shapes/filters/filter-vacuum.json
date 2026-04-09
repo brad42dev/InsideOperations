@@ -23,10 +23,10 @@
   "alarmBinding": {
     "stateSource": "point_alarm_state",
     "priorityMapping": {
-      "1": "alarm_critical",
-      "2": "alarm_high",
-      "3": "alarm_medium",
-      "4": "alarm_advisory"
+      "1": "al-urgent",
+      "2": "al-high",
+      "3": "al-low",
+      "4": "al-diagnostic"
     },
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"

@@ -127,7 +127,7 @@ function makeEmptyDocument(
     visible: true,
     locked: false,
     opacity: 1,
-    canvas: { width, height, backgroundColor: "var(--io-surface)", autoHeight },
+    canvas: { width, height, backgroundColor: "var(--io-surface-secondary)", autoHeight },
     metadata: {
       tags: [],
       designMode: mode,
@@ -156,9 +156,9 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   loadGraphic(id, doc) {
     // Migrate legacy hardcoded background colors to the theme token so
     // graphics respond to theme switching instead of being locked to dark.
-    const LEGACY_BG = new Set(["#09090b", "#09090B", "#1E1E2E", "#1e1e2e", "#0d0d0d", "#27272A", "#27272a", "var(--io-surface-primary)"]);
+    const LEGACY_BG = new Set(["#09090b", "#09090B", "#1E1E2E", "#1e1e2e", "#0d0d0d", "#27272A", "#27272a", "var(--io-surface-primary)", "var(--io-surface)"]);
     const migratedDoc = LEGACY_BG.has(doc.canvas.backgroundColor)
-      ? { ...doc, canvas: { ...doc.canvas, backgroundColor: "var(--io-surface)" } }
+      ? { ...doc, canvas: { ...doc.canvas, backgroundColor: "var(--io-surface-secondary)" } }
       : doc;
     set({
       doc: migratedDoc,

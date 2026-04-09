@@ -659,7 +659,7 @@ export function SceneRenderer({
 
   function renderPipe(node: Pipe): React.ReactElement {
     const color = PIPE_SERVICE_COLORS[node.serviceType] ?? "#6B8CAE";
-    const gapColor = canvas.backgroundColor ?? "var(--io-surface-primary)";
+    const gapColor = canvas.backgroundColor ?? "var(--io-surface-secondary)";
     const commonProps = {
       d: node.pathData,
       fill: "none" as const,
