@@ -298,6 +298,12 @@ async fn main() -> anyhow::Result<()> {
             "/api/opc/sources/:id/history-recovery/jobs",
             get(handlers::points::list_history_recovery_jobs),
         )
+        // OPC UA alarm priority mapping
+        .route(
+            "/api/opc/sources/:id/alarm-priority-mapping",
+            get(handlers::points::get_alarm_priority_mapping)
+                .put(handlers::points::put_alarm_priority_mapping),
+        )
         // OPC UA server certificate trust management
         .route(
             "/api/opc/server-certs",

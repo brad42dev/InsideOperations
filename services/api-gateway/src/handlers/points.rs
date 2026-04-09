@@ -1243,3 +1243,112 @@ pub async fn list_stale_points(
 
     Json(serde_json::json!({ "success": true, "data": data })).into_response()
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/opc/sources/:id/alarm-priority-mapping
+// PUT /api/opc/sources/:id/alarm-priority-mapping
+// ---------------------------------------------------------------------------
+
+const VALID_MODES: &[&str] = &["range", "discrete", "custom_property"];
+
+/// GET /api/opc/sources/:id/alarm-priority-mapping
+///
+/// Returns the alarm priority mapping config for an OPC UA source, or null
+/// if none has been configured (default ISA-18.2 ranges will be used).
+/// Requires `settings:read` permission.
+pub async fn get_alarm_priority_mapping(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(source_id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:read") {
+        return IoError::Forbidden("settings:read permission required".into()).into_response();
+    }
+
+    let row = match sqlx::query("SELECT alarm_priority_mapping FROM point_sources WHERE id = $1")
+        .bind(source_id)
+        .fetch_optional(&state.db)
+        .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Point source {} not found", source_id))
+                .into_response()
+        }
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let mapping: Option<JsonValue> = row.get("alarm_priority_mapping");
+    Json(ApiResponse::ok(mapping)).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PutAlarmPriorityMappingRequest {
+    pub mapping: Option<JsonValue>,
+}
+
+/// PUT /api/opc/sources/:id/alarm-priority-mapping
+///
+/// Set or clear the alarm priority mapping for an OPC UA source.
+/// Pass `mapping: null` to restore default ISA-18.2 range behaviour.
+/// Requires `settings:admin` permission.
+pub async fn put_alarm_priority_mapping(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(source_id): Path<Uuid>,
+    Json(req): Json<PutAlarmPriorityMappingRequest>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:admin") {
+        return IoError::Forbidden("settings:admin permission required".into()).into_response();
+    }
+
+    // Validate mode if a mapping is provided.
+    if let Some(ref m) = req.mapping {
+        match m.get("mode").and_then(|v| v.as_str()) {
+            Some(mode) if VALID_MODES.contains(&mode) => {}
+            Some(mode) => {
+                return IoError::BadRequest(format!(
+                    "Invalid mode '{}'; expected one of: {}",
+                    mode,
+                    VALID_MODES.join(", ")
+                ))
+                .into_response();
+            }
+            None => {
+                return IoError::BadRequest(
+                    "mapping.mode is required (range, discrete, or custom_property)".into(),
+                )
+                .into_response();
+            }
+        }
+    }
+
+    // Verify source exists.
+    let exists = match sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM point_sources WHERE id = $1)",
+    )
+    .bind(source_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    if !exists {
+        return IoError::NotFound(format!("Point source {} not found", source_id)).into_response();
+    }
+
+    if let Err(e) = sqlx::query(
+        "UPDATE point_sources SET alarm_priority_mapping = $1, updated_at = NOW() WHERE id = $2",
+    )
+    .bind(&req.mapping)
+    .bind(source_id)
+    .execute(&state.db)
+    .await
+    {
+        return IoError::Internal(e.to_string()).into_response();
+    }
+
+    Json(ApiResponse::ok(req.mapping)).into_response()
+}

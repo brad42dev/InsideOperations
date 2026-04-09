@@ -800,6 +800,7 @@ async fn run_source_once(
         let recover_db = db.clone();
         let recover_session = session.clone();
         let recover_map = source_name_to_id.clone();
+        let recover_mapping = source.alarm_priority_mapping.clone();
         tokio::spawn(async move {
             recover_alarm_event_history(
                 recover_source_id,
@@ -807,6 +808,7 @@ async fn run_source_once(
                 &recover_db,
                 recover_session,
                 recover_map,
+                recover_mapping,
             )
             .await;
         });
@@ -2447,6 +2449,7 @@ async fn create_event_subscription(
     // preventing stale drain tasks from accumulating across reconnect cycles.
     let db_clone = db.clone();
     let src_name = source_name_for_log.clone();
+    let alarm_mapping = source.alarm_priority_mapping.clone();
     let event_handle = tokio::spawn(async move {
         // Collect batches of events and write them every 500ms or when 50 events accumulate.
         let mut batch: Vec<db::OpcEvent> = Vec::with_capacity(50);
@@ -2461,7 +2464,7 @@ async fn create_event_subscription(
                         Some(ev) => {
                             batch.push(ev);
                             if batch.len() >= 50 {
-                                if let Err(e) = db::write_opc_events(&db_clone, &batch).await {
+                                if let Err(e) = db::write_opc_events(&db_clone, &batch, alarm_mapping.as_ref()).await {
                                     warn!(source = %src_name, error = %e, "Failed to write OPC events");
                                 }
                                 batch.clear();
@@ -2471,7 +2474,7 @@ async fn create_event_subscription(
                         None => {
                             // Channel closed — driver shutting down.
                             if !batch.is_empty() {
-                                if let Err(e) = db::write_opc_events(&db_clone, &batch).await {
+                                if let Err(e) = db::write_opc_events(&db_clone, &batch, alarm_mapping.as_ref()).await {
                                     warn!(source = %src_name, error = %e, "Failed to write final OPC events");
                                 }
                             }
@@ -2482,7 +2485,7 @@ async fn create_event_subscription(
 
                 _ = tokio::time::sleep_until(next_flush) => {
                     if !batch.is_empty() {
-                        if let Err(e) = db::write_opc_events(&db_clone, &batch).await {
+                        if let Err(e) = db::write_opc_events(&db_clone, &batch, alarm_mapping.as_ref()).await {
                             warn!(source = %src_name, error = %e, "Failed to write OPC events");
                         }
                         batch.clear();
@@ -2843,9 +2846,17 @@ pub async fn recover_alarm_event_history(
     db: &DbPool,
     session: Arc<Session>,
     source_name_to_id: Arc<HashMap<String, Uuid>>,
+    mapping: Option<db::AlarmPriorityMapping>,
 ) -> usize {
-    match recover_alarm_event_history_inner(source_id, source_name, db, session, source_name_to_id)
-        .await
+    match recover_alarm_event_history_inner(
+        source_id,
+        source_name,
+        db,
+        session,
+        source_name_to_id,
+        mapping,
+    )
+    .await
     {
         Ok(n) => n,
         Err(e) => {
@@ -2865,6 +2876,7 @@ async fn recover_alarm_event_history_inner(
     db: &DbPool,
     session: Arc<Session>,
     source_name_to_id: Arc<HashMap<String, Uuid>>,
+    mapping: Option<db::AlarmPriorityMapping>,
 ) -> anyhow::Result<usize> {
     use anyhow::Context as _;
     use opcua::types::{
@@ -3103,7 +3115,7 @@ async fn recover_alarm_event_history_inner(
 
         let batch_len = batch.len();
         if batch_len > 0 {
-            db::write_opc_events(db, &batch)
+            db::write_opc_events(db, &batch, mapping.as_ref())
                 .await
                 .context("write_opc_events during history recovery")?;
             total += batch_len;

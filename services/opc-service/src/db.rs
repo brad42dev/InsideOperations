@@ -4,11 +4,39 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use io_bus::{NotifyPointUpdates, NotifyPointValue};
 use io_db::DbPool;
+use serde::Deserialize;
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // Domain types
 // ---------------------------------------------------------------------------
+
+/// One entry in a range-mode alarm priority mapping.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PriorityRange {
+    pub from: u16,
+    pub to: u16,
+    pub priority: String,
+}
+
+/// Configurable alarm priority mapping loaded from `point_sources.alarm_priority_mapping`.
+///
+/// Replaces the built-in fixed ISA-18.2 severity ranges when present.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum AlarmPriorityMapping {
+    Range {
+        ranges: Vec<PriorityRange>,
+    },
+    Discrete {
+        discrete: std::collections::HashMap<String, String>,
+    },
+    CustomProperty {
+        #[serde(rename = "customProperty")]
+        #[allow(dead_code)]
+        custom_property: String,
+    },
+}
 
 /// A row from `point_sources` with source_type = 'opc_ua'.
 #[derive(Debug, Clone)]
@@ -20,6 +48,8 @@ pub struct PointSource {
     pub security_mode: String,   // "None", "Sign", "SignAndEncrypt"
     pub username: Option<String>,
     pub password: Option<String>,
+    /// Optional alarm priority mapping; None = use built-in ISA-18.2 defaults.
+    pub alarm_priority_mapping: Option<AlarmPriorityMapping>,
 }
 
 /// A single value update from an OPC UA subscription.
@@ -42,7 +72,8 @@ pub async fn load_sources(db: &DbPool) -> anyhow::Result<Vec<PointSource>> {
         SELECT
             id,
             name,
-            connection_config
+            connection_config,
+            alarm_priority_mapping
         FROM point_sources
         WHERE source_type = 'opc_ua'
           AND enabled = true
@@ -76,6 +107,11 @@ pub async fn load_sources(db: &DbPool) -> anyhow::Result<Vec<PointSource>> {
                 .map(|s| s.to_string())
         };
 
+        let alarm_priority_mapping: Option<AlarmPriorityMapping> = r
+            .try_get::<Option<serde_json::Value>, _>("alarm_priority_mapping")
+            .unwrap_or(None)
+            .and_then(|v| serde_json::from_value(v).ok());
+
         sources.push(PointSource {
             id: r.try_get("id").context("load_sources: missing id")?,
             name: r.try_get("name").context("load_sources: missing name")?,
@@ -84,6 +120,7 @@ pub async fn load_sources(db: &DbPool) -> anyhow::Result<Vec<PointSource>> {
             security_mode: str_field("security_mode", "None"),
             username: opt_str_field("username"),
             password: opt_str_field("password"),
+            alarm_priority_mapping,
         });
     }
 
@@ -401,13 +438,9 @@ pub struct OpcEvent {
     pub low_low_limit: Option<f64>,
 }
 
-/// Map OPC UA Severity (0–1000) to ISA-18.2 alarm priority enum string.
+/// Default ISA-18.2 severity → priority mapping.
 /// SimBLAH discrete severity values: 900 (P1/HH+LL), 600 (P2/H+L), 300 (P3/equipment), 0 (non-alarm).
-///   urgent (P1) : ≥750  — HighHigh / LowLow limit alarms
-///   high   (P2) : ≥450  — High / Low limit alarms
-///   medium (P3) : ≥150  — Equipment / operational alarms
-///   low    (P4) : 1–149 — Meta-events (ConditionRefresh etc.)
-fn severity_to_priority_enum(severity: i16) -> &'static str {
+fn default_severity_to_priority(severity: i16) -> &'static str {
     match severity {
         750..=1000 => "urgent",
         450..=749 => "high",
@@ -417,9 +450,66 @@ fn severity_to_priority_enum(severity: i16) -> &'static str {
     }
 }
 
+/// Map OPC UA Severity (0–1000) to ISA-18.2 alarm priority enum string.
+///
+/// When `mapping` is `None`, falls back to `default_severity_to_priority`.
+/// When `mapping` is `Some`, applies the configured mode:
+///   - `Range`: first matching `from..=to` range wins; falls back to default.
+///   - `Discrete`: exact string-key lookup; falls back to default.
+///   - `CustomProperty`: caller must supply the property value; falls back to default.
+fn severity_to_priority_enum(
+    severity: i16,
+    mapping: Option<&AlarmPriorityMapping>,
+) -> &'static str {
+    let Some(m) = mapping else {
+        return default_severity_to_priority(severity);
+    };
+    match m {
+        AlarmPriorityMapping::Range { ranges } => {
+            let sev = severity as u16;
+            for r in ranges {
+                if sev >= r.from && sev <= r.to {
+                    return priority_str_to_static(&r.priority);
+                }
+            }
+            default_severity_to_priority(severity)
+        }
+        AlarmPriorityMapping::Discrete { discrete } => {
+            if let Some(p) = discrete.get(&severity.to_string()) {
+                return priority_str_to_static(p);
+            }
+            default_severity_to_priority(severity)
+        }
+        AlarmPriorityMapping::CustomProperty { .. } => {
+            // Priority comes from the OPC event property, not severity.
+            // The caller passes None for the OPC property value when absent;
+            // in that case we fall back to the default mapping.
+            default_severity_to_priority(severity)
+        }
+    }
+}
+
+/// Intern a priority string into a static str slice. Unknown values → "diagnostic".
+fn priority_str_to_static(s: &str) -> &'static str {
+    match s {
+        "urgent" => "urgent",
+        "high" => "high",
+        "medium" => "medium",
+        "low" => "low",
+        "diagnostic" => "diagnostic",
+        _ => "diagnostic",
+    }
+}
+
 /// Batch-insert OPC UA events into the `events` hypertable.
 /// Alarm state machine metadata (active, acked, retain) is stored in the `metadata` JSONB column.
-pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Result<()> {
+///
+/// `mapping` is the per-source alarm priority mapping; pass `None` to use the default ISA-18.2 ranges.
+pub async fn write_opc_events(
+    db: &DbPool,
+    events: &[OpcEvent],
+    mapping: Option<&AlarmPriorityMapping>,
+) -> anyhow::Result<()> {
     if events.is_empty() {
         return Ok(());
     }
@@ -464,7 +554,7 @@ pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Resul
 
         let message = ev.message.as_deref().unwrap_or("(no message)");
 
-        let priority = severity_to_priority_enum(severity);
+        let priority = severity_to_priority_enum(severity, mapping);
 
         sqlx::query(
             r#"
