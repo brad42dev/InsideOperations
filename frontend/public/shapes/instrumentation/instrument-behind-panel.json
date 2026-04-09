@@ -1,0 +1,151 @@
+{
+  "$schema": "io-shape-v1",
+  "shape_id": "instrument-behind-panel",
+  "version": "1.0",
+  "display_name": "Instrument (Behind Panel)",
+  "category": "instrumentation",
+  "subcategory": "instrument",
+  "tags": [
+    "instrument",
+    "bubble",
+    "ISA"
+  ],
+  "recognition_class": "instrument",
+  "variants": {
+    "options": {
+      "default": {
+        "file": "instrument-behind-panel.svg",
+        "label": "Standard"
+      }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
+  "geometry": {
+    "viewBox": "0 0 40 40",
+    "width": 40,
+    "height": 40
+  },
+  "connections": [
+    {
+      "id": "nozzle-top",
+      "type": "signal",
+      "x": 20,
+      "y": 2,
+      "direction": "top"
+    },
+    {
+      "id": "nozzle-bottom",
+      "type": "signal",
+      "x": 20,
+      "y": 38,
+      "direction": "bottom"
+    },
+    {
+      "id": "nozzle-left",
+      "type": "signal",
+      "x": 2,
+      "y": 20,
+      "direction": "left"
+    },
+    {
+      "id": "nozzle-right",
+      "type": "signal",
+      "x": 38,
+      "y": 20,
+      "direction": "right"
+    }
+  ],
+  "textZones": [
+    {
+      "id": "tagname",
+      "x": 20.0,
+      "y": -6,
+      "width": 40,
+      "anchor": "middle",
+      "fontSize": 11
+    }
+  ],
+  "valueAnchors": [
+    {
+      "nx": 0.5,
+      "ny": 1.15,
+      "preferredElement": "text_readout"
+    }
+  ],
+  "alarmAnchor": {
+    "nx": 1.1,
+    "ny": -0.1
+  },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  },
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "right",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Equipment Body",
+      "category": "process"
+    }
+  ]
+}

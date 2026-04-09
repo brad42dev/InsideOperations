@@ -1,0 +1,151 @@
+{
+  "$schema": "io-shape-v1",
+  "shape_id": "heat-exchanger-shell-tube-u-tube",
+  "version": "1.0",
+  "display_name": "U-Tube Heat Exchanger",
+  "category": "heat-transfer",
+  "subcategory": "heat-exchanger",
+  "tags": [
+    "heat exchanger",
+    "u-tube",
+    "HX"
+  ],
+  "recognition_class": "heat_exchanger_u_tube",
+  "variants": {
+    "options": {
+      "default": {
+        "file": "heat-exchanger-shell-tube-u-tube.svg",
+        "label": "Standard"
+      }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
+  "geometry": {
+    "viewBox": "0 0 50 50",
+    "width": 50,
+    "height": 50
+  },
+  "connections": [
+    {
+      "id": "tube-in",
+      "type": "process",
+      "x": 5,
+      "y": 20,
+      "direction": "left"
+    },
+    {
+      "id": "tube-out",
+      "type": "process",
+      "x": 5,
+      "y": 30,
+      "direction": "left"
+    },
+    {
+      "id": "shell-top",
+      "type": "process",
+      "x": 25,
+      "y": 5,
+      "direction": "top"
+    },
+    {
+      "id": "shell-bottom",
+      "type": "process",
+      "x": 25,
+      "y": 45,
+      "direction": "bottom"
+    }
+  ],
+  "textZones": [
+    {
+      "id": "tagname",
+      "x": 25.0,
+      "y": -6,
+      "width": 50,
+      "anchor": "middle",
+      "fontSize": 11
+    }
+  ],
+  "valueAnchors": [
+    {
+      "nx": 0.5,
+      "ny": 1.15,
+      "preferredElement": "text_readout"
+    }
+  ],
+  "alarmAnchor": {
+    "nx": 1.1,
+    "ny": -0.1
+  },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  },
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Equipment Body",
+      "category": "process"
+    }
+  ]
+}

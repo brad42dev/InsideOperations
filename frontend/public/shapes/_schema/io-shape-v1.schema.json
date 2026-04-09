@@ -194,6 +194,44 @@
       "type": "object",
       "description": "Map of state name to CSS class",
       "additionalProperties": { "type": "string" }
+    },
+    "addons": {
+      "type": "array",
+      "description": "Composable part add-ons available for this shape",
+      "items": {
+        "type": "object",
+        "required": ["id", "file", "label"],
+        "properties": {
+          "id": { "type": "string" },
+          "file": { "type": "string" },
+          "label": { "type": "string" },
+          "group": { "type": "string" },
+          "exclusive": { "type": "boolean" }
+        }
+      }
+    },
+    "anchorSlots": {
+      "type": "object",
+      "description": "Named snap positions per display element type",
+      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+    },
+    "defaultSlots": {
+      "type": "object",
+      "description": "Pre-wired default slot per display element type",
+      "additionalProperties": { "type": "string" }
+    },
+    "bindableParts": {
+      "type": "array",
+      "description": "Parts that can be bound to OPC points",
+      "items": {
+        "type": "object",
+        "required": ["partId", "label", "category"],
+        "properties": {
+          "partId": { "type": "string" },
+          "label": { "type": "string" },
+          "category": { "type": "string" }
+        }
+      }
     }
   }
 }

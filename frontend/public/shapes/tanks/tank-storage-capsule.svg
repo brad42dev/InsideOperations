@@ -1,12 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 52" data-io-shape="tank-storage-capsule" data-io-version="1.0" data-io-category="tanks">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="tank-storage-capsule"
+     data-io-version="2"
+     data-io-category="tanks"
+     viewBox="0 0 80 52">
   <g class="io-shape-body">
-    <line class="io-stateful" x1="20" y1="14" x2="60" y2="14" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="20" y1="38" x2="60" y2="38" stroke="#808080" stroke-width="1.5"/>
-    <path class="io-stateful" d="M20,14 A12,12 0 0,0 20,38" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <path class="io-stateful" d="M60,14 A12,12 0 0,1 60,38" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Top wall -->
+    <line x1="20" y1="14" x2="60" y2="14" stroke="#808080" stroke-width="1.5"/>
+    <!-- Bottom wall -->
+    <line x1="20" y1="38" x2="60" y2="38" stroke="#808080" stroke-width="1.5"/>
+    <!-- Left hemispherical end cap (bulges left to x=8) -->
+    <path d="M20,14 A12,12 0 0,0 20,38" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Right hemispherical end cap (bulges right to x=72) -->
+    <path d="M60,14 A12,12 0 0,1 60,38" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
-    <circle data-conn-id="inlet-left" data-conn-type="process" data-conn-dir="left" cx="8" cy="26" r="3"/>
-    <circle data-conn-id="outlet-right" data-conn-type="process" data-conn-dir="right" cx="72" cy="26" r="3"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="6" cy="26"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-right" cx="74" cy="26"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="40" cy="12"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-bottom" cx="40" cy="40"/>
   </g>
+  <g class="io-shape-part-support"></g>
 </svg>

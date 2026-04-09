@@ -1,6 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 20" data-io-shape="support-legs-splayed" data-io-version="1.0" data-io-category="supports">
-  <g class="io-part-support">
-    <line x1="19" y1="0" x2="14" y2="17" stroke="#808080" stroke-width="1.5"/>
-    <line x1="51" y1="0" x2="56" y2="17" stroke="#808080" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="support-legs-splayed"
+     data-io-version="2"
+     data-io-category="supports"
+     viewBox="0 0 70 20">
+  <g class="io-shape-body">
+    <!-- Left splayed leg -->
+    <line x1="19" y1="2" x2="14" y2="19" stroke="#808080" stroke-width="1.5"/>
+    <!-- Left foot pad -->
+    <line x1="10" y1="19" x2="18" y2="19" stroke="#808080" stroke-width="0.75"/>
+    <!-- Right splayed leg -->
+    <line x1="51" y1="2" x2="56" y2="19" stroke="#808080" stroke-width="1.5"/>
+    <!-- Right foot pad -->
+    <line x1="52" y1="19" x2="60" y2="19" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <!-- Attachment to sphere/tank bottom — centered between attachment points, 2 units above geometry start at y=2 -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="35" cy="0"/>
   </g>
 </svg>

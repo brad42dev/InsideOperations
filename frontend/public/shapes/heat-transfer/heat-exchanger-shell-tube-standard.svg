@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heat-exchanger-shell-tube-standard"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="0 0 50 50">
+  <g class="io-shape-body">
+    <circle cx="25" cy="25" r="20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline points="5,25 12,25 19,13 31,37 38,25 45,25" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="shell-left" cx="5" cy="25"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="shell-right" cx="45" cy="25"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="25" cy="5"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-bottom" cx="25" cy="45"/>
+  </g>
+</svg>

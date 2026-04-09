@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="mixer-agitator-motor"
+     data-io-version="2"
+     data-io-category="mixers"
+     viewBox="0 0 60 34">
+  <g class="io-shape-body">
+    <!-- Motor -->
+    <circle class="io-stateful" cx="30" cy="5" r="3" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Shaft -->
+    <line x1="30" y1="8" x2="30" y2="18" stroke="#808080" stroke-width="0.75"/>
+    <!-- Left blade -->
+    <path class="io-stateful" d="M30,18 C30,19 8,22 8,18 C8,14 30,17 30,18 Z" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Right blade -->
+    <path class="io-stateful" d="M30,18 C30,19 52,22 52,18 C52,14 30,17 30,18 Z" fill="none" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-shaft" cx="30" cy="0"/>
+  </g>
+  <g class="io-shape-part-agitator"></g>
+</svg>

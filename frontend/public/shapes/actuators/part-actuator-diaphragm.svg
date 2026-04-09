@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="part-actuator-diaphragm"
+     data-io-version="2"
+     data-io-category="actuators"
+     viewBox="0 0 30 30">
+  <g class="io-shape-body">
+    <!-- Diaphragm (pneumatic) — semicircle cap -->
+    <path d="M 5,20 A 10,10 0 0,1 25,20 Z" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Stem — connects to valve below -->
+    <line x1="15" y1="20" x2="15" y2="28" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <!-- Stem tip — attachment point to valve -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-stem" cx="15" cy="30"/>
+  </g>
+</svg>

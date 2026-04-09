@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"
-     data-io-shape="spectacle-blind" data-io-version="3.0" data-io-category="piping">
-  <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
-    <circle class="io-stateful" cx="8" cy="10" r="7"/>
-    <circle class="io-stateful" cx="22" cy="10" r="7"/>
-    <line class="io-stateful" x1="8" y1="3" x2="22" y2="3"/>
-  </g>
-</svg>

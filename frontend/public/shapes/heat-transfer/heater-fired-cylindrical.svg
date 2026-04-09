@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heater-fired-cylindrical"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="0 0 40 70">
+  <g class="io-shape-body">
+    <!-- Cylindrical shell -->
+    <path d="M10,12 A10,5 0 0,1 30,12" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="10" y1="12" x2="10" y2="60" stroke="#808080" stroke-width="1.5"/>
+    <line x1="30" y1="12" x2="30" y2="60" stroke="#808080" stroke-width="1.5"/>
+    <line x1="10" y1="60" x2="30" y2="60" stroke="#808080" stroke-width="1.5"/>
+    <!-- Radiant tube coil (simplified serpentine through cylinder) -->
+    <polyline class="io-stateful" points="20,15 28,25 12,35 28,45 20,55" fill="none" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-in" cx="20" cy="7"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-out" cx="20" cy="63"/>
+  </g>
+</svg>

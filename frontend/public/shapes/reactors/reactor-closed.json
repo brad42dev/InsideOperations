@@ -5,15 +5,32 @@
   "display_name": "Reactor (Closed)",
   "category": "reactors",
   "subcategory": "reactor",
-  "tags": ["reactor", "vessel", "chemical", "closed"],
+  "tags": [
+    "reactor",
+    "vessel",
+    "chemical",
+    "closed"
+  ],
   "recognition_class": "reactor_closed",
   "variants": {
     "options": {},
     "configurations": [
-      { "file": "reactor.svg", "label": "Base" },
-      { "file": "reactor-flat-top.svg", "label": "Flat Top" },
-      { "file": "reactor-closed.svg", "label": "Closed" },
-      { "file": "reactor-trayed.svg", "label": "Trayed" }
+      {
+        "file": "reactor.svg",
+        "label": "Base"
+      },
+      {
+        "file": "reactor-flat-top.svg",
+        "label": "Flat Top"
+      },
+      {
+        "file": "reactor-closed.svg",
+        "label": "Closed"
+      },
+      {
+        "file": "reactor-trayed.svg",
+        "label": "Trayed"
+      }
     ]
   },
   "alarmBinding": {
@@ -27,9 +44,19 @@
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
-  "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
+  "geometry": {
+    "viewBox": "0 0 40 80",
+    "width": 40,
+    "height": 80
+  },
   "connections": [
-    { "id": "inlet", "type": "process", "x": 10, "y": 30, "direction": "left" },
+    {
+      "id": "inlet",
+      "type": "process",
+      "x": 10,
+      "y": 30,
+      "direction": "left"
+    },
     {
       "id": "outlet",
       "type": "process",
@@ -63,10 +90,21 @@
     }
   ],
   "valueAnchors": [
-    { "nx": 0.5, "ny": 1.08, "preferredElement": "text_readout" },
-    { "nx": 1.2, "ny": 0.5, "preferredElement": "analog_bar" }
+    {
+      "nx": 0.5,
+      "ny": 1.08,
+      "preferredElement": "text_readout"
+    },
+    {
+      "nx": 1.2,
+      "ny": 0.5,
+      "preferredElement": "analog_bar"
+    }
   ],
-  "alarmAnchor": { "nx": 1.15, "ny": -0.05 },
+  "alarmAnchor": {
+    "nx": 1.15,
+    "ny": -0.05
+  },
   "vesselInteriorPath": "M10,12 A10,5 0 0,1 30,12 L30,68 A10,5 0 0,1 10,68 Z",
   "states": {
     "running": "io-running",
@@ -74,5 +112,144 @@
     "fault": "io-fault",
     "transitioning": "io-transitioning",
     "oos": "io-oos"
-  }
+  },
+  "addons": [
+    {
+      "id": "agitator-turbine",
+      "file": "agitator-turbine.svg",
+      "label": "Turbine Agitator",
+      "group": "agitator",
+      "exclusive": true
+    },
+    {
+      "id": "agitator-propeller",
+      "file": "agitator-propeller.svg",
+      "label": "Propeller Agitator",
+      "group": "agitator",
+      "exclusive": true
+    },
+    {
+      "id": "agitator-anchor",
+      "file": "agitator-anchor.svg",
+      "label": "Anchor Agitator",
+      "group": "agitator",
+      "exclusive": true
+    },
+    {
+      "id": "agitator-paddle",
+      "file": "agitator-paddle.svg",
+      "label": "Paddle Agitator",
+      "group": "agitator",
+      "exclusive": true
+    },
+    {
+      "id": "agitator-helical",
+      "file": "agitator-helical.svg",
+      "label": "Helical Ribbon Agitator",
+      "group": "agitator",
+      "exclusive": true
+    },
+    {
+      "id": "support-skirt",
+      "file": "support-skirt.svg",
+      "label": "Skirt Support",
+      "group": "support",
+      "exclusive": true
+    },
+    {
+      "id": "support-legs-3",
+      "file": "support-legs-3.svg",
+      "label": "3-Point Legs",
+      "group": "support",
+      "exclusive": true
+    },
+    {
+      "id": "support-legs-4",
+      "file": "support-legs-4.svg",
+      "label": "4-Point Legs",
+      "group": "support",
+      "exclusive": true
+    }
+  ],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left",
+      "vessel-interior"
+    ],
+    "FillGauge": [
+      "vessel-interior",
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "FillGauge": "vessel-interior",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Reactor Body",
+      "category": "equipment"
+    },
+    {
+      "partId": "agitator-turbine",
+      "label": "Turbine Agitator",
+      "category": "agitator"
+    },
+    {
+      "partId": "agitator-propeller",
+      "label": "Propeller Agitator",
+      "category": "agitator"
+    },
+    {
+      "partId": "agitator-anchor",
+      "label": "Anchor Agitator",
+      "category": "agitator"
+    },
+    {
+      "partId": "agitator-paddle",
+      "label": "Paddle Agitator",
+      "category": "agitator"
+    },
+    {
+      "partId": "agitator-helical",
+      "label": "Helical Ribbon Agitator",
+      "category": "agitator"
+    }
+  ]
 }

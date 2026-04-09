@@ -1,10 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 86" data-io-shape="support-legs-3" data-io-version="1.0" data-io-category="supports">
-  <g class="io-part-support">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="support-legs-3"
+     data-io-version="2"
+     data-io-category="supports"
+     viewBox="0 0 40 86">
+  <g class="io-shape-body">
+    <!-- 3 splayed legs — left, center, right -->
     <line x1="12" y1="68" x2="7" y2="82" stroke="#808080" stroke-width="1.5"/>
     <line x1="20" y1="68" x2="20" y2="82" stroke="#808080" stroke-width="1.5"/>
     <line x1="28" y1="68" x2="33" y2="82" stroke="#808080" stroke-width="1.5"/>
+    <!-- Foot pads at base of each leg -->
     <line x1="4" y1="82" x2="10" y2="82" stroke="#808080" stroke-width="1.5"/>
     <line x1="17" y1="82" x2="23" y2="82" stroke="#808080" stroke-width="1.5"/>
     <line x1="30" y1="82" x2="36" y2="82" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <!-- Attachment to vessel bottom — 2 units above top of leg geometry at y=68 -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="20" cy="66"/>
   </g>
 </svg>

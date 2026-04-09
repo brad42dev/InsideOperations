@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="alarm-annunciator-opt2"
+     data-io-version="2"
+     data-io-category="instrumentation"
+     viewBox="0 0 50 40">
+  <g class="io-shape-body">
+    <!-- Speaker cabinet body -->
+    <rect x="12" y="14" width="8" height="12" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Horn -->
+    <polyline points="20,14 36,6 36,34 20,26" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Inner sound wave arc -->
+    <path d="M39,14 C43,17 43,23 39,26" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Outer sound wave arc -->
+    <path d="M42,10 C48,15 48,25 42,30" fill="none" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <!-- Mounting point at back of speaker cabinet -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="10" cy="20"/>
+  </g>
+</svg>

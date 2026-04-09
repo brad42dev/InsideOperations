@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="column-distillation-wide-trayed-6"
+     data-io-version="2"
+     data-io-category="columns"
+     viewBox="0 0 50 120">
+  <g class="io-shape-body">
+    <!-- Domed top (apex at y=5) -->
+    <path d="M10,10 A15,5 0 0,1 40,10" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Left wall -->
+    <line x1="10" y1="10" x2="10" y2="110" stroke="#808080" stroke-width="1.5"/>
+    <!-- Right wall -->
+    <line x1="40" y1="10" x2="40" y2="110" stroke="#808080" stroke-width="1.5"/>
+    <!-- Domed bottom (apex at y=115) -->
+    <path d="M10,110 A15,5 0 0,0 40,110" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Tray lines (6 trays) -->
+    <line x1="10" y1="24" x2="40" y2="24" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="40" x2="40" y2="40" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="56" x2="40" y2="56" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="72" x2="40" y2="72" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="88" x2="40" y2="88" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="100" x2="40" y2="100" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="25" cy="3"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="8" cy="60"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-right" cx="42" cy="60"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-bottom" cx="25" cy="117"/>
+  </g>
+  <g class="io-shape-part-support"></g>
+</svg>

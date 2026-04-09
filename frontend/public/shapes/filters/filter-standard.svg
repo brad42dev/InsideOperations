@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="filter-standard"
+     data-io-version="2"
+     data-io-category="filters"
+     viewBox="0 0 50 60">
+  <g class="io-shape-body">
+    <!-- Filter body -->
+    <rect x="10" y="10" width="30" height="40" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Left inlet stub -->
+    <line x1="6" y1="10" x2="10" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <!-- Right outlet stub -->
+    <line x1="40" y1="10" x2="44" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <!-- Filter element (dashed U) -->
+    <polyline points="18,10 18,38 32,38 32,10" fill="none" stroke="#808080" stroke-width="0.75" stroke-dasharray="3,2"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="4" cy="10"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-right" cx="46" cy="10"/>
+  </g>
+</svg>

@@ -1,0 +1,200 @@
+{
+  "$schema": "io-shape-v1",
+  "shape_id": "vessel-vertical-welded",
+  "version": "1.0",
+  "display_name": "Vessel — Vertical Welded",
+  "category": "vessels",
+  "subcategory": "vertical",
+  "tags": [
+    "vessel",
+    "vertical",
+    "separator",
+    "drum"
+  ],
+  "recognition_class": "vessel_vertical",
+  "variants": {
+    "options": {},
+    "configurations": [
+      {
+        "file": "vessel-vertical.svg",
+        "label": "Welded"
+      },
+      {
+        "file": "vessel-vertical-flanged-top.svg",
+        "label": "Flanged Top"
+      },
+      {
+        "file": "vessel-vertical-flanged-bottom.svg",
+        "label": "Flanged Bottom"
+      },
+      {
+        "file": "vessel-vertical-flanged.svg",
+        "label": "Flanged Both"
+      }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
+  "geometry": {
+    "viewBox": "0 0 40 80",
+    "width": 40,
+    "height": 80
+  },
+  "connections": [
+    {
+      "id": "inlet",
+      "type": "process",
+      "x": 10,
+      "y": 25,
+      "direction": "left"
+    },
+    {
+      "id": "outlet",
+      "type": "process",
+      "x": 10,
+      "y": 55,
+      "direction": "left"
+    },
+    {
+      "id": "top-nozzle",
+      "type": "process",
+      "x": 20,
+      "y": 12,
+      "direction": "top"
+    },
+    {
+      "id": "bottom-drain",
+      "type": "process",
+      "x": 20,
+      "y": 68,
+      "direction": "bottom"
+    }
+  ],
+  "textZones": [
+    {
+      "id": "tagname",
+      "x": 20,
+      "y": -6,
+      "width": 40,
+      "anchor": "middle",
+      "fontSize": 11
+    }
+  ],
+  "valueAnchors": [
+    {
+      "nx": 0.5,
+      "ny": 1.08,
+      "preferredElement": "text_readout"
+    },
+    {
+      "nx": 1.2,
+      "ny": 0.5,
+      "preferredElement": "analog_bar"
+    },
+    {
+      "nx": 0.5,
+      "ny": 0.5,
+      "preferredElement": "fill_gauge"
+    }
+  ],
+  "alarmAnchor": {
+    "nx": 1.15,
+    "ny": -0.05
+  },
+  "vesselInteriorPath": "M10,12 A10,5 0 0,1 30,12 L30,68 A10,5 0 0,1 10,68 Z",
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  },
+  "addons": [
+    {
+      "id": "support-skirt",
+      "file": "support-skirt.svg",
+      "label": "Skirt Support",
+      "group": "support",
+      "exclusive": true
+    },
+    {
+      "id": "support-legs-3",
+      "file": "support-legs-3.svg",
+      "label": "3-Point Legs",
+      "group": "support",
+      "exclusive": true
+    },
+    {
+      "id": "support-legs-4",
+      "file": "support-legs-4.svg",
+      "label": "4-Point Legs",
+      "group": "support",
+      "exclusive": true
+    }
+  ],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left",
+      "vessel-interior"
+    ],
+    "FillGauge": [
+      "vessel-interior",
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "FillGauge": "vessel-interior",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Vessel Body",
+      "category": "equipment"
+    }
+  ]
+}

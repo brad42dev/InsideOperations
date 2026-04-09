@@ -1,11 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 24" data-io-shape="valve-butterfly" data-io-version="1.0" data-io-category="valves">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="valve-butterfly"
+     data-io-version="2"
+     data-io-category="valves"
+     viewBox="0 0 60 24">
   <g class="io-shape-body">
     <line x1="7" y1="0" x2="7" y2="24" stroke="#808080" stroke-width="1.5"/>
     <line x1="53" y1="0" x2="53" y2="24" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="10" y1="4" x2="50" y2="20" stroke="#808080" stroke-width="2"/>
+    <line class="io-stateful" x1="10" y1="4" x2="50" y2="20" stroke="#808080" stroke-width="1.5"/>
   </g>
+  <g class="io-shape-part-actuator"/>
   <g class="io-connections" display="none">
-    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="0" cy="12" r="3"/>
-    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="right" cx="60" cy="12" r="3"/>
+    <circle cx="0" cy="12" r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="inlet"/>
+    <circle cx="60" cy="12" r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="outlet"/>
   </g>
 </svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="interlock-sis"
+     data-io-version="2"
+     data-io-category="instrumentation"
+     viewBox="0 0 60 44">
+  <g class="io-shape-body">
+    <rect x="4" y="2" width="52" height="40" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polygon points="30,6 52,22 30,38 8,22" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="30" cy="0"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-bottom" cx="30" cy="44"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="2" cy="22"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-right" cx="58" cy="22"/>
+  </g>
+</svg>

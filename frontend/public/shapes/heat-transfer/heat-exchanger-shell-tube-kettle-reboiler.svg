@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heat-exchanger-shell-tube-kettle-reboiler"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="0 0 56 50">
+  <g class="io-shape-body">
+    <!-- Main shell -->
+    <circle cx="22" cy="25" r="18" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Tube-side zigzag (terminates at kettle opening) -->
+    <polyline points="4,25 9,25 15,15 22,35 29,15 35,25 40,25" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Kettle dome: flat left wall + rightward arc (vapor disengagement section) -->
+    <line x1="40" y1="18" x2="40" y2="32" stroke="#808080" stroke-width="1.5"/>
+    <path d="M 40,18 A 8,7 0 0,1 40,32" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="shell-left" cx="4" cy="25"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="kettle-top" cx="40" cy="18"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="kettle-bottom" cx="40" cy="32"/>
+  </g>
+</svg>

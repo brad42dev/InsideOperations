@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heat-exchanger-shell-tube-u-tube"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="0 0 50 50">
+  <g class="io-shape-body">
+    <!-- Shell -->
+    <circle cx="25" cy="25" r="20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- U-tube bundle: both tube connections on left side; U-turn on right inside shell -->
+    <path d="M 5,20 L 37,20 A 5,5 0 0,1 37,30 L 5,30" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-in" cx="5" cy="20"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-out" cx="5" cy="30"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="shell-top" cx="25" cy="5"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="shell-bottom" cx="25" cy="45"/>
+  </g>
+</svg>

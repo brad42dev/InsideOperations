@@ -1,20 +1,25 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 0 76 38"
-     data-io-shape="air-cooler" data-io-version="1.0" data-io-category="heat-transfer">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="air-cooler"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="-8 0 76 38">
   <g class="io-shape-body">
-    <line x1="5" y1="5" x2="55" y2="5" stroke="#808080" stroke-width="0.75"/>
-    <line x1="5" y1="5" x2="5" y2="27" stroke="#808080" stroke-width="0.75"/>
-    <line x1="55" y1="5" x2="55" y2="27" stroke="#808080" stroke-width="0.75"/>
-    <polyline points="-4,11 5,11 9,14 14,8 19,14 24,8 29,14 34,8 39,14 44,8 49,14 52,11 55,11 63,11"
-              fill="none" stroke="#808080" stroke-width="0.75"/>
-    <polyline points="59,8 63,11 59,14"
-              fill="none" stroke="#808080" stroke-width="0.75"/>
-    <path class="io-stateful"
-          d="M30,22 C30,21 8,18 8,22 C8,26 30,23 30,22 Z"
-          fill="none" stroke="#808080" stroke-width="0.75"/>
-    <path class="io-stateful"
-          d="M30,22 C30,21 52,18 52,22 C52,26 30,23 30,22 Z"
-          fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Housing (open-bottom box) -->
+    <line x1="5" y1="5" x2="55" y2="5" stroke="#808080" stroke-width="1.5"/>
+    <line x1="5" y1="5" x2="5" y2="27" stroke="#808080" stroke-width="1.5"/>
+    <line x1="55" y1="5" x2="55" y2="27" stroke="#808080" stroke-width="1.5"/>
+    <!-- Process tube coil (zigzag) -->
+    <polyline points="-4,11 5,11 9,14 14,8 19,14 24,8 29,14 34,8 39,14 44,8 49,14 52,11 55,11 63,11" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Flow direction arrow -->
+    <polyline points="59,8 63,11 59,14" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Fan blades (stateful — rotate with fan operation) -->
+    <path class="io-stateful" d="M30,22 C30,21 8,18 8,22 C8,26 30,23 30,22 Z" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <path class="io-stateful" d="M30,22 C30,21 52,18 52,22 C52,26 30,23 30,22 Z" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Fan shaft -->
     <line x1="30" y1="22" x2="30" y2="30" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-in" cx="-4" cy="11"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-out" cx="63" cy="11"/>
   </g>
 </svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heater-fired-box"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="-2 -2 48 64">
+  <g class="io-shape-body">
+    <!-- Firebox + convection section outline -->
+    <path class="io-stateful" d="M 15,2 L 29,2 L 29,18 L 37,28 L 37,58 L 7,58 L 7,28 L 15,18 Z" fill="none" stroke="#808080" stroke-width="1.5" stroke-linejoin="miter"/>
+    <!-- Radiant tube coil (zigzag inside firebox) -->
+    <polyline points="37,55 20,55 33,44 20,31 37,31" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <!-- Bottom tube stubs -->
+    <line x1="25.5" y1="58" x2="25.5" y2="55" stroke="#808080" stroke-width="0.75"/>
+    <line x1="33.5" y1="58" x2="33.5" y2="55" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-a" cx="40" cy="31"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="tube-b" cx="40" cy="55"/>
+  </g>
+</svg>

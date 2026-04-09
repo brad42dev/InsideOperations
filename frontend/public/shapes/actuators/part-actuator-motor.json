@@ -1,0 +1,108 @@
+{
+  "$schema": "io-shape-v1",
+  "shape_id": "part-actuator-motor",
+  "version": "1.0",
+  "display_name": "Actuator \u2014 Motorized (Electric)",
+  "category": "actuators",
+  "subcategory": "actuator",
+  "tags": [
+    "actuator",
+    "valve actuator",
+    "actuator motor"
+  ],
+  "recognition_class": "part_actuator_motor",
+  "isPart": true,
+  "partClass": "io-part-actuator",
+  "variants": {
+    "options": {
+      "default": {
+        "file": "part-actuator-motor.svg",
+        "label": "Standard"
+      }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
+  "geometry": {
+    "viewBox": "0 0 30 30",
+    "width": 30,
+    "height": 30
+  },
+  "connections": [
+    {
+      "id": "nozzle-stem",
+      "type": "actuator",
+      "x": 15,
+      "y": 30,
+      "direction": "bottom"
+    }
+  ],
+  "textZones": [],
+  "valueAnchors": [],
+  "alarmAnchor": null,
+  "states": {},
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "actuator",
+      "label": "Actuator",
+      "category": "control"
+    }
+  ]
+}

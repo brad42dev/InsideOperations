@@ -2,20 +2,43 @@
   "$schema": "io-shape-v1",
   "shape_id": "tank-storage-dome-roof",
   "version": "1.0",
-  "display_name": "Tank — Dome Roof",
+  "display_name": "Tank \u2014 Dome Roof",
   "category": "tanks",
   "subcategory": "storage",
-  "tags": ["tank", "storage", "dome-roof", "atmospheric"],
+  "tags": [
+    "tank",
+    "storage",
+    "dome-roof",
+    "atmospheric"
+  ],
   "recognition_class": "tank_storage_dome_roof",
   "variants": {
     "options": {},
     "configurations": [
-      { "file": "tank-storage-cone-roof.svg", "label": "Cone Roof" },
-      { "file": "tank-storage-dome-roof.svg", "label": "Dome Roof" },
-      { "file": "tank-storage-open-top.svg", "label": "Open Top" },
-      { "file": "tank-storage-floating-roof.svg", "label": "Floating Roof" },
-      { "file": "tank-storage-sphere.svg", "label": "Sphere" },
-      { "file": "tank-storage-capsule.svg", "label": "Capsule" }
+      {
+        "file": "tank-storage-cone-roof.svg",
+        "label": "Cone Roof"
+      },
+      {
+        "file": "tank-storage-dome-roof.svg",
+        "label": "Dome Roof"
+      },
+      {
+        "file": "tank-storage-open-top.svg",
+        "label": "Open Top"
+      },
+      {
+        "file": "tank-storage-floating-roof.svg",
+        "label": "Floating Roof"
+      },
+      {
+        "file": "tank-storage-sphere.svg",
+        "label": "Sphere"
+      },
+      {
+        "file": "tank-storage-capsule.svg",
+        "label": "Capsule"
+      }
     ]
   },
   "alarmBinding": {
@@ -29,9 +52,19 @@
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
-  "geometry": { "viewBox": "0 0 70 70", "width": 70, "height": 70 },
+  "geometry": {
+    "viewBox": "0 0 70 70",
+    "width": 70,
+    "height": 70
+  },
   "connections": [
-    { "id": "inlet", "type": "process", "x": 10, "y": 40, "direction": "left" },
+    {
+      "id": "inlet",
+      "type": "process",
+      "x": 10,
+      "y": 40,
+      "direction": "left"
+    },
     {
       "id": "outlet",
       "type": "process",
@@ -58,11 +91,26 @@
     }
   ],
   "valueAnchors": [
-    { "nx": 0.5, "ny": 1.1, "preferredElement": "text_readout" },
-    { "nx": 1.1, "ny": 0.5, "preferredElement": "analog_bar" },
-    { "nx": 0.5, "ny": 0.6, "preferredElement": "fill_gauge" }
+    {
+      "nx": 0.5,
+      "ny": 1.1,
+      "preferredElement": "text_readout"
+    },
+    {
+      "nx": 1.1,
+      "ny": 0.5,
+      "preferredElement": "analog_bar"
+    },
+    {
+      "nx": 0.5,
+      "ny": 0.6,
+      "preferredElement": "fill_gauge"
+    }
   ],
-  "alarmAnchor": { "nx": 1.1, "ny": -0.05 },
+  "alarmAnchor": {
+    "nx": 1.1,
+    "ny": -0.05
+  },
   "vesselInteriorPath": "M10,20 L60,20 L60,60 L10,60 Z",
   "states": {
     "running": "io-running",
@@ -70,5 +118,77 @@
     "fault": "io-fault",
     "transitioning": "io-transitioning",
     "oos": "io-oos"
-  }
+  },
+  "addons": [
+    {
+      "id": "support-legs-3",
+      "file": "support-legs-3.svg",
+      "label": "3-Point Legs",
+      "group": "support",
+      "exclusive": true
+    },
+    {
+      "id": "support-legs-4",
+      "file": "support-legs-4.svg",
+      "label": "4-Point Legs",
+      "group": "support",
+      "exclusive": true
+    }
+  ],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left",
+      "vessel-interior"
+    ],
+    "FillGauge": [
+      "vessel-interior",
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "FillGauge": "vessel-interior",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Tank Body",
+      "category": "equipment"
+    }
+  ]
 }

@@ -2,16 +2,25 @@
   "$schema": "io-shape-v1",
   "shape_id": "support-legs-3",
   "version": "1.0",
-  "display_name": "Support — 3 Splayed Legs",
+  "display_name": "Support \u2014 3 Splayed Legs",
   "category": "supports",
   "subcategory": "legs",
-  "tags": ["support", "legs", "3-leg", "vessel", "part"],
+  "tags": [
+    "support",
+    "legs",
+    "3-leg",
+    "vessel",
+    "part"
+  ],
   "recognition_class": "support_legs_3",
   "isPart": true,
   "partClass": "io-part-support",
   "variants": {
     "options": {
-      "opt1": { "file": "support-legs-3.svg", "label": "3 Legs" }
+      "opt1": {
+        "file": "support-legs-3.svg",
+        "label": "3 Legs"
+      }
     },
     "configurations": []
   },
@@ -26,10 +35,68 @@
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
-  "geometry": { "viewBox": "0 0 40 86", "width": 40, "height": 86 },
+  "geometry": {
+    "viewBox": "0 0 40 86",
+    "width": 40,
+    "height": 86
+  },
   "connections": [],
   "textZones": [],
   "valueAnchors": [],
   "alarmAnchor": null,
-  "states": {}
+  "states": {},
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Equipment Body",
+      "category": "process"
+    }
+  ]
 }

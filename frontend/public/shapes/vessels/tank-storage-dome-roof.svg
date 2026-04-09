@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 70"
-     data-io-shape="tank-storage-dome-roof" data-io-version="3.0" data-io-category="vessels">
-  <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
-    <rect class="io-stateful" x="10" y="20" width="50" height="40"/>
-    <path class="io-stateful" d="M 10,20 A 25,10 0 0,1 60,20"/>
-  </g>
-</svg>

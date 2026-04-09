@@ -2,16 +2,24 @@
   "$schema": "io-shape-v1",
   "shape_id": "support-saddles",
   "version": "1.0",
-  "display_name": "Support — Saddles",
+  "display_name": "Support \u2014 Saddles",
   "category": "supports",
   "subcategory": "saddles",
-  "tags": ["support", "saddles", "horizontal-vessel", "part"],
+  "tags": [
+    "support",
+    "saddles",
+    "horizontal-vessel",
+    "part"
+  ],
   "recognition_class": "support_saddles",
   "isPart": true,
   "partClass": "io-part-support",
   "variants": {
     "options": {
-      "opt1": { "file": "support-saddles.svg", "label": "Saddles" }
+      "opt1": {
+        "file": "support-saddles.svg",
+        "label": "Saddles"
+      }
     },
     "configurations": []
   },
@@ -26,10 +34,68 @@
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
-  "geometry": { "viewBox": "0 0 80 14", "width": 80, "height": 14 },
+  "geometry": {
+    "viewBox": "0 0 80 14",
+    "width": 80,
+    "height": 14
+  },
   "connections": [],
   "textZones": [],
   "valueAnchors": [],
   "alarmAnchor": null,
-  "states": {}
+  "states": {},
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "bottom",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Equipment Body",
+      "category": "process"
+    }
+  ]
 }

@@ -1,10 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" data-io-shape="agitator-helical" data-io-version="1.0" data-io-category="agitators">
-  <g class="io-part-agitator">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="agitator-helical"
+     data-io-version="2"
+     data-io-category="agitators"
+     viewBox="0 0 40 80">
+  <g class="io-shape-body">
+    <!-- Shaft -->
     <line x1="20" y1="7" x2="20" y2="65" stroke="#808080" stroke-width="1.5"/>
+    <!-- Coupling circle at top -->
     <circle cx="20" cy="5" r="3" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Helical ribbon — zigzag polyline down the shaft -->
     <polyline points="14,25 26,32 14,39 26,46 14,53 26,60" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
-    <circle data-conn-id="shaft-top" data-conn-type="mechanical" data-conn-dir="top" cx="20" cy="7" r="3"/>
+    <!-- Top of coupling circle (cy=5 r=3 → top at y=2) → nozzle 2 units above -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="20" cy="0"/>
   </g>
 </svg>

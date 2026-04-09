@@ -1,15 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62" data-io-shape="valve-relief" data-io-version="1.0" data-io-category="valves">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="valve-relief"
+     data-io-version="2"
+     data-io-category="valves"
+     viewBox="0 0 48 62">
   <g class="io-shape-body">
     <polygon class="io-stateful" points="8,56 20,38 32,56" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <polygon class="io-stateful" points="20,38 42,28 42,48" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="20" y1="38" x2="20" y2="5" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="14" y1="11" x2="26" y2="7" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="8" y1="22" x2="32" y2="14" stroke="#808080" stroke-width="1.5"/>
-    <line class="io-stateful" x1="2" y1="33" x2="38" y2="21" stroke="#808080" stroke-width="1.5"/>
+    <polygon points="20,38 42,28 42,48" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="20" y1="38" x2="20" y2="5" stroke="#808080" stroke-width="1.5"/>
+    <line x1="14" y1="11" x2="26" y2="7" stroke="#808080" stroke-width="1.5"/>
+    <line x1="8" y1="22" x2="32" y2="14" stroke="#808080" stroke-width="1.5"/>
+    <line x1="2" y1="33" x2="38" y2="21" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
-    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="bottom" cx="20" cy="62" r="3"/>
-    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="right" cx="42" cy="38" r="3"/>
-    <circle data-conn-id="stem-top" data-conn-type="mechanical" data-conn-dir="top" cx="20" cy="0" r="3"/>
+    <circle cx="20" cy="62" r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="inlet"/>
+    <circle cx="48" cy="38" r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="outlet"/>
   </g>
 </svg>

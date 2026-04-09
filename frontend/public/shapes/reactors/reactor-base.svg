@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="reactor-base"
+     data-io-version="2"
+     data-io-category="reactors"
+     viewBox="0 0 40 80">
+  <g class="io-shape-body">
+    <!-- Domed top (apex at y=7) -->
+    <path d="M10,12 A10,5 0 0,1 30,12" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <!-- Left wall -->
+    <line x1="10" y1="12" x2="10" y2="68" stroke="#808080" stroke-width="1.5"/>
+    <!-- Right wall -->
+    <line x1="30" y1="12" x2="30" y2="68" stroke="#808080" stroke-width="1.5"/>
+    <!-- Flat bottom -->
+    <line x1="10" y1="68" x2="30" y2="68" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="20" cy="5"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-left" cx="8" cy="40"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-right" cx="32" cy="40"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-bottom" cx="20" cy="70"/>
+  </g>
+  <g class="io-shape-part-agitator"></g>
+  <g class="io-shape-part-support"></g>
+</svg>

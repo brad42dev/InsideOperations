@@ -1,12 +1,20 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 58 20"
-     data-io-shape="heat-exchanger-plate" data-io-version="3.0" data-io-category="heat-transfer">
-  <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1">
-    <rect class="io-stateful" x="0" y="0" width="54" height="16"/>
-    <line class="io-stateful" x1="13.5" y1="0" x2="13.5" y2="16"/>
-    <line class="io-stateful" x1="27" y1="0" x2="27" y2="16"/>
-    <line class="io-stateful" x1="40.5" y1="0" x2="40.5" y2="16"/>
-    <line class="io-stateful" x1="10" y1="0" x2="44" y2="16"/>
-    <line class="io-stateful" x1="10" y1="16" x2="44" y2="0"/>
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="heat-exchanger-plate"
+     data-io-version="2"
+     data-io-category="heat-transfer"
+     viewBox="-2 -2 58 20">
+  <g class="io-shape-body">
+    <rect x="0" y="0" width="54" height="16" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="13.5" y1="0" x2="13.5" y2="16" stroke="#808080" stroke-width="0.75"/>
+    <line x1="27" y1="0" x2="27" y2="16" stroke="#808080" stroke-width="0.75"/>
+    <line x1="40.5" y1="0" x2="40.5" y2="16" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="0" x2="44" y2="16" stroke="#808080" stroke-width="0.75"/>
+    <line x1="10" y1="16" x2="44" y2="0" stroke="#808080" stroke-width="0.75"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="fluid-1-in" cx="0" cy="0"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="fluid-1-out" cx="0" cy="16"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="fluid-2-in" cx="54" cy="16"/>
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="fluid-2-out" cx="54" cy="0"/>
   </g>
 </svg>

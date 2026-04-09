@@ -5,12 +5,23 @@
   "display_name": "Alarm Annunciator",
   "category": "annunciators",
   "subcategory": "annunciator",
-  "tags": ["alarm", "annunciator", "indicator", "horn"],
+  "tags": [
+    "alarm",
+    "annunciator",
+    "indicator",
+    "horn"
+  ],
   "recognition_class": "alarm_annunciator",
   "variants": {
     "options": {
-      "opt1": { "file": "alarm-annunciator.svg", "label": "ISA Standard" },
-      "opt2": { "file": "alarm-annunciator-opt2.svg", "label": "Horn" }
+      "opt1": {
+        "file": "alarm-annunciator.svg",
+        "label": "ISA Standard"
+      },
+      "opt2": {
+        "file": "alarm-annunciator-opt2.svg",
+        "label": "Horn"
+      }
     },
     "configurations": []
   },
@@ -25,9 +36,19 @@
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
-  "geometry": { "viewBox": "0 0 50 40", "width": 50, "height": 40 },
+  "geometry": {
+    "viewBox": "0 0 50 40",
+    "width": 50,
+    "height": 40
+  },
   "connections": [
-    { "id": "signal", "type": "signal", "x": 12, "y": 20, "direction": "left" }
+    {
+      "id": "signal",
+      "type": "signal",
+      "x": 12,
+      "y": 20,
+      "direction": "left"
+    }
   ],
   "textZones": [
     {
@@ -40,14 +61,75 @@
     }
   ],
   "valueAnchors": [
-    { "nx": 0.5, "ny": 1.25, "preferredElement": "text_readout" }
+    {
+      "nx": 0.5,
+      "ny": 1.25,
+      "preferredElement": "text_readout"
+    }
   ],
-  "alarmAnchor": { "nx": 1.1, "ny": -0.1 },
+  "alarmAnchor": {
+    "nx": 1.1,
+    "ny": -0.1
+  },
   "states": {
     "running": "io-running",
     "stopped": "io-stopped",
     "fault": "io-fault",
     "transitioning": "io-transitioning",
     "oos": "io-oos"
-  }
+  },
+  "addons": [],
+  "anchorSlots": {
+    "PointNameLabel": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AlarmIndicator": [
+      "top-right",
+      "top-left",
+      "bottom-right",
+      "bottom-left"
+    ],
+    "TextReadout": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ],
+    "AnalogBar": [
+      "right",
+      "left"
+    ],
+    "FillGauge": [
+      "right",
+      "left"
+    ],
+    "Sparkline": [
+      "right-top",
+      "right-bottom",
+      "left-top",
+      "left-bottom"
+    ],
+    "DigitalStatus": [
+      "top",
+      "right",
+      "bottom",
+      "left"
+    ]
+  },
+  "defaultSlots": {
+    "AlarmIndicator": "top-right",
+    "TextReadout": "right",
+    "Sparkline": "right-top",
+    "PointNameLabel": "top"
+  },
+  "bindableParts": [
+    {
+      "partId": "body",
+      "label": "Equipment Body",
+      "category": "process"
+    }
+  ]
 }

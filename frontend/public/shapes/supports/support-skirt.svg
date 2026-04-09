@@ -1,10 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 86" data-io-shape="support-skirt" data-io-version="1.0" data-io-category="supports">
-  <g class="io-part-support">
+<svg xmlns="http://www.w3.org/2000/svg"
+     data-io-shape="support-skirt"
+     data-io-version="2"
+     data-io-category="supports"
+     viewBox="0 0 40 86">
+  <g class="io-shape-body">
+    <!-- Skirt walls — vertical extensions from vessel bottom sides -->
     <line x1="10" y1="68" x2="10" y2="74" stroke="#808080" stroke-width="1.5"/>
     <line x1="30" y1="68" x2="30" y2="74" stroke="#808080" stroke-width="1.5"/>
+    <!-- Skirt base flange — wider than vessel body -->
     <line x1="5" y1="74" x2="35" y2="74" stroke="#808080" stroke-width="1.5"/>
+    <!-- Skirt leg extensions -->
     <line x1="5" y1="74" x2="5" y2="80" stroke="#808080" stroke-width="1.5"/>
     <line x1="35" y1="74" x2="35" y2="80" stroke="#808080" stroke-width="1.5"/>
+    <!-- Base plate -->
     <line x1="3" y1="80" x2="37" y2="80" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <!-- Attachment to vessel bottom — 2 units above top of skirt geometry at y=68 -->
+    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-top" cx="20" cy="66"/>
   </g>
 </svg>
