@@ -14,6 +14,7 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import type { PointValue as WsPointValue } from "../../../shared/hooks/useWebSocket";
 import { useHistoricalValues } from "../../../shared/hooks/useHistoricalValues";
 import { usePlaybackStore } from "../../../store/playback";
+import { useWorkspaceStore } from "../../../store/workspaceStore";
 import TileGraphicViewer from "../../../shared/components/TileGraphicViewer";
 import PointContextMenu from "../../../shared/components/PointContextMenu";
 import PointDetailPanel from "../../../shared/components/PointDetailPanel";
@@ -35,6 +36,7 @@ interface PointTooltip {
   quality: string;
   timestamp: string;
   opacity: number;
+  alarmPriority?: number | null;
 }
 
 // ── Walk up the DOM tree to find the nearest ancestor with data-point-id ─────
@@ -474,6 +476,74 @@ export default function GraphicPane({
     setPointDetailPanels((prev) => prev.filter((p) => p.id !== id));
   }
 
+  // ── LOD override from workspace store ───────────────────────────────────────
+
+  const lodOverride = useWorkspaceStore((s) => s.lodOverride);
+  const forceLod: 1 | 2 | 3 | undefined =
+    lodOverride === "auto" ? undefined : lodOverride;
+
+  // ── Touch long-press refs (500ms = context menu on mobile) ───────────────────
+
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTouchRef = useRef<{
+    x: number;
+    y: number;
+    pointId: string;
+  } | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressTouchRef.current = null;
+  }, []);
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const pointId = findPointId(e.target);
+      if (!pointId) return;
+      const touch = e.touches[0];
+      longPressTouchRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        pointId,
+      };
+      longPressTimerRef.current = setTimeout(() => {
+        const ref = longPressTouchRef.current;
+        if (!ref) return;
+        longPressTimerRef.current = null;
+        longPressTouchRef.current = null;
+        const pv = tooltipValuesRef.current.get(ref.pointId);
+        setPointCtxMenu({
+          x: ref.x,
+          y: ref.y,
+          pointId: ref.pointId,
+          tagName: ref.pointId,
+          isAlarm: (pv?.alarmPriority ?? 0) > 0,
+          isAlarmElement: false,
+        });
+      }, 500);
+    },
+    [],
+  );
+
+  const handleTouchEnd = useCallback(
+    () => cancelLongPress(),
+    [cancelLongPress],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!longPressTouchRef.current) return;
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - longPressTouchRef.current.x);
+      const dy = Math.abs(touch.clientY - longPressTouchRef.current.y);
+      if (dx > 8 || dy > 8) cancelLongPress();
+    },
+    [cancelLongPress],
+  );
+
   // ── Zoom / Pan state ────────────────────────────────────────────────────────
 
   const [zoom, setZoom] = useState(1.0);
@@ -549,6 +619,7 @@ export default function GraphicPane({
           quality: quality ?? "unknown",
           timestamp: new Date().toLocaleTimeString(),
           opacity: 1,
+          alarmPriority: livePv?.alarmPriority ?? null,
         });
         scheduleTooltipDismiss();
       }, 500);
@@ -574,8 +645,9 @@ export default function GraphicPane({
     return () => {
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
       clearTooltipDismissTimers();
+      cancelLongPress();
     };
-  }, [clearTooltipDismissTimers]);
+  }, [clearTooltipDismissTimers, cancelLongPress]);
 
   // ── Point right-click context menu handler ───────────────────────────────────
 
@@ -590,7 +662,7 @@ export default function GraphicPane({
       // (WsPointValue does not carry tagName — the server sends pointId as the canonical identifier)
       const pv = tooltipValuesRef.current.get(pointId);
       const tagName = pointId;
-      const isAlarm = pv?.quality === "alarm";
+      const isAlarm = (pv?.alarmPriority ?? 0) > 0;
       setPointCtxMenu({
         x: e.clientX,
         y: e.clientY,
@@ -857,6 +929,9 @@ export default function GraphicPane({
       }}
       onContextMenu={handleSvgContextMenu}
       onDoubleClick={handleSvgDoubleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
     >
       {isTablet ? (
         <TransformWrapper
@@ -873,6 +948,7 @@ export default function GraphicPane({
               sparklineHistories={sparklineHistories ?? undefined}
               onNavigate={onNavigate}
               viewport={viewport}
+              forceLod={forceLod}
               preserveAspectRatio={
                 preserveAspectRatio ? "xMidYMid meet" : "none"
               }
@@ -890,6 +966,7 @@ export default function GraphicPane({
           sparklineHistories={sparklineHistories ?? undefined}
           onNavigate={onNavigate}
           viewport={viewport}
+          forceLod={forceLod}
           preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
           style={{ width: "100%", height: "100%" }}
         />
@@ -1015,6 +1092,18 @@ export default function GraphicPane({
             </span>
             <span>{tooltip.timestamp}</span>
           </div>
+          {tooltip.alarmPriority != null && (
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 10,
+                color: "var(--io-danger)",
+                fontWeight: 600,
+              }}
+            >
+              In Alarm · P{tooltip.alarmPriority}
+            </div>
+          )}
         </div>
       )}
 

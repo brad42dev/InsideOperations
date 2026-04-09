@@ -97,7 +97,12 @@ interface PointSearchProps {
   onSelect: (tag: string, pointId: string) => void;
 }
 
-function PointSearch({ label, selectedTag, selectedId, onSelect }: PointSearchProps) {
+function PointSearch({
+  label,
+  selectedTag,
+  selectedId,
+  onSelect,
+}: PointSearchProps) {
   const [search, setSearch] = useState(selectedTag);
   const [results, setResults] = useState<PointMeta[]>([]);
   const [dropOpen, setDropOpen] = useState(false);
@@ -233,7 +238,13 @@ function PointSearch({ label, selectedTag, selectedId, onSelect }: PointSearchPr
                   {pt.tagname}
                 </div>
                 {pt.display_name && (
-                  <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginTop: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--io-text-muted)",
+                      marginTop: 1,
+                    }}
+                  >
                     {pt.display_name}
                   </div>
                 )}
@@ -400,7 +411,9 @@ export function ShapeDropDialog({
       const parts = sc.bindableParts ?? [
         { partId: "body", label: "Equipment Body", category: "process" },
       ];
-      setBindings(parts.map((p) => ({ partKey: p.partId, tag: "", pointId: "" })));
+      setBindings(
+        parts.map((p) => ({ partKey: p.partId, tag: "", pointId: "" })),
+      );
 
       // Init display elements
       setSelectedElements(new Set<string>());
@@ -622,7 +635,12 @@ export function ShapeDropDialog({
                 <>
                   <div style={sectionLabel}>Select Variant</div>
                   <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginBottom: 20,
+                    }}
                   >
                     {variantOptions.map((opt) => (
                       <VariantCard
@@ -639,10 +657,13 @@ export function ShapeDropDialog({
               {addons.length > 0 && (
                 <>
                   <div style={sectionLabel}>Add-ons</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                  >
                     {addons.map((addon) => {
                       const isFailPos = addon.id.startsWith("fail-");
-                      const disabled = isFailPos && !variantHasActuator(selectedVariant);
+                      const disabled =
+                        isFailPos && !variantHasActuator(selectedVariant);
                       const checked = selectedAddons.has(addon.id);
                       return (
                         <label
@@ -666,7 +687,12 @@ export function ShapeDropDialog({
                           />
                           {addon.label}
                           {disabled && (
-                            <span style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: "var(--io-text-muted)",
+                              }}
+                            >
                               (requires actuator variant)
                             </span>
                           )}
@@ -709,7 +735,9 @@ export function ShapeDropDialog({
                         onSelect={(tag, pointId) => {
                           setBindings((prev) =>
                             prev.map((x) =>
-                              x.partKey === part.partId ? { ...x, tag, pointId } : x,
+                              x.partKey === part.partId
+                                ? { ...x, tag, pointId }
+                                : x,
                             ),
                           );
                         }}
@@ -719,10 +747,21 @@ export function ShapeDropDialog({
                 </>
               )}
 
-              <div style={{ ...sectionLabel, marginTop: bindableParts.length > 0 ? 16 : 0 }}>
+              <div
+                style={{
+                  ...sectionLabel,
+                  marginTop: bindableParts.length > 0 ? 16 : 0,
+                }}
+              >
                 Display Elements
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
                 {ALL_ELEMENTS.map(({ id, label }) => (
                   <label
                     key={id}
@@ -789,7 +828,10 @@ export function ShapeDropDialog({
               <button style={btnStyle()} onClick={handleSkipBinding}>
                 Skip Binding
               </button>
-              <button style={btnStyle(true)} onClick={() => onPlace(buildConfig())}>
+              <button
+                style={btnStyle(true)}
+                onClick={() => onPlace(buildConfig())}
+              >
                 {editMode ? "Save" : "Place"}
               </button>
             </>

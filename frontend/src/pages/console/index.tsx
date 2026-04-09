@@ -45,6 +45,8 @@ function ConsoleStatusBar({ workspaceName }: { workspaceName: string }) {
   const { mode } = usePlaybackStore();
   const isHistorical = mode === "historical";
   const { connectionStatus, subscribedPointCount } = useRealtimeStore();
+  const lodOverride = useWorkspaceStore((s) => s.lodOverride);
+  const setLodOverride = useWorkspaceStore((s) => s.setLodOverride);
 
   return (
     <div
@@ -121,6 +123,29 @@ function ConsoleStatusBar({ workspaceName }: { workspaceName: string }) {
           }}
         />
         {isHistorical ? "Historical" : "Live"}
+      </span>
+      <span style={{ color: "var(--io-border)" }}>|</span>
+      {/* LOD override segmented control */}
+      <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        {(["auto", 2, 3] as const).map((opt) => (
+          <button
+            key={String(opt)}
+            onClick={() => setLodOverride(opt)}
+            style={{
+              background:
+                lodOverride === opt ? "var(--io-accent)" : "transparent",
+              color: lodOverride === opt ? "#fff" : "var(--io-text-muted)",
+              border: "none",
+              borderRadius: 3,
+              padding: "1px 6px",
+              fontSize: 10,
+              cursor: "pointer",
+              fontWeight: lodOverride === opt ? 600 : 400,
+            }}
+          >
+            {opt === "auto" ? "Auto" : `L${opt}`}
+          </button>
+        ))}
       </span>
     </div>
   );

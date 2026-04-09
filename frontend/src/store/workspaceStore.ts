@@ -75,12 +75,15 @@ export interface WorkspaceState {
   /** Session-only workspace-level toggle: when true all pane title bars are hidden
    *  regardless of per-pane showTitle setting. Not persisted to the server. */
   hideTitles: boolean;
+  /** Session-only global LOD override. 'auto' = derive from zoom; 2/3 = force that level. */
+  lodOverride: "auto" | 2 | 3;
 
   // Workspace CRUD
   setWorkspaces: (workspaces: WorkspaceLayout[]) => void;
   setActiveId: (id: string | null) => void;
   setPreserveAspectRatio: (value: boolean) => void;
   setHideTitles: (value: boolean) => void;
+  setLodOverride: (value: "auto" | 2 | 3) => void;
 
   createWorkspace: (name?: string, layout?: LayoutPreset) => WorkspaceLayout;
   deleteWorkspace: (id: string) => void;
@@ -115,16 +118,18 @@ export interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>()(
   temporal(
     (set, get) => ({
-      workspaces: [],
-      activeId: null,
+      workspaces: [] as WorkspaceLayout[],
+      activeId: null as string | null,
       preserveAspectRatio: true,
       hideTitles: false,
+      lodOverride: "auto" as "auto" | 2 | 3,
 
-      setWorkspaces: (workspaces) => set({ workspaces }),
-      setActiveId: (activeId) => set({ activeId }),
-      setPreserveAspectRatio: (preserveAspectRatio) =>
+      setWorkspaces: (workspaces: WorkspaceLayout[]) => set({ workspaces }),
+      setActiveId: (activeId: string | null) => set({ activeId }),
+      setPreserveAspectRatio: (preserveAspectRatio: boolean) =>
         set({ preserveAspectRatio }),
-      setHideTitles: (hideTitles) => set({ hideTitles }),
+      setHideTitles: (hideTitles: boolean) => set({ hideTitles }),
+      setLodOverride: (lodOverride: "auto" | 2 | 3) => set({ lodOverride }),
 
       createWorkspace: (name, layout = "2x2") => {
         const count = get().workspaces.length;

@@ -1,7 +1,10 @@
+import { useRef, useState, useEffect, useId } from "react";
 import type { TextReadoutConfig } from "../../types/graphics";
 import { ALARM_COLORS, DE_COLORS } from "../displayElementColors";
 import type { PointDetail } from "../../../api/points";
 import { resolvePointLabel } from "../../utils/resolvePointLabel";
+import { useDataQuality, DataQualityState } from "../dataQuality";
+import { useValueUpdateFlash } from "../valueUpdateFlash";
 
 interface PointValue {
   value: string | number | null;
@@ -9,6 +12,8 @@ interface PointValue {
   unacknowledged?: boolean;
   units?: string;
   tag?: string;
+  quality?: string;
+  lastUpdateMs?: number;
 }
 
 interface Props {
@@ -22,7 +27,6 @@ interface Props {
 function formatValue(raw: string | number | null, fmt: string): string {
   if (raw === null || raw === undefined) return "---";
   if (typeof raw === "number") {
-    // Simple printf-style %.Nf support
     const match = fmt.match(/^%\.(\d+)f$/);
     if (match) return raw.toFixed(parseInt(match[1]));
     const intMatch = fmt.match(/^%\.?0?d$|^%d$/);
@@ -43,7 +47,30 @@ export function TextReadout({
   const priority = pointValue?.alarmPriority ?? null;
   const unacked = pointValue?.unacknowledged ?? false;
 
-  // Resolve discrete label if applicable
+  const mountRef = useRef(Date.now());
+  const rawId = useId();
+  const hatchId = `tr${rawId.replace(/[^a-zA-Z0-9]/g, "")}`;
+
+  const dqState = useDataQuality(
+    pointValue?.lastUpdateMs ?? mountRef.current,
+    pointValue?.quality ?? "good",
+  );
+
+  const alarmColor = priority ? ALARM_COLORS[priority] : null;
+  const isInAlarm = !!priority;
+
+  // JS-driven 1Hz alarm flash — box/border only; value text never flashes
+  const [flashOn, setFlashOn] = useState(true);
+  useEffect(() => {
+    if (!unacked || !alarmColor) {
+      setFlashOn(true);
+      return;
+    }
+    const id = setInterval(() => setFlashOn((v) => !v), 500);
+    return () => clearInterval(id);
+  }, [unacked, alarmColor]);
+
+  // Resolve value string
   const rawNumeric =
     typeof pointValue?.value === "number" ? pointValue.value : null;
   const discreteLabel =
@@ -55,41 +82,93 @@ export function TextReadout({
         )
       : null;
 
-  const valueStr =
-    discreteLabel !== null
+  const isUncertain = dqState === DataQualityState.Uncertain;
+  const isBadQuality =
+    dqState === DataQualityState.BadPhase1 ||
+    dqState === DataQualityState.BadPhase2 ||
+    dqState === DataQualityState.NotConnected;
+  const isValueHidden =
+    dqState === DataQualityState.BadPhase2 ||
+    dqState === DataQualityState.NotConnected;
+
+  const valueStr = isValueHidden
+    ? "---"
+    : discreteLabel !== null
       ? discreteLabel
       : formatValue(pointValue?.value ?? null, valueFormat);
-  // Hide engineering unit suffix when showing a discrete label
+
   const unitStr =
-    discreteLabel === null && showUnits && pointValue?.units
+    !isValueHidden && discreteLabel === null && showUnits && pointValue?.units
       ? ` ${pointValue.units}`
       : "";
+
   const label = showLabel ? (labelText ?? pointValue?.tag ?? "") : "";
 
-  const alarmColor = priority ? ALARM_COLORS[priority] : null;
-  const boxFill = alarmColor ? `${alarmColor}33` : DE_COLORS.surfaceElevated;
-  const boxStroke = alarmColor ?? DE_COLORS.border;
-  const strokeWidth = alarmColor ? 2 : 1;
-  const valueColor = alarmColor
-    ? DE_COLORS.textPrimary
-    : DE_COLORS.textSecondary;
+  const isFlashing = useValueUpdateFlash(
+    isValueHidden ? null : (pointValue?.value ?? null),
+    isInAlarm,
+  );
 
-  // Estimate width
-  const charWidth = 7; // rough JetBrains Mono 11px char width
+  // Box styling
+  const showAlarmTint = isInAlarm && flashOn;
+  let boxFill = showAlarmTint ? `${alarmColor}33` : DE_COLORS.surfaceElevated;
+  let boxStroke = showAlarmTint ? alarmColor! : DE_COLORS.border;
+  let boxStrokeWidth = showAlarmTint ? 2 : 1;
+
+  if (isBadQuality) {
+    boxStroke = "#52525B";
+    boxStrokeWidth = 1;
+    // Alarm tint continues during bad quality (spec: "Alarm tint: continues if alarm active")
+    if (!showAlarmTint) boxFill = DE_COLORS.surfaceElevated;
+  } else if (!isInAlarm && isFlashing) {
+    // Value-update flash: border brightens briefly (150ms)
+    boxStroke = "#71717A";
+  }
+
+  // Value text color
+  let valueColor: string;
+  if (isValueHidden) {
+    valueColor = DE_COLORS.textMuted;
+  } else if (dqState === DataQualityState.Stale) {
+    valueColor = DE_COLORS.textStale;
+  } else if (isInAlarm) {
+    valueColor = DE_COLORS.textPrimary;
+  } else {
+    valueColor = DE_COLORS.textSecondary;
+  }
+
+  // Estimate dimensions
+  const charWidth = 7;
   const estimatedValueWidth =
     (valueStr.length + unitStr.length) * charWidth + 10;
   const w = Math.max(minWidth, estimatedValueWidth);
   const h = showLabel && label ? 36 : 24;
   const valueY = showLabel && label ? h * 0.65 : h / 2;
 
-  const flashClass = unacked && alarmColor ? "io-alarm-flash" : "";
-
   return (
     <g
-      className={`io-display-element ${flashClass}`}
+      className="io-display-element"
       data-type="text_readout"
       transform={`translate(${x},${y})`}
+      opacity={dqState === DataQualityState.Stale ? 0.6 : undefined}
     >
+      {isBadQuality && (
+        <defs>
+          <pattern
+            id={hatchId}
+            patternUnits="userSpaceOnUse"
+            width={4}
+            height={4}
+          >
+            <path
+              d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2"
+              stroke="#808080"
+              strokeWidth={0.75}
+              strokeOpacity={0.4}
+            />
+          </pattern>
+        </defs>
+      )}
       {showBox && (
         <rect
           x={0}
@@ -100,7 +179,19 @@ export function TextReadout({
           ry={2}
           fill={boxFill}
           stroke={boxStroke}
-          strokeWidth={strokeWidth}
+          strokeWidth={boxStrokeWidth}
+          strokeDasharray={isUncertain ? "3 2" : undefined}
+        />
+      )}
+      {isBadQuality && showBox && (
+        <rect
+          x={0}
+          y={0}
+          width={w}
+          height={h}
+          rx={2}
+          fill={`url(#${hatchId})`}
+          style={{ pointerEvents: "none" }}
         />
       )}
       {showLabel && label && (

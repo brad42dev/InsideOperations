@@ -64,3 +64,12 @@
   pointer-events: auto;
   transition: opacity 200ms ease;
 }
+
+/* ── LOD override — always visible regardless of zoom ───────────────────── */
+/* AlarmIndicator elements carry data-lod-override="always" — never hidden   */
+
+.io-canvas-container [data-lod-override="always"] {
+  display: revert !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}

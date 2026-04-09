@@ -51,9 +51,19 @@ const darkTokens: Record<string, string> = {
 
   // Graphics Display Elements
   "--io-fill-normal": "#475569",
+  "--io-fill-normal-opacity": "0.6",
+  "--io-fill-stale-opacity": "0.3",
   "--io-display-zone-inactive": "#3f3f46",
   "--io-display-zone-normal": "#404048",
   "--io-display-zone-border": "#52525b",
+  "--io-zone-hh": "#5C3A3A",
+  "--io-zone-h": "#5C4A32",
+  "--io-zone-l": "#32445C",
+  "--io-zone-ll": "#2E3A5C",
+  "--equip-stroke": "#808080",
+
+  // Stale data
+  "--io-text-stale": "#636363",
 
   // Operational Status
   "--io-alarm-normal": "#22c55e",
@@ -237,23 +247,33 @@ const lightTokens: Record<string, string> = {
   "--io-border-strong": "#d1d5db",
   "--io-focus-ring": "#14b8a6",
 
-  // Alarm Priority
-  "--io-alarm-urgent": "#dc2626",
-  "--io-alarm-high": "#d97706",
-  "--io-alarm-low": "#ca8a04",
-  "--io-alarm-diagnostic": "#0891b2",
-  "--io-alarm-custom": "#6d28d9",
-  "--io-alarm-shelved": "#7c3aed",
+  // Alarm Priority (light — darkened for contrast on white)
+  "--io-alarm-urgent": "#b91c1c",
+  "--io-alarm-high": "#ea580c",
+  "--io-alarm-low": "#a16207",
+  "--io-alarm-diagnostic": "#15803d",
+  "--io-alarm-custom": "#2563eb",
+  "--io-alarm-shelved": "#7e22ce",
 
   // Graphics Display Elements
   "--io-fill-normal": "rgba(148,163,184,0.3)",
+  "--io-fill-normal-opacity": "0.45",
+  "--io-fill-stale-opacity": "0.15",
   "--io-display-zone-inactive": "#e5e7eb",
   "--io-display-zone-normal": "#d1d5db",
   "--io-display-zone-border": "#d1d5db",
+  "--io-zone-hh": "#F87171",
+  "--io-zone-h": "#FCA87A",
+  "--io-zone-l": "#60A5FA",
+  "--io-zone-ll": "#3B82F6",
+  "--equip-stroke": "#808080",
+
+  // Stale data
+  "--io-text-stale": "#9ca3af",
 
   // Operational Status
   "--io-alarm-normal": "#16a34a",
-  "--io-alarm-disabled": "#9ca3af",
+  "--io-alarm-disabled": "#3f3f46",
 
   // Semantic Status
   "--io-danger": "#dc2626",
@@ -444,9 +464,19 @@ const hphmiTokens: Record<string, string> = {
 
   // Graphics Display Elements
   "--io-fill-normal": "rgba(71,85,105,0.5)",
+  "--io-fill-normal-opacity": "0.5",
+  "--io-fill-stale-opacity": "0.2",
   "--io-display-zone-inactive": "#3f3f46",
   "--io-display-zone-normal": "#404048",
   "--io-display-zone-border": "#52525b",
+  "--io-zone-hh": "#7C3AED",
+  "--io-zone-h": "#2563EB",
+  "--io-zone-l": "#16A34A",
+  "--io-zone-ll": "#65A30D",
+  "--equip-stroke": "#808080",
+
+  // Stale data
+  "--io-text-stale": "#475569",
 
   // Operational Status
   "--io-alarm-normal": "#22c55e",

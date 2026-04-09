@@ -3224,7 +3224,9 @@ export default function DesignerCanvas({
   } | null>(null);
 
   // Shape Configuration dialog (edit mode) — opened from right-click context menu
-  const [shapeConfigNodeId, setShapeConfigNodeId] = useState<NodeId | null>(null);
+  const [shapeConfigNodeId, setShapeConfigNodeId] = useState<NodeId | null>(
+    null,
+  );
 
   // Slot handle popover — set when user clicks a "+" slot handle on a selected SymbolInstance
   const [slotPopover, setSlotPopover] = useState<{
@@ -6444,7 +6446,10 @@ export default function DesignerCanvas({
         ),
       );
     } else {
-      const textPos = resolveNamedSlot(defaultSlots["TextReadout"] ?? "bottom", bbox);
+      const textPos = resolveNamedSlot(
+        defaultSlots["TextReadout"] ?? "bottom",
+        bbox,
+      );
       const textDE: DisplayElement = {
         id: crypto.randomUUID(),
         type: "display_element",
@@ -6510,9 +6515,7 @@ export default function DesignerCanvas({
       cmds.push(new AddDisplayElementCommand(sym.id, alarmDE));
     }
 
-    executeCmd(
-      new CompoundCommand(`Bind ${pointData.displayName}`, cmds),
-    );
+    executeCmd(new CompoundCommand(`Bind ${pointData.displayName}`, cmds));
   }
 
   return (
@@ -6879,7 +6882,10 @@ export default function DesignerCanvas({
                               dominantBaseline="central"
                               fontSize={fs}
                               fill="var(--io-accent)"
-                              style={{ pointerEvents: "none", userSelect: "none" }}
+                              style={{
+                                pointerEvents: "none",
+                                userSelect: "none",
+                              }}
                             >
                               +
                             </text>
@@ -7407,24 +7413,24 @@ export default function DesignerCanvas({
                 const children: DisplayElement[] = (
                   config.displayElements as DisplayElementType[]
                 ).map((dt) => ({
-                    id: crypto.randomUUID(),
-                    type: "display_element" as const,
-                    displayType: dt,
-                    transform: {
-                      position: { x: 0, y: -20 },
-                      rotation: 0,
-                      scale: { x: 1, y: 1 },
-                      mirror: "none" as const,
-                    },
-                    binding: config.pointBindings[0]?.pointId
-                      ? { pointId: config.pointBindings[0].pointId }
-                      : {},
-                    config: makeDefaultDisplayConfig(dt),
-                    opacity: 1,
-                    visible: true,
-                    locked: false,
-                    name: dt,
-                  }));
+                  id: crypto.randomUUID(),
+                  type: "display_element" as const,
+                  displayType: dt,
+                  transform: {
+                    position: { x: 0, y: -20 },
+                    rotation: 0,
+                    scale: { x: 1, y: 1 },
+                    mirror: "none" as const,
+                  },
+                  binding: config.pointBindings[0]?.pointId
+                    ? { pointId: config.pointBindings[0].pointId }
+                    : {},
+                  config: makeDefaultDisplayConfig(dt),
+                  opacity: 1,
+                  visible: true,
+                  locked: false,
+                  name: dt,
+                }));
                 const si: SymbolInstance = {
                   id: crypto.randomUUID(),
                   type: "symbol_instance",
@@ -7446,10 +7452,9 @@ export default function DesignerCanvas({
                   textZoneOverrides: {},
                   children,
                   propertyOverrides: {},
-                  stateBinding:
-                    config.pointBindings[0]?.pointId
-                      ? { pointId: config.pointBindings[0].pointId }
-                      : undefined,
+                  stateBinding: config.pointBindings[0]?.pointId
+                    ? { pointId: config.pointBindings[0].pointId }
+                    : undefined,
                 };
                 const dropParentId = useUiStore.getState().activeGroupId;
                 executeCmd(new AddNodeCommand(si, dropParentId));
@@ -7523,7 +7528,9 @@ export default function DesignerCanvas({
                     locked: false,
                     name: dt,
                   };
-                  cmds.push(new AddDisplayElementCommand(shapeConfigNodeId, el));
+                  cmds.push(
+                    new AddDisplayElementCommand(shapeConfigNodeId, el),
+                  );
                 });
                 executeCmd(
                   cmds.length === 1

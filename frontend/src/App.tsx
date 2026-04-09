@@ -202,6 +202,9 @@ const Badges = lazy(() => import("./pages/settings/Badges"));
 const BulkUpdate = lazy(() => import("./pages/settings/BulkUpdate"));
 const Snapshots = lazy(() => import("./pages/settings/Snapshots"));
 const SystemSettings = lazy(() => import("./pages/settings/SystemSettings"));
+const AlarmPriorityMappingPage = lazy(
+  () => import("./pages/settings/AlarmPriorityMapping"),
+);
 
 // ---------------------------------------------------------------------------
 // Minimal loading fallback used by Suspense boundaries
@@ -249,6 +252,11 @@ function DefaultRedirect() {
 function RedirectDashboardEdit() {
   const { id } = useParams<{ id: string }>();
   return <Navigate to={`/designer/dashboards/${id}/edit`} replace />;
+}
+
+function AlarmPriorityMappingPageWrapper() {
+  const { sourceId } = useParams<{ sourceId: string }>();
+  return <AlarmPriorityMappingPage sourceId={sourceId ?? null} />;
 }
 
 function AppRoutes() {
@@ -1060,6 +1068,14 @@ function AppRoutes() {
               element={
                 <PermissionGuard permission="system:opc_config">
                   <OpcSourcesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="opc-sources/:sourceId/alarm-priority-mapping"
+              element={
+                <PermissionGuard permission="system:opc_config">
+                  <AlarmPriorityMappingPageWrapper />
                 </PermissionGuard>
               }
             />

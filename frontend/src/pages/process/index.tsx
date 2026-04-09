@@ -105,12 +105,6 @@ interface PointTooltip {
 // ---------------------------------------------------------------------------
 
 type LodLevel = 0 | 1 | 2 | 3;
-const LOD_NAMES: Record<LodLevel, string> = {
-  0: "Overview",
-  1: "Area",
-  2: "Unit",
-  3: "Detail",
-};
 
 function zoomToLod(zoom: number): LodLevel {
   if (zoom < 0.15) return 0;
@@ -1610,7 +1604,9 @@ export default function ProcessPage() {
   // ---- Derived display values ----------------------------------------------
 
   const lodLevel = zoomToLod(viewport.zoom);
-  const lodName = LOD_NAMES[lodLevel];
+  // Session-only LOD override — 'auto' = zoom-derived, 2/3 = forced
+  const [lodOverride, setLodOverride] = useState<"auto" | 2 | 3>("auto");
+  const effectiveLodLevel = lodOverride === "auto" ? lodLevel : lodOverride;
   const zoomPct = Math.round(viewport.zoom * 100);
   const viewName = selectedId
     ? (graphicsList?.find((g) => g.id === selectedId)?.name ?? "")
@@ -1940,6 +1936,9 @@ export default function ProcessPage() {
                       viewport={viewport}
                       pointValues={pointValues}
                       onNavigate={handleNavigate}
+                      forceLod={
+                        lodOverride === "auto" ? undefined : lodOverride
+                      }
                       style={{ position: "absolute", inset: 0 }}
                     />
                   </TransformComponent>
@@ -1950,6 +1949,7 @@ export default function ProcessPage() {
                   viewport={viewport}
                   pointValues={pointValues}
                   onNavigate={handleNavigate}
+                  forceLod={lodOverride === "auto" ? undefined : lodOverride}
                   style={{ position: "absolute", inset: 0 }}
                 />
               ))}
@@ -2555,9 +2555,34 @@ export default function ProcessPage() {
                   <span style={{ color: "var(--io-border)" }}>|</span>
                 </>
               )}
-              {/* LOD */}
-              <span>
-                LOD {lodLevel} – {lodName}
+              {/* LOD segmented control */}
+              <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                {(["auto", 2, 3] as const).map((opt) => (
+                  <button
+                    key={String(opt)}
+                    onClick={() => setLodOverride(opt)}
+                    style={{
+                      ...toolbarBtnStyle,
+                      background:
+                        lodOverride === opt
+                          ? "var(--io-accent-subtle)"
+                          : undefined,
+                      color:
+                        lodOverride === opt
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
+                      borderColor:
+                        lodOverride === opt
+                          ? "var(--io-accent)"
+                          : "var(--io-border)",
+                      padding: "2px 6px",
+                    }}
+                  >
+                    {opt === "auto"
+                      ? `Auto (L${effectiveLodLevel})`
+                      : `L${opt}`}
+                  </button>
+                ))}
               </span>
               <span style={{ color: "var(--io-border)" }}>|</span>
               {/* Zoom */}

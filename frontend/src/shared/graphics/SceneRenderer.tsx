@@ -1713,10 +1713,22 @@ export function SceneRenderer({
           const spans: React.ReactNode[] = [];
           parts.forEach((part, i) => {
             if (i > 0)
-              spans.push(<tspan key={`sep-${i}`} fill={SEP_COLOR}>.</tspan>);
+              spans.push(
+                <tspan key={`sep-${i}`} fill={SEP_COLOR}>
+                  .
+                </tspan>,
+              );
             const color =
-              i === last ? TAG_COLOR : i === secondLast ? UNIT_COLOR : AREA_COLOR;
-            spans.push(<tspan key={`part-${i}`} fill={color}>{part}</tspan>);
+              i === last
+                ? TAG_COLOR
+                : i === secondLast
+                  ? UNIT_COLOR
+                  : AREA_COLOR;
+            spans.push(
+              <tspan key={`part-${i}`} fill={color}>
+                {part}
+              </tspan>,
+            );
           });
           labelContent = spans;
         } else {

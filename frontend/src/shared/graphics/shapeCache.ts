@@ -47,6 +47,27 @@ export interface ShapeSidecar {
   valueAnchors: Array<{ nx: number; ny: number; preferredElement: string }>;
   alarmAnchor: { nx: number; ny: number } | null;
   states: Record<string, string>;
+  addons?: Array<{
+    id: string;
+    file: string;
+    label: string;
+    group?: string;
+    exclusive?: boolean;
+  }>;
+  anchorSlots?: Partial<
+    Record<
+      | "PointNameLabel"
+      | "AlarmIndicator"
+      | "TextReadout"
+      | "AnalogBar"
+      | "FillGauge"
+      | "Sparkline"
+      | "DigitalStatus",
+      string[]
+    >
+  >;
+  defaultSlots?: Record<string, string>;
+  bindableParts?: Array<{ partId: string; label: string; category: string }>;
 }
 
 export interface ShapeData {
@@ -137,6 +158,37 @@ function resolveSvgFilename(
   }
   // No variants.options — fall back to shape ID as filename
   return `${shapeId}.svg`;
+}
+
+/**
+ * Resolve the base SVG file and all addon SVG files for a shape.
+ * Returns { base: string, addons: string[] }.
+ *
+ * - base: the SVG file for the selected variant (via variantKey), or fallback to "{shapeId}.svg"
+ * - addons: SVG files for each requested addon ID found in sidecar.addons[]
+ *
+ * For shapes with no addons field (or empty addons), returns { base, addons: [] }.
+ */
+export function resolveShapeFiles(
+  sidecar: ShapeSidecar,
+  variantKey: string,
+  addonIds: string[],
+): { base: string; addons: string[] } {
+  const base = resolveSvgFilename(
+    sidecar.shape_id ?? "",
+    sidecar as unknown as Record<string, unknown>,
+    variantKey,
+  );
+
+  const addons: string[] = [];
+  if (sidecar.addons && addonIds.length > 0) {
+    for (const id of addonIds) {
+      const addon = sidecar.addons.find((a) => a.id === id);
+      if (addon) addons.push(addon.file);
+    }
+  }
+
+  return { base, addons };
 }
 
 /**

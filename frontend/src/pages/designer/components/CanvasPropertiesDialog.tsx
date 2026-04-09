@@ -193,7 +193,7 @@ export default function CanvasPropertiesDialog({
     doc?.canvas.autoHeight ?? false,
   );
   const [bgColor, setBgColor] = useState<string>(
-    doc?.canvas.backgroundColor ?? "#09090b",
+    doc?.canvas.backgroundColor ?? "var(--io-surface-primary)",
   );
   const [gridSize, setGridSize] = useState<number>(doc?.metadata.gridSize ?? 8);
   const [proportionalLock, setProportionalLock] = useState(false);
@@ -720,68 +720,148 @@ export default function CanvasPropertiesDialog({
         <div>
           <div style={sectionLabelStyle}>Background</div>
           <label style={labelStyle}>Background Color</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Color swatch (triggers native color picker) */}
-            <div
-              style={{
-                position: "relative",
-                width: 28,
-                height: 28,
-                borderRadius: "var(--io-radius)",
-                border: "1px solid var(--io-border)",
-                overflow: "hidden",
-                flexShrink: 0,
-                cursor: "pointer",
-                background: bgColor,
-              }}
-            >
-              <input
-                type="color"
-                value={bgColor}
-                onChange={(e) => handleBgColorChange(e.target.value)}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  opacity: 0,
-                  width: "100%",
-                  height: "100%",
-                  cursor: "pointer",
-                  border: "none",
-                  padding: 0,
-                }}
-                title="Pick background color"
-              />
-            </div>
+          {(() => {
+            const isTheme = bgColor === "var(--io-surface-primary)";
+            return (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {/* Color swatch — hidden in theme mode, native picker in custom mode */}
+                  {!isTheme && (
+                    <div
+                      style={{
+                        position: "relative",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "var(--io-radius)",
+                        border: "1px solid var(--io-border)",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        cursor: "pointer",
+                        background: bgColor,
+                      }}
+                    >
+                      <input
+                        type="color"
+                        value={bgColor}
+                        onChange={(e) => handleBgColorChange(e.target.value)}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          opacity: 0,
+                          width: "100%",
+                          height: "100%",
+                          cursor: "pointer",
+                          border: "none",
+                          padding: 0,
+                        }}
+                        title="Pick background color"
+                      />
+                    </div>
+                  )}
 
-            {/* Hex text input */}
-            <input
-              type="text"
-              value={bgColor}
-              onChange={(e) => {
-                const val = e.target.value;
-                setBgColor(val);
-                // Only commit when it looks like a valid hex color
-                if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-                  if (!doc) return;
-                  executeCmd(
-                    new ChangePropertyCommand(
-                      doc.id,
-                      "canvas",
-                      { ...doc.canvas, backgroundColor: val },
-                      doc.canvas,
-                    ),
-                  );
-                }
-              }}
-              style={{
-                ...inputStyle,
-                fontFamily: "var(--io-font-mono)",
-                flex: 1,
-              }}
-              placeholder="#000000"
-              maxLength={7}
-            />
-          </div>
+                  {isTheme ? (
+                    /* Theme mode: show token badge */
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flex: 1,
+                        padding: "4px 8px",
+                        borderRadius: "var(--io-radius)",
+                        border: "1px solid var(--io-border)",
+                        background: "var(--io-surface-primary)",
+                        fontFamily: "var(--io-font-mono)",
+                        fontSize: 11,
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 10,
+                          height: 10,
+                          borderRadius: 2,
+                          background: "var(--io-surface-primary)",
+                          border: "1px solid var(--io-border-strong)",
+                          flexShrink: 0,
+                        }}
+                      />
+                      --io-surface-primary
+                    </div>
+                  ) : (
+                    /* Custom hex input */
+                    <input
+                      type="text"
+                      value={bgColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBgColor(val);
+                        if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                          if (!doc) return;
+                          executeCmd(
+                            new ChangePropertyCommand(
+                              doc.id,
+                              "canvas",
+                              { ...doc.canvas, backgroundColor: val },
+                              doc.canvas,
+                            ),
+                          );
+                        }
+                      }}
+                      style={{
+                        ...inputStyle,
+                        fontFamily: "var(--io-font-mono)",
+                        flex: 1,
+                      }}
+                      placeholder="#000000"
+                      maxLength={7}
+                    />
+                  )}
+                </div>
+
+                {/* Theme / Custom toggle row */}
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <button
+                    onClick={() =>
+                      handleBgColorChange("var(--io-surface-primary)")
+                    }
+                    style={{
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      borderRadius: "var(--io-radius)",
+                      border: `1px solid ${isTheme ? "var(--io-accent)" : "var(--io-border)"}`,
+                      background: isTheme
+                        ? "var(--io-accent-subtle)"
+                        : "transparent",
+                      color: isTheme
+                        ? "var(--io-accent)"
+                        : "var(--io-text-muted)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Theme default
+                  </button>
+                  {isTheme && (
+                    <button
+                      onClick={() => handleBgColorChange("#09090b")}
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        borderRadius: "var(--io-radius)",
+                        border: "1px solid var(--io-border)",
+                        background: "transparent",
+                        color: "var(--io-text-muted)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Custom color
+                    </button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Grid section */}

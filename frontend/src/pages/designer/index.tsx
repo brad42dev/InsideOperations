@@ -1209,7 +1209,7 @@ export default function DesignerPage() {
     bg.setAttribute("y", "0");
     bg.setAttribute("width", String(cw));
     bg.setAttribute("height", String(ch));
-    bg.setAttribute("fill", backgroundColor ?? "#0d0d0d");
+    bg.setAttribute("fill", backgroundColor ?? "var(--io-surface-primary)");
     exportSvg.appendChild(bg);
 
     // Clone only top-level scene node elements (those with data-node-id that

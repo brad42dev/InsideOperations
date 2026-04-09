@@ -470,3 +470,30 @@ export const historyRecoveryApi = {
       `/api/opc/sources/${sourceId}/history-recovery/jobs`,
     ),
 };
+
+// ---------------------------------------------------------------------------
+// Alarm priority mapping
+// ---------------------------------------------------------------------------
+
+export interface PriorityRange {
+  from: number;
+  to: number;
+  priority: string;
+}
+
+export type AlarmPriorityMapping =
+  | { mode: "range"; ranges: PriorityRange[] }
+  | { mode: "discrete"; discrete: Record<string, string> }
+  | { mode: "custom_property"; customProperty: string };
+
+export const alarmPriorityMappingApi = {
+  get: (sourceId: string) =>
+    api.get<AlarmPriorityMapping | null>(
+      `/api/opc/sources/${sourceId}/alarm-priority-mapping`,
+    ),
+  put: (sourceId: string, mapping: AlarmPriorityMapping | null) =>
+    api.put<AlarmPriorityMapping | null>(
+      `/api/opc/sources/${sourceId}/alarm-priority-mapping`,
+      { mapping },
+    ),
+};

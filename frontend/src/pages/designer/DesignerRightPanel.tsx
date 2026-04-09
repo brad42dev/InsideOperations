@@ -53,6 +53,7 @@ import {
   AddComposablePartCommand,
   RemoveComposablePartCommand,
   ChangeDisplayElementConfigCommand,
+  AddDisplayElementCommand,
   ChangeWidgetConfigCommand,
   AlignNodesCommand,
   DistributeNodesCommand,
@@ -69,6 +70,10 @@ import type {
 } from "../../shared/graphics/commands";
 import { PIPE_SERVICE_COLORS } from "../../shared/types/graphics";
 import { pointsApi } from "../../api/points";
+import {
+  NAMED_SLOT_POSITIONS,
+  resolveNamedSlot,
+} from "../../shared/graphics/anchorSlots";
 
 // ---------------------------------------------------------------------------
 // PointResolutionIndicator — shows a yellow dot when a pointId is unresolved
@@ -557,6 +562,375 @@ function DocPropertiesPanel({ doc }: { doc: GraphicDocument }) {
 }
 
 // ---------------------------------------------------------------------------
+// Display element type ↔ sidecar key mappings
+// ---------------------------------------------------------------------------
+
+const DE_TO_SIDECAR: Partial<Record<DisplayElementType, string>> = {
+  text_readout: "TextReadout",
+  analog_bar: "AnalogBar",
+  fill_gauge: "FillGauge",
+  sparkline: "Sparkline",
+  alarm_indicator: "AlarmIndicator",
+  digital_status: "DigitalStatus",
+  point_name_label: "PointNameLabel",
+};
+
+const SIDECAR_TO_DE: Record<string, DisplayElementType> = {
+  TextReadout: "text_readout",
+  AnalogBar: "analog_bar",
+  FillGauge: "fill_gauge",
+  Sparkline: "sparkline",
+  AlarmIndicator: "alarm_indicator",
+  DigitalStatus: "digital_status",
+  PointNameLabel: "point_name_label",
+};
+
+const DE_LABEL: Record<string, string> = {
+  text_readout: "Text Readout",
+  analog_bar: "Analog Bar",
+  fill_gauge: "Fill Gauge",
+  sparkline: "Sparkline",
+  alarm_indicator: "Alarm Indicator",
+  digital_status: "Digital Status",
+  point_name_label: "Point Name Label",
+};
+
+function makeDeDefaultConfig(dtype: DisplayElementType): DisplayElementConfig {
+  switch (dtype) {
+    case "text_readout":
+      return {
+        displayType: "text_readout",
+        showBox: true,
+        showLabel: false,
+        labelText: "",
+        showUnits: true,
+        valueFormat: "%.2f",
+        minWidth: 60,
+      };
+    case "analog_bar":
+      return {
+        displayType: "analog_bar",
+        orientation: "vertical",
+        rangeLo: 0,
+        rangeHi: 100,
+        barWidth: 20,
+        barHeight: 80,
+        showPointer: true,
+        showZoneLabels: true,
+        showSetpoint: false,
+        showNumericReadout: false,
+        showSignalLine: false,
+      };
+    case "fill_gauge":
+      return {
+        displayType: "fill_gauge",
+        mode: "standalone",
+        fillDirection: "up",
+        rangeLo: 0,
+        rangeHi: 100,
+        showLevelLine: true,
+        showValue: true,
+        valueFormat: "%.0f",
+        barWidth: 22,
+        barHeight: 90,
+      };
+    case "sparkline":
+      return {
+        displayType: "sparkline",
+        timeWindowMinutes: 30,
+        scaleMode: "auto",
+        dataPoints: 14,
+      };
+    case "alarm_indicator":
+      return { displayType: "alarm_indicator", mode: "single" };
+    case "digital_status":
+      return {
+        displayType: "digital_status",
+        normalStates: [],
+        stateLabels: {},
+        abnormalPriority: 3,
+      };
+    case "point_name_label":
+      return { displayType: "point_name_label", style: "hierarchy" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DisplayElementsSection — enhanced display element management for SymbolInstance
+// ---------------------------------------------------------------------------
+
+function DisplayElementsSection({
+  node,
+  shapeEntry,
+}: {
+  node: SymbolInstance;
+  shapeEntry: ReturnType<
+    import("../../store/designer/libraryStore").LibraryStore["getShape"]
+  >;
+}) {
+  const executeCmd = useExecuteCmd();
+  const doc = useSceneStore((s) => s.doc);
+  const sidecar = shapeEntry?.sidecar;
+
+  // Compute shape bbox for slot position resolution
+  const geo = sidecar?.geometry;
+  const nw = geo?.baseSize?.[0] ?? geo?.width ?? 48;
+  const nh = geo?.baseSize?.[1] ?? geo?.height ?? 48;
+  const bbox = {
+    x: node.transform.position.x,
+    y: node.transform.position.y,
+    width: nw * (node.transform.scale.x ?? 1),
+    height: nh * (node.transform.scale.y ?? 1),
+  };
+
+  const anchorSlots = sidecar?.anchorSlots ?? {};
+  const defaultSlots = sidecar?.defaultSlots ?? {};
+  const presentTypes = new Set(node.children.map((c) => c.displayType));
+
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "6px 8px",
+    background: "var(--io-surface)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    marginBottom: 4,
+  };
+
+  const btnStyle: React.CSSProperties = {
+    fontSize: 10,
+    padding: "1px 5px",
+    background: "transparent",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    color: "var(--io-text-muted)",
+    cursor: "pointer",
+    flexShrink: 0,
+  };
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <FieldLabel>Display Elements</FieldLabel>
+
+      {/* Existing children */}
+      {node.children.map((child) => {
+        const de = child as DisplayElement;
+        const sidecarKey = DE_TO_SIDECAR[de.displayType];
+        const availableSlots: string[] =
+          (sidecarKey
+            ? (anchorSlots as Partial<Record<string, string[]>>)[sidecarKey]
+            : undefined) ?? [];
+
+        return (
+          <div key={de.id} style={rowStyle}>
+            {/* Row 1: type label + LOD + hide + remove */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: de.visible
+                    ? "var(--io-text-primary)"
+                    : "var(--io-text-muted)",
+                }}
+              >
+                {DE_LABEL[de.displayType] ?? de.displayType}
+              </span>
+              <button
+                style={btnStyle}
+                title={`LOD level: ${de.lodLevel ?? 1} (click to cycle)`}
+                onClick={() => {
+                  const cur = de.lodLevel ?? 1;
+                  const next = cur >= 3 ? 1 : ((cur + 1) as 1 | 2 | 3);
+                  executeCmd(
+                    new ChangePropertyCommand(de.id, "lodLevel", next, cur),
+                  );
+                }}
+              >
+                L{de.lodLevel ?? 1}
+              </button>
+              <button
+                style={btnStyle}
+                title={de.visible ? "Hide element" : "Show element"}
+                onClick={() =>
+                  executeCmd(
+                    new ChangePropertyCommand(
+                      de.id,
+                      "visible",
+                      !de.visible,
+                      de.visible,
+                    ),
+                  )
+                }
+              >
+                {de.visible ? "Hide" : "Show"}
+              </button>
+              <button
+                style={{ ...btnStyle, color: "var(--al-urgent, #ef4444)" }}
+                title="Remove element permanently"
+                onClick={() => {
+                  if (doc) executeCmd(new DeleteNodesCommand([de.id]));
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Row 2: slot selector (if slots available) */}
+            {availableSlots.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: "var(--io-text-muted)",
+                    width: 32,
+                  }}
+                >
+                  Slot
+                </span>
+                <select
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    fontSize: 11,
+                    padding: "2px 4px",
+                  }}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const slotId = e.target.value;
+                    if (!slotId) return;
+                    const pos = resolveNamedSlot(slotId, bbox);
+                    executeCmd(
+                      new ChangePropertyCommand(
+                        de.id,
+                        "transform",
+                        { ...de.transform, position: pos },
+                        de.transform,
+                      ),
+                    );
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">Move to slot…</option>
+                  {availableSlots.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Row 3: point tag input */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--io-text-muted)",
+                  width: 32,
+                }}
+              >
+                Tag
+              </span>
+              <input
+                key={de.id}
+                type="text"
+                defaultValue={de.binding?.pointTag ?? de.binding?.pointId ?? ""}
+                onBlur={(ev) => {
+                  const val = ev.target.value.trim();
+                  const newBinding = val
+                    ? { ...de.binding, pointTag: val }
+                    : {};
+                  executeCmd(
+                    new ChangeBindingCommand(de.id, newBinding, de.binding),
+                  );
+                }}
+                placeholder="point tag"
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  fontSize: 11,
+                  padding: "2px 4px",
+                }}
+              />
+              <PointResolutionIndicator
+                pointId={de.binding?.pointTag ?? de.binding?.pointId}
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      {node.children.length === 0 && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+            marginBottom: 4,
+          }}
+        >
+          No display elements
+        </div>
+      )}
+
+      {/* Add buttons for element types in defaultSlots not yet present */}
+      {Object.entries(defaultSlots).map(([sidecarKey, slotId]) => {
+        const dtype = SIDECAR_TO_DE[sidecarKey];
+        if (!dtype || presentTypes.has(dtype)) return null;
+        return (
+          <button
+            key={sidecarKey}
+            style={{
+              display: "block",
+              width: "100%",
+              fontSize: 11,
+              color: "var(--io-accent)",
+              background: "transparent",
+              border: "1px dashed var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              padding: "3px 8px",
+              cursor: "pointer",
+              marginBottom: 3,
+              textAlign: "left",
+            }}
+            onClick={() => {
+              const pos = resolveNamedSlot(slotId, bbox);
+              const norm = NAMED_SLOT_POSITIONS[slotId] ?? {
+                nx: 0.5,
+                ny: 1.0,
+              };
+              void norm; // used only to confirm slot is known
+              const de: DisplayElement = {
+                id: crypto.randomUUID(),
+                type: "display_element",
+                name: dtype,
+                displayType: dtype,
+                transform: {
+                  position: pos,
+                  rotation: 0,
+                  scale: { x: 1, y: 1 },
+                  mirror: "none",
+                },
+                binding: {},
+                config: makeDeDefaultConfig(dtype),
+                visible: true,
+                locked: false,
+                opacity: 1,
+              };
+              executeCmd(new AddDisplayElementCommand(node.id, de));
+            }}
+          >
+            + {DE_LABEL[dtype] ?? dtype}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SymbolInstance panel
 // ---------------------------------------------------------------------------
 
@@ -879,59 +1253,8 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
         </div>
       )}
 
-      {/* Display Elements — list children, allow adding new ones */}
-      <div style={{ marginBottom: 8 }}>
-        <FieldLabel>Display Elements</FieldLabel>
-        {node.children && node.children.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              marginBottom: 4,
-            }}
-          >
-            {node.children.map((child) => {
-              const de =
-                child as import("../../shared/types/graphics").DisplayElement;
-              return (
-                <div
-                  key={child.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 11,
-                    color: "var(--io-text-secondary)",
-                  }}
-                >
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {de.config?.displayType ?? child.type} —{" "}
-                    {de.binding?.pointId ?? "Unbound"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              marginBottom: 4,
-            }}
-          >
-            No display elements
-          </div>
-        )}
-      </div>
+      {/* Display Elements — list children, slot selector, point binding, LOD, hide */}
+      <DisplayElementsSection node={node} shapeEntry={shapeEntry} />
     </div>
   );
 }
@@ -1580,6 +1903,7 @@ const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{
   { value: "sparkline", label: "Sparkline" },
   { value: "alarm_indicator", label: "Alarm Indicator" },
   { value: "digital_status", label: "Digital Status" },
+  { value: "point_name_label", label: "Point Name Label" },
 ];
 
 /** Build a minimal valid default config for a given display element type */
@@ -1635,6 +1959,8 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
         normalStates: [],
         abnormalPriority: 3,
       };
+    case "point_name_label":
+      return { displayType: "point_name_label", style: "hierarchy" };
   }
 }
 
