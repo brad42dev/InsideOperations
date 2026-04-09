@@ -1922,21 +1922,6 @@ export function SceneRenderer({
     });
 
     const isSelected = designerMode && selectedNodeIds.has(node.id);
-    // LOD chip — shown in live view when effectiveLod > 1, positioned at shape bottom-right
-    const lodChip =
-      !designerMode && effectiveLod > 1 && shapeW != null && shapeH != null ? (
-        <text
-          x={shapeW - 2}
-          y={shapeH - 2}
-          fontSize={9}
-          textAnchor="end"
-          fill="var(--io-text-muted)"
-          opacity={0.6}
-          style={{ pointerEvents: "none", userSelect: "none" }}
-        >
-          L{effectiveLod}
-        </text>
-      ) : null;
     return (
       <g
         key={node.id}
@@ -1965,7 +1950,6 @@ export function SceneRenderer({
             sidecar?.vesselInteriorPath,
           ),
         )}
-        {lodChip}
       </g>
     );
   }
