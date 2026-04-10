@@ -59,3 +59,4 @@ credentials.json
 .claude/session-state.md
 .claude/agent-output/
 .claude/*.md
+frontend/tsconfig.tsbuildinfo
