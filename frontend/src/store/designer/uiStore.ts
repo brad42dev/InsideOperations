@@ -198,6 +198,14 @@ export interface UiStore {
   /** Set of currently selected node IDs. Ephemeral; never persisted. */
   selectedNodeIds: Set<NodeId>;
 
+  // ----- Highlight -----
+  /** When a display_element is selected, holds the ID of its parent SymbolInstance. */
+  highlightedShapeId: NodeId | null;
+  setHighlightedShape(id: NodeId | null): void;
+  /** When the right panel scrolls to a point binding, holds the point ID. */
+  highlightedPointId: string | null;
+  setHighlightedPoint(id: string | null): void;
+
   // ----- Actions -----
   setSelectedNodes(ids: NodeId[]): void;
   clearSelection(): void;
@@ -354,6 +362,8 @@ export const useUiStore = create<UiStore>((set, get) => ({
   marquee: null,
   activeGroupId: null,
   selectedNodeIds: new Set<NodeId>(),
+  highlightedShapeId: null,
+  highlightedPointId: null,
 
   // ----- Actions -----
 
@@ -363,6 +373,14 @@ export const useUiStore = create<UiStore>((set, get) => ({
 
   clearSelection() {
     set({ selectedNodeIds: new Set() });
+  },
+
+  setHighlightedShape(id) {
+    set({ highlightedShapeId: id });
+  },
+
+  setHighlightedPoint(id) {
+    set({ highlightedPointId: id });
   },
 
   setTool(tool) {

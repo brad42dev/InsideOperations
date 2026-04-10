@@ -889,7 +889,6 @@ export default function DesignerPage() {
     lockedAt: string;
   } | null>(null);
   const lockHeldRef = useRef(false); // true when this session holds the lock
-  const graphicScopeRef = useRef<"console" | "process" | null>(null); // set on new-doc creation
 
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -933,6 +932,27 @@ export default function DesignerPage() {
 
   const loadDoc = useCallback(async () => {
     if (isNew) {
+      // Before showing the New dialog, check if there are already open tabs to restore.
+      // This handles: refreshing on /new with open tabs, and navigating back to designer.
+      const existingTabs = useTabStore.getState().tabs;
+      if (existingTabs.length > 0) {
+        const activeId = useTabStore.getState().activeTabId;
+        const targetTab =
+          existingTabs.find((t) => t.id === activeId) ??
+          existingTabs[existingTabs.length - 1];
+        if (targetTab) {
+          if (!targetTab.graphicId.startsWith("new-")) {
+            // Saved tab — navigate to its edit URL; loadDoc re-fires without isNew.
+            navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+          } else if (targetTab.savedScene) {
+            // Unsaved tab — restore scene directly, stay on /new, skip dialog.
+            tabStoreSetActive(targetTab.id);
+            loadGraphic(null as unknown as string, targetTab.savedScene.scene);
+            historyClear();
+          }
+          return;
+        }
+      }
       setShowNewDialog(true);
       return;
     }
@@ -994,6 +1014,8 @@ export default function DesignerPage() {
     loadGraphic,
     historyClear,
     tabStoreOpenTab,
+    tabStoreSetActive,
+    navigate,
   ]);
 
   useEffect(() => {
@@ -1053,7 +1075,7 @@ export default function DesignerPage() {
         } else {
           // Create new — send designMode so the DB type is graphic/dashboard/report
           const designMode = useSceneStore.getState().designMode;
-          const scopeMeta = graphicScopeRef.current;
+          const scopeMeta = currentDoc.metadata.graphicScope;
           const resp = await graphicsApi.create({
             name: docName,
             scene_data: currentDoc,
@@ -2021,7 +2043,6 @@ export default function DesignerPage() {
     autoHeight: boolean,
     scope: "console" | "process" | null,
   ) {
-    graphicScopeRef.current = scope;
     // Save the outgoing tab's scene and viewport before replacing it with the new document.
     // Without this, the previous graphic is lost: newDocument() replaces the scene in
     // sceneStore immediately, and the outgoing tab's savedScene slot remains null.
@@ -2036,7 +2057,7 @@ export default function DesignerPage() {
       tabStoreSaveViewport(outgoingTabId, useUiStore.getState().viewport);
     }
 
-    newDocument(mode, name, width, height, autoHeight);
+    newDocument(mode, name, width, height, autoHeight, scope ?? "console");
     historyClear();
     setShowNewDialog(false);
     // Register a placeholder tab with a unique ID so that opening multiple new graphics
@@ -2046,8 +2067,32 @@ export default function DesignerPage() {
 
   function handleNewCancel() {
     setShowNewDialog(false);
-    // Navigate back (no-op if no router history)
-    if (typeof window !== "undefined") window.history.back();
+    if (!isNew) {
+      // Dialog was opened from toolbar (not via /new route) — just close it, stay on current URL.
+      return;
+    }
+    // On the /new route — find a tab to return to instead of going to DesignerHome.
+    const currentTabs = useTabStore.getState().tabs;
+    const currentActiveId = useTabStore.getState().activeTabId;
+    const targetTab =
+      currentTabs.find((t) => t.id === currentActiveId) ??
+      currentTabs[currentTabs.length - 1] ??
+      null;
+    if (!targetTab) {
+      navigate("/designer/graphics");
+      return;
+    }
+    if (!targetTab.graphicId.startsWith("new-")) {
+      // Saved tab — navigate to its edit URL.
+      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+    } else if (targetTab.savedScene) {
+      // Unsaved tab — restore scene directly, stay on /new (dialog is already closed).
+      tabStoreSetActive(targetTab.id);
+      loadGraphic(null as unknown as string, targetTab.savedScene.scene);
+      historyClear();
+    } else {
+      navigate("/designer/graphics");
+    }
   }
 
   // -------------------------------------------------------------------------

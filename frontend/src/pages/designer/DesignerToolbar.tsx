@@ -395,31 +395,28 @@ function IconGrid() {
 function IconMagnet() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M4 3V9a4 4 0 008 0V3"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <line
-        x1="2.5"
-        y1="3"
-        x2="5.5"
-        y2="3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <line
-        x1="10.5"
-        y1="3"
-        x2="13.5"
-        y2="3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+      <g transform="rotate(-25, 8, 8)">
+        {/* Outer U outline — legs at x=2 and x=14, arc sweeps down (CCW) */}
+        <path
+          d="M2 2 V9 A6 6 0 0 0 14 9 V2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="butt"
+        />
+        {/* Inner U outline — legs at x=6 and x=10, parallel inner arc */}
+        <path
+          d="M6 2 V9 A2 2 0 0 0 10 9 V2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="butt"
+        />
+        {/* Left pole: solid block connecting outer to inner at top */}
+        <rect x="1.25" y="1" width="5.5" height="4" fill="currentColor" />
+        {/* Right pole: solid block connecting inner to outer at top */}
+        <rect x="9.25" y="1" width="5.5" height="4" fill="currentColor" />
+      </g>
     </svg>
   );
 }

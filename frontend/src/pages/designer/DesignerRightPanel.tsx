@@ -23,6 +23,7 @@ import type {
   Pipe,
   DisplayElement,
   LayerDefinition,
+  LayerFolder,
   GraphicDocument,
   NavigationLink,
   ComposablePart,
@@ -35,6 +36,8 @@ import type {
   FillGaugeConfig,
   SparklineConfig,
   DigitalStatusConfig,
+  PointNameLabelConfig,
+  DisplayElementFontFamily,
   ImageNode,
   EmbeddedSvgNode,
   Group,
@@ -62,6 +65,9 @@ import {
   RemoveLayerCommand,
   CompoundCommand,
   SetLayerCommand,
+  AddLayerFolderCommand,
+  RemoveLayerFolderCommand,
+  ChangeLayerFolderPropertyCommand,
 } from "../../shared/graphics/commands";
 import type {
   SceneCommand,
@@ -1643,6 +1649,300 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Font options shared by row editors
+// ---------------------------------------------------------------------------
+
+const FONT_OPTIONS: Array<{ value: DisplayElementFontFamily; label: string }> = [
+  { value: "JetBrains Mono", label: "JetBrains Mono" },
+  { value: "Inter",          label: "Inter" },
+  { value: "IBM Plex Sans",  label: "IBM Plex Sans" },
+];
+
+// ---------------------------------------------------------------------------
+// RowSection — collapsible section with optional enable toggle
+// ---------------------------------------------------------------------------
+
+function RowSection({
+  title,
+  enabledCheck,
+  open,
+  onToggleOpen,
+  children,
+}: {
+  title: string;
+  enabledCheck?: React.ReactNode;
+  open: boolean;
+  onToggleOpen: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ marginBottom: 8, border: "1px solid var(--io-border)", borderRadius: 4, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "5px 8px",
+          cursor: "pointer",
+          background: "var(--io-surface-raised)",
+          userSelect: "none" as const,
+        }}
+        onClick={onToggleOpen}
+      >
+        <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--io-text-secondary)" }}>{title}</span>
+        {enabledCheck}
+        <span style={{ fontSize: 8, color: "var(--io-text-muted)", marginLeft: 6 }}>{open ? "▲" : "▼"}</span>
+      </div>
+      {open && (
+        <div style={{ padding: "8px 8px 4px", borderTop: "1px solid var(--io-border)" }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TextReadoutFields — three-row collapsible config editor
+// ---------------------------------------------------------------------------
+
+function TextReadoutFields({
+  node,
+  executeCmd,
+}: {
+  node: DisplayElement;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const cfg = node.config as TextReadoutConfig;
+  const [pnOpen, setPnOpen] = useState(cfg.pointNameRow?.enabled ?? false);
+  const [dnOpen, setDnOpen] = useState(cfg.displayNameRow?.enabled ?? false);
+  const [vOpen, setVOpen] = useState(true);
+
+  function patch(p: Partial<TextReadoutConfig>) {
+    executeCmd(
+      new ChangeDisplayElementConfigCommand(
+        node.id,
+        { ...node.config, ...p } as DisplayElementConfig,
+        node.config,
+      ),
+    );
+  }
+
+  const pnRow = cfg.pointNameRow ?? {
+    enabled: false,
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 10,
+    color: "var(--io-text-primary)",
+    showBackground: false,
+  };
+  const dnRow = cfg.displayNameRow ?? {
+    enabled: false,
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 9,
+    color: "var(--io-text-secondary)",
+    showBackground: false,
+  };
+  const vRow = cfg.valueRow ?? {
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 11,
+    showBackground: true,
+  };
+
+  return (
+    <>
+      <Field label="Value Format">
+        <input
+          type="text"
+          defaultValue={cfg.valueFormat ?? "0.##"}
+          onBlur={(e) => patch({ valueFormat: e.target.value })}
+          style={inputStyle}
+          placeholder="0.##"
+        />
+      </Field>
+      <Field label="Min Width">
+        <NumberInput
+          value={cfg.minWidth ?? 60}
+          min={20}
+          max={400}
+          onChange={(v) => patch({ minWidth: v })}
+        />
+      </Field>
+
+      <RowSection
+        title="Point Name Row"
+        open={pnOpen}
+        onToggleOpen={() => setPnOpen((o) => !o)}
+        enabledCheck={
+          <input
+            type="checkbox"
+            checked={pnRow.enabled}
+            title="Enable row"
+            onChange={(e) => patch({ pointNameRow: { ...pnRow, enabled: e.target.checked } })}
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer", marginRight: 4 }}
+          />
+        }
+      >
+        <Field label="Font">
+          <SelectInput
+            value={pnRow.fontFamily}
+            onChange={(v) => patch({ pointNameRow: { ...pnRow, fontFamily: v as DisplayElementFontFamily } })}
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput value={pnRow.fontSize} min={6} max={32} onChange={(v) => patch({ pointNameRow: { ...pnRow, fontSize: v } })} />
+        </Field>
+        <Field label="Color">
+          <ColorInput value={pnRow.color} onChange={(v) => patch({ pointNameRow: { ...pnRow, color: v } })} />
+        </Field>
+        <Field label="Background">
+          <input
+            type="checkbox"
+            checked={pnRow.showBackground}
+            onChange={(e) => patch({ pointNameRow: { ...pnRow, showBackground: e.target.checked } })}
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+
+      <RowSection
+        title="Display Name Row"
+        open={dnOpen}
+        onToggleOpen={() => setDnOpen((o) => !o)}
+        enabledCheck={
+          <input
+            type="checkbox"
+            checked={dnRow.enabled}
+            title="Enable row"
+            onChange={(e) => patch({ displayNameRow: { ...dnRow, enabled: e.target.checked } })}
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer", marginRight: 4 }}
+          />
+        }
+      >
+        <Field label="Font">
+          <SelectInput
+            value={dnRow.fontFamily}
+            onChange={(v) => patch({ displayNameRow: { ...dnRow, fontFamily: v as DisplayElementFontFamily } })}
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput value={dnRow.fontSize} min={6} max={32} onChange={(v) => patch({ displayNameRow: { ...dnRow, fontSize: v } })} />
+        </Field>
+        <Field label="Color">
+          <ColorInput value={dnRow.color} onChange={(v) => patch({ displayNameRow: { ...dnRow, color: v } })} />
+        </Field>
+        <Field label="Background">
+          <input
+            type="checkbox"
+            checked={dnRow.showBackground}
+            onChange={(e) => patch({ displayNameRow: { ...dnRow, showBackground: e.target.checked } })}
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+
+      <RowSection title="Value + EU Row" open={vOpen} onToggleOpen={() => setVOpen((o) => !o)}>
+        <Field label="Font">
+          <SelectInput
+            value={vRow.fontFamily}
+            onChange={(v) => patch({ valueRow: { ...vRow, fontFamily: v as DisplayElementFontFamily } })}
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput value={vRow.fontSize} min={6} max={32} onChange={(v) => patch({ valueRow: { ...vRow, fontSize: v } })} />
+        </Field>
+        <Field label="Background">
+          <input
+            type="checkbox"
+            checked={vRow.showBackground}
+            onChange={(e) => patch({ valueRow: { ...vRow, showBackground: e.target.checked } })}
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PointNameLabelFields — static text toggle + style + font controls
+// ---------------------------------------------------------------------------
+
+function PointNameLabelFields({
+  node,
+  executeCmd,
+}: {
+  node: DisplayElement;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const cfg = node.config as PointNameLabelConfig;
+
+  function patch(p: Partial<PointNameLabelConfig>) {
+    executeCmd(
+      new ChangeDisplayElementConfigCommand(
+        node.id,
+        { ...node.config, ...p } as DisplayElementConfig,
+        node.config,
+      ),
+    );
+  }
+
+  const isStatic = cfg.staticText !== undefined;
+
+  return (
+    <>
+      <Field label="Style">
+        <SelectInput
+          value={cfg.style}
+          onChange={(v) => patch({ style: v as "hierarchy" | "uniform" })}
+          options={[
+            { value: "hierarchy", label: "Hierarchy (ISA colored)" },
+            { value: "uniform",   label: "Uniform (plain)" },
+          ]}
+        />
+      </Field>
+      <Field label="Use Static Text">
+        <input
+          type="checkbox"
+          checked={isStatic}
+          onChange={(e) =>
+            patch({ staticText: e.target.checked ? (node.binding.pointId ?? "") : undefined })
+          }
+          style={{ cursor: "pointer" }}
+        />
+      </Field>
+      {isStatic && (
+        <Field label="Static Text">
+          <input
+            type="text"
+            defaultValue={cfg.staticText ?? ""}
+            onBlur={(e) => patch({ staticText: e.target.value })}
+            style={inputStyle}
+            placeholder="Label text…"
+          />
+        </Field>
+      )}
+      <Field label="Font">
+        <SelectInput
+          value={cfg.fontFamily ?? "JetBrains Mono"}
+          onChange={(v) => patch({ fontFamily: v as DisplayElementFontFamily })}
+          options={FONT_OPTIONS}
+        />
+      </Field>
+      <Field label="Size">
+        <NumberInput value={cfg.fontSize ?? 10} min={6} max={32} onChange={(v) => patch({ fontSize: v })} />
+      </Field>
+      <Field label="Color">
+        <ColorInput value={cfg.color ?? "var(--io-text-secondary)"} onChange={(v) => patch({ color: v })} />
+      </Field>
+    </>
+  );
+}
+
 function DisplayElementTypeFields({
   node,
   executeCmd,
@@ -1658,72 +1958,10 @@ function DisplayElementTypeFields({
   }
 
   switch (node.displayType) {
-    case "text_readout": {
-      const cfg = node.config as TextReadoutConfig;
-      return (
-        <>
-          <Field label="Value Format">
-            <input
-              type="text"
-              defaultValue={cfg.valueFormat ?? "0.##"}
-              onBlur={(e) =>
-                patchConfig({
-                  valueFormat: e.target.value,
-                } as Partial<TextReadoutConfig>)
-              }
-              style={inputStyle}
-              placeholder="0.##"
-            />
-          </Field>
-          <Field label="Min Width">
-            <NumberInput
-              value={cfg.minWidth ?? 60}
-              min={20}
-              max={400}
-              onChange={(v) =>
-                patchConfig({ minWidth: v } as Partial<TextReadoutConfig>)
-              }
-            />
-          </Field>
-          <Field label="Show Box">
-            <input
-              type="checkbox"
-              checked={cfg.showBox}
-              onChange={(e) =>
-                patchConfig({
-                  showBox: e.target.checked,
-                } as Partial<TextReadoutConfig>)
-              }
-              style={{ cursor: "pointer" }}
-            />
-          </Field>
-          <Field label="Show Label">
-            <input
-              type="checkbox"
-              checked={cfg.showLabel}
-              onChange={(e) =>
-                patchConfig({
-                  showLabel: e.target.checked,
-                } as Partial<TextReadoutConfig>)
-              }
-              style={{ cursor: "pointer" }}
-            />
-          </Field>
-          <Field label="Show Units">
-            <input
-              type="checkbox"
-              checked={cfg.showUnits}
-              onChange={(e) =>
-                patchConfig({
-                  showUnits: e.target.checked,
-                } as Partial<TextReadoutConfig>)
-              }
-              style={{ cursor: "pointer" }}
-            />
-          </Field>
-        </>
-      );
-    }
+    case "text_readout":
+      return <TextReadoutFields node={node} executeCmd={executeCmd} />;
+    case "point_name_label":
+      return <PointNameLabelFields node={node} executeCmd={executeCmd} />;
     case "analog_bar": {
       const cfg = node.config as AnalogBarConfig;
       return (
@@ -3623,6 +3861,8 @@ function LayersPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const {
     menuState: layerMenu,
     handleContextMenu: handleLayerCtx,
@@ -3630,131 +3870,147 @@ function LayersPanel() {
   } = useContextMenu<{ layer: LayerDefinition; layerIndex: number }>();
 
   if (!doc) return null;
+  // TypeScript doesn't narrow across closures; capture as non-null for handler use
+  const docNN = doc as GraphicDocument;
 
-  // Layers ordered top→bottom display (highest order = frontmost)
-  const layers = [...doc.layers].sort((a, b) => b.order - a.order);
+  const folders = docNN.folders ?? [];
+
+  // Build display items interleaved by order descending (top = frontmost).
+  type DisplayItem =
+    | { kind: "folder"; folder: LayerFolder; layers: LayerDefinition[] }
+    | { kind: "layer"; layer: LayerDefinition };
+
+  const sortEntries: Array<{ order: number; item: DisplayItem }> = [];
+  for (const folder of folders) {
+    const flLayers = docNN.layers
+      .filter((l) => l.folderId === folder.id)
+      .sort((a, b) => b.order - a.order);
+    sortEntries.push({ order: folder.order, item: { kind: "folder", folder, layers: flLayers } });
+  }
+  for (const layer of docNN.layers.filter((l) => !l.folderId)) {
+    sortEntries.push({ order: layer.order, item: { kind: "layer", layer } });
+  }
+  sortEntries.sort((a, b) => b.order - a.order);
+  const items = sortEntries.map((e) => e.item);
+
+  // Flat sorted layer list used for context menu index tracking
+  const allLayersSorted = [...docNN.layers].sort((a, b) => b.order - a.order);
+
+  // ── Layer handlers ──────────────────────────────────────────────────────────
 
   function handleToggleVisible(layer: LayerDefinition) {
-    executeCmd(
-      new ChangeLayerPropertyCommand(
-        layer.id,
-        { visible: !layer.visible },
-        { visible: layer.visible },
-      ),
-    );
+    executeCmd(new ChangeLayerPropertyCommand(layer.id, { visible: !layer.visible }, { visible: layer.visible }));
   }
   function handleToggleLocked(layer: LayerDefinition) {
-    executeCmd(
-      new ChangeLayerPropertyCommand(
-        layer.id,
-        { locked: !layer.locked },
-        { locked: layer.locked },
-      ),
-    );
+    executeCmd(new ChangeLayerPropertyCommand(layer.id, { locked: !layer.locked }, { locked: layer.locked }));
   }
-  function handleRenameStart(layer: LayerDefinition) {
-    setEditingId(layer.id);
-    setEditName(layer.name);
+  function handleRenameStart(id: string, name: string) {
+    setEditingId(id);
+    setEditName(name);
   }
   function handleRenameCommit(layer: LayerDefinition) {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== layer.name) {
-      executeCmd(
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { name: trimmed },
-          { name: layer.name },
-        ),
-      );
+      executeCmd(new ChangeLayerPropertyCommand(layer.id, { name: trimmed }, { name: layer.name }));
+    } else {
+      setEditName(layer.name);
     }
     setEditingId(null);
   }
   function handleAddLayer() {
-    if (!doc) return;
-    const maxOrder = doc.layers.reduce((m, l) => Math.max(m, l.order), 0);
-    const n = doc.layers.length + 1;
-    executeCmd(
-      new AddLayerCommand({
-        id: crypto.randomUUID(),
-        name: `Layer ${n}`,
-        visible: true,
-        locked: false,
-        order: maxOrder + 1,
-      }),
-    );
+    const maxOrder = docNN.layers.reduce((m, l) => Math.max(m, l.order), 0);
+    const n = docNN.layers.length + 1;
+    const firstFolder = folders.length > 0
+      ? [...folders].sort((a, b) => b.order - a.order)[0]
+      : undefined;
+    executeCmd(new AddLayerCommand({
+      id: crypto.randomUUID(),
+      name: `Layer ${n}`,
+      visible: true,
+      locked: false,
+      order: maxOrder + 1,
+      folderId: firstFolder?.id,
+    }));
   }
   function handleDeleteLayer(layerId: string) {
-    if (!doc || doc.layers.length <= 1) return;
-    // Move all nodes on this layer to the default layer (lowest order) before deleting
-    const defaultLayer = [...doc.layers]
-      .sort((a, b) => a.order - b.order)
-      .find((l) => l.id !== layerId);
+    if (docNN.layers.length <= 1) return;
+    const defaultLayer = [...docNN.layers].sort((a, b) => a.order - b.order).find((l) => l.id !== layerId);
     if (!defaultLayer) return;
-    const nodeIds = collectNodeIdsByLayer(doc.children, layerId);
+    const nodeIds = collectNodeIdsByLayer(docNN.children, layerId);
     const subCmds = nodeIds.map((nid) => {
-      const node =
-        doc.children.find((n) => n.id === nid) ??
-        doc.children
-          .flatMap(
-            function flatten(
-              n,
-            ): import("../../shared/types/graphics").SceneNode[] {
-              return "children" in n && Array.isArray(n.children)
-                ? [
-                    n,
-                    ...(
-                      n.children as import("../../shared/types/graphics").SceneNode[]
-                    ).flatMap(flatten),
-                  ]
-                : [n];
-            },
-          )
-          .find((n) => n.id === nid);
+      const node = docNN.children.find((n) => n.id === nid) ??
+        docNN.children.flatMap(function flatten(n): import("../../shared/types/graphics").SceneNode[] {
+          return "children" in n && Array.isArray(n.children)
+            ? [n, ...(n.children as import("../../shared/types/graphics").SceneNode[]).flatMap(flatten)]
+            : [n];
+        }).find((n) => n.id === nid);
       return new SetLayerCommand(nid, defaultLayer.id, node?.layerId);
     });
-    const cmds =
-      subCmds.length > 0
-        ? [...subCmds, new RemoveLayerCommand(layerId)]
-        : [new RemoveLayerCommand(layerId)];
+    const cmds = subCmds.length > 0
+      ? [...subCmds, new RemoveLayerCommand(layerId)]
+      : [new RemoveLayerCommand(layerId)];
     executeCmd(new CompoundCommand("Delete Layer", cmds));
   }
-  function handleMoveUp(layer: LayerDefinition, layerIndex: number) {
-    // In display order (highest order = top), "move up" means increase order to go above previous
-    if (layerIndex === 0) return;
-    const above = layers[layerIndex - 1];
-    // Swap orders
-    executeCmd(
-      new CompoundCommand("Move Layer Up", [
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { order: above.order },
-          { order: layer.order },
-        ),
-        new ChangeLayerPropertyCommand(
-          above.id,
-          { order: layer.order },
-          { order: above.order },
-        ),
-      ]),
-    );
+  function handleMoveLayerUp(layer: LayerDefinition) {
+    const scope = layer.folderId
+      ? docNN.layers.filter((l) => l.folderId === layer.folderId)
+      : docNN.layers.filter((l) => !l.folderId);
+    const sorted = [...scope].sort((a, b) => b.order - a.order);
+    const idx = sorted.findIndex((l) => l.id === layer.id);
+    if (idx <= 0) return;
+    const above = sorted[idx - 1];
+    executeCmd(new CompoundCommand("Move Layer Up", [
+      new ChangeLayerPropertyCommand(layer.id, { order: above.order }, { order: layer.order }),
+      new ChangeLayerPropertyCommand(above.id, { order: layer.order }, { order: above.order }),
+    ]));
   }
-  function handleMoveDown(layer: LayerDefinition, layerIndex: number) {
-    if (layerIndex === layers.length - 1) return;
-    const below = layers[layerIndex + 1];
-    executeCmd(
-      new CompoundCommand("Move Layer Down", [
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { order: below.order },
-          { order: layer.order },
-        ),
-        new ChangeLayerPropertyCommand(
-          below.id,
-          { order: layer.order },
-          { order: below.order },
-        ),
-      ]),
-    );
+  function handleMoveLayerDown(layer: LayerDefinition) {
+    const scope = layer.folderId
+      ? docNN.layers.filter((l) => l.folderId === layer.folderId)
+      : docNN.layers.filter((l) => !l.folderId);
+    const sorted = [...scope].sort((a, b) => b.order - a.order);
+    const idx = sorted.findIndex((l) => l.id === layer.id);
+    if (idx < 0 || idx >= sorted.length - 1) return;
+    const below = sorted[idx + 1];
+    executeCmd(new CompoundCommand("Move Layer Down", [
+      new ChangeLayerPropertyCommand(layer.id, { order: below.order }, { order: layer.order }),
+      new ChangeLayerPropertyCommand(below.id, { order: layer.order }, { order: below.order }),
+    ]));
+  }
+
+  // ── Folder handlers ─────────────────────────────────────────────────────────
+
+  function handleFolderToggleVisible(folder: LayerFolder) {
+    executeCmd(new ChangeLayerFolderPropertyCommand(folder.id, { visible: !folder.visible }, { visible: folder.visible }));
+  }
+  function handleFolderToggleLocked(folder: LayerFolder) {
+    executeCmd(new ChangeLayerFolderPropertyCommand(folder.id, { locked: !folder.locked }, { locked: folder.locked }));
+  }
+  function handleFolderRenameCommit(folder: LayerFolder) {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== folder.name) {
+      executeCmd(new ChangeLayerFolderPropertyCommand(folder.id, { name: trimmed }, { name: folder.name }));
+    } else {
+      setEditName(folder.name);
+    }
+    setEditingId(null);
+  }
+  function handleDeleteFolder(folderId: string) {
+    // RemoveLayerFolderCommand already moves contained layers to root
+    executeCmd(new RemoveLayerFolderCommand(folderId));
+    setConfirmDeleteFolderId(null);
+  }
+  function handleAddFolder() {
+    const maxOrder = folders.reduce((m, f) => Math.max(m, f.order), 0);
+    const n = folders.length + 1;
+    executeCmd(new AddLayerFolderCommand({
+      id: crypto.randomUUID(),
+      name: `Group ${n}`,
+      visible: true,
+      locked: false,
+      order: maxOrder + 1,
+      childLayerIds: [],
+    }));
   }
 
   const iconBtn: React.CSSProperties = {
@@ -3771,102 +4027,144 @@ function LayersPanel() {
     <div style={{ borderTop: "1px solid var(--io-border)", flexShrink: 0 }}>
       {/* Header */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "6px 12px",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
+        style={{ display: "flex", alignItems: "center", padding: "6px 12px", cursor: "pointer", userSelect: "none" }}
         onClick={() => setCollapsed((v) => !v)}
       >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "var(--io-text-secondary)",
-            textTransform: "uppercase",
-            flex: 1,
-          }}
-        >
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "var(--io-text-secondary)", textTransform: "uppercase", flex: 1 }}>
           Layers
         </span>
-        <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>
-          {collapsed ? "▸" : "▾"}
-        </span>
+        <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>{collapsed ? "▸" : "▾"}</span>
       </div>
 
       {!collapsed && (
         <div>
-          {/* Layer rows */}
-          {layers.map((layer, layerIndex) => (
-            <div
-              key={layer.id}
-              onContextMenu={(e) => handleLayerCtx(e, { layer, layerIndex })}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "3px 8px 3px 12px",
-                fontSize: 12,
-                cursor: "context-menu",
-                color: layer.visible
-                  ? "var(--io-text-primary)"
-                  : "var(--io-text-muted)",
-              }}
-            >
-              {/* Visibility toggle */}
-              <button
-                title={layer.visible ? "Hide" : "Show"}
-                style={iconBtn}
-                onClick={() => handleToggleVisible(layer)}
-              >
-                {layer.visible ? "👁" : "○"}
-              </button>
-              {/* Lock toggle */}
-              <button
-                title={layer.locked ? "Unlock" : "Lock"}
-                style={iconBtn}
-                onClick={() => handleToggleLocked(layer)}
-              >
-                {layer.locked ? "🔒" : "🔓"}
-              </button>
-              {/* Name — double-click to edit */}
-              {editingId === layer.id ? (
-                <input
-                  autoFocus
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onBlur={() => handleRenameCommit(layer)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRenameCommit(layer);
-                    if (e.key === "Escape") setEditingId(null);
-                  }}
-                  style={{
-                    ...inputStyle,
-                    flex: 1,
-                    height: 20,
-                    fontSize: 12,
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    cursor: "default",
-                  }}
-                  onDoubleClick={() => handleRenameStart(layer)}
-                >
-                  {layer.name}
-                </span>
-              )}
-            </div>
-          ))}
+          {items.map((item) => {
+            if (item.kind === "folder") {
+              const { folder, layers: flLayers } = item;
+              const isExpanded = expandedFolders[folder.id] !== false;
+              const isEditingFolder = editingId === folder.id;
+              return (
+                <div key={folder.id}>
+                  {/* Folder header row */}
+                  <div
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "3px 8px 3px 8px", fontSize: 12, cursor: "default",
+                      background: "var(--io-surface-elevated, rgba(255,255,255,0.03))",
+                      color: folder.visible ? "var(--io-text-primary)" : "var(--io-text-muted)",
+                      borderTop: "1px solid var(--io-border-subtle, rgba(255,255,255,0.05))",
+                    }}
+                  >
+                    <button
+                      style={{ ...iconBtn, fontSize: 9, color: "var(--io-text-muted)", minWidth: 12 }}
+                      onClick={() => setExpandedFolders((p) => ({ ...p, [folder.id]: !isExpanded }))}
+                      title={isExpanded ? "Collapse" : "Expand"}
+                    >
+                      {isExpanded ? "▾" : "▸"}
+                    </button>
+                    <button title={folder.visible ? "Hide folder" : "Show folder"} style={iconBtn} onClick={() => handleFolderToggleVisible(folder)}>
+                      {folder.visible ? "👁" : "○"}
+                    </button>
+                    <button title={folder.locked ? "Unlock folder" : "Lock folder"} style={iconBtn} onClick={() => handleFolderToggleLocked(folder)}>
+                      {folder.locked ? "🔒" : "🔓"}
+                    </button>
+                    {isEditingFolder ? (
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onBlur={() => handleFolderRenameCommit(folder)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleFolderRenameCommit(folder);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
+                      />
+                    ) : (
+                      <span
+                        style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default", fontWeight: 500 }}
+                        onDoubleClick={() => handleRenameStart(folder.id, folder.name)}
+                      >
+                        📁 {folder.name}
+                      </span>
+                    )}
+                    {confirmDeleteFolderId === folder.id ? (
+                      <>
+                        <button style={{ ...iconBtn, color: "var(--io-error, #ef4444)", fontSize: 10 }} onClick={() => handleDeleteFolder(folder.id)} title="Confirm delete">✓</button>
+                        <button style={{ ...iconBtn, fontSize: 10 }} onClick={() => setConfirmDeleteFolderId(null)} title="Cancel">✕</button>
+                      </>
+                    ) : (
+                      <button style={{ ...iconBtn, fontSize: 10 }} onClick={() => setConfirmDeleteFolderId(folder.id)} title="Delete folder">✕</button>
+                    )}
+                  </div>
+                  {/* Contained layers (indented) */}
+                  {isExpanded && flLayers.map((layer) => {
+                    const layerIndex = allLayersSorted.findIndex((l) => l.id === layer.id);
+                    return (
+                      <div
+                        key={layer.id}
+                        onContextMenu={(e) => handleLayerCtx(e, { layer, layerIndex })}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          padding: "3px 8px 3px 24px", fontSize: 12, cursor: "context-menu",
+                          color: (layer.visible && folder.visible) ? "var(--io-text-primary)" : "var(--io-text-muted)",
+                        }}
+                      >
+                        <button title={layer.visible ? "Hide" : "Show"} style={iconBtn} onClick={() => handleToggleVisible(layer)}>{layer.visible ? "👁" : "○"}</button>
+                        <button title={layer.locked ? "Unlock" : "Lock"} style={iconBtn} onClick={() => handleToggleLocked(layer)}>{layer.locked ? "🔒" : "🔓"}</button>
+                        {editingId === layer.id ? (
+                          <input
+                            autoFocus value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => handleRenameCommit(layer)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleRenameCommit(layer); if (e.key === "Escape") setEditingId(null); }}
+                            style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
+                          />
+                        ) : (
+                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }} onDoubleClick={() => handleRenameStart(layer.id, layer.name)}>
+                            {layer.name}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
 
+            // Root layer row
+            const { layer } = item;
+            const layerIndex = allLayersSorted.findIndex((l) => l.id === layer.id);
+            return (
+              <div
+                key={layer.id}
+                onContextMenu={(e) => handleLayerCtx(e, { layer, layerIndex })}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "3px 8px 3px 12px", fontSize: 12, cursor: "context-menu",
+                  color: layer.visible ? "var(--io-text-primary)" : "var(--io-text-muted)",
+                }}
+              >
+                <button title={layer.visible ? "Hide" : "Show"} style={iconBtn} onClick={() => handleToggleVisible(layer)}>{layer.visible ? "👁" : "○"}</button>
+                <button title={layer.locked ? "Unlock" : "Lock"} style={iconBtn} onClick={() => handleToggleLocked(layer)}>{layer.locked ? "🔒" : "🔓"}</button>
+                {editingId === layer.id ? (
+                  <input
+                    autoFocus value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={() => handleRenameCommit(layer)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleRenameCommit(layer); if (e.key === "Escape") setEditingId(null); }}
+                    style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
+                  />
+                ) : (
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "default" }} onDoubleClick={() => handleRenameStart(layer.id, layer.name)}>
+                    {layer.name}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Layer context menu */}
           {layerMenu?.data && (
             <ContextMenu
               x={layerMenu.x}
@@ -3874,102 +4172,59 @@ function LayersPanel() {
               items={[
                 {
                   label: "Rename",
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleRenameStart(layerMenu.data!.layer);
-                  },
+                  onClick: () => { closeLayerMenu(); handleRenameStart(layerMenu.data!.layer.id, layerMenu.data!.layer.name); },
                 },
                 {
                   label: "Duplicate",
                   onClick: () => {
                     closeLayerMenu();
-                    const maxOrder = doc.layers.reduce(
-                      (m, l) => Math.max(m, l.order),
-                      0,
-                    );
-                    executeCmd(
-                      new AddLayerCommand({
-                        ...layerMenu.data!.layer,
-                        id: crypto.randomUUID(),
-                        name: layerMenu.data!.layer.name + " Copy",
-                        order: maxOrder + 1,
-                      }),
-                    );
+                    const maxOrder = docNN.layers.reduce((m, l) => Math.max(m, l.order), 0);
+                    executeCmd(new AddLayerCommand({ ...layerMenu.data!.layer, id: crypto.randomUUID(), name: layerMenu.data!.layer.name + " Copy", order: maxOrder + 1 }));
                   },
                 },
                 {
-                  label: layerMenu.data.layer.visible
-                    ? "Hide Layer"
-                    : "Show Layer",
+                  label: layerMenu.data.layer.visible ? "Hide Layer" : "Show Layer",
                   divider: true,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleToggleVisible(layerMenu.data!.layer);
-                  },
+                  onClick: () => { closeLayerMenu(); handleToggleVisible(layerMenu.data!.layer); },
                 },
                 {
-                  label: layerMenu.data.layer.locked
-                    ? "Unlock Layer"
-                    : "Lock Layer",
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleToggleLocked(layerMenu.data!.layer);
-                  },
+                  label: layerMenu.data.layer.locked ? "Unlock Layer" : "Lock Layer",
+                  onClick: () => { closeLayerMenu(); handleToggleLocked(layerMenu.data!.layer); },
                 },
                 {
                   label: "Move Up",
                   divider: true,
-                  disabled: layerMenu.data.layerIndex === 0,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleMoveUp(
-                      layerMenu.data!.layer,
-                      layerMenu.data!.layerIndex,
-                    );
-                  },
+                  onClick: () => { closeLayerMenu(); handleMoveLayerUp(layerMenu.data!.layer); },
                 },
                 {
                   label: "Move Down",
-                  disabled: layerMenu.data.layerIndex === layers.length - 1,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleMoveDown(
-                      layerMenu.data!.layer,
-                      layerMenu.data!.layerIndex,
-                    );
-                  },
+                  onClick: () => { closeLayerMenu(); handleMoveLayerDown(layerMenu.data!.layer); },
                 },
                 {
                   label: "Delete",
                   divider: true,
                   danger: true,
-                  disabled: doc.layers.length <= 1,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleDeleteLayer(layerMenu.data!.layer.id);
-                  },
+                  disabled: docNN.layers.length <= 1,
+                  onClick: () => { closeLayerMenu(); handleDeleteLayer(layerMenu.data!.layer.id); },
                 },
               ]}
               onClose={closeLayerMenu}
             />
           )}
 
-          {/* Add layer */}
-          <div style={{ padding: "4px 12px 6px" }}>
+          {/* Add buttons */}
+          <div style={{ padding: "4px 12px 6px", display: "flex", gap: 6 }}>
             <button
               onClick={handleAddLayer}
-              style={{
-                width: "100%",
-                padding: "3px 0",
-                fontSize: 11,
-                border: "1px dashed var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                background: "none",
-                color: "var(--io-text-secondary)",
-                cursor: "pointer",
-              }}
+              style={{ flex: 1, padding: "3px 0", fontSize: 11, border: "1px dashed var(--io-border)", borderRadius: "var(--io-radius)", background: "none", color: "var(--io-text-secondary)", cursor: "pointer" }}
             >
-              + Add Layer
+              + Layer
+            </button>
+            <button
+              onClick={handleAddFolder}
+              style={{ flex: 1, padding: "3px 0", fontSize: 11, border: "1px dashed var(--io-border)", borderRadius: "var(--io-radius)", background: "none", color: "var(--io-text-secondary)", cursor: "pointer" }}
+            >
+              + Folder
             </button>
           </div>
         </div>
@@ -3991,6 +4246,18 @@ export default function DesignerRightPanel({
   // Subscribe to selection from uiStore — reactive, no CustomEvents needed
   const selectedNodeIds = useUiStore((s) => s.selectedNodeIds);
   const selectedIds = Array.from(selectedNodeIds);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const singleSelectedId = selectedIds.length === 1 ? selectedIds[0] : null;
+
+  // Auto-scroll the panel to top when a display_element is selected so its
+  // config section is immediately visible without manual scrolling.
+  useEffect(() => {
+    if (!singleSelectedId || !doc) return;
+    const node = findNodeById(doc, singleSelectedId);
+    if (node?.type !== "display_element") return;
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [singleSelectedId]);
 
   if (collapsed) {
     return (
@@ -4180,7 +4447,7 @@ export default function DesignerRightPanel({
         overflow: "hidden",
       }}
     >
-      <div style={{ overflowY: "auto", flex: 1 }}>{renderContent()}</div>
+      <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>{renderContent()}</div>
       {/* Scene tree — shows node hierarchy with groups as collapsible rows */}
       <SceneTreePanel selectedIds={selectedIds} />
       {/* Layer panel — always visible at the bottom */}

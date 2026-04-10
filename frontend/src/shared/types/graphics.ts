@@ -79,6 +79,16 @@ export interface LayerDefinition {
   visible: boolean;
   locked: boolean;
   order: number;
+  folderId?: NodeId;
+}
+
+export interface LayerFolder {
+  id: NodeId;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  order: number;
+  childLayerIds: NodeId[];
 }
 
 export interface GraphicExpression {
@@ -105,6 +115,7 @@ export interface GraphicDocument extends SceneNodeBase {
     snapToGrid: boolean;
   };
   layers: LayerDefinition[];
+  folders?: LayerFolder[];
   expressions: Record<string, GraphicExpression>;
   children: SceneNode[];
 }
@@ -148,6 +159,8 @@ export type DisplayElementType =
   | "digital_status"
   | "point_name_label";
 
+export type DisplayElementFontFamily = "Inter" | "JetBrains Mono" | "IBM Plex Sans";
+
 export interface TextReadoutConfig {
   displayType: "text_readout";
   showBox: boolean;
@@ -159,10 +172,30 @@ export interface TextReadoutConfig {
   width?: number;
   height?: number;
   showSignalLine?: boolean;
+  pointNameRow?: {
+    enabled: boolean;
+    fontFamily: DisplayElementFontFamily;
+    fontSize: number;
+    color: string;
+    showBackground: boolean;
+  };
+  displayNameRow?: {
+    enabled: boolean;
+    fontFamily: DisplayElementFontFamily;
+    fontSize: number;
+    color: string;
+    showBackground: boolean;
+  };
+  valueRow?: {
+    fontFamily: DisplayElementFontFamily;
+    fontSize: number;
+    showBackground: boolean;
+  };
 }
 
 export interface AnalogBarConfig {
   displayType: "analog_bar";
+  mode?: "floating" | "inside";
   orientation: "vertical" | "horizontal";
   barWidth: number;
   barHeight: number;
@@ -237,6 +270,9 @@ export interface PointNameLabelConfig {
   style: "hierarchy" | "uniform";
   /** Override text — if unset, falls back to resolved tag name */
   staticText?: string;
+  fontFamily?: DisplayElementFontFamily;
+  fontSize?: number;
+  color?: string;
 }
 
 export type DisplayElementConfig =
@@ -253,6 +289,14 @@ export interface DisplayElement extends SceneNodeBase {
   displayType: DisplayElementType;
   binding: DisplayElementBinding;
   config: DisplayElementConfig;
+  /** Designer ghost state — renders at 25% opacity, distinct from `visible` */
+  hidden?: boolean;
+  /** Z-order within parent shape's sidecar sub-stack */
+  sidecarOrder?: number;
+  /** True when the element has been dragged past all snap zones */
+  freeform?: boolean;
+  /** Which named anchor slot this element currently occupies */
+  slotId?: string;
 }
 
 // ---- Primitive ----
@@ -330,7 +374,7 @@ export interface Pipe extends SceneNodeBase {
 export interface TextBlock extends SceneNodeBase {
   type: "text_block";
   content: string;
-  fontFamily: "Inter" | "JetBrains Mono";
+  fontFamily: "Inter" | "JetBrains Mono" | "IBM Plex Sans";
   fontSize: number;
   fontWeight: 300 | 400 | 500 | 600 | 700;
   fontStyle: "normal" | "italic";

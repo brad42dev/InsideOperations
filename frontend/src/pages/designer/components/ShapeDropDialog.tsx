@@ -32,6 +32,9 @@ export interface PlacedShapeConfig {
   }>;
   /** Display element types to pre-attach (e.g. ["text_readout", "alarm_indicator"]) */
   displayElements: string[];
+  /** User-chosen slot per display element type key (e.g. { text_readout: "right" }).
+   *  When absent the canvas handler falls back to sidecar defaultSlots then NAMED_SLOT_POSITIONS. */
+  displayElementSlots?: Record<string, string>;
 }
 
 export interface ShapeDropDialogProps {
@@ -40,8 +43,10 @@ export interface ShapeDropDialogProps {
   onPlace: (config: PlacedShapeConfig) => void;
   onCancel: () => void;
   open: boolean;
-  /** Edit mode: opens at Step 2 only; variant cannot change after placement */
+  /** Edit mode: opens at Step 2 by default; Step 1 is shown when the shape has multiple variants */
   editMode?: boolean;
+  /** Current variant on the shape being edited — pre-selects it in Step 1 */
+  initialVariant?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +107,8 @@ function PointSearch({ label, selectedTag, selectedId, onSelect }: PointSearchPr
   const [results, setResults] = useState<PointMeta[]>([]);
   const [dropOpen, setDropOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const doSearch = useCallback((term: string) => {
     if (term.length < 2) {
@@ -356,6 +363,7 @@ export function ShapeDropDialog({
   onCancel,
   open,
   editMode = false,
+  initialVariant,
 }: ShapeDropDialogProps) {
   const loadShape = useLibraryStore((s) => s.loadShape);
 
@@ -392,8 +400,12 @@ export function ShapeDropDialog({
 
       // libraryStore uses sidecar.options (Array) for variants
       const opts = sc.options ?? [];
-      const firstKey = opts[0]?.id ?? "default";
-      setSelectedVariant(firstKey);
+      // Pre-select initialVariant when editing; fall back to first option
+      const startVariant =
+        initialVariant && opts.some((o) => o.id === initialVariant)
+          ? initialVariant
+          : opts[0]?.id ?? "default";
+      setSelectedVariant(startVariant);
       setSelectedAddons(new Set());
 
       // Init per-part bindings
@@ -405,14 +417,16 @@ export function ShapeDropDialog({
       // Init display elements
       setSelectedElements(new Set<string>());
 
-      // Decide starting step
+      // Decide starting step: show step 1 whenever multiple variants exist
+      // (even in edit mode, so the user can switch variants).
       const hasMultipleOpts = opts.length > 1;
       const hasAddons = (sc.addons ?? []).length > 0;
-      setStep(editMode || (!hasMultipleOpts && !hasAddons) ? 2 : 1);
+      const showStep1 = hasMultipleOpts || (!editMode && hasAddons);
+      setStep(showStep1 ? 1 : 2);
 
       setLoading(false);
     });
-  }, [open, shapeId, editMode, loadShape]);
+  }, [open, shapeId, editMode, initialVariant, loadShape]);
 
   if (!open) return null;
 
@@ -616,7 +630,7 @@ export function ShapeDropDialog({
         {/* ── Body ──────────────────────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
           {/* Step 1: Variant picker + add-ons */}
-          {step === 1 && !editMode && (
+          {step === 1 && (
             <>
               {variantOptions.length > 0 && (
                 <>
@@ -760,11 +774,13 @@ export function ShapeDropDialog({
             flexShrink: 0,
           }}
         >
-          {step === 1 && !editMode && (
+          {step === 1 && (
             <>
-              <button style={btnStyle()} onClick={handleUseDefaults}>
-                Use Defaults
-              </button>
+              {!editMode && (
+                <button style={btnStyle()} onClick={handleUseDefaults}>
+                  Use Defaults
+                </button>
+              )}
               <div style={{ flex: 1 }} />
               <button style={btnStyle()} onClick={onCancel}>
                 Cancel
@@ -777,7 +793,7 @@ export function ShapeDropDialog({
 
           {step === 2 && (
             <>
-              {!editMode && (
+              {(!editMode || variantOptions.length > 1) && (
                 <button style={btnStyle()} onClick={() => setStep(1)}>
                   ← Back
                 </button>

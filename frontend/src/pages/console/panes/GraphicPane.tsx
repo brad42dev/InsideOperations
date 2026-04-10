@@ -483,6 +483,12 @@ export default function GraphicPane({
   const [screenWidth, setScreenWidth] = useState(0);
   const [screenHeight, setScreenHeight] = useState(0);
 
+  // Track whether we've auto-fit the initial load for the current graphicId
+  const hasFittedRef = useRef(false);
+  useEffect(() => {
+    hasFittedRef.current = false;
+  }, [graphicId]);
+
   // Middle-click pan tracking
   const panDragRef = useRef<{
     startX: number;
@@ -703,6 +709,14 @@ export default function GraphicPane({
     setPanX(0);
     setPanY(0);
   }, [data, screenWidth, screenHeight]);
+
+  // Auto-fit once when the graphic first loads and screen dimensions are known
+  useEffect(() => {
+    if (hasFittedRef.current) return;
+    if (!data || screenWidth === 0 || screenHeight === 0) return;
+    hasFittedRef.current = true;
+    zoomToFit();
+  }, [data, screenWidth, screenHeight, zoomToFit]);
 
   const resetZoom = useCallback(() => {
     setZoom(1);

@@ -9,12 +9,11 @@
  * Layers belong in the right panel only (spec §15).
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { useLibraryStore, useSceneStore } from "../../store/designer";
-import type { ShapeIndexItem } from "../../store/designer";
 import type {
   DisplayElementType,
   WidgetType,
@@ -102,58 +101,7 @@ function SectionHeader({
 }
 
 // ---------------------------------------------------------------------------
-// Skeleton tile for loading state
-// ---------------------------------------------------------------------------
-
-function SkeletonTile() {
-  return (
-    <div
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: "var(--io-radius)",
-        background: "var(--io-surface-elevated)",
-        animation: "pulse 1.4s ease-in-out infinite",
-      }}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shape tile
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// SVG Thumbnail helper
-// ---------------------------------------------------------------------------
-
-function SvgThumbnail({ svgText, size }: { svgText: string; size: number }) {
-  // Extract viewBox from the SVG string (needed for proper scaling)
-  const viewBox = useMemo(() => {
-    const m = svgText.match(/viewBox=["']([^"']+)["']/);
-    return m ? m[1] : "0 0 100 100";
-  }, [svgText]);
-
-  // Extract inner SVG content (everything between <svg ...> and </svg>)
-  const inner = useMemo(() => {
-    const m = svgText.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i);
-    return m ? m[1] : "";
-  }, [svgText]);
-
-  if (!inner) return null;
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={viewBox}
-      style={{ pointerEvents: "none", overflow: "visible", flexShrink: 0 }}
-      // SVG equipment shapes use #808080 stroke which is fine on dark bg
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: inner }}
-    />
-  );
-}
+// (SkeletonTile and SvgThumbnail removed — equipment section now uses category tiles)
 
 // ---------------------------------------------------------------------------
 // Delete confirmation dialog (Radix Dialog, no window.confirm)
@@ -253,384 +201,6 @@ function DeleteConfirmDialog({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shape tile
-// ---------------------------------------------------------------------------
-
-function ShapeTile({
-  item,
-  collapsed,
-}: {
-  item: ShapeIndexItem;
-  collapsed: boolean;
-}) {
-  const shape = useLibraryStore((s) => s.cache.get(item.id) ?? null);
-  const loadShape = useLibraryStore((s) => s.loadShape);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [isFavorited, setIsFavorited] = useState(() => {
-    try {
-      const raw = localStorage.getItem("io:palette-favorites") ?? "{}";
-      const favs = JSON.parse(raw) as Record<string, string[]>;
-      return (favs["equipment"] ?? []).includes(item.id);
-    } catch {
-      return false;
-    }
-  });
-
-  // Determine tile type from source field
-  const isLibrary = item.source === "library" || item.source === undefined;
-  const isCustom = item.source === "user";
-
-  useEffect(() => {
-    if (!shape) {
-      void loadShape(item.id);
-    }
-  }, [item.id, shape, loadShape]);
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Only handle left-click drags; right-clicks go to the context menu
-      if (e.button !== 0) return;
-      // Initiate a custom drag event the canvas can listen for
-      e.preventDefault();
-      const el = e.currentTarget as HTMLElement;
-      el.setAttribute("data-dragging", "true");
-
-      const ghost = document.createElement("div");
-      ghost.id = "io-canvas-drag-ghost";
-      ghost.setAttribute("data-drag-ghost", "true");
-      ghost.style.cssText = [
-        "position:fixed",
-        "pointer-events:none",
-        "z-index:9999",
-        "opacity:0.7",
-        "padding:4px 8px",
-        "background:var(--io-accent)",
-        "color:#09090b",
-        "border-radius:4px",
-        "font-size:11px",
-        "font-weight:600",
-        "white-space:nowrap",
-        "transform:translate(-50%,-50%)",
-        `left:${e.clientX}px`,
-        `top:${e.clientY}px`,
-        "display:block",
-        "visibility:visible",
-      ].join(";");
-      ghost.textContent = item.label;
-      document.body.appendChild(ghost);
-
-      const onMove = (ev: MouseEvent) => {
-        ghost.style.left = `${ev.clientX}px`;
-        ghost.style.top = `${ev.clientY}px`;
-        // Dispatch a custom event so DesignerCanvas can track the drop target
-        document.dispatchEvent(
-          new CustomEvent("io:shape-drag-move", {
-            detail: { shapeId: item.id, x: ev.clientX, y: ev.clientY },
-          }),
-        );
-      };
-
-      const onUp = (ev: MouseEvent) => {
-        ghost.remove();
-        el.removeAttribute("data-dragging");
-        document.removeEventListener("mousemove", onMove, true);
-        document.removeEventListener("mouseup", onUp, true);
-        document.removeEventListener("keydown", onKeyDown, true);
-        document.dispatchEvent(
-          new CustomEvent("io:shape-drop", {
-            detail: { shapeId: item.id, x: ev.clientX, y: ev.clientY },
-          }),
-        );
-      };
-
-      const onKeyDown = (ev: KeyboardEvent) => {
-        if (ev.key === "Escape") {
-          ghost.remove();
-          el.removeAttribute("data-dragging");
-          document.removeEventListener("mousemove", onMove, true);
-          document.removeEventListener("mouseup", onUp, true);
-          document.removeEventListener("keydown", onKeyDown, true);
-        }
-      };
-
-      document.addEventListener("mousemove", onMove, true);
-      document.addEventListener("mouseup", onUp, true);
-      document.addEventListener("keydown", onKeyDown, true);
-    },
-    [item.id, item.label],
-  );
-
-  function handlePlaceAtCenter() {
-    const canvasEl = document.querySelector('[data-designer-canvas="true"]');
-    const rect = canvasEl?.getBoundingClientRect();
-    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
-    document.dispatchEvent(
-      new CustomEvent("io:shape-drop", {
-        detail: { shapeId: item.id, x: cx, y: cy },
-      }),
-    );
-  }
-
-  function handleToggleFavorite() {
-    try {
-      const raw = localStorage.getItem("io:palette-favorites") ?? "{}";
-      const favs = JSON.parse(raw) as Record<string, string[]>;
-      if (!favs["equipment"]) favs["equipment"] = [];
-      if (isFavorited) {
-        favs["equipment"] = favs["equipment"].filter((id) => id !== item.id);
-        setIsFavorited(false);
-      } else {
-        if (!favs["equipment"].includes(item.id)) {
-          favs["equipment"].push(item.id);
-        }
-        setIsFavorited(true);
-      }
-      localStorage.setItem("io:palette-favorites", JSON.stringify(favs));
-    } catch {
-      // localStorage may be blocked — silently ignore
-    }
-  }
-
-  function handleExportSvg() {
-    graphicsApi
-      .exportShapeSvg(item.id)
-      .then((svgContent) => {
-        const blob = new Blob([svgContent], { type: "image/svg+xml" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${item.id}.svg`;
-        a.click();
-        URL.revokeObjectURL(url);
-      })
-      .catch((err) => {
-        console.error("[ShapeTile] SVG export failed:", err);
-      });
-  }
-
-  function handleCopyToMyShapes() {
-    // TODO: implement copy-to-my-shapes API call when endpoint is available
-    console.warn(
-      "[ShapeTile] Copy to My Shapes: API not yet implemented for shape",
-      item.id,
-    );
-  }
-
-  function handleEditShape() {
-    // TODO: open shape editor dialog when implemented
-    console.warn(
-      "[ShapeTile] Edit Shape: shape editor not yet implemented for shape",
-      item.id,
-    );
-  }
-
-  function handleReplaceSvg() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".svg,image/svg+xml";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      const result = await graphicsApi
-        .reimportShapeSvg(item.id, text)
-        .catch(() => null);
-      if (result?.success && result.data.data.viewBoxChanged) {
-        console.warn(
-          "[ShapeTile] Shape dimensions changed significantly. Connection points and value anchors may need repositioning.",
-        );
-      }
-    };
-    input.click();
-  }
-
-  function handleDeleteConfirmed() {
-    // TODO: call delete API when endpoint is available
-    console.warn(
-      "[ShapeTile] Delete shape: API not yet implemented for shape",
-      item.id,
-    );
-  }
-
-  const { menuState, handleContextMenu, closeMenu } = useContextMenu();
-
-  const shapeMenuItems = [
-    { label: "Place at Center", onClick: handlePlaceAtCenter },
-    {
-      label: isFavorited ? "Remove from Favorites" : "Add to Favorites",
-      onClick: handleToggleFavorite,
-    },
-    ...(isLibrary
-      ? [
-          {
-            label: "Copy to My Shapes",
-            onClick: handleCopyToMyShapes,
-            divider: true,
-          },
-          { label: "Export SVG", onClick: handleExportSvg },
-        ]
-      : []),
-    ...(isCustom
-      ? [
-          { label: "Edit Shape", onClick: handleEditShape, divider: true },
-          { label: "Export SVG", onClick: handleExportSvg },
-          { label: "Replace SVG…", onClick: handleReplaceSvg },
-          {
-            label: "Delete",
-            onClick: () => setDeleteOpen(true),
-            danger: true,
-            divider: true,
-          },
-        ]
-      : []),
-  ];
-
-  if (collapsed) {
-    return (
-      <>
-        <div
-          onMouseDown={handleMouseDown}
-          onContextMenu={handleContextMenu}
-          title={item.label}
-          style={{
-            width: 32,
-            height: 32,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            cursor: "grab",
-            overflow: "hidden",
-            userSelect: "none",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "var(--io-accent)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--io-border)";
-          }}
-        >
-          {shape?.svg ? (
-            <SvgThumbnail svgText={shape.svg} size={26} />
-          ) : (
-            <span style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
-              {item.label.slice(0, 2).toUpperCase()}
-            </span>
-          )}
-        </div>
-        {menuState && (
-          <ContextMenu
-            x={menuState.x}
-            y={menuState.y}
-            items={shapeMenuItems}
-            onClose={closeMenu}
-          />
-        )}
-        {isCustom && (
-          <DeleteConfirmDialog
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-            label={item.label}
-            onConfirm={handleDeleteConfirmed}
-          />
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div
-        onMouseDown={handleMouseDown}
-        onContextMenu={handleContextMenu}
-        title={item.label}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 3,
-          width: 64,
-          height: 64,
-          background: "var(--io-surface-elevated)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "var(--io-radius)",
-          cursor: "grab",
-          overflow: "hidden",
-          userSelect: "none",
-          padding: 4,
-          textAlign: "center",
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "var(--io-accent)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "var(--io-border)";
-        }}
-      >
-        {shape?.svg ? (
-          <SvgThumbnail svgText={shape.svg} size={36} />
-        ) : (
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: 0.25,
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect
-                x="2"
-                y="5"
-                width="16"
-                height="10"
-                rx="1"
-                stroke="#808080"
-                strokeWidth="1.5"
-                fill="none"
-              />
-            </svg>
-          </div>
-        )}
-        <div
-          style={{
-            fontSize: 9,
-            lineHeight: 1.2,
-            wordBreak: "break-word",
-            maxWidth: "100%",
-            color: "var(--io-text-muted)",
-          }}
-        >
-          {item.label.length > 12 ? item.label.slice(0, 11) + "…" : item.label}
-        </div>
-      </div>
-      {menuState && (
-        <ContextMenu
-          x={menuState.x}
-          y={menuState.y}
-          items={shapeMenuItems}
-          onClose={closeMenu}
-        />
-      )}
-      {isCustom && (
-        <DeleteConfirmDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          label={item.label}
-          onConfirm={handleDeleteConfirmed}
-        />
-      )}
-    </>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Display element types
@@ -1135,192 +705,180 @@ function DisplayElementTile({
 // Equipment section
 // ---------------------------------------------------------------------------
 
-function EquipmentSection({ collapsed }: { collapsed: boolean }) {
-  const index = useLibraryStore((s) => s.index);
-  const indexLoaded = useLibraryStore((s) => s.indexLoaded);
-  const indexLoading = useLibraryStore((s) => s.indexLoading);
-  const indexError = useLibraryStore((s) => s.indexError);
-  const loadIndex = useLibraryStore((s) => s.loadIndex);
-  const getCategories = useLibraryStore((s) => s.getCategories);
+/** Equipment category tiles — one tile per equipment family. */
+const EQUIPMENT_CATEGORIES: Array<{
+  id: string;
+  label: string;
+  defaultId: string;
+}> = [
+  { id: "valves",         label: "Valve",         defaultId: "valve-gate" },
+  { id: "pumps",          label: "Pump",          defaultId: "pump-centrifugal-opt1" },
+  { id: "rotating",       label: "Rotating",      defaultId: "compressor-opt1" },
+  { id: "heat-transfer",  label: "Heat Transfer", defaultId: "heat-exchanger-shell-tube" },
+  { id: "vessels",        label: "Vessel",        defaultId: "vessel-vertical-welded" },
+  { id: "tanks",          label: "Tank",          defaultId: "tank-storage-cone-roof" },
+  { id: "reactors",       label: "Reactor",       defaultId: "reactor-base" },
+  { id: "columns",        label: "Column",        defaultId: "column-distillation-standard-plain" },
+  { id: "filters",        label: "Filter",        defaultId: "filter-vacuum" },
+  { id: "instrumentation",label: "Instrument",    defaultId: "instrument-field" },
+  { id: "mixers",         label: "Mixer",         defaultId: "mixer-agitator" },
+];
 
-  const [search, setSearch] = useState("");
-  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+interface EquipmentCategoryTileProps {
+  id: string;
+  label: string;
+  defaultId: string;
+  collapsed: boolean;
+}
+
+function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCategoryTileProps) {
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+
+      const ghost = document.createElement("div");
+      ghost.id = "io-canvas-drag-ghost";
+      ghost.setAttribute("data-drag-ghost", "true");
+      ghost.style.cssText = [
+        "position:fixed",
+        "pointer-events:none",
+        "z-index:9999",
+        "opacity:0.85",
+        "padding:4px 10px",
+        "background:var(--io-accent)",
+        "color:#09090b",
+        "border-radius:4px",
+        "font-size:11px",
+        "font-weight:600",
+        "white-space:nowrap",
+        "transform:translate(-50%,-50%)",
+        `left:${e.clientX}px`,
+        `top:${e.clientY}px`,
+      ].join(";");
+      ghost.textContent = label;
+      document.body.appendChild(ghost);
+
+      const onMove = (ev: MouseEvent) => {
+        ghost.style.left = `${ev.clientX}px`;
+        ghost.style.top = `${ev.clientY}px`;
+      };
+
+      const onUp = (ev: MouseEvent) => {
+        ghost.remove();
+        document.removeEventListener("mousemove", onMove, true);
+        document.removeEventListener("mouseup", onUp, true);
+        document.removeEventListener("keydown", onKeyDown, true);
+        document.dispatchEvent(
+          new CustomEvent("io:category-drop", {
+            detail: { categoryId: id, defaultShapeId: defaultId, x: ev.clientX, y: ev.clientY },
+          }),
+        );
+      };
+
+      const onKeyDown = (ev: KeyboardEvent) => {
+        if (ev.key === "Escape") {
+          ghost.remove();
+          document.removeEventListener("mousemove", onMove, true);
+          document.removeEventListener("mouseup", onUp, true);
+          document.removeEventListener("keydown", onKeyDown, true);
+        }
+      };
+
+      document.addEventListener("mousemove", onMove, true);
+      document.addEventListener("mouseup", onUp, true);
+      document.addEventListener("keydown", onKeyDown, true);
+    },
+    [id, label, defaultId],
+  );
+
+  if (collapsed) {
+    return (
+      <button
+        onMouseDown={handleMouseDown}
+        title={label}
+        style={{
+          width: 36, height: 36,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "var(--io-surface-sunken)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          cursor: "grab", padding: 2, overflow: "hidden",
+        }}
+      >
+        <img
+          src={`/shapes/${id}/${defaultId}.svg`}
+          alt={label}
+          style={{ maxWidth: 28, maxHeight: 28, objectFit: "contain" }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onMouseDown={handleMouseDown}
+      title={`Drag to place ${label}`}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+        padding: "8px 4px",
+        background: "var(--io-surface-sunken)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        cursor: "grab", width: "calc(50% - 4px)",
+        transition: "border-color 0.1s, background 0.1s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--io-accent)";
+        (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface-sunken))";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--io-border)";
+        (e.currentTarget as HTMLElement).style.background = "var(--io-surface-sunken)";
+      }}
+    >
+      <div style={{ width: 52, height: 44, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <img
+          src={`/shapes/${id}/${defaultId}.svg`}
+          alt={label}
+          style={{ maxWidth: 48, maxHeight: 40, objectFit: "contain" }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </div>
+      <span style={{ fontSize: 10, color: "var(--io-text-secondary)", textAlign: "center", lineHeight: 1.2, fontWeight: 500 }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function EquipmentSection({ collapsed }: { collapsed: boolean }) {
+  const loadIndex = useLibraryStore((s) => s.loadIndex);
 
   useEffect(() => {
     loadIndex();
   }, [loadIndex]);
 
-  function toggleCat(cat: string) {
-    setOpenCats((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }
-
-  const categories = getCategories();
-
-  // Filter by search term
-  const filtered =
-    search.trim().length > 0
-      ? index.filter(
-          (item) =>
-            item.label.toLowerCase().includes(search.toLowerCase()) ||
-            item.category.toLowerCase().includes(search.toLowerCase()),
-        )
-      : null;
-
   if (collapsed) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          padding: "8px 4px",
-          alignItems: "center",
-        }}
-      >
-        {indexLoading &&
-          Array.from({ length: 4 }, (_, i) => <SkeletonTile key={i} />)}
-        {indexLoaded &&
-          index
-            .slice(0, 8)
-            .map((item) => <ShapeTile key={item.id} item={item} collapsed />)}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 4px", alignItems: "center" }}>
+        {EQUIPMENT_CATEGORIES.map(cat => (
+          <EquipmentCategoryTile key={cat.id} {...cat} collapsed />
+        ))}
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        flex: 1,
-      }}
-    >
-      {/* Search */}
-      <div style={{ padding: "6px 8px", flexShrink: 0 }}>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search shapes…"
-          style={{
-            width: "100%",
-            padding: "4px 8px",
-            background: "var(--io-surface)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            color: "var(--io-text-primary)",
-            fontSize: 12,
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {indexLoading && (
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <SkeletonTile key={i} />
-            ))}
-          </div>
-        )}
-
-        {indexError && (
-          <div style={{ padding: "8px 12px", fontSize: 11, color: "#ef4444" }}>
-            Failed to load shapes. {indexError}
-          </div>
-        )}
-
-        {indexLoaded && filtered !== null && (
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}
-          >
-            {filtered.length === 0 ? (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--io-text-muted)",
-                  padding: "4px 0",
-                }}
-              >
-                No results
-              </div>
-            ) : (
-              filtered.map((item) => (
-                <ShapeTile key={item.id} item={item} collapsed={false} />
-              ))
-            )}
-          </div>
-        )}
-
-        {indexLoaded &&
-          filtered === null &&
-          Array.from(categories.entries()).map(([cat, items]) => {
-            const isOpen = openCats.has(cat);
-            return (
-              <div key={cat}>
-                <button
-                  onClick={() => toggleCat(cat)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    width: "100%",
-                    padding: "4px 8px",
-                    background: "transparent",
-                    border: "none",
-                    borderBottom: "1px solid var(--io-border)",
-                    color: "var(--io-text-secondary)",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      "var(--io-surface-elevated)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <IconChevron open={isOpen} />
-                  <span style={{ textTransform: "capitalize" }}>{cat}</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: 10,
-                      color: "var(--io-text-muted)",
-                    }}
-                  >
-                    {items.length}
-                  </span>
-                </button>
-                {isOpen && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      padding: 8,
-                    }}
-                  >
-                    {items.map((item) => (
-                      <ShapeTile key={item.id} item={item} collapsed={false} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-      </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 8 }}>
+      {EQUIPMENT_CATEGORIES.map(cat => (
+        <EquipmentCategoryTile key={cat.id} {...cat} collapsed={false} />
+      ))}
     </div>
   );
 }
@@ -1593,7 +1151,7 @@ function CustomShapesPaletteSection({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div
-      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column" }}
     >
       {/* Upload button row */}
       <div
@@ -1640,7 +1198,7 @@ function CustomShapesPaletteSection({ collapsed }: { collapsed: boolean }) {
       </div>
 
       {/* Shape tiles */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px" }}>
+      <div style={{ padding: "0 8px 8px" }}>
         {loading && (
           <div
             style={{
@@ -2817,186 +2375,114 @@ export default function DesignerLeftPalette({
 
   return (
     <div style={containerStyle}>
-      {isGraphicMode ? (
-        <>
-          {/* Equipment section */}
-          <SectionHeader
-            label="Equipment"
-            open={equipOpen}
-            onToggle={() => setEquipOpen((v) => !v)}
-          />
-          {equipOpen && (
-            <div
-              style={{
-                flex: "1 1 0",
-                minHeight: 100,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <EquipmentSection collapsed={false} />
-            </div>
-          )}
+      {/* Single scrollable column — all sections stack at natural height */}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        {isGraphicMode ? (
+          <>
+            <SectionHeader
+              label="Equipment"
+              open={equipOpen}
+              onToggle={() => setEquipOpen((v) => !v)}
+            />
+            {equipOpen && <EquipmentSection collapsed={false} />}
 
-          {/* My Shapes section — user-uploaded custom SVG shapes */}
-          <SectionHeader
-            label="My Shapes"
-            open={myShapesOpen}
-            onToggle={() => setMyShapesOpen((v) => !v)}
-          />
-          {myShapesOpen && (
-            <div
-              style={{
-                flex: "0 1 auto",
-                maxHeight: 220,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <CustomShapesPaletteSection collapsed={false} />
-            </div>
-          )}
+            <SectionHeader
+              label="My Shapes"
+              open={myShapesOpen}
+              onToggle={() => setMyShapesOpen((v) => !v)}
+            />
+            {myShapesOpen && <CustomShapesPaletteSection collapsed={false} />}
 
-          {/* Stencils section */}
-          <SectionHeader
-            label="Stencils"
-            open={stencilsOpen}
-            onToggle={() => setStencilsOpen((v) => !v)}
-          />
-          {stencilsOpen && <StencilsSection collapsed={false} />}
+            <SectionHeader
+              label="Stencils"
+              open={stencilsOpen}
+              onToggle={() => setStencilsOpen((v) => !v)}
+            />
+            {stencilsOpen && <StencilsSection collapsed={false} />}
 
-          {/* Display Elements section */}
-          <SectionHeader
-            label="Display Elements"
-            open={elemOpen}
-            onToggle={() => setElemOpen((v) => !v)}
-          />
-          {elemOpen && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                padding: 8,
-                flexShrink: 0,
-              }}
-            >
-              {DISPLAY_ELEMENT_TYPES.map((t) => (
-                <DisplayElementTile key={t.type} {...t} collapsed={false} />
-              ))}
-            </div>
-          )}
+            <SectionHeader
+              label="Display Elements"
+              open={elemOpen}
+              onToggle={() => setElemOpen((v) => !v)}
+            />
+            {elemOpen && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+                {DISPLAY_ELEMENT_TYPES.map((t) => (
+                  <DisplayElementTile key={t.type} {...t} collapsed={false} />
+                ))}
+              </div>
+            )}
 
-          {/* Widgets section — available in graphic mode (rendered in HTML overlay layer) */}
-          <SectionHeader
-            label="Widgets"
-            open={widgetsOpen}
-            onToggle={() => setWidgetsOpen((v) => !v)}
-          />
-          {widgetsOpen && <WidgetsSection collapsed={false} />}
+            <SectionHeader
+              label="Widgets"
+              open={widgetsOpen}
+              onToggle={() => setWidgetsOpen((v) => !v)}
+            />
+            {widgetsOpen && <WidgetsSection collapsed={false} />}
 
-          {/* Point Browser section — drag points onto shapes for Quick Bind */}
-          <SectionHeader
-            label="Points"
-            open={pointsOpen}
-            onToggle={() => setPointsOpen((v) => !v)}
-          />
-          {pointsOpen && <PointBrowserSection collapsed={false} />}
-        </>
-      ) : (
-        <>
-          {/* Widgets section (dashboard / report modes) */}
-          <SectionHeader
-            label="Widgets"
-            open={widgetsOpen}
-            onToggle={() => setWidgetsOpen((v) => !v)}
-          />
-          {widgetsOpen && <WidgetsSection collapsed={false} />}
+            <SectionHeader
+              label="Points"
+              open={pointsOpen}
+              onToggle={() => setPointsOpen((v) => !v)}
+            />
+            {pointsOpen && <PointBrowserSection collapsed={false} />}
+          </>
+        ) : (
+          <>
+            <SectionHeader
+              label="Widgets"
+              open={widgetsOpen}
+              onToggle={() => setWidgetsOpen((v) => !v)}
+            />
+            {widgetsOpen && <WidgetsSection collapsed={false} />}
 
-          {/* Report Elements section — only in report mode */}
-          {isReportMode && (
-            <>
-              <SectionHeader
-                label="Report Elements"
-                open={reportElemOpen}
-                onToggle={() => setReportElemOpen((v) => !v)}
-              />
-              {reportElemOpen && <ReportElementsSection collapsed={false} />}
-            </>
-          )}
+            {isReportMode && (
+              <>
+                <SectionHeader
+                  label="Report Elements"
+                  open={reportElemOpen}
+                  onToggle={() => setReportElemOpen((v) => !v)}
+                />
+                {reportElemOpen && <ReportElementsSection collapsed={false} />}
+              </>
+            )}
 
-          {/* Shapes + Stencils + Display Elements — available in dashboard/report per spec §4.3/§4.4 */}
-          <SectionHeader
-            label="Equipment"
-            open={equipOpen}
-            onToggle={() => setEquipOpen((v) => !v)}
-          />
-          {equipOpen && (
-            <div
-              style={{
-                flex: "0 0 auto",
-                maxHeight: 200,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <EquipmentSection collapsed={false} />
-            </div>
-          )}
+            <SectionHeader
+              label="Equipment"
+              open={equipOpen}
+              onToggle={() => setEquipOpen((v) => !v)}
+            />
+            {equipOpen && <EquipmentSection collapsed={false} />}
 
-          {/* My Shapes section — user-uploaded custom SVG shapes */}
-          <SectionHeader
-            label="My Shapes"
-            open={myShapesOpen}
-            onToggle={() => setMyShapesOpen((v) => !v)}
-          />
-          {myShapesOpen && (
-            <div
-              style={{
-                flex: "0 1 auto",
-                maxHeight: 180,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <CustomShapesPaletteSection collapsed={false} />
-            </div>
-          )}
+            <SectionHeader
+              label="My Shapes"
+              open={myShapesOpen}
+              onToggle={() => setMyShapesOpen((v) => !v)}
+            />
+            {myShapesOpen && <CustomShapesPaletteSection collapsed={false} />}
 
-          {/* Stencils section — available in dashboard/report modes */}
-          <SectionHeader
-            label="Stencils"
-            open={stencilsOpen}
-            onToggle={() => setStencilsOpen((v) => !v)}
-          />
-          {stencilsOpen && <StencilsSection collapsed={false} />}
+            <SectionHeader
+              label="Stencils"
+              open={stencilsOpen}
+              onToggle={() => setStencilsOpen((v) => !v)}
+            />
+            {stencilsOpen && <StencilsSection collapsed={false} />}
 
-          <SectionHeader
-            label="Display Elements"
-            open={elemOpen}
-            onToggle={() => setElemOpen((v) => !v)}
-          />
-          {elemOpen && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                padding: 8,
-                flexShrink: 0,
-              }}
-            >
-              {DISPLAY_ELEMENT_TYPES.map((t) => (
-                <DisplayElementTile key={t.type} {...t} collapsed={false} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            <SectionHeader
+              label="Display Elements"
+              open={elemOpen}
+              onToggle={() => setElemOpen((v) => !v)}
+            />
+            {elemOpen && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+                {DISPLAY_ELEMENT_TYPES.map((t) => (
+                  <DisplayElementTile key={t.type} {...t} collapsed={false} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

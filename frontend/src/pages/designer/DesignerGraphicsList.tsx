@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { graphicsApi } from "../../api/graphics";
@@ -129,7 +129,34 @@ function GraphicThumbnail({
   name: string;
   mode: string;
 }) {
+  const [blobSrc, setBlobSrc] = useState<string | null>(null);
   const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("io_access_token") ?? "";
+    const url = graphicsApi.thumbnailUrl(id);
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => {
+        if (!r.ok) throw new Error("not ok");
+        return r.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setErrored(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id]);
 
   const modeIcon = (m: string) => {
     if (m === "dashboard") {
@@ -207,11 +234,33 @@ function GraphicThumbnail({
     );
   }
 
+  if (!blobSrc) {
+    // Still loading — show same placeholder as errored state
+    return (
+      <div
+        style={{
+          height: 140,
+          background: "var(--io-surface-elevated)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: 8,
+          color: "var(--io-text-muted)",
+        }}
+      >
+        {modeIcon(mode)}
+        <span style={{ fontSize: 11, opacity: 0.5 }}>
+          {MODE_LABELS[mode] ?? mode}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <img
-      src={graphicsApi.thumbnailUrl(id)}
+      src={blobSrc}
       alt={name}
-      onError={() => setErrored(true)}
       style={{
         width: "100%",
         height: 140,

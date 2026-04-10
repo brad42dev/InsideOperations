@@ -6,6 +6,7 @@ import type {
   PointBinding,
   PrimitiveStyle,
   LayerDefinition,
+  LayerFolder,
   Point2D,
   DisplayElement,
   DisplayElementConfig,
@@ -1044,6 +1045,410 @@ export class AddDisplayElementCommand implements SceneCommand {
       ).filter((c) => c.id !== elemId);
       return { ...node, children };
     });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HideDisplayElementCommand — toggle ghost state (hidden=true → 25% opacity)
+// ---------------------------------------------------------------------------
+
+export class HideDisplayElementCommand implements SceneCommand {
+  description = "Hide/Show Display Element";
+  private prevHidden: boolean | undefined;
+  private prevOpacity: number | undefined;
+
+  constructor(private nodeId: NodeId) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const result = findNode(d, this.nodeId);
+    if (!result) return d;
+    const node = result.node as DisplayElement;
+    this.prevHidden = node.hidden;
+    this.prevOpacity = node.opacity;
+    const nowHidden = !node.hidden;
+    const newOpacity = nowHidden
+      ? 0.25
+      : this.prevOpacity === 0.25
+        ? 1
+        : (this.prevOpacity ?? 1);
+    return updateNode(d, this.nodeId, (n) => ({
+      ...n,
+      hidden: nowHidden,
+      opacity: newOpacity,
+    }));
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      hidden: this.prevHidden,
+      opacity: this.prevOpacity ?? node.opacity,
+    }));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ResetDisplayElementCommand — restore default transform/slot from sidecar
+// ---------------------------------------------------------------------------
+
+export class ResetDisplayElementCommand implements SceneCommand {
+  description = "Reset Display Element";
+  private prevTransform: Transform | undefined;
+  private prevSlotId: string | undefined;
+  private prevFreeform: boolean | undefined;
+
+  constructor(
+    private nodeId: NodeId,
+    /** Default transform obtained by the caller from the sidecar JSON */
+    private defaultTransform: Transform,
+    /** Default slot ID from the sidecar JSON, if any */
+    private defaultSlotId?: string,
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const result = findNode(d, this.nodeId);
+    if (result) {
+      const node = result.node as DisplayElement;
+      this.prevTransform = clone(node.transform);
+      this.prevSlotId = node.slotId;
+      this.prevFreeform = node.freeform;
+    }
+    return updateNode(d, this.nodeId, (node) => ({
+      ...node,
+      transform: clone(this.defaultTransform),
+      slotId: this.defaultSlotId,
+      freeform: false,
+    }));
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      transform: this.prevTransform ? clone(this.prevTransform) : node.transform,
+      slotId: this.prevSlotId,
+      freeform: this.prevFreeform,
+    }));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ReorderSidecarCommand — change z-order within a SymbolInstance's sidecar stack
+// ---------------------------------------------------------------------------
+
+export class ReorderSidecarCommand implements SceneCommand {
+  description = "Reorder Sidecar";
+  private prevOrders: Map<NodeId, number> = new Map();
+  private newOrders: Map<NodeId, number> = new Map();
+
+  constructor(
+    private nodeId: NodeId,
+    private direction: "back" | "down" | "up" | "front",
+  ) {}
+
+  private applyOrders(
+    doc: GraphicDocument,
+    orders: Map<NodeId, number>,
+  ): GraphicDocument {
+    let d = clone(doc);
+    for (const [id, order] of orders) {
+      d = updateNode(d, id, (node) => ({ ...node, sidecarOrder: order }));
+    }
+    return d;
+  }
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const result = findNode(d, this.nodeId);
+    if (!result) return d;
+
+    const siblings = (
+      "children" in result.parent
+        ? (result.parent.children as SceneNode[])
+        : []
+    ).filter((c): c is DisplayElement => c.type === "display_element");
+
+    const sorted = [...siblings].sort(
+      (a, b) => (a.sidecarOrder ?? 0) - (b.sidecarOrder ?? 0),
+    );
+
+    this.prevOrders = new Map(sorted.map((s, i) => [s.id, s.sidecarOrder ?? i]));
+
+    const currentIdx = sorted.findIndex((s) => s.id === this.nodeId);
+    if (currentIdx < 0) return d;
+
+    let newIdx: number;
+    switch (this.direction) {
+      case "back":
+        newIdx = 0;
+        break;
+      case "front":
+        newIdx = sorted.length - 1;
+        break;
+      case "down":
+        newIdx = Math.max(0, currentIdx - 1);
+        break;
+      case "up":
+        newIdx = Math.min(sorted.length - 1, currentIdx + 1);
+        break;
+    }
+
+    const reordered = [...sorted];
+    const [item] = reordered.splice(currentIdx, 1);
+    reordered.splice(newIdx, 0, item);
+
+    this.newOrders = new Map(reordered.map((s, i) => [s.id, i]));
+    return this.applyOrders(d, this.newOrders);
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return this.applyOrders(clone(doc), this.prevOrders);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SnapSidecarToSlotCommand — bind element to a named anchor slot atomically
+// ---------------------------------------------------------------------------
+
+export class SnapSidecarToSlotCommand implements SceneCommand {
+  description = "Snap to Slot";
+  private prevSlotId: string | undefined;
+  private prevFreeform: boolean | undefined;
+  private prevPosition: Point2D | undefined;
+
+  constructor(
+    private nodeId: NodeId,
+    private slotId: string,
+    private position: Point2D,
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const result = findNode(d, this.nodeId);
+    if (result) {
+      const node = result.node as DisplayElement;
+      this.prevSlotId = node.slotId;
+      this.prevFreeform = node.freeform;
+      this.prevPosition = { ...node.transform.position };
+    }
+    return updateNode(d, this.nodeId, (node) => ({
+      ...node,
+      slotId: this.slotId,
+      freeform: false,
+      transform: { ...node.transform, position: clone(this.position) },
+    }));
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      slotId: this.prevSlotId,
+      freeform: this.prevFreeform,
+      transform: {
+        ...node.transform,
+        position: this.prevPosition
+          ? clone(this.prevPosition)
+          : node.transform.position,
+      },
+    }));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// RemoveDisplayElementCommand — permanent delete (distinct from hide/ghost)
+// ---------------------------------------------------------------------------
+
+export class RemoveDisplayElementCommand implements SceneCommand {
+  description = "Remove Display Element";
+  private snapshot: {
+    node: SceneNode;
+    parentId: NodeId;
+    index: number;
+  } | null = null;
+
+  constructor(private nodeId: NodeId) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const result = findNode(d, this.nodeId);
+    if (!result) return d;
+    this.snapshot = {
+      node: clone(result.node),
+      parentId: result.parent.id,
+      index: result.index,
+    };
+    result.parent.children.splice(result.index, 1);
+    return d;
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    if (!this.snapshot) return doc;
+    const snap = this.snapshot;
+    return updateNode(clone(doc), snap.parentId, (parent) => {
+      if (!("children" in parent)) return parent;
+      const children = [
+        ...(parent as SceneNode & { children: SceneNode[] }).children,
+      ];
+      children.splice(snap.index, 0, clone(snap.node));
+      return { ...parent, children };
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AddLayerFolderCommand / RemoveLayerFolderCommand
+// ---------------------------------------------------------------------------
+
+export class AddLayerFolderCommand implements SceneCommand {
+  description = "Add Layer Folder";
+  constructor(private folder: LayerFolder) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    d.folders = [...(d.folders ?? []), clone(this.folder)];
+    return d;
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    d.folders = (d.folders ?? []).filter((f) => f.id !== this.folder.id);
+    return d;
+  }
+}
+
+export class RemoveLayerFolderCommand implements SceneCommand {
+  description = "Remove Layer Folder";
+  private prevFolder: LayerFolder | null = null;
+  private prevIndex = 0;
+
+  constructor(private folderId: NodeId) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const idx = (d.folders ?? []).findIndex((f) => f.id === this.folderId);
+    if (idx >= 0) {
+      this.prevFolder = clone(d.folders![idx]);
+      this.prevIndex = idx;
+      d.folders!.splice(idx, 1);
+    }
+    // Move folder's layers to root by clearing their folderId
+    d.layers = d.layers.map((l) =>
+      l.folderId === this.folderId ? { ...l, folderId: undefined } : l,
+    );
+    return d;
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    if (!this.prevFolder) return d;
+    if (!d.folders) d.folders = [];
+    d.folders.splice(this.prevIndex, 0, clone(this.prevFolder));
+    // Restore folderId on layers that belonged to this folder
+    const childIds = new Set(this.prevFolder.childLayerIds);
+    d.layers = d.layers.map((l) =>
+      childIds.has(l.id) ? { ...l, folderId: this.folderId } : l,
+    );
+    return d;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ChangeLayerFolderPropertyCommand — rename/show/lock/reorder a folder
+// ---------------------------------------------------------------------------
+
+export class ChangeLayerFolderPropertyCommand implements SceneCommand {
+  description = "Change Layer Folder";
+  constructor(
+    private folderId: string,
+    private patch: Partial<Pick<LayerFolder, "name" | "visible" | "locked" | "order">>,
+    private prevPatch: Partial<Pick<LayerFolder, "name" | "visible" | "locked" | "order">>,
+  ) {}
+
+  private applyPatch(
+    doc: GraphicDocument,
+    patch: Partial<Pick<LayerFolder, "name" | "visible" | "locked" | "order">>,
+  ): GraphicDocument {
+    const d = clone(doc);
+    d.folders = (d.folders ?? []).map((f) =>
+      f.id === this.folderId ? { ...f, ...patch } : f,
+    );
+    return d;
+  }
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    return this.applyPatch(doc, this.patch);
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return this.applyPatch(doc, this.prevPatch);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MoveLayerToFolderCommand — move a layer into (or out of) a folder
+// ---------------------------------------------------------------------------
+
+export class MoveLayerToFolderCommand implements SceneCommand {
+  description = "Move Layer to Folder";
+  private prevFolderId: string | undefined = undefined;
+
+  constructor(
+    private layerId: string,
+    private newFolderId: string | undefined,
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    const layer = d.layers.find((l) => l.id === this.layerId);
+    if (!layer) return d;
+    this.prevFolderId = layer.folderId;
+    // Update layer's folderId
+    d.layers = d.layers.map((l) =>
+      l.id === this.layerId ? { ...l, folderId: this.newFolderId } : l,
+    );
+    // Remove from old folder's childLayerIds
+    if (this.prevFolderId) {
+      d.folders = (d.folders ?? []).map((f) =>
+        f.id === this.prevFolderId
+          ? { ...f, childLayerIds: f.childLayerIds.filter((id) => id !== this.layerId) }
+          : f,
+      );
+    }
+    // Add to new folder's childLayerIds
+    if (this.newFolderId) {
+      d.folders = (d.folders ?? []).map((f) =>
+        f.id === this.newFolderId
+          ? { ...f, childLayerIds: [...f.childLayerIds, this.layerId] }
+          : f,
+      );
+    }
+    return d;
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc);
+    // Remove from current folder's childLayerIds
+    if (this.newFolderId) {
+      d.folders = (d.folders ?? []).map((f) =>
+        f.id === this.newFolderId
+          ? { ...f, childLayerIds: f.childLayerIds.filter((id) => id !== this.layerId) }
+          : f,
+      );
+    }
+    // Restore layer's folderId
+    d.layers = d.layers.map((l) =>
+      l.id === this.layerId ? { ...l, folderId: this.prevFolderId } : l,
+    );
+    // Restore to old folder's childLayerIds
+    if (this.prevFolderId) {
+      d.folders = (d.folders ?? []).map((f) =>
+        f.id === this.prevFolderId
+          ? { ...f, childLayerIds: [...f.childLayerIds, this.layerId] }
+          : f,
+      );
+    }
+    return d;
   }
 }
 

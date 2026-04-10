@@ -14,6 +14,7 @@ import { create } from "zustand";
 import type {
   GraphicDocument,
   LayerDefinition,
+  LayerFolder,
 } from "../../shared/types/graphics";
 import type { SceneCommand } from "../../shared/graphics/commands";
 
@@ -66,6 +67,7 @@ export interface SceneStore {
     width?: number,
     height?: number,
     autoHeight?: boolean,
+    scope?: "console" | "process",
   ): void;
 
   /** Switch design mode without creating/loading a document. */
@@ -92,15 +94,26 @@ const CANVAS_SIZES: Record<
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDefaultLayers(): LayerDefinition[] {
+function makeDefaultLayers(): { layers: LayerDefinition[]; folders: LayerFolder[] } {
+  const folderId = crypto.randomUUID();
   const names = ["Background", "Equipment", "Instruments", "Labels"];
-  return names.map((name, order) => ({
+  const layers: LayerDefinition[] = names.map((name, order) => ({
     id: crypto.randomUUID(),
     name,
     visible: true,
     locked: name === "Background", // Background layer is locked by default (spec §15)
     order,
+    folderId,
   }));
+  const folder: LayerFolder = {
+    id: folderId,
+    name: "Default",
+    visible: true,
+    locked: false,
+    order: 0,
+    childLayerIds: layers.map((l) => l.id),
+  };
+  return { layers, folders: [folder] };
 }
 
 function makeEmptyDocument(
@@ -109,11 +122,13 @@ function makeEmptyDocument(
   widthOverride?: number,
   heightOverride?: number,
   autoHeightOverride?: boolean,
+  scope: "console" | "process" = "console",
 ): GraphicDocument {
   const defaults = CANVAS_SIZES[mode];
   const width = widthOverride ?? defaults.width;
   const height = heightOverride ?? defaults.height;
   const autoHeight = autoHeightOverride ?? defaults.autoHeight ?? false;
+  const { layers, folders } = makeDefaultLayers();
   return {
     id: crypto.randomUUID(),
     type: "graphic_document",
@@ -131,12 +146,13 @@ function makeEmptyDocument(
     metadata: {
       tags: [],
       designMode: mode,
-      graphicScope: "console",
+      graphicScope: scope,
       gridSize: 10,
       gridVisible: true,
       snapToGrid: true,
     },
-    layers: makeDefaultLayers(),
+    layers,
+    folders,
     expressions: {},
     children: [],
   };
@@ -185,9 +201,9 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     set({ isDirty: false });
   },
 
-  newDocument(mode, name, width, height, autoHeight) {
+  newDocument(mode, name, width, height, autoHeight, scope) {
     set({
-      doc: makeEmptyDocument(mode, name, width, height, autoHeight),
+      doc: makeEmptyDocument(mode, name, width, height, autoHeight, scope),
       graphicId: null,
       isDirty: true,
       designMode: mode,

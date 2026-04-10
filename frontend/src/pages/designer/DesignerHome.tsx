@@ -1,478 +1,87 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { reportsApi, type ReportTemplate } from "../../api/reports";
-import { dashboardsApi, type Dashboard } from "../../api/dashboards";
-import { graphicsApi, type DesignObjectSummary } from "../../api/graphics";
-import { useDesignerPermissions } from "../../shared/hooks/usePermission";
-import { RecognitionWizardTrigger } from "./components/RecognitionWizard";
-
-// ---------------------------------------------------------------------------
-// Hub card
-// ---------------------------------------------------------------------------
-
-function HubCard({
-  icon,
-  title,
-  count,
-  description,
-  browseHref,
-  newHref,
-  isLoading,
-}: {
-  icon: string;
-  title: string;
-  count: number;
-  description: string;
-  browseHref: string;
-  newHref: string;
-  isLoading: boolean;
-}) {
-  const navigate = useNavigate();
-  return (
-    <div
-      style={{
-        background: "var(--io-surface-elevated)",
-        border: "1px solid var(--io-border)",
-        borderRadius: "var(--io-radius)",
-        padding: "24px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: "24px" }}>{icon}</span>
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: "15px",
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            {title}
-          </div>
-          <div
-            style={{
-              fontSize: "12px",
-              color: "var(--io-text-secondary)",
-              marginTop: "2px",
-            }}
-          >
-            {description}
-          </div>
-        </div>
-        <div
-          style={{
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "var(--io-accent)",
-            minWidth: "40px",
-            textAlign: "right",
-          }}
-        >
-          {isLoading ? "—" : count}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: "8px" }}>
-        <button
-          onClick={() => navigate(browseHref)}
-          style={{
-            flex: 1,
-            padding: "7px 0",
-            background: "var(--io-surface-secondary)",
-            border: "1px solid var(--io-border)",
-            borderRadius: "var(--io-radius)",
-            color: "var(--io-text-secondary)",
-            fontSize: "12px",
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Browse
-        </button>
-        <button
-          onClick={() => navigate(newHref)}
-          style={{
-            flex: 1,
-            padding: "7px 0",
-            background: "var(--io-accent)",
-            border: "none",
-            borderRadius: "var(--io-radius)",
-            color: "#09090b",
-            fontSize: "12px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          + New
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Recent item row
-// ---------------------------------------------------------------------------
-
-function RecentItem({
-  icon,
-  name,
-  subtitle,
-  href,
-}: {
-  icon: string;
-  name: string;
-  subtitle: string;
-  href: string;
-}) {
-  const navigate = useNavigate();
-  return (
-    <div
-      onClick={() => navigate(href)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        padding: "8px 12px",
-        borderRadius: "var(--io-radius)",
-        cursor: "pointer",
-        transition: "background 0.1s",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background =
-          "var(--io-surface-elevated)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.background = "transparent";
-      }}
-    >
-      <span style={{ fontSize: "16px", flexShrink: 0 }}>{icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: "13px",
-            fontWeight: 500,
-            color: "var(--io-text-primary)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {name}
-        </div>
-        <div style={{ fontSize: "11px", color: "var(--io-text-muted)" }}>
-          {subtitle}
-        </div>
-      </div>
-      <span
-        style={{ fontSize: "11px", color: "var(--io-accent)", fontWeight: 500 }}
-      >
-        Open
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// DesignerHome
-// ---------------------------------------------------------------------------
+import { useTabStore } from "../../store/designer/tabStore";
 
 export default function DesignerHome() {
-  const perms = useDesignerPermissions();
-  const reportsQuery = useQuery({
-    queryKey: ["report-templates", { is_system: false }],
-    queryFn: async () => {
-      const r = await reportsApi.listTemplates({
-        is_system: false,
-        limit: 100,
-      });
-      if (!r.success) throw new Error(r.error.message);
-      return r.data.data;
-    },
-  });
+  const navigate = useNavigate();
 
-  const dashboardsQuery = useQuery({
-    queryKey: ["dashboards"],
-    queryFn: async () => {
-      const r = await dashboardsApi.list();
-      if (!r.success) throw new Error(r.error.message);
-      return r.data.data;
-    },
-  });
-
-  const graphicsQuery = useQuery({
-    queryKey: ["design-objects", { mode: "graphic" }],
-    queryFn: async () => {
-      const r = await graphicsApi.list({ mode: "graphic" });
-      if (!r.success) throw new Error(r.error.message);
-      return r.data.data;
-    },
-  });
-
-  const reports: ReportTemplate[] = reportsQuery.data ?? [];
-  const dashboards: Dashboard[] = dashboardsQuery.data ?? [];
-  const graphics: DesignObjectSummary[] = graphicsQuery.data ?? [];
-
-  // Recent items: combine and sort by updated_at desc, take top 8
-  type RecentEntry = {
-    type: "graphic" | "dashboard" | "report";
-    id: string;
-    name: string;
-    updated_at: string;
-  };
-  const recentItems: RecentEntry[] = [
-    ...graphics.map(
-      (g): RecentEntry => ({
-        type: "graphic",
-        id: g.id,
-        name: g.name,
-        updated_at: g.updatedAt,
-      }),
-    ),
-    ...dashboards.map(
-      (d): RecentEntry => ({
-        type: "dashboard",
-        id: d.id,
-        name: d.name,
-        updated_at: d.updated_at,
-      }),
-    ),
-    ...reports.map(
-      (r): RecentEntry => ({
-        type: "report",
-        id: r.id,
-        name: r.name,
-        updated_at: r.updated_at,
-      }),
-    ),
-  ]
-    .sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    )
-    .slice(0, 8);
-
-  const typeIcon: Record<string, string> = {
-    graphic: "🖼",
-    dashboard: "▦",
-    report: "📄",
-  };
-
-  const typeHref = (type: string, id: string) => {
-    if (type === "graphic") return `/designer/graphics/${id}`;
-    if (type === "dashboard") return `/designer/dashboards/${id}/edit`;
-    return `/designer/reports/${id}/edit`;
-  };
-
-  const typeLabel = (type: string) => {
-    if (type === "graphic") return "Process Graphic";
-    if (type === "dashboard") return "Dashboard";
-    return "Report Template";
-  };
+  // If tabs are already open, redirect to the active one instead of showing home.
+  // This handles: clicking the Designer nav item when work is in progress.
+  useEffect(() => {
+    const tabs = useTabStore.getState().tabs;
+    if (tabs.length === 0) return;
+    const activeId = useTabStore.getState().activeTabId;
+    const targetTab =
+      tabs.find((t) => t.id === activeId) ?? tabs[tabs.length - 1];
+    if (!targetTab) return;
+    if (!targetTab.graphicId.startsWith("new-")) {
+      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+    } else {
+      navigate("/designer/graphics/new", { replace: true });
+    }
+  }, [navigate]);
 
   return (
     <div
       style={{
         height: "100%",
-        overflowY: "auto",
-        background: "var(--io-surface-primary)",
-        padding: "24px",
+        background: "var(--io-surface-secondary)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-        {/* Page title */}
-        <div style={{ marginBottom: "24px" }}>
-          <h1
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--io-text-muted)",
+            marginBottom: 4,
+            letterSpacing: "0.03em",
+          }}
+        >
+          Designer
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => navigate("/designer/graphics/new")}
             style={{
-              margin: 0,
-              fontSize: "20px",
-              fontWeight: 700,
-              color: "var(--io-text-primary)",
+              padding: "9px 22px",
+              background: "var(--io-accent)",
+              color: "var(--io-accent-foreground)",
+              border: "none",
+              borderRadius: "var(--io-radius)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
             }}
           >
-            Designer
-          </h1>
-          <p
+            New
+          </button>
+          <button
+            onClick={() => navigate("/designer/graphics")}
             style={{
-              margin: "4px 0 0",
-              fontSize: "13px",
+              padding: "9px 22px",
+              background: "transparent",
               color: "var(--io-text-secondary)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
             }}
           >
-            Create and manage process graphics, dashboards, and report
-            templates.
-          </p>
-        </div>
-
-        {/* Hub cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-            gap: "16px",
-            marginBottom: "32px",
-          }}
-        >
-          <HubCard
-            icon="🖼"
-            title="Graphics"
-            count={graphics.length}
-            description="Process graphics for Console and Process views"
-            browseHref="/designer/graphics"
-            newHref="/designer/graphics/new"
-            isLoading={graphicsQuery.isLoading}
-          />
-          <HubCard
-            icon="▦"
-            title="Dashboards"
-            count={dashboards.length}
-            description="Widget-based dashboards with template variables"
-            browseHref="/designer/dashboards"
-            newHref="/designer/dashboards/new"
-            isLoading={dashboardsQuery.isLoading}
-          />
-          <HubCard
-            icon="📄"
-            title="Report Templates"
-            count={reports.length}
-            description="Custom report layouts for scheduled and on-demand reports"
-            browseHref="/designer/reports"
-            newHref="/designer/reports/new"
-            isLoading={reportsQuery.isLoading}
-          />
-        </div>
-
-        {/* Quick actions */}
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-            marginBottom: "32px",
-          }}
-        >
-          {[
-            { label: "Symbol Library", href: "/designer/symbols", icon: "⬡" },
-            {
-              label: "Import DCS Graphics",
-              href: "/designer/import",
-              icon: "⬆",
-            },
-          ].map((action) => {
-            return <QuickAction key={action.href} {...action} />;
-          })}
-          <RecognitionWizardTrigger
-            canImport={perms.canImport}
-            renderAs="button"
-          />
-        </div>
-
-        {/* Recent items */}
-        <div>
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              color: "var(--io-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              marginBottom: "8px",
-            }}
-          >
-            Recently Modified
-          </div>
-
-          {recentItems.length === 0 &&
-            !graphicsQuery.isLoading &&
-            !dashboardsQuery.isLoading &&
-            !reportsQuery.isLoading && (
-              <div
-                style={{
-                  padding: "24px",
-                  textAlign: "center",
-                  color: "var(--io-text-muted)",
-                  fontSize: "13px",
-                  background: "var(--io-surface-elevated)",
-                  borderRadius: "var(--io-radius)",
-                  border: "1px solid var(--io-border)",
-                }}
-              >
-                No items yet. Create your first graphic, dashboard, or report
-                template.
-              </div>
-            )}
-
-          {recentItems.length > 0 && (
-            <div
-              style={{
-                background: "var(--io-surface)",
-                border: "1px solid var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                overflow: "hidden",
-                padding: "4px",
-              }}
-            >
-              {recentItems.map((item) => (
-                <RecentItem
-                  key={`${item.type}-${item.id}`}
-                  icon={typeIcon[item.type] ?? "📄"}
-                  name={item.name}
-                  subtitle={typeLabel(item.type)}
-                  href={typeHref(item.type, item.id)}
-                />
-              ))}
-            </div>
-          )}
+            Open Existing
+          </button>
         </div>
       </div>
     </div>
-  );
-}
-
-function QuickAction({
-  label,
-  href,
-  icon,
-}: {
-  label: string;
-  href: string;
-  icon: string;
-}) {
-  const navigate = useNavigate();
-  return (
-    <button
-      onClick={() => navigate(href)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: "7px 14px",
-        background: "var(--io-surface-elevated)",
-        border: "1px solid var(--io-border)",
-        borderRadius: "var(--io-radius)",
-        color: "var(--io-text-secondary)",
-        fontSize: "13px",
-        cursor: "pointer",
-        transition: "border-color 0.1s, color 0.1s",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor =
-          "var(--io-accent)";
-        (e.currentTarget as HTMLButtonElement).style.color = "var(--io-accent)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor =
-          "var(--io-border)";
-        (e.currentTarget as HTMLButtonElement).style.color =
-          "var(--io-text-secondary)";
-      }}
-    >
-      <span>{icon}</span>
-      {label}
-    </button>
   );
 }
