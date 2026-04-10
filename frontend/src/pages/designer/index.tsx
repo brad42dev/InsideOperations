@@ -943,7 +943,9 @@ export default function DesignerPage() {
         if (targetTab) {
           if (!targetTab.graphicId.startsWith("new-")) {
             // Saved tab — navigate to its edit URL; loadDoc re-fires without isNew.
-            navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+            navigate(`/designer/graphics/${targetTab.graphicId}/edit`, {
+              replace: true,
+            });
           } else if (targetTab.savedScene) {
             // Unsaved tab — restore scene directly, stay on /new, skip dialog.
             tabStoreSetActive(targetTab.id);
@@ -2084,7 +2086,9 @@ export default function DesignerPage() {
     }
     if (!targetTab.graphicId.startsWith("new-")) {
       // Saved tab — navigate to its edit URL.
-      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, {
+        replace: true,
+      });
     } else if (targetTab.savedScene) {
       // Unsaved tab — restore scene directly, stay on /new (dialog is already closed).
       tabStoreSetActive(targetTab.id);

@@ -1126,7 +1126,9 @@ export class ResetDisplayElementCommand implements SceneCommand {
   undo(doc: GraphicDocument): GraphicDocument {
     return updateNode(clone(doc), this.nodeId, (node) => ({
       ...node,
-      transform: this.prevTransform ? clone(this.prevTransform) : node.transform,
+      transform: this.prevTransform
+        ? clone(this.prevTransform)
+        : node.transform,
       slotId: this.prevSlotId,
       freeform: this.prevFreeform,
     }));
@@ -1164,16 +1166,16 @@ export class ReorderSidecarCommand implements SceneCommand {
     if (!result) return d;
 
     const siblings = (
-      "children" in result.parent
-        ? (result.parent.children as SceneNode[])
-        : []
+      "children" in result.parent ? (result.parent.children as SceneNode[]) : []
     ).filter((c): c is DisplayElement => c.type === "display_element");
 
     const sorted = [...siblings].sort(
       (a, b) => (a.sidecarOrder ?? 0) - (b.sidecarOrder ?? 0),
     );
 
-    this.prevOrders = new Map(sorted.map((s, i) => [s.id, s.sidecarOrder ?? i]));
+    this.prevOrders = new Map(
+      sorted.map((s, i) => [s.id, s.sidecarOrder ?? i]),
+    );
 
     const currentIdx = sorted.findIndex((s) => s.id === this.nodeId);
     if (currentIdx < 0) return d;
@@ -1361,8 +1363,12 @@ export class ChangeLayerFolderPropertyCommand implements SceneCommand {
   description = "Change Layer Folder";
   constructor(
     private folderId: string,
-    private patch: Partial<Pick<LayerFolder, "name" | "visible" | "locked" | "order">>,
-    private prevPatch: Partial<Pick<LayerFolder, "name" | "visible" | "locked" | "order">>,
+    private patch: Partial<
+      Pick<LayerFolder, "name" | "visible" | "locked" | "order">
+    >,
+    private prevPatch: Partial<
+      Pick<LayerFolder, "name" | "visible" | "locked" | "order">
+    >,
   ) {}
 
   private applyPatch(
@@ -1411,7 +1417,12 @@ export class MoveLayerToFolderCommand implements SceneCommand {
     if (this.prevFolderId) {
       d.folders = (d.folders ?? []).map((f) =>
         f.id === this.prevFolderId
-          ? { ...f, childLayerIds: f.childLayerIds.filter((id) => id !== this.layerId) }
+          ? {
+              ...f,
+              childLayerIds: f.childLayerIds.filter(
+                (id) => id !== this.layerId,
+              ),
+            }
           : f,
       );
     }
@@ -1432,7 +1443,12 @@ export class MoveLayerToFolderCommand implements SceneCommand {
     if (this.newFolderId) {
       d.folders = (d.folders ?? []).map((f) =>
         f.id === this.newFolderId
-          ? { ...f, childLayerIds: f.childLayerIds.filter((id) => id !== this.layerId) }
+          ? {
+              ...f,
+              childLayerIds: f.childLayerIds.filter(
+                (id) => id !== this.layerId,
+              ),
+            }
           : f,
       );
     }

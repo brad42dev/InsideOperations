@@ -159,7 +159,10 @@ export type DisplayElementType =
   | "digital_status"
   | "point_name_label";
 
-export type DisplayElementFontFamily = "Inter" | "JetBrains Mono" | "IBM Plex Sans";
+export type DisplayElementFontFamily =
+  | "Inter"
+  | "JetBrains Mono"
+  | "IBM Plex Sans";
 
 export interface TextReadoutConfig {
   displayType: "text_readout";

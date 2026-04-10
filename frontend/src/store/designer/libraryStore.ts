@@ -411,7 +411,11 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
           const sidecar: ShapeSidecar = rawSidecar;
           if (!sidecar.options && sidecar.variants?.options) {
             sidecar.options = Object.entries(sidecar.variants.options).map(
-              ([optId, opt]) => ({ id: optId, file: opt.file, label: opt.label }),
+              ([optId, opt]) => ({
+                id: optId,
+                file: opt.file,
+                label: opt.label,
+              }),
             );
           }
 
@@ -420,7 +424,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
           let svgFilename: string;
           if (sidecar.options && sidecar.options.length > 0) {
             const opt1 =
-              sidecar.options.find((o) => o.id === "opt1") ?? sidecar.options[0];
+              sidecar.options.find((o) => o.id === "opt1") ??
+              sidecar.options[0];
             svgFilename = opt1.file;
           } else {
             svgFilename = `${id}.svg`;

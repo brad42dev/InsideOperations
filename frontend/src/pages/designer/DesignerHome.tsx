@@ -15,7 +15,9 @@ export default function DesignerHome() {
       tabs.find((t) => t.id === activeId) ?? tabs[tabs.length - 1];
     if (!targetTab) return;
     if (!targetTab.graphicId.startsWith("new-")) {
-      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, { replace: true });
+      navigate(`/designer/graphics/${targetTab.graphicId}/edit`, {
+        replace: true,
+      });
     } else {
       navigate("/designer/graphics/new", { replace: true });
     }

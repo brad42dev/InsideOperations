@@ -201,7 +201,6 @@ function DeleteConfirmDialog({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // Display element types
 // ---------------------------------------------------------------------------
@@ -711,17 +710,25 @@ const EQUIPMENT_CATEGORIES: Array<{
   label: string;
   defaultId: string;
 }> = [
-  { id: "valves",         label: "Valve",         defaultId: "valve-gate" },
-  { id: "pumps",          label: "Pump",          defaultId: "pump-centrifugal-opt1" },
-  { id: "rotating",       label: "Rotating",      defaultId: "compressor-opt1" },
-  { id: "heat-transfer",  label: "Heat Transfer", defaultId: "heat-exchanger-shell-tube" },
-  { id: "vessels",        label: "Vessel",        defaultId: "vessel-vertical-welded" },
-  { id: "tanks",          label: "Tank",          defaultId: "tank-storage-cone-roof" },
-  { id: "reactors",       label: "Reactor",       defaultId: "reactor-base" },
-  { id: "columns",        label: "Column",        defaultId: "column-distillation-standard-plain" },
-  { id: "filters",        label: "Filter",        defaultId: "filter-vacuum" },
-  { id: "instrumentation",label: "Instrument",    defaultId: "instrument-field" },
-  { id: "mixers",         label: "Mixer",         defaultId: "mixer-agitator" },
+  { id: "valves", label: "Valve", defaultId: "valve-gate" },
+  { id: "pumps", label: "Pump", defaultId: "pump-centrifugal-opt1" },
+  { id: "rotating", label: "Rotating", defaultId: "compressor-opt1" },
+  {
+    id: "heat-transfer",
+    label: "Heat Transfer",
+    defaultId: "heat-exchanger-shell-tube",
+  },
+  { id: "vessels", label: "Vessel", defaultId: "vessel-vertical-welded" },
+  { id: "tanks", label: "Tank", defaultId: "tank-storage-cone-roof" },
+  { id: "reactors", label: "Reactor", defaultId: "reactor-base" },
+  {
+    id: "columns",
+    label: "Column",
+    defaultId: "column-distillation-standard-plain",
+  },
+  { id: "filters", label: "Filter", defaultId: "filter-vacuum" },
+  { id: "instrumentation", label: "Instrument", defaultId: "instrument-field" },
+  { id: "mixers", label: "Mixer", defaultId: "mixer-agitator" },
 ];
 
 interface EquipmentCategoryTileProps {
@@ -731,7 +738,12 @@ interface EquipmentCategoryTileProps {
   collapsed: boolean;
 }
 
-function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCategoryTileProps) {
+function EquipmentCategoryTile({
+  id,
+  label,
+  defaultId,
+  collapsed,
+}: EquipmentCategoryTileProps) {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
@@ -771,7 +783,12 @@ function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCat
         document.removeEventListener("keydown", onKeyDown, true);
         document.dispatchEvent(
           new CustomEvent("io:category-drop", {
-            detail: { categoryId: id, defaultShapeId: defaultId, x: ev.clientX, y: ev.clientY },
+            detail: {
+              categoryId: id,
+              defaultShapeId: defaultId,
+              x: ev.clientX,
+              y: ev.clientY,
+            },
           }),
         );
       };
@@ -798,12 +815,17 @@ function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCat
         onMouseDown={handleMouseDown}
         title={label}
         style={{
-          width: 36, height: 36,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 36,
+          height: 36,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           background: "var(--io-surface-sunken)",
           border: "1px solid var(--io-border)",
           borderRadius: "var(--io-radius)",
-          cursor: "grab", padding: 2, overflow: "hidden",
+          cursor: "grab",
+          padding: 2,
+          overflow: "hidden",
         }}
       >
         <img
@@ -823,24 +845,39 @@ function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCat
       onMouseDown={handleMouseDown}
       title={`Drag to place ${label}`}
       style={{
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 5,
         padding: "8px 4px",
         background: "var(--io-surface-sunken)",
         border: "1px solid var(--io-border)",
         borderRadius: "var(--io-radius)",
-        cursor: "grab", width: "calc(50% - 4px)",
+        cursor: "grab",
+        width: "calc(50% - 4px)",
         transition: "border-color 0.1s, background 0.1s",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = "var(--io-accent)";
-        (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface-sunken))";
+        (e.currentTarget as HTMLElement).style.background =
+          "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface-sunken))";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = "var(--io-border)";
-        (e.currentTarget as HTMLElement).style.background = "var(--io-surface-sunken)";
+        (e.currentTarget as HTMLElement).style.background =
+          "var(--io-surface-sunken)";
       }}
     >
-      <div style={{ width: 52, height: 44, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+      <div
+        style={{
+          width: 52,
+          height: 44,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
         <img
           src={`/shapes/${id}/${defaultId}.svg`}
           alt={label}
@@ -850,7 +887,15 @@ function EquipmentCategoryTile({ id, label, defaultId, collapsed }: EquipmentCat
           }}
         />
       </div>
-      <span style={{ fontSize: 10, color: "var(--io-text-secondary)", textAlign: "center", lineHeight: 1.2, fontWeight: 500 }}>
+      <span
+        style={{
+          fontSize: 10,
+          color: "var(--io-text-secondary)",
+          textAlign: "center",
+          lineHeight: 1.2,
+          fontWeight: 500,
+        }}
+      >
         {label}
       </span>
     </button>
@@ -866,8 +911,16 @@ function EquipmentSection({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 4px", alignItems: "center" }}>
-        {EQUIPMENT_CATEGORIES.map(cat => (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          padding: "8px 4px",
+          alignItems: "center",
+        }}
+      >
+        {EQUIPMENT_CATEGORIES.map((cat) => (
           <EquipmentCategoryTile key={cat.id} {...cat} collapsed />
         ))}
       </div>
@@ -876,7 +929,7 @@ function EquipmentSection({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 8 }}>
-      {EQUIPMENT_CATEGORIES.map(cat => (
+      {EQUIPMENT_CATEGORIES.map((cat) => (
         <EquipmentCategoryTile key={cat.id} {...cat} collapsed={false} />
       ))}
     </div>
@@ -1150,9 +1203,7 @@ function CustomShapesPaletteSection({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column" }}
-    >
+    <div style={{ display: "flex", flexDirection: "column" }}>
       {/* Upload button row */}
       <div
         style={{
@@ -2376,7 +2427,14 @@ export default function DesignerLeftPalette({
   return (
     <div style={containerStyle}>
       {/* Single scrollable column — all sections stack at natural height */}
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {isGraphicMode ? (
           <>
             <SectionHeader
@@ -2406,7 +2464,14 @@ export default function DesignerLeftPalette({
               onToggle={() => setElemOpen((v) => !v)}
             />
             {elemOpen && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  padding: 8,
+                }}
+              >
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}
@@ -2474,7 +2539,14 @@ export default function DesignerLeftPalette({
               onToggle={() => setElemOpen((v) => !v)}
             />
             {elemOpen && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  padding: 8,
+                }}
+              >
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}

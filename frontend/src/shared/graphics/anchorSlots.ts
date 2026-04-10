@@ -44,27 +44,27 @@ export const DEFAULT_ALARM_ANCHOR_POSITION = { nx: 1.1, ny: -0.1 };
 export const NAMED_SLOT_POSITIONS: Record<string, { nx: number; ny: number }> =
   {
     // Mid-edge — 15–20% clearance from shape edge
-    top:    { nx:  0.5,  ny: -0.15 },
-    bottom: { nx:  0.5,  ny:  1.15 },
-    left:   { nx: -0.2,  ny:  0.5  },
-    right:  { nx:  1.2,  ny:  0.5  },
+    top: { nx: 0.5, ny: -0.15 },
+    bottom: { nx: 0.5, ny: 1.15 },
+    left: { nx: -0.2, ny: 0.5 },
+    right: { nx: 1.2, ny: 0.5 },
 
     // Corner — 10% outside each axis
-    "top-right":    { nx:  1.1,  ny: -0.1 },
-    "top-left":     { nx: -0.1,  ny: -0.1 },
-    "bottom-right": { nx:  1.1,  ny:  1.1 },
-    "bottom-left":  { nx: -0.1,  ny:  1.1 },
+    "top-right": { nx: 1.1, ny: -0.1 },
+    "top-left": { nx: -0.1, ny: -0.1 },
+    "bottom-right": { nx: 1.1, ny: 1.1 },
+    "bottom-left": { nx: -0.1, ny: 1.1 },
 
     // Near-corner (for sparklines — horizontal strip geometry)
-    "right-top":    { nx:  1.2,  ny:  0.25 },
-    "right-bottom": { nx:  1.2,  ny:  0.75 },
-    "left-top":     { nx: -0.2,  ny:  0.25 },
-    "left-bottom":  { nx: -0.2,  ny:  0.75 },
+    "right-top": { nx: 1.2, ny: 0.25 },
+    "right-bottom": { nx: 1.2, ny: 0.75 },
+    "left-top": { nx: -0.2, ny: 0.25 },
+    "left-bottom": { nx: -0.2, ny: 0.75 },
 
     // Vessel interior — used for fill gauge / analog bar clipped to vessel outline
-    "vessel-interior":   { nx:  0.5,  ny:  0.5 },
-    "inside-vertical":   { nx:  0.5,  ny:  0.5 },
-    "inside-horizontal": { nx:  0.5,  ny:  0.5 },
+    "vessel-interior": { nx: 0.5, ny: 0.5 },
+    "inside-vertical": { nx: 0.5, ny: 0.5 },
+    "inside-horizontal": { nx: 0.5, ny: 0.5 },
   };
 
 /**
@@ -182,10 +182,7 @@ export function resolveSlotWithSidecar(
   }
 
   // AlarmIndicator: use shape-specific alarmAnchor when the user chose the default slot
-  if (
-    elementType === "AlarmIndicator" &&
-    (!slotId || slotId === "top-right")
-  ) {
+  if (elementType === "AlarmIndicator" && (!slotId || slotId === "top-right")) {
     const aa = sidecar?.alarmAnchor;
     if (aa != null) {
       const nx = Array.isArray(aa) ? aa[0] : aa.nx;
