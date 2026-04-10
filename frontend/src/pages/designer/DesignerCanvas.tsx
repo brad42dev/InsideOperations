@@ -3014,8 +3014,7 @@ function SelectionOverlay({
                   const dirDeg =
                     ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
                   const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
-                  const rotateCursor =
-                    rotateCursors[Math.round(rDeg / 45) % 8];
+                  const rotateCursor = rotateCursors[Math.round(rDeg / 45) % 8];
                   return (
                     <rect
                       key={`rot-zone-${i}`}
@@ -4040,7 +4039,9 @@ export default function DesignerCanvas({
     const newContent = editingTextRef.current?.value ?? "";
     const orig = editingTextOrigRef.current;
     if (newContent !== orig) {
-      executeCmd(new ChangePropertyCommand(nodeId, "content", newContent, orig));
+      executeCmd(
+        new ChangePropertyCommand(nodeId, "content", newContent, orig),
+      );
     }
     setEditingTextId(null);
   }, [editingTextId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -5365,7 +5366,6 @@ export default function DesignerCanvas({
           setFreehandPreview([...freehandPointsRef.current]);
         }
       }
-
     },
     [
       drawPreview,
@@ -8641,63 +8641,66 @@ export default function DesignerCanvas({
           )}
 
           {/* Inline text editor overlay */}
-          {editingTextId && (() => {
-            const tbNode = doc?.children.find(
-              (n) => n.id === editingTextId,
-            ) as TextBlock | undefined;
-            if (!tbNode) return null;
-            const bgPad = tbNode.background?.padding ?? 0;
-            const fs = (tbNode.fontSize ?? 14) * zoom;
-            const screenX = tbNode.transform.position.x * zoom + panX + bgPad * zoom;
-            const screenY = tbNode.transform.position.y * zoom + panY + bgPad * zoom;
-            return (
-              <textarea
-                key={editingTextId}
-                ref={editingTextRef}
-                defaultValue={tbNode.content}
-                style={{
-                  position: "absolute",
-                  left: screenX,
-                  top: screenY,
-                  minWidth: Math.max(80, (tbNode.maxWidth ?? 120)) * zoom,
-                  fontFamily: tbNode.fontFamily ?? "Inter",
-                  fontSize: fs,
-                  fontWeight: tbNode.fontWeight ?? 400,
-                  fontStyle: tbNode.fontStyle ?? "normal",
-                  color: tbNode.fill ?? "#ffffff",
-                  background: tbNode.background?.fill ?? "transparent",
-                  border: "1px solid var(--io-accent)",
-                  outline: "none",
-                  resize: "none",
-                  lineHeight: 1.4,
-                  padding: 0,
-                  margin: 0,
-                  zIndex: 20,
-                  overflow: "hidden",
-                  whiteSpace: "pre",
-                }}
-                rows={1}
-                onInput={(ev) => {
-                  // Auto-grow height
-                  const el = ev.currentTarget;
-                  el.style.height = "auto";
-                  el.style.height = `${el.scrollHeight}px`;
-                }}
-                onBlur={commitTextEdit}
-                onKeyDown={(ev) => {
-                  if (ev.key === "Escape") {
-                    setEditingTextId(null);
-                    containerRef.current?.focus();
-                    ev.preventDefault();
-                  } else if (ev.key === "Enter" && !ev.shiftKey) {
-                    commitTextEdit();
-                    containerRef.current?.focus();
-                    ev.preventDefault();
-                  }
-                }}
-              />
-            );
-          })()}
+          {editingTextId &&
+            (() => {
+              const tbNode = doc?.children.find(
+                (n) => n.id === editingTextId,
+              ) as TextBlock | undefined;
+              if (!tbNode) return null;
+              const bgPad = tbNode.background?.padding ?? 0;
+              const fs = (tbNode.fontSize ?? 14) * zoom;
+              const screenX =
+                tbNode.transform.position.x * zoom + panX + bgPad * zoom;
+              const screenY =
+                tbNode.transform.position.y * zoom + panY + bgPad * zoom;
+              return (
+                <textarea
+                  key={editingTextId}
+                  ref={editingTextRef}
+                  defaultValue={tbNode.content}
+                  style={{
+                    position: "absolute",
+                    left: screenX,
+                    top: screenY,
+                    minWidth: Math.max(80, tbNode.maxWidth ?? 120) * zoom,
+                    fontFamily: tbNode.fontFamily ?? "Inter",
+                    fontSize: fs,
+                    fontWeight: tbNode.fontWeight ?? 400,
+                    fontStyle: tbNode.fontStyle ?? "normal",
+                    color: tbNode.fill ?? "#ffffff",
+                    background: tbNode.background?.fill ?? "transparent",
+                    border: "1px solid var(--io-accent)",
+                    outline: "none",
+                    resize: "none",
+                    lineHeight: 1.4,
+                    padding: 0,
+                    margin: 0,
+                    zIndex: 20,
+                    overflow: "hidden",
+                    whiteSpace: "pre",
+                  }}
+                  rows={1}
+                  onInput={(ev) => {
+                    // Auto-grow height
+                    const el = ev.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${el.scrollHeight}px`;
+                  }}
+                  onBlur={commitTextEdit}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Escape") {
+                      setEditingTextId(null);
+                      containerRef.current?.focus();
+                      ev.preventDefault();
+                    } else if (ev.key === "Enter" && !ev.shiftKey) {
+                      commitTextEdit();
+                      containerRef.current?.focus();
+                      ev.preventDefault();
+                    }
+                  }}
+                />
+              );
+            })()}
 
           {/* Save as Stencil dialog */}
           {stencilNodes && (
