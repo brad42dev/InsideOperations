@@ -102,12 +102,12 @@ import {
   resolveNamedSlot,
   resolveSlotWithSidecar,
   isInsideFillSidecar,
-  getEmptySlots,
 } from "../../shared/graphics/anchorSlots";
 import {
   computeSnapTarget,
   type SlotTarget,
 } from "../../shared/graphics/useSnapToSlot";
+import { useThemeName } from "../../shared/theme/ThemeContext";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -2716,30 +2716,57 @@ function RenderNode({
 // ---------------------------------------------------------------------------
 // Selection overlay — drawn on top of selected nodes
 // ---------------------------------------------------------------------------
-// Rotation cursors: 120° arc with arrowheads at both ends.
-// The base arc (rotateDeg=0) has its concave side facing east so index 0 = east.
-// 8 variants at 45° steps; pick by rounding the world angle (corner→center) to
-// the nearest 45°, so the arc always opens toward the element's center pivot.
-function _rotateCursorUrl(rotateDeg: number): string {
-  // Arc: 120°, r=10.5, CCW — spans left side, concave faces east. 30×30 cursor.
-  const arc = "M 18.75 5.91 A 10.5 10.5 0 0 0 18.75 24.09";
-  const p1 = "18.75,5.91 22.24,5.96 20.45,2.86"; // arrowhead at arc top (wider base)
-  const p2 = "18.75,24.09 17.06,21.04 15.26,24.14"; // arrowhead at arc bottom (wider base)
-  const grp =
-    rotateDeg !== 0 ? `<g transform="rotate(${rotateDeg},15,15)">` : "<g>";
+// Rotation cursors: quarter-circle bent arrow with two arrowheads.
+// Shape sourced from tldraw's ROTATE_CORNER_SVG — the industry-standard design
+// used by Figma, tldraw, and similar tools. 32×32, hotspot 16 16.
+// 8 variants at 45° steps; picked by rounding the world angle (corner→center)
+// to the nearest 45°.
+// fillColor: the main icon fill. outlineColor: thin backdrop ring for contrast.
+function _rotateCursorUrl(
+  rotateDeg: number,
+  fillColor: string,
+  outlineColor: string,
+): string {
+  const grp = `<g transform="rotate(${rotateDeg},16,16)">`;
+  // Outline path (fill-rule evenodd creates a thin ring around the fill shape)
+  const outlinePath =
+    "M21.4789 7.03223L27.4035 12.9945L21.4789 18.9521V15.1868" +
+    "C18.4798 15.6549 16.1113 18.0273 15.649 21.0284H19.475L13.5128 26.953" +
+    "L7.55519 21.0284H11.6189C12.1243 15.8155 16.2679 11.6677 21.4789 11.1559" +
+    "L21.4789 7.03223Z" +
+    "M22.4789 12.1031C17.0214 12.1503 12.6071 16.5691 12.5674 22.0284H9.97889" +
+    "L13.513 25.543L17.05 22.0284H14.5675C14.5705 21.6896 14.5947 21.3558 " +
+    "14.6386 21.0284C15.1157 17.4741 17.9266 14.6592 21.4789 14.1761" +
+    "C21.8063 14.1316 22.1401 14.1069 22.4789 14.1032V16.5284" +
+    "L25.9935 12.9942L22.4789 9.45729L22.4789 12.1031Z";
+  // Fill path on top
+  const fillPath =
+    "M22.4789 9.45728L25.9935 12.9942L22.4789 16.5283V14.1032" +
+    "C18.126 14.1502 14.6071 17.6737 14.5675 22.0283H17.05L13.513 25.543" +
+    "L9.97889 22.0283H12.5674C12.6071 16.5691 17.0214 12.1503 22.4789 12.1031" +
+    "L22.4789 9.45728Z";
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30">${grp}` +
-    `<path d="${arc}" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>` +
-    `<polygon points="${p1}" fill="white"/>` +
-    `<polygon points="${p2}" fill="white"/>` +
-    `<path d="${arc}" fill="none" stroke="#333" stroke-width="1.5" stroke-linecap="round"/>` +
-    `<polygon points="${p1}" fill="#333"/>` +
-    `<polygon points="${p2}" fill="#333"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">` +
+    `${grp}` +
+    `<path fill-rule="evenodd" clip-rule="evenodd" d="${outlinePath}" fill="${outlineColor}"/>` +
+    `<path d="${fillPath}" fill="${fillColor}"/>` +
     `</g></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 15 15, alias`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, grab`;
 }
-const ROTATE_CURSORS: readonly string[] = Array.from({ length: 8 }, (_, i) =>
-  _rotateCursorUrl(i * 45),
+// Dark theme: teal fill (#2dd4bf matches --io-accent) + near-black outline
+// Light theme: dark teal fill (#0d9488 matches light --io-accent) + white outline
+// hphmi: white fill + black outline for maximum contrast
+const ROTATE_CURSORS_DARK: readonly string[] = Array.from(
+  { length: 8 },
+  (_, i) => _rotateCursorUrl(i * 45, "#2dd4bf", "rgba(9,9,11,0.85)"),
+);
+const ROTATE_CURSORS_LIGHT: readonly string[] = Array.from(
+  { length: 8 },
+  (_, i) => _rotateCursorUrl(i * 45, "#0d9488", "rgba(255,255,255,0.9)"),
+);
+const ROTATE_CURSORS_HPHMI: readonly string[] = Array.from(
+  { length: 8 },
+  (_, i) => _rotateCursorUrl(i * 45, "#ffffff", "#000000"),
 );
 
 // Returns the CSS resize cursor whose inward-pointing arrow faces the element center,
@@ -2783,6 +2810,7 @@ function SelectionOverlay({
   resizePreview,
   dragDelta,
   dragActive,
+  theme,
 }: {
   nodeIds: Set<NodeId>;
   doc: GraphicDocument;
@@ -2818,8 +2846,17 @@ function SelectionOverlay({
   dragDelta?: { dx: number; dy: number } | null;
   /** When true, suppress pointer-events on resize/rotate handles so drag-move events are not intercepted. */
   dragActive?: boolean;
+  /** Active theme — controls rotation cursor color scheme. */
+  theme?: "dark" | "light" | "hphmi";
 }) {
   if (nodeIds.size === 0) return null;
+
+  const rotateCursors =
+    theme === "light"
+      ? ROTATE_CURSORS_LIGHT
+      : theme === "hphmi"
+        ? ROTATE_CURSORS_HPHMI
+        : ROTATE_CURSORS_DARK;
 
   // During resize: replace normal selection rects with a single ghost outline at preview bounds.
   // Handles are rendered at the preview position (pointer-events off — resize is committed on mouseup).
@@ -2969,16 +3006,16 @@ function SelectionOverlay({
                     dly = ly - cy;
                   const hwx = cx + dlx * cosR - dly * sinR;
                   const hwy = cy + dlx * sinR + dly * cosR;
-                  // Pick the rotation cursor whose arc midpoint points toward the element
-                  // center. CW rotation of the base arc (midpoint pointing east/0°) by R°
-                  // results in arc midpoint at direction (360-R)°. To land on dirDeg we
-                  // need R = (360 - dirDeg) % 360.
+                  // Pick the rotation cursor whose arc hump points AWAY from center
+                  // (toward the corner). dirDeg is the angle from corner→center.
+                  // The base icon hump sits at 225°; rotating by R° moves it to (225+R)°.
+                  // To land the hump at (dirDeg+180)° (away from center): R = dirDeg - 45.
                   const dirAngle = Math.atan2(cy - hwy, cx - hwx);
                   const dirDeg =
                     ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
-                  const rDeg = (((360 - dirDeg) % 360) + 360) % 360;
+                  const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
                   const rotateCursor =
-                    ROTATE_CURSORS[Math.round(rDeg / 45) % 8];
+                    rotateCursors[Math.round(rDeg / 45) % 8];
                   return (
                     <rect
                       key={`rot-zone-${i}`}
@@ -3663,14 +3700,11 @@ export default function DesignerCanvas({
   const activeGroupId = useUiStore((s) => s.activeGroupId);
   const setActiveGroup = useUiStore((s) => s.setActiveGroup);
   const phonePreviewActive = useUiStore((s) => s.phonePreviewActive);
+  const theme = useThemeName();
   const highlightedShapeId = useUiStore((s) => s.highlightedShapeId);
   // Subscribed here so DesignerCanvas re-renders when the value changes,
   // causing all RenderNode instances to re-read it via getState() in the symbol_instance case.
   useUiStore((s) => s.highlightedPointId);
-
-  // Hovered symbol_instance — drives + slot handle rendering in select mode
-  const [hoveredSymbolId, setHoveredSymbolId] = useState<NodeId | null>(null);
-  const hoveredSymbolIdRef = useRef<NodeId | null>(null);
 
   // Slot popover — opened when a + circle is clicked; holds the target slot + screen coords
   const [slotPopover, setSlotPopover] = useState<{
@@ -3917,6 +3951,11 @@ export default function DesignerCanvas({
     Array<{ id: NodeId; name: string }>
   >([]);
 
+  // Inline text editing — when non-null, a textarea is overlaid on the text_block
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const editingTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const editingTextOrigRef = useRef<string>("");
+
   // Track currently selected IDs in a ref for use inside event handlers
   // (avoids stale closures in mouse handlers)
   const docRef = useRef(doc);
@@ -3964,6 +4003,47 @@ export default function DesignerCanvas({
     sceneExecute(cmd);
     historyPush(cmd, before);
   }
+
+  // -------------------------------------------------------------------------
+  // Inline text editing helpers
+  // -------------------------------------------------------------------------
+
+  const beginTextEdit = useCallback((nodeId: string) => {
+    const d = docRef.current;
+    if (!d) return;
+    function findNode(nodes: SceneNode[]): SceneNode | null {
+      for (const n of nodes) {
+        if (n.id === nodeId) return n;
+        if ("children" in n && Array.isArray(n.children))
+          return findNode(n.children as SceneNode[]);
+      }
+      return null;
+    }
+    const node = findNode(d.children);
+    if (!node || node.type !== "text_block") return;
+    editingTextOrigRef.current = (node as TextBlock).content;
+    setEditingTextId(nodeId);
+    requestAnimationFrame(() => {
+      if (editingTextRef.current) {
+        editingTextRef.current.focus();
+        editingTextRef.current.select();
+      }
+    });
+  }, []);
+
+  const commitTextEdit = useCallback(() => {
+    const nodeId = editingTextId;
+    if (!nodeId) {
+      setEditingTextId(null);
+      return;
+    }
+    const newContent = editingTextRef.current?.value ?? "";
+    const orig = editingTextOrigRef.current;
+    if (newContent !== orig) {
+      executeCmd(new ChangePropertyCommand(nodeId, "content", newContent, orig));
+    }
+    setEditingTextId(null);
+  }, [editingTextId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // -------------------------------------------------------------------------
   // Helper: start resize interaction (called from SelectionOverlay resize handles)
@@ -4382,6 +4462,18 @@ export default function DesignerCanvas({
           } else {
             useUiStore.getState().setHighlightedShape(null);
           }
+
+          // Click on an already-selected text_block → begin inline editing
+          if (
+            hitType === "text_block" &&
+            selectedIdsRef.current.has(hitId) &&
+            !e.shiftKey &&
+            !e.ctrlKey
+          ) {
+            beginTextEdit(hitId);
+            return;
+          }
+
           // Select node (Shift or Ctrl adds to selection)
           const newSelection =
             e.shiftKey || e.ctrlKey
@@ -4872,6 +4964,15 @@ export default function DesignerCanvas({
         executeCmd(new AddNodeCommand(newNode, null));
         selectedIdsRef.current = new Set([newNode.id]);
         useUiStore.getState().setSelectedNodes([newNode.id]);
+        setTool("select");
+        editingTextOrigRef.current = newNode.content;
+        setEditingTextId(newNode.id);
+        requestAnimationFrame(() => {
+          if (editingTextRef.current) {
+            editingTextRef.current.focus();
+            editingTextRef.current.select();
+          }
+        });
         return;
       }
 
@@ -5265,29 +5366,6 @@ export default function DesignerCanvas({
         }
       }
 
-      // Hover slot handles: track which symbol_instance the cursor is over.
-      // Only active in idle select mode — no effect during any drag/interaction.
-      if (inter.type === "none" && toolRef.current === "select") {
-        const d = docRef.current;
-        let foundSi: NodeId | null = null;
-        if (d) {
-          for (let i = d.children.length - 1; i >= 0; i--) {
-            const n = d.children[i];
-            if (n.type !== "symbol_instance") continue;
-            const b = getNodeBounds(n);
-            if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
-              foundSi = n.id as NodeId;
-              break;
-            }
-          }
-        }
-        if (foundSi !== hoveredSymbolIdRef.current) {
-          hoveredSymbolIdRef.current = foundSi;
-          setHoveredSymbolId(foundSi);
-          // Close popover when moving to a different symbol
-          if (foundSi === null) setSlotPopover(null);
-        }
-      }
     },
     [
       drawPreview,
@@ -5304,7 +5382,6 @@ export default function DesignerCanvas({
       setPipeDrawState,
       setViewport,
       setFreehandPreview,
-      setHoveredSymbolId,
       setSlotPopover,
     ],
   );
@@ -6292,6 +6369,10 @@ export default function DesignerCanvas({
               }
             } else {
               node = d.children.find((n) => n.id === hitId);
+            }
+            if (node && node.type === "text_block") {
+              beginTextEdit(hitId);
+              return;
             }
             if (node && node.type === "group") {
               setActiveGroup(hitId);
@@ -8216,61 +8297,6 @@ export default function DesignerCanvas({
                   );
                 })}
 
-              {/* Hover slot + handles — shown when cursor is over a symbol_instance in
-                  select mode. One + circle per empty slot. Clicking opens the slot popover. */}
-              {hoveredSymbolId &&
-                !slotPopover &&
-                activeTool === "select" &&
-                doc &&
-                (() => {
-                  const si = doc.children.find(
-                    (n) => n.id === hoveredSymbolId,
-                  ) as SymbolInstance | undefined;
-                  if (!si) return null;
-                  const shapeEntry = useLibraryStore
-                    .getState()
-                    .getShape(si.shapeRef.shapeId);
-                  const emptySlots = getEmptySlots(si, shapeEntry ?? null);
-                  if (!emptySlots.length) return null;
-                  const r = 8 / zoom;
-                  const fontSize = 10 / zoom;
-                  return emptySlots.map((slot) => (
-                    <g
-                      key={slot.slotId}
-                      style={{ cursor: "pointer" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSlotPopover({
-                          slotId: slot.slotId,
-                          screenX: e.clientX,
-                          screenY: e.clientY,
-                          siId: hoveredSymbolId,
-                        });
-                      }}
-                    >
-                      <circle
-                        cx={slot.x}
-                        cy={slot.y}
-                        r={r}
-                        fill="rgba(74,158,255,0.15)"
-                        stroke="#4A9EFF"
-                        strokeWidth={1 / zoom}
-                      />
-                      <text
-                        x={slot.x}
-                        y={slot.y}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        fontSize={fontSize}
-                        fill="#4A9EFF"
-                        style={{ pointerEvents: "none", userSelect: "none" }}
-                      >
-                        +
-                      </text>
-                    </g>
-                  ));
-                })()}
-
               {/* Selection overlay */}
               {doc && (
                 <SelectionOverlay
@@ -8283,6 +8309,7 @@ export default function DesignerCanvas({
                   resizePreview={resizePreview}
                   dragDelta={dragDelta}
                   dragActive={isDraggingCanvas}
+                  theme={theme}
                 />
               )}
 
@@ -8612,6 +8639,65 @@ export default function DesignerCanvas({
               </svg>
             </div>
           )}
+
+          {/* Inline text editor overlay */}
+          {editingTextId && (() => {
+            const tbNode = doc?.children.find(
+              (n) => n.id === editingTextId,
+            ) as TextBlock | undefined;
+            if (!tbNode) return null;
+            const bgPad = tbNode.background?.padding ?? 0;
+            const fs = (tbNode.fontSize ?? 14) * zoom;
+            const screenX = tbNode.transform.position.x * zoom + panX + bgPad * zoom;
+            const screenY = tbNode.transform.position.y * zoom + panY + bgPad * zoom;
+            return (
+              <textarea
+                key={editingTextId}
+                ref={editingTextRef}
+                defaultValue={tbNode.content}
+                style={{
+                  position: "absolute",
+                  left: screenX,
+                  top: screenY,
+                  minWidth: Math.max(80, (tbNode.maxWidth ?? 120)) * zoom,
+                  fontFamily: tbNode.fontFamily ?? "Inter",
+                  fontSize: fs,
+                  fontWeight: tbNode.fontWeight ?? 400,
+                  fontStyle: tbNode.fontStyle ?? "normal",
+                  color: tbNode.fill ?? "#ffffff",
+                  background: tbNode.background?.fill ?? "transparent",
+                  border: "1px solid var(--io-accent)",
+                  outline: "none",
+                  resize: "none",
+                  lineHeight: 1.4,
+                  padding: 0,
+                  margin: 0,
+                  zIndex: 20,
+                  overflow: "hidden",
+                  whiteSpace: "pre",
+                }}
+                rows={1}
+                onInput={(ev) => {
+                  // Auto-grow height
+                  const el = ev.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${el.scrollHeight}px`;
+                }}
+                onBlur={commitTextEdit}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Escape") {
+                    setEditingTextId(null);
+                    containerRef.current?.focus();
+                    ev.preventDefault();
+                  } else if (ev.key === "Enter" && !ev.shiftKey) {
+                    commitTextEdit();
+                    containerRef.current?.focus();
+                    ev.preventDefault();
+                  }
+                }}
+              />
+            );
+          })()}
 
           {/* Save as Stencil dialog */}
           {stencilNodes && (
