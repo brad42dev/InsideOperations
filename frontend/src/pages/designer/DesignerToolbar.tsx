@@ -34,6 +34,9 @@ export interface DesignerToolbarProps {
   isPublishing?: boolean;
   onShowVersionHistory?: () => void;
   onValidateBindings?: () => void;
+  onNew: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,12 +130,23 @@ function IconLine() {
 function IconText() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M3 3H13V5.5H10.5V13H5.5V5.5H3V3Z"
+      <line
+        x1="3"
+        y1="3.5"
+        x2="13"
+        y2="3.5"
         stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-        fill="none"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="8"
+        y1="3.5"
+        x2="8"
+        y2="13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -943,6 +957,9 @@ export default function DesignerToolbar({
   isPublishing,
   onShowVersionHistory,
   onValidateBindings,
+  onNew,
+  onDelete,
+  canDelete = false,
 }: DesignerToolbarProps) {
   const perms = useDesignerPermissions();
   // Read-only mode if user lacks write permission
@@ -1306,6 +1323,24 @@ export default function DesignerToolbar({
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
+      {/* New */}
+      <button
+        onClick={onNew}
+        title="New graphic (Ctrl+N)"
+        style={{
+          background: "transparent",
+          border: "1px solid var(--io-border)",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: "pointer",
+          fontSize: 12,
+          color: "var(--io-text-secondary)",
+          flexShrink: 0,
+        }}
+      >
+        New
+      </button>
+
       {/* History + Validate */}
       {onShowVersionHistory && (
         <IconBtn onClick={onShowVersionHistory} title="Version history">
@@ -1383,6 +1418,28 @@ export default function DesignerToolbar({
         </div>
       )}
 
+      {/* Delete */}
+      <button
+        onClick={onDelete}
+        disabled={!onDelete || !canDelete}
+        title="Delete graphic"
+        style={{
+          background: "transparent",
+          border: "1px solid var(--io-border)",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: onDelete && canDelete ? "pointer" : "default",
+          fontSize: 12,
+          color:
+            onDelete && canDelete ? "var(--io-danger)" : "var(--io-text-disabled)",
+          opacity: onDelete && canDelete ? 1 : 0.4,
+          flexShrink: 0,
+        }}
+      >
+        Delete
+      </button>
+
+      {/* Save */}
       <button
         onClick={onSave}
         disabled={!isDirty || isSaving || readOnly}
@@ -1390,24 +1447,18 @@ export default function DesignerToolbar({
           readOnly ? "designer:write permission required to save" : undefined
         }
         style={{
-          height: 28,
-          padding: "0 14px",
-          background:
-            isDirty && !isSaving && !readOnly
-              ? "var(--io-accent)"
-              : "var(--io-surface-elevated)",
+          background: "transparent",
+          border: "1px solid var(--io-border)",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: isDirty && !isSaving && !readOnly ? "pointer" : "default",
+          fontSize: 12,
           color:
             isDirty && !isSaving && !readOnly
-              ? "#09090b"
-              : "var(--io-text-muted)",
-          border: "none",
-          borderRadius: "var(--io-radius)",
-          cursor: isDirty && !isSaving && !readOnly ? "pointer" : "not-allowed",
-          fontSize: 13,
-          fontWeight: 600,
+              ? "var(--io-accent)"
+              : "var(--io-text-disabled)",
+          opacity: !isDirty || readOnly ? 0.4 : 1,
           flexShrink: 0,
-          transition: "background 0.15s",
-          opacity: !isDirty || readOnly ? 0.5 : 1,
         }}
       >
         {isSaving ? "Saving…" : "Save"}
@@ -1423,21 +1474,18 @@ export default function DesignerToolbar({
               : "Publish — create a permanent version snapshot"
           }
           style={{
-            height: 28,
-            padding: "0 14px",
-            background:
+            background: "transparent",
+            border: "1px solid var(--io-border)",
+            borderRadius: 6,
+            padding: "4px 10px",
+            cursor: !isPublishing && !readOnly ? "pointer" : "default",
+            fontSize: 12,
+            color:
               !isPublishing && !readOnly
-                ? "var(--io-success, #22c55e)"
-                : "var(--io-surface-elevated)",
-            color: !isPublishing && !readOnly ? "#fff" : "var(--io-text-muted)",
-            border: "none",
-            borderRadius: "var(--io-radius)",
-            cursor: !isPublishing && !readOnly ? "pointer" : "not-allowed",
-            fontSize: 13,
-            fontWeight: 600,
+                ? "var(--io-accent)"
+                : "var(--io-text-disabled)",
+            opacity: isPublishing || readOnly ? 0.4 : 1,
             flexShrink: 0,
-            transition: "background 0.15s",
-            opacity: isPublishing || readOnly ? 0.5 : 1,
           }}
         >
           {isPublishing ? "Publishing…" : "Publish"}

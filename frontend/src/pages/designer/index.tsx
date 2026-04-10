@@ -51,6 +51,7 @@ import IographicImportWizard from "./components/IographicImportWizard";
 import IographicExportDialog from "./components/IographicExportDialog";
 import CanvasPropertiesDialog from "./components/CanvasPropertiesDialog";
 import TabClosePrompt from "./components/TabClosePrompt";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 
 // ---------------------------------------------------------------------------
 // New Graphic dialog
@@ -838,7 +839,7 @@ export default function DesignerPage() {
 
   const graphicIdInStore = useSceneStore((s) => s.graphicId);
   const doc = useSceneStore((s) => s.doc);
-  const { canPublish } = useDesignerPermissions();
+  const { canPublish, canDelete } = useDesignerPermissions();
 
   // Tab store
   const tabs = useTabStore((s) => s.tabs);
@@ -892,6 +893,28 @@ export default function DesignerPage() {
 
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false);
+
+  // Delete confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteActiveGraphic = useCallback(async () => {
+    const gid = useSceneStore.getState().graphicId;
+    if (!gid || gid.startsWith("new-")) return;
+    try {
+      const result = await graphicsApi.remove(gid);
+      if (!result.success)
+        throw new Error((result as { error?: { message?: string } }).error?.message ?? "Delete failed");
+      tabStoreCloseAll();
+      navigate("/designer/graphics");
+      showToast({ title: "Graphic deleted", variant: "success" });
+    } catch {
+      showToast({
+        title: "Delete failed",
+        description: "Could not delete the graphic. Please try again.",
+        variant: "error",
+      });
+    }
+  }, [navigate, tabStoreCloseAll]);
 
   // Crash recovery — includes the saved doc so Recover action can load it
   const [crashRecovery, setCrashRecovery] = useState<{
@@ -2577,6 +2600,17 @@ export default function DesignerPage() {
         />
       )}
 
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete graphic?"
+        description={`"${doc?.name ?? "Untitled"}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteActiveGraphic}
+      />
+
       {/* Toolbar */}
       <DesignerToolbar
         onSave={handleExplicitSave}
@@ -2585,6 +2619,15 @@ export default function DesignerPage() {
         isPublishing={isPublishing}
         onShowVersionHistory={() => setShowVersionHistory(true)}
         onValidateBindings={handleValidateBindings}
+        onNew={() => setShowNewDialog(true)}
+        onDelete={
+          canDelete && graphicIdInStore && !graphicIdInStore.startsWith("new-")
+            ? () => setShowDeleteConfirm(true)
+            : undefined
+        }
+        canDelete={
+          canDelete && !!graphicIdInStore && !graphicIdInStore.startsWith("new-")
+        }
       />
 
       {/* File tab bar — between toolbar and canvas area */}

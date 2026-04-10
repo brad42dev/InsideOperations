@@ -383,8 +383,8 @@ export function getNodeBounds(node: SceneNode): {
       const minX = Math.min(p.geometry.x1, p.geometry.x2);
       const minY = Math.min(p.geometry.y1, p.geometry.y2);
       return {
-        x: minX,
-        y: minY,
+        x: x + minX,
+        y: y + minY,
         w: Math.abs(p.geometry.x2 - p.geometry.x1) || 4,
         h: Math.abs(p.geometry.y2 - p.geometry.y1) || 4,
       };
@@ -5593,6 +5593,19 @@ export default function DesignerCanvas({
                 newGeom = { ...prim.geometry, rx: rawW / 2, ry: rawH / 2 };
               } else if (prim.geometry.type === "circle") {
                 newGeom = { ...prim.geometry, r: Math.min(rawW, rawH) / 2 };
+              } else if (prim.geometry.type === "line") {
+                const g = prim.geometry;
+                const bboxW = Math.abs(g.x2 - g.x1) || 1;
+                const bboxH = Math.abs(g.y2 - g.y1) || 1;
+                const sx = rawW / bboxW;
+                const sy = rawH / bboxH;
+                newGeom = {
+                  ...g,
+                  x1: g.x1 * sx,
+                  y1: g.y1 * sy,
+                  x2: g.x2 * sx,
+                  y2: g.y2 * sy,
+                };
               } else {
                 newGeom = prim.geometry;
               }
@@ -6119,19 +6132,23 @@ export default function DesignerCanvas({
         const w = x2 - x1;
         const h = y2 - y1;
 
-        if (w > 2 && h > 2) {
+        const isLine = drawPreview.type === "line";
+        if (isLine ? w > 2 || h > 2 : w > 2 && h > 2) {
           let geom: Primitive["geometry"];
           if (drawPreview.type === "rect")
             geom = { type: "rect", width: w, height: h };
           else if (drawPreview.type === "ellipse")
             geom = { type: "ellipse", rx: w / 2, ry: h / 2 };
           else
+            // Store in local space — coordinates relative to transform.position (x1, y1).
+            // The renderer applies translate(position.x, position.y) then draws at these
+            // coords, so they must NOT be absolute canvas coordinates.
             geom = {
               type: "line",
-              x1: drawPreview.startX,
-              y1: drawPreview.startY,
-              x2: drawPreview.endX,
-              y2: drawPreview.endY,
+              x1: drawPreview.startX - x1,
+              y1: drawPreview.startY - y1,
+              x2: drawPreview.endX - x1,
+              y2: drawPreview.endY - y1,
             };
 
           const prim: Primitive = {
