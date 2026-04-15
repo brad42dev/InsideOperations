@@ -595,7 +595,12 @@ function getNodeAbsoluteBounds(
       const pp = parent.transform.position;
       const sx = parent.transform.scale?.x ?? 1;
       const sy = parent.transform.scale?.y ?? 1;
-      return { x: b.x * sx + pp.x, y: b.y * sy + pp.y, w: b.w * sx, h: b.h * sy };
+      return {
+        x: b.x * sx + pp.x,
+        y: b.y * sy + pp.y,
+        w: b.w * sx,
+        h: b.h * sy,
+      };
     }
   }
   return b;
@@ -668,8 +673,8 @@ function TextReadoutDE({
 }: {
   de: DisplayElement;
   tx: string;
-  valueStr: string;   // formatted value or "—" placeholder
-  euStr: string;      // EU unit WITHOUT leading space, or ""
+  valueStr: string; // formatted value or "—" placeholder
+  euStr: string; // EU unit WITHOUT leading space, or ""
   mode: "design" | "live";
   stale?: boolean;
   onContextMenu?: (e: React.MouseEvent<SVGGElement>) => void;
@@ -693,7 +698,11 @@ function TextReadoutDE({
   const measure = useCallback(() => {
     let maxW = minW;
     const PAD = 12; // 6px each side
-    if (textRef.current) maxW = Math.max(maxW, Math.ceil(textRef.current.getComputedTextLength()) + PAD);
+    if (textRef.current)
+      maxW = Math.max(
+        maxW,
+        Math.ceil(textRef.current.getComputedTextLength()) + PAD,
+      );
     setBoxW(maxW);
   }, [minW]);
 
@@ -715,10 +724,14 @@ function TextReadoutDE({
   const isLive = mode === "live";
   const vR = cfg.valueRow;
   const vFs = vR?.fontSize ?? 11;
-  const textFill = stale ? "#6b7280" : (vR?.color || "var(--io-text-primary)");
+  const textFill = stale ? "#6b7280" : vR?.color || "var(--io-text-primary)";
   const euFill = stale ? "#6b7280" : "var(--io-text-muted)";
   const boxFill = isLive ? "rgba(0,0,0,0.6)" : "#27272A";
-  const boxStroke = isLive ? (stale ? "#6b7280" : "var(--io-accent)") : "#3F3F46";
+  const boxStroke = isLive
+    ? stale
+      ? "#6b7280"
+      : "var(--io-accent)"
+    : "#3F3F46";
   const strokeW = isLive ? 0.5 : 1;
 
   const rows: React.ReactNode[] = [];
@@ -727,14 +740,29 @@ function TextReadoutDE({
   if (pnEnabled) {
     const r = cfg.pointNameRow!;
     if (r.showBackground) {
-      rows.push(<rect key="pn-bg" x={0} y={yOff} width={boxW} height={ROW_H}
-        fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"} rx={1} />);
+      rows.push(
+        <rect
+          key="pn-bg"
+          x={0}
+          y={yOff}
+          width={boxW}
+          height={ROW_H}
+          fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"}
+          rx={1}
+        />,
+      );
     }
     rows.push(
-      <text key="pn-tx" x={boxW / 2} y={yOff + ROW_H - 4} textAnchor="middle"
-        fontSize={r.fontSize} fontWeight={r.fontWeight ?? "normal"}
+      <text
+        key="pn-tx"
+        x={boxW / 2}
+        y={yOff + ROW_H - 4}
+        textAnchor="middle"
+        fontSize={r.fontSize}
+        fontWeight={r.fontWeight ?? "normal"}
         fill={stale ? "#6b7280" : r.color || "var(--io-text-primary)"}
-        fontFamily={deFontToCss(r.fontFamily)}>
+        fontFamily={deFontToCss(r.fontFamily)}
+      >
         {de.binding.pointTag ?? (isLive ? "—" : "TAG.NAME")}
       </text>,
     );
@@ -744,14 +772,29 @@ function TextReadoutDE({
   if (dnEnabled) {
     const r = cfg.displayNameRow!;
     if (r.showBackground) {
-      rows.push(<rect key="dn-bg" x={0} y={yOff} width={boxW} height={ROW_H}
-        fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"} rx={1} />);
+      rows.push(
+        <rect
+          key="dn-bg"
+          x={0}
+          y={yOff}
+          width={boxW}
+          height={ROW_H}
+          fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"}
+          rx={1}
+        />,
+      );
     }
     rows.push(
-      <text key="dn-tx" x={boxW / 2} y={yOff + ROW_H - 4} textAnchor="middle"
-        fontSize={r.fontSize} fontWeight={r.fontWeight ?? "normal"}
+      <text
+        key="dn-tx"
+        x={boxW / 2}
+        y={yOff + ROW_H - 4}
+        textAnchor="middle"
+        fontSize={r.fontSize}
+        fontWeight={r.fontWeight ?? "normal"}
         fill={stale ? "#6b7280" : r.color || "var(--io-text-secondary)"}
-        fontFamily={deFontToCss(r.fontFamily)}>
+        fontFamily={deFontToCss(r.fontFamily)}
+      >
         {de.binding.displayName ?? (isLive ? "—" : "Display Name")}
       </text>,
     );
@@ -760,21 +803,40 @@ function TextReadoutDE({
 
   if (cfg.showBox !== false) {
     rows.push(
-      <rect key="v-bg" x={0} y={yOff} width={boxW} height={ROW_H}
-        fill={boxFill} stroke={boxStroke} strokeWidth={strokeW} rx={1} />,
+      <rect
+        key="v-bg"
+        x={0}
+        y={yOff}
+        width={boxW}
+        height={ROW_H}
+        fill={boxFill}
+        stroke={boxStroke}
+        strokeWidth={strokeW}
+        rx={1}
+      />,
     );
   }
 
   // The ref is on the value text so getComputedTextLength() measures value+EU together.
   rows.push(
-    <text key="v-tx" ref={textRef}
-      x={boxW / 2} y={yOff + ROW_H - 4}
+    <text
+      key="v-tx"
+      ref={textRef}
+      x={boxW / 2}
+      y={yOff + ROW_H - 4}
       textAnchor="middle"
-      fontSize={vFs} fontWeight={vR?.fontWeight ?? "normal"}
-      fill={textFill} fontFamily={deFontToCss(vR?.fontFamily)} fontVariant="tabular-nums">
+      fontSize={vFs}
+      fontWeight={vR?.fontWeight ?? "normal"}
+      fill={textFill}
+      fontFamily={deFontToCss(vR?.fontFamily)}
+      fontVariant="tabular-nums"
+    >
       {valueStr}
       {euEnabled && (
-        <tspan fontFamily="Inter" fontSize={9} fill={euFill}> {euStr}</tspan>
+        <tspan fontFamily="Inter" fontSize={9} fill={euFill}>
+          {" "}
+          {euStr}
+        </tspan>
       )}
     </text>,
   );
@@ -811,7 +873,11 @@ function DisplayElementRenderer({
       const euStr = tCfg.showUnits ? (de.binding.unit ?? "EU") : "";
       return (
         <TextReadoutDE
-          de={de} tx={tx} valueStr={formatDesignPlaceholder(tCfg.valueFormat ?? "%.2f")} euStr={euStr} mode="design"
+          de={de}
+          tx={tx}
+          valueStr={formatDesignPlaceholder(tCfg.valueFormat ?? "%.2f")}
+          euStr={euStr}
+          mode="design"
         />
       );
     }
@@ -1147,7 +1213,13 @@ function RenderNode({
         .getShape(si.shapeRef.shapeId);
 
       // Build partShapes map from libraryStore using the sidecar's addon files
-      const partShapes = new Map<string, { svg: string; sidecar: import("../../shared/types/shapes").ShapeSidecar | null }>();
+      const partShapes = new Map<
+        string,
+        {
+          svg: string;
+          sidecar: import("../../shared/types/shapes").ShapeSidecar | null;
+        }
+      >();
       if (shapeEntry?.sidecar?.addons) {
         for (const addon of shapeEntry.sidecar.addons) {
           const partId = addon.file.replace(/\.svg$/, "");
@@ -1162,7 +1234,12 @@ function RenderNode({
         shapeSidecar: shapeEntry?.sidecar ?? null,
         partShapes,
         stateClass: "",
-        renderChild: (child: DisplayElement, _parentOffset?: { x: number; y: number }, _vesselInteriorPath?: string, _overrideTransform?: string) => {
+        renderChild: (
+          child: DisplayElement,
+          _parentOffset?: { x: number; y: number },
+          _vesselInteriorPath?: string,
+          _overrideTransform?: string,
+        ) => {
           // When an association highlight is active, boost matching DEs and
           // dim non-matching ones. Read via getState() -- DesignerCanvas holds
           // the single subscription that drives re-renders when the value changes.
@@ -1288,7 +1365,9 @@ function RenderNode({
 
     case "stencil": {
       const st = node as Stencil;
-      const stencilSvg = useLibraryStore.getState().getStencil(st.stencilRef.stencilId);
+      const stencilSvg = useLibraryStore
+        .getState()
+        .getStencil(st.stencilRef.stencilId);
       if (!stencilSvg) {
         void useLibraryStore.getState().loadStencil(st.stencilRef.stencilId);
       }
@@ -1549,8 +1628,10 @@ function SelectionOverlay({
         if (
           node.type === "display_element" &&
           (node as DisplayElement).config.displayType === "fill_gauge" &&
-          ((node as DisplayElement).config as FillGaugeConfig).mode === "vessel_overlay"
-        ) return null;
+          ((node as DisplayElement).config as FillGaugeConfig).mode ===
+            "vessel_overlay"
+        )
+          return null;
 
         // Full bounds drive the rotation center so it always matches the shape's
         // actual stored rotation pivot (center of the full viewBox × scale).
@@ -1680,7 +1761,8 @@ function SelectionOverlay({
               ((node as DisplayElement).displayType === "text_readout" ||
                 (node as DisplayElement).displayType === "point_name_label" ||
                 ((node as DisplayElement).displayType === "fill_gauge" &&
-                  ((node as DisplayElement).config as FillGaugeConfig).mode === "vessel_overlay"));
+                  ((node as DisplayElement).config as FillGaugeConfig).mode ===
+                    "vessel_overlay"));
             if (isDimensionLine || isNonResizableDE) return null;
             // DE children store positions parent-relative; use absolute bounds for handles
             const bounds = isSymbolChildDE
@@ -2339,7 +2421,6 @@ export default function DesignerCanvas({
   // paused, so the editable canvas is fully visible. Resuming re-mounts the
   // SceneRenderer fresh with liveSubscribe=true against the current doc.
 
-
   // Tracks active sidecar drag for dragMoveFn/dragUpFn commit logic.
   // Stored in a ref so closures created in handleMouseDown always see current state.
   const sidecarDragRef = useRef<{
@@ -2895,14 +2976,16 @@ export default function DesignerCanvas({
           // vessel_overlay fill gauges are excluded — they behave like composable parts:
           // not independently selectable, move and resize with the parent SI.
           if (si.children?.length > 0) {
-            const hittableChildren = (si.children as SceneNode[]).filter((c) => {
-              if (c.type !== "display_element") return true;
-              const de = c as DisplayElement;
-              return !(
-                de.config.displayType === "fill_gauge" &&
-                (de.config as FillGaugeConfig).mode === "vessel_overlay"
-              );
-            });
+            const hittableChildren = (si.children as SceneNode[]).filter(
+              (c) => {
+                if (c.type !== "display_element") return true;
+                const de = c as DisplayElement;
+                return !(
+                  de.config.displayType === "fill_gauge" &&
+                  (de.config as FillGaugeConfig).mode === "vessel_overlay"
+                );
+              },
+            );
             const childHit = search(hittableChildren, siPos, si.id, siScale);
             if (childHit) return childHit;
           }
@@ -3116,7 +3199,10 @@ export default function DesignerCanvas({
             hit = null;
           } else {
             const nodeAncestor = domElem?.closest?.("[data-node-id]");
-            if (!nodeAncestor || nodeAncestor.getAttribute("data-node-id") !== hit.nodeId) {
+            if (
+              !nodeAncestor ||
+              nodeAncestor.getAttribute("data-node-id") !== hit.nodeId
+            ) {
               hit = null;
             }
             // Guard against composable part SVGs (FO/FC/FL indicators, actuators)
@@ -3151,7 +3237,9 @@ export default function DesignerCanvas({
         if (hit?.nodeType === "symbol_instance") {
           const siDoc = docRef.current;
           if (siDoc) {
-            function findSiForBoundsCheck(nodes: SceneNode[]): SymbolInstance | null {
+            function findSiForBoundsCheck(
+              nodes: SceneNode[],
+            ): SymbolInstance | null {
               for (const n of nodes) {
                 if (n.id === hit!.nodeId && n.type === "symbol_instance")
                   return n as SymbolInstance;
@@ -3164,7 +3252,9 @@ export default function DesignerCanvas({
             }
             const siNode = findSiForBoundsCheck(siDoc.children);
             if (siNode && (siNode.composableParts?.length ?? 0) > 0) {
-              const sData = useLibraryStore.getState().getShape(siNode.shapeRef.shapeId);
+              const sData = useLibraryStore
+                .getState()
+                .getShape(siNode.shapeRef.shapeId);
               const ssx = siNode.transform.scale?.x ?? 1;
               const ssy = siNode.transform.scale?.y ?? 1;
               const sp = siNode.transform.position;
@@ -3228,7 +3318,9 @@ export default function DesignerCanvas({
           const newSelection =
             e.shiftKey || e.ctrlKey
               ? selectedIdsRef.current.has(hitId)
-                ? new Set([...selectedIdsRef.current].filter((id) => id !== hitId))
+                ? new Set(
+                    [...selectedIdsRef.current].filter((id) => id !== hitId),
+                  )
                 : new Set([...selectedIdsRef.current, hitId])
               : new Set([hitId]);
           selectedIdsRef.current = newSelection;
@@ -3387,9 +3479,11 @@ export default function DesignerCanvas({
                       if (snapRes.snapped) {
                         // Convert canvas-absolute snap pos to parent-relative unscaled space
                         newPos = {
-                          x: (snapRes.position.x - si.transform.position.x) /
+                          x:
+                            (snapRes.position.x - si.transform.position.x) /
                             (si.transform.scale?.x ?? 1),
-                          y: (snapRes.position.y - si.transform.position.y) /
+                          y:
+                            (snapRes.position.y - si.transform.position.y) /
                             (si.transform.scale?.y ?? 1),
                         };
                       }
@@ -3601,7 +3695,10 @@ export default function DesignerCanvas({
               const commitPsy = commitPsi?.transform.scale?.y ?? 1;
               if (snapResult?.snapped && snapResult.slotId) {
                 // Snap to slot: convert canvas-absolute pos to parent-relative unscaled
-                const parentPos = commitPsi?.transform.position ?? { x: 0, y: 0 };
+                const parentPos = commitPsi?.transform.position ?? {
+                  x: 0,
+                  y: 0,
+                };
                 const parentRelPos = {
                   x: (snapResult.position.x - parentPos.x) / commitPsx,
                   y: (snapResult.position.y - parentPos.y) / commitPsy,
@@ -3711,8 +3808,12 @@ export default function DesignerCanvas({
 
             const r = containerRef.current?.getBoundingClientRect();
             const vp = viewportRef.current;
-            const ucx = r ? (me.clientX - r.left - vp.panX) / vp.zoom : interactionRef.current.startCanvasX;
-            const ucy = r ? (me.clientY - r.top - vp.panY) / vp.zoom : interactionRef.current.startCanvasY;
+            const ucx = r
+              ? (me.clientX - r.left - vp.panX) / vp.zoom
+              : interactionRef.current.startCanvasX;
+            const ucy = r
+              ? (me.clientY - r.top - vp.panY) / vp.zoom
+              : interactionRef.current.startCanvasY;
             const rx = Math.min(interactionRef.current.startCanvasX, ucx);
             const ry = Math.min(interactionRef.current.startCanvasY, ucy);
             const rw = Math.abs(ucx - interactionRef.current.startCanvasX);
@@ -3739,7 +3840,11 @@ export default function DesignerCanvas({
               if (hit.length > 0) {
                 const hitSet = new Set(hit);
                 const newSel = me.altKey
-                  ? new Set([...selectedIdsRef.current].filter((id) => !hitSet.has(id)))
+                  ? new Set(
+                      [...selectedIdsRef.current].filter(
+                        (id) => !hitSet.has(id),
+                      ),
+                    )
                   : me.shiftKey || me.ctrlKey
                     ? new Set([...selectedIdsRef.current, ...hit])
                     : new Set(hit);
@@ -4031,7 +4136,8 @@ export default function DesignerCanvas({
           if (!e.shiftKey) {
             const rawRot = initialT.rotation + delta;
             const nearest90 = Math.round(rawRot / 90) * 90;
-            if (Math.abs(rawRot - nearest90) <= 5) delta = nearest90 - initialT.rotation;
+            if (Math.abs(rawRot - nearest90) <= 5)
+              delta = nearest90 - initialT.rotation;
           }
           const newRot = initialT.rotation + delta;
           // DOM preview: rotate the SVG element directly for 60fps feedback
@@ -4065,10 +4171,8 @@ export default function DesignerCanvas({
                 const rotGeo = rotEntry?.sidecar?.geometry;
                 const rotNatW = rotGeo?.baseSize?.[0] ?? rotGeo?.width ?? 64;
                 const rotNatH = rotGeo?.baseSize?.[1] ?? rotGeo?.height ?? 64;
-                const rotPivX =
-                  (rotNatW * (initialT.scale?.x ?? 1)) / 2;
-                const rotPivY =
-                  (rotNatH * (initialT.scale?.y ?? 1)) / 2;
+                const rotPivX = (rotNatW * (initialT.scale?.x ?? 1)) / 2;
+                const rotPivY = (rotNatH * (initialT.scale?.y ?? 1)) / 2;
                 for (const child of rotNode.children) {
                   if (isInsideFillSidecar(child)) continue;
                   const cEl = svgEl.querySelector(
@@ -5096,11 +5200,14 @@ export default function DesignerCanvas({
         } else {
           // Stickiness at right angles: snap to nearest 90° multiple within ±5°
           const firstKey = Array.from(inter.rotateInitialTransforms.keys())[0];
-          const firstT = firstKey ? inter.rotateInitialTransforms.get(firstKey) : undefined;
+          const firstT = firstKey
+            ? inter.rotateInitialTransforms.get(firstKey)
+            : undefined;
           if (firstT) {
             const rawRot = firstT.rotation + delta;
             const nearest90 = Math.round(rawRot / 90) * 90;
-            if (Math.abs(rawRot - nearest90) <= 5) delta = nearest90 - firstT.rotation;
+            if (Math.abs(rawRot - nearest90) <= 5)
+              delta = nearest90 - firstT.rotation;
           }
         }
 
@@ -5226,13 +5333,23 @@ export default function DesignerCanvas({
           const hit: NodeId[] = [];
           for (const node of scopeNodes) {
             if (!node.visible || node.locked) continue;
-            if (boundsContains(getNodeVisualBounds(node, d.children), rx, ry, rw, rh))
+            if (
+              boundsContains(
+                getNodeVisualBounds(node, d.children),
+                rx,
+                ry,
+                rw,
+                rh,
+              )
+            )
               hit.push(node.id);
           }
           if (hit.length > 0) {
             const hitSet = new Set(hit);
             const newSel = e.altKey
-              ? new Set([...selectedIdsRef.current].filter((id) => !hitSet.has(id)))
+              ? new Set(
+                  [...selectedIdsRef.current].filter((id) => !hitSet.has(id)),
+                )
               : e.shiftKey || e.ctrlKey
                 ? new Set([...selectedIdsRef.current, ...hit])
                 : new Set(hit);
@@ -5709,11 +5826,18 @@ export default function DesignerCanvas({
         // Cancel active marquee — remove document-level listeners and hide the overlay.
         if (inter.type === "marquee") {
           if (canvasMarqueeMoveFnRef.current) {
-            document.removeEventListener("mousemove", canvasMarqueeMoveFnRef.current);
+            document.removeEventListener(
+              "mousemove",
+              canvasMarqueeMoveFnRef.current,
+            );
             canvasMarqueeMoveFnRef.current = null;
           }
           if (canvasMarqueeUpFnRef.current) {
-            document.removeEventListener("mouseup", canvasMarqueeUpFnRef.current, true);
+            document.removeEventListener(
+              "mouseup",
+              canvasMarqueeUpFnRef.current,
+              true,
+            );
             canvasMarqueeUpFnRef.current = null;
           }
           inter.type = "none";
@@ -6090,29 +6214,26 @@ export default function DesignerCanvas({
   // In test mode: the edit-mode Radix context menu is suppressed entirely.
   // Right-clicking a point-bound DisplayElement opens the PointContextMenu.
   // Right-clicking an unbound element or canvas area shows nothing.
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      const rect = getRect();
-      if (!rect) {
-        ctxNodeIdRef.current = null;
-        setCtxNodeId(null);
-        return;
-      }
-      const vp = viewportRef.current;
-      const cx = (e.clientX - rect.left - vp.panX) / vp.zoom;
-      const cy = (e.clientY - rect.top - vp.panY) / vp.zoom;
-      const hitResult = hitTest(cx, cy);
-      const hitId = hitResult?.nodeId ?? null;
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const rect = getRect();
+    if (!rect) {
+      ctxNodeIdRef.current = null;
+      setCtxNodeId(null);
+      return;
+    }
+    const vp = viewportRef.current;
+    const cx = (e.clientX - rect.left - vp.panX) / vp.zoom;
+    const cy = (e.clientY - rect.top - vp.panY) / vp.zoom;
+    const hitResult = hitTest(cx, cy);
+    const hitId = hitResult?.nodeId ?? null;
 
-      if (hitId && !selectedIdsRef.current.has(hitId)) {
-        selectedIdsRef.current = new Set([hitId]);
-        useUiStore.getState().setSelectedNodes([hitId]);
-      }
-      ctxNodeIdRef.current = hitId;
-      setCtxNodeId(hitId);
-    },
-    [],
-  );
+    if (hitId && !selectedIdsRef.current.has(hitId)) {
+      selectedIdsRef.current = new Set([hitId]);
+      useUiStore.getState().setSelectedNodes([hitId]);
+    }
+    ctxNodeIdRef.current = hitId;
+    setCtxNodeId(hitId);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Handle drop from left palette
@@ -7103,10 +7224,7 @@ export default function DesignerCanvas({
                     });
                     return sorted.map((node) => {
                       // Hide nodes whose layer (or containing folder) is invisible
-                      if (
-                        node.layerId &&
-                        !visibleLayerIds.has(node.layerId)
-                      )
+                      if (node.layerId && !visibleLayerIds.has(node.layerId))
                         return null;
                       // In group edit mode: dim nodes that are NOT the active group
                       const isDimmed =
@@ -7282,7 +7400,11 @@ export default function DesignerCanvas({
                         document={doc}
                         liveSubscribe={true}
                         preserveAspectRatio="none"
-                        style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          pointerEvents: "none",
+                        }}
                       />
                     </div>
                   </div>
@@ -8031,9 +8153,18 @@ export default function DesignerCanvas({
                     binding: config.pointBindings[0]?.pointId
                       ? {
                           pointId: config.pointBindings[0].pointId,
-                          ...(config.pointBindings[0].pointTag ? { pointTag: config.pointBindings[0].pointTag } : {}),
-                          ...(config.pointBindings[0].displayName ? { displayName: config.pointBindings[0].displayName } : {}),
-                          ...(config.pointBindings[0].unit ? { unit: config.pointBindings[0].unit } : {}),
+                          ...(config.pointBindings[0].pointTag
+                            ? { pointTag: config.pointBindings[0].pointTag }
+                            : {}),
+                          ...(config.pointBindings[0].displayName
+                            ? {
+                                displayName:
+                                  config.pointBindings[0].displayName,
+                              }
+                            : {}),
+                          ...(config.pointBindings[0].unit
+                            ? { unit: config.pointBindings[0].unit }
+                            : {}),
                         }
                       : {},
                     config: makeDefaultDisplayConfig(dt, {
@@ -8076,7 +8207,9 @@ export default function DesignerCanvas({
                     ? {
                         pointId: dropPtId,
                         ...(dropPtTag ? { pointTag: dropPtTag } : {}),
-                        ...(dropPtDisplay ? { displayName: dropPtDisplay } : {}),
+                        ...(dropPtDisplay
+                          ? { displayName: dropPtDisplay }
+                          : {}),
                         ...(dropPtUnit ? { unit: dropPtUnit } : {}),
                       }
                     : undefined,
@@ -8100,7 +8233,9 @@ export default function DesignerCanvas({
               onPlace={(config: PlacedShapeConfig) => {
                 const catId = categoryDropPending.categoryId;
                 setCategoryDropPending(null);
-                const libEntry = useLibraryStore.getState().cache.get(config.shapeId);
+                const libEntry = useLibraryStore
+                  .getState()
+                  .cache.get(config.shapeId);
                 const geo = libEntry?.sidecar?.geometry;
                 setGhostPlacement({
                   config,
@@ -8114,185 +8249,210 @@ export default function DesignerCanvas({
           )}
 
           {/* Ghost placement overlay — shape follows cursor after wizard Place */}
-          {ghostPlacement && (() => {
-            const SI_SCALE = 1.5;
-            const ghostPxW = Math.round(ghostPlacement.symW * SI_SCALE * viewportRef.current.zoom);
-            const ghostPxH = Math.round(ghostPlacement.symH * SI_SCALE * viewportRef.current.zoom);
-            const halfW = Math.round(ghostPxW / 2);
-            const halfH = Math.round(ghostPxH / 2);
-            return (
-            <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 3000,
-                cursor: "crosshair",
-              }}
-              onMouseMove={(e) => {
-                ghostPosRef.current = { x: e.clientX, y: e.clientY };
-                if (ghostImgRef.current) {
-                  const z = viewportRef.current.zoom;
-                  const pw = Math.round(ghostPlacement.symW * SI_SCALE * z);
-                  const ph = Math.round(ghostPlacement.symH * SI_SCALE * z);
-                  ghostImgRef.current.style.width = `${pw}px`;
-                  ghostImgRef.current.style.height = `${ph}px`;
-                  ghostImgRef.current.style.left = `${e.clientX - Math.round(pw / 2)}px`;
-                  ghostImgRef.current.style.top = `${e.clientY - Math.round(ph / 2)}px`;
-                }
-              }}
-              onClick={(e) => {
-                const rect = getRect();
-                if (!rect || !docRef.current) {
-                  setGhostPlacement(null);
-                  return;
-                }
-                const vp = viewportRef.current;
-                const cx = snap((e.clientX - rect.left - vp.panX) / vp.zoom);
-                const cy = snap((e.clientY - rect.top - vp.panY) / vp.zoom);
-                const { config } = ghostPlacement;
+          {ghostPlacement &&
+            (() => {
+              const SI_SCALE = 1.5;
+              const ghostPxW = Math.round(
+                ghostPlacement.symW * SI_SCALE * viewportRef.current.zoom,
+              );
+              const ghostPxH = Math.round(
+                ghostPlacement.symH * SI_SCALE * viewportRef.current.zoom,
+              );
+              const halfW = Math.round(ghostPxW / 2);
+              const halfH = Math.round(ghostPxH / 2);
+              return (
+                <div
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: 3000,
+                    cursor: "crosshair",
+                  }}
+                  onMouseMove={(e) => {
+                    ghostPosRef.current = { x: e.clientX, y: e.clientY };
+                    if (ghostImgRef.current) {
+                      const z = viewportRef.current.zoom;
+                      const pw = Math.round(ghostPlacement.symW * SI_SCALE * z);
+                      const ph = Math.round(ghostPlacement.symH * SI_SCALE * z);
+                      ghostImgRef.current.style.width = `${pw}px`;
+                      ghostImgRef.current.style.height = `${ph}px`;
+                      ghostImgRef.current.style.left = `${e.clientX - Math.round(pw / 2)}px`;
+                      ghostImgRef.current.style.top = `${e.clientY - Math.round(ph / 2)}px`;
+                    }
+                  }}
+                  onClick={(e) => {
+                    const rect = getRect();
+                    if (!rect || !docRef.current) {
+                      setGhostPlacement(null);
+                      return;
+                    }
+                    const vp = viewportRef.current;
+                    const cx = snap(
+                      (e.clientX - rect.left - vp.panX) / vp.zoom,
+                    );
+                    const cy = snap((e.clientY - rect.top - vp.panY) / vp.zoom);
+                    const { config } = ghostPlacement;
 
-                const ghostLibEntry = useLibraryStore
-                  .getState()
-                  .cache.get(config.shapeId);
-                const ghostSidecar = ghostLibEntry?.sidecar;
-                const ghostRelBbox = {
-                  x: 0,
-                  y: 0,
-                  width: ghostPlacement.symW,
-                  height: ghostPlacement.symH,
-                };
-                const ghostDefaultSlots =
-                  (ghostSidecar?.defaultSlots as Record<string, string>) ?? {};
+                    const ghostLibEntry = useLibraryStore
+                      .getState()
+                      .cache.get(config.shapeId);
+                    const ghostSidecar = ghostLibEntry?.sidecar;
+                    const ghostRelBbox = {
+                      x: 0,
+                      y: 0,
+                      width: ghostPlacement.symW,
+                      height: ghostPlacement.symH,
+                    };
+                    const ghostDefaultSlots =
+                      (ghostSidecar?.defaultSlots as Record<string, string>) ??
+                      {};
 
-                const GHOST_SIDECAR_KEY: Record<string, string> = {
-                  text_readout: "TextReadout",
-                  alarm_indicator: "AlarmIndicator",
-                  analog_bar: "AnalogBar",
-                  fill_gauge: "FillGauge",
-                  sparkline: "Sparkline",
-                  digital_status: "DigitalStatus",
-                  point_name_label: "PointNameLabel",
-                };
-                const GHOST_DE_SLOTS: Record<string, string> = {
-                  TextReadout: "bottom",
-                  AlarmIndicator: "top-right",
-                  AnalogBar: "right",
-                  FillGauge: "left",
-                  Sparkline: "right-top",
-                  DigitalStatus: "bottom",
-                  PointNameLabel: "top",
-                };
+                    const GHOST_SIDECAR_KEY: Record<string, string> = {
+                      text_readout: "TextReadout",
+                      alarm_indicator: "AlarmIndicator",
+                      analog_bar: "AnalogBar",
+                      fill_gauge: "FillGauge",
+                      sparkline: "Sparkline",
+                      digital_status: "DigitalStatus",
+                      point_name_label: "PointNameLabel",
+                    };
+                    const GHOST_DE_SLOTS: Record<string, string> = {
+                      TextReadout: "bottom",
+                      AlarmIndicator: "top-right",
+                      AnalogBar: "right",
+                      FillGauge: "left",
+                      Sparkline: "right-top",
+                      DigitalStatus: "bottom",
+                      PointNameLabel: "top",
+                    };
 
-                const children: DisplayElement[] = (
-                  config.displayElements as DisplayElementType[]
-                ).map((dt) => {
-                  const key = GHOST_SIDECAR_KEY[dt] ?? dt;
-                  const slotName =
-                    config.displayElementSlots?.[dt] ??
-                    ghostDefaultSlots[key] ??
-                    GHOST_DE_SLOTS[key] ??
-                    "bottom";
-                  const pos = applyDeSlotOffset(
-                    dt,
-                    slotName,
-                    resolveSlotWithSidecar(
-                      slotName,
-                      key,
-                      ghostSidecar,
-                      ghostRelBbox,
-                    ),
-                  );
-                  return {
-                    id: crypto.randomUUID(),
-                    type: "display_element" as const,
-                    displayType: dt,
-                    transform: {
-                      position: pos,
-                      rotation: 0,
-                      scale: { x: 1, y: 1 },
-                      mirror: "none" as const,
-                    },
-                    binding: config.pointBindings[0]?.pointId
-                      ? {
-                          pointId: config.pointBindings[0].pointId,
-                          ...(config.pointBindings[0].pointTag ? { pointTag: config.pointBindings[0].pointTag } : {}),
-                          ...(config.pointBindings[0].displayName ? { displayName: config.pointBindings[0].displayName } : {}),
-                          ...(config.pointBindings[0].unit ? { unit: config.pointBindings[0].unit } : {}),
-                        }
-                      : {},
-                    config: (() => {
-                      const uc = config.displayElementConfigs?.[dt];
-                      const vo = slotName === "vessel-interior" && !!ghostSidecar?.vesselInteriorPath;
-                      return uc
-                        ? userConfigToDisplayConfig(dt, uc, { vesselOverlay: vo })
-                        : makeDefaultDisplayConfig(dt, { vesselOverlay: vo });
-                    })(),
-                    opacity: 1,
-                    visible: true,
-                    locked: false,
-                    name: dt,
-                  };
-                });
+                    const children: DisplayElement[] = (
+                      config.displayElements as DisplayElementType[]
+                    ).map((dt) => {
+                      const key = GHOST_SIDECAR_KEY[dt] ?? dt;
+                      const slotName =
+                        config.displayElementSlots?.[dt] ??
+                        ghostDefaultSlots[key] ??
+                        GHOST_DE_SLOTS[key] ??
+                        "bottom";
+                      const pos = applyDeSlotOffset(
+                        dt,
+                        slotName,
+                        resolveSlotWithSidecar(
+                          slotName,
+                          key,
+                          ghostSidecar,
+                          ghostRelBbox,
+                        ),
+                      );
+                      return {
+                        id: crypto.randomUUID(),
+                        type: "display_element" as const,
+                        displayType: dt,
+                        transform: {
+                          position: pos,
+                          rotation: 0,
+                          scale: { x: 1, y: 1 },
+                          mirror: "none" as const,
+                        },
+                        binding: config.pointBindings[0]?.pointId
+                          ? {
+                              pointId: config.pointBindings[0].pointId,
+                              ...(config.pointBindings[0].pointTag
+                                ? { pointTag: config.pointBindings[0].pointTag }
+                                : {}),
+                              ...(config.pointBindings[0].displayName
+                                ? {
+                                    displayName:
+                                      config.pointBindings[0].displayName,
+                                  }
+                                : {}),
+                              ...(config.pointBindings[0].unit
+                                ? { unit: config.pointBindings[0].unit }
+                                : {}),
+                            }
+                          : {},
+                        config: (() => {
+                          const uc = config.displayElementConfigs?.[dt];
+                          const vo =
+                            slotName === "vessel-interior" &&
+                            !!ghostSidecar?.vesselInteriorPath;
+                          return uc
+                            ? userConfigToDisplayConfig(dt, uc, {
+                                vesselOverlay: vo,
+                              })
+                            : makeDefaultDisplayConfig(dt, {
+                                vesselOverlay: vo,
+                              });
+                        })(),
+                        opacity: 1,
+                        visible: true,
+                        locked: false,
+                        name: dt,
+                      };
+                    });
 
-                const ghostPtId = config.pointBindings[0]?.pointId;
-                const ghostPtTag = config.pointBindings[0]?.pointTag;
-                const ghostPtDisplay = config.pointBindings[0]?.displayName;
-                const ghostPtUnit = config.pointBindings[0]?.unit;
-                const si: SymbolInstance = {
-                  id: crypto.randomUUID(),
-                  type: "symbol_instance",
-                  name: config.shapeId,
-                  transform: {
-                    position: { x: cx, y: cy },
-                    rotation: 0,
-                    scale: { x: 1.5, y: 1.5 },
-                    mirror: "none",
-                  },
-                  visible: true,
-                  locked: false,
-                  opacity: 1,
-                  shapeRef: {
-                    shapeId: config.shapeId,
-                    variant: config.variant,
-                  },
-                  composableParts: config.composableParts,
-                  textZoneOverrides: {},
-                  children,
-                  propertyOverrides: {},
-                  stateBinding: ghostPtId
-                    ? {
-                        pointId: ghostPtId,
-                        ...(ghostPtTag ? { pointTag: ghostPtTag } : {}),
-                        ...(ghostPtDisplay ? { displayName: ghostPtDisplay } : {}),
-                        ...(ghostPtUnit ? { unit: ghostPtUnit } : {}),
-                      }
-                    : undefined,
-                };
-                const ghostParentId = useUiStore.getState().activeGroupId;
-                executeCmd(new AddNodeCommand(si, ghostParentId));
-                selectedIdsRef.current = new Set([si.id]);
-                useUiStore.getState().setSelectedNodes([si.id]);
-                setGhostPlacement(null);
-              }}
-            >
-              <img
-                ref={ghostImgRef}
-                src={`/shapes/${ghostPlacement.categoryId}/${ghostPlacement.shapeId}.svg`}
-                alt=""
-                style={{
-                  position: "fixed",
-                  width: ghostPxW,
-                  height: ghostPxH,
-                  opacity: 0.6,
-                  pointerEvents: "none",
-                  left: ghostPosRef.current.x - halfW,
-                  top: ghostPosRef.current.y - halfH,
-                  objectFit: "contain",
-                }}
-              />
-            </div>
-            );
-          })()}
+                    const ghostPtId = config.pointBindings[0]?.pointId;
+                    const ghostPtTag = config.pointBindings[0]?.pointTag;
+                    const ghostPtDisplay = config.pointBindings[0]?.displayName;
+                    const ghostPtUnit = config.pointBindings[0]?.unit;
+                    const si: SymbolInstance = {
+                      id: crypto.randomUUID(),
+                      type: "symbol_instance",
+                      name: config.shapeId,
+                      transform: {
+                        position: { x: cx, y: cy },
+                        rotation: 0,
+                        scale: { x: 1.5, y: 1.5 },
+                        mirror: "none",
+                      },
+                      visible: true,
+                      locked: false,
+                      opacity: 1,
+                      shapeRef: {
+                        shapeId: config.shapeId,
+                        variant: config.variant,
+                      },
+                      composableParts: config.composableParts,
+                      textZoneOverrides: {},
+                      children,
+                      propertyOverrides: {},
+                      stateBinding: ghostPtId
+                        ? {
+                            pointId: ghostPtId,
+                            ...(ghostPtTag ? { pointTag: ghostPtTag } : {}),
+                            ...(ghostPtDisplay
+                              ? { displayName: ghostPtDisplay }
+                              : {}),
+                            ...(ghostPtUnit ? { unit: ghostPtUnit } : {}),
+                          }
+                        : undefined,
+                    };
+                    const ghostParentId = useUiStore.getState().activeGroupId;
+                    executeCmd(new AddNodeCommand(si, ghostParentId));
+                    selectedIdsRef.current = new Set([si.id]);
+                    useUiStore.getState().setSelectedNodes([si.id]);
+                    setGhostPlacement(null);
+                  }}
+                >
+                  <img
+                    ref={ghostImgRef}
+                    src={`/shapes/${ghostPlacement.categoryId}/${ghostPlacement.shapeId}.svg`}
+                    alt=""
+                    style={{
+                      position: "fixed",
+                      width: ghostPxW,
+                      height: ghostPxH,
+                      opacity: 0.6,
+                      pointerEvents: "none",
+                      left: ghostPosRef.current.x - halfW,
+                      top: ghostPosRef.current.y - halfH,
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+              );
+            })()}
 
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
@@ -8302,28 +8462,35 @@ export default function DesignerCanvas({
               ) as SymbolInstance | undefined;
               const configShapeId = configNode?.shapeRef.shapeId ?? "";
               const configCategoryId =
-                useLibraryStore.getState().index.find(
-                  (i) => i.id === configShapeId,
-                )?.category ?? "equipment";
+                useLibraryStore
+                  .getState()
+                  .index.find((i) => i.id === configShapeId)?.category ??
+                "equipment";
 
               // Pre-populate wizard from existing node state.
               // Never fall back to pointId for the tag — pointId is a UUID and must never be shown to users.
-              const editInitialConfig = configNode ? {
-                bindings: [{
-                  partKey: "body",
-                  tag: configNode.stateBinding?.pointTag ?? "",
-                  pointId: configNode.stateBinding?.pointId ?? "",
-                  displayName: configNode.stateBinding?.displayName,
-                  unit: configNode.stateBinding?.unit,
-                }],
-                selectedElements: configNode.children.map((c) => c.displayType as string),
-                elementConfigs: Object.fromEntries(
-                  configNode.children.map((c) => [
-                    c.displayType,
-                    displayConfigToUserConfig(c.config),
-                  ]),
-                ),
-              } : undefined;
+              const editInitialConfig = configNode
+                ? {
+                    bindings: [
+                      {
+                        partKey: "body",
+                        tag: configNode.stateBinding?.pointTag ?? "",
+                        pointId: configNode.stateBinding?.pointId ?? "",
+                        displayName: configNode.stateBinding?.displayName,
+                        unit: configNode.stateBinding?.unit,
+                      },
+                    ],
+                    selectedElements: configNode.children.map(
+                      (c) => c.displayType as string,
+                    ),
+                    elementConfigs: Object.fromEntries(
+                      configNode.children.map((c) => [
+                        c.displayType,
+                        displayConfigToUserConfig(c.config),
+                      ]),
+                    ),
+                  }
+                : undefined;
 
               return (
                 <CategoryShapeWizard
@@ -8391,13 +8558,16 @@ export default function DesignerCanvas({
 
                     const newPointId = config.pointBindings[0]?.pointId;
                     const newPointTag = config.pointBindings[0]?.pointTag;
-                    const newPointDisplay = config.pointBindings[0]?.displayName;
+                    const newPointDisplay =
+                      config.pointBindings[0]?.displayName;
                     const newPointUnit = config.pointBindings[0]?.unit;
                     const newBinding = newPointId
                       ? {
                           pointId: newPointId,
                           ...(newPointTag ? { pointTag: newPointTag } : {}),
-                          ...(newPointDisplay ? { displayName: newPointDisplay } : {}),
+                          ...(newPointDisplay
+                            ? { displayName: newPointDisplay }
+                            : {}),
                           ...(newPointUnit ? { unit: newPointUnit } : {}),
                         }
                       : undefined;
@@ -8418,7 +8588,9 @@ export default function DesignerCanvas({
                         node.stateBinding,
                       ),
                       // Remove all existing display elements
-                      ...node.children.map((c) => new RemoveDisplayElementCommand(c.id)),
+                      ...node.children.map(
+                        (c) => new RemoveDisplayElementCommand(c.id),
+                      ),
                     ];
 
                     // Re-add all selected display elements with user config applied
@@ -8455,22 +8627,32 @@ export default function DesignerCanvas({
                           ? {
                               pointId: newPointId,
                               ...(newPointTag ? { pointTag: newPointTag } : {}),
-                              ...(newPointDisplay ? { displayName: newPointDisplay } : {}),
+                              ...(newPointDisplay
+                                ? { displayName: newPointDisplay }
+                                : {}),
                               ...(newPointUnit ? { unit: newPointUnit } : {}),
                             }
                           : {},
                         config: (() => {
-                          const vo = slotName === "vessel-interior" && !!editSidecar?.vesselInteriorPath;
+                          const vo =
+                            slotName === "vessel-interior" &&
+                            !!editSidecar?.vesselInteriorPath;
                           return userCfg
-                            ? userConfigToDisplayConfig(dtype, userCfg, { vesselOverlay: vo })
-                            : makeDefaultDisplayConfig(dtype, { vesselOverlay: vo });
+                            ? userConfigToDisplayConfig(dtype, userCfg, {
+                                vesselOverlay: vo,
+                              })
+                            : makeDefaultDisplayConfig(dtype, {
+                                vesselOverlay: vo,
+                              });
                         })(),
                         opacity: 1,
                         visible: true,
                         locked: false,
                         name: dt,
                       };
-                      cmds.push(new AddDisplayElementCommand(shapeConfigNodeId, el));
+                      cmds.push(
+                        new AddDisplayElementCommand(shapeConfigNodeId, el),
+                      );
                     }
 
                     executeCmd(new CompoundCommand("Configure Shape", cmds));
@@ -9014,21 +9196,21 @@ function applyDeSlotOffset(
   pos: { x: number; y: number },
 ): { x: number; y: number } {
   let { x, y } = pos;
-  const isTop    = slotName === "top";
+  const isTop = slotName === "top";
   const isBottom = slotName === "bottom";
-  const isHoriz  = isTop || isBottom;
-  const isRight  = slotName.startsWith("right");
-  const isLeft   = slotName.startsWith("left");
-  const isVert   = isRight || isLeft;
+  const isHoriz = isTop || isBottom;
+  const isRight = slotName.startsWith("right");
+  const isLeft = slotName.startsWith("left");
+  const isVert = isRight || isLeft;
 
   switch (dt) {
     case "text_readout": {
       const w = 40; // matches default minWidth; typical 4-6 char values fit within this
       const h = 24;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;     // label bottom at slot line
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h; // label bottom at slot line
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "alarm_indicator":
@@ -9038,43 +9220,43 @@ function applyDeSlotOffset(
       const h = 80; // default barHeight
       // zone labels sit at x−15; push right so they clear the shape boundary
       if (isRight) x += 15;
-      if (isLeft)  x -= 25; // right extent (x+25) at slot edge
-      y -= h / 2;            // always center vertically
+      if (isLeft) x -= 25; // right extent (x+25) at slot edge
+      y -= h / 2; // always center vertically
       break;
     }
     case "fill_gauge": {
       const w = 22; // default barWidth
       const h = 90; // default barHeight
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "sparkline": {
       const h = 18; // default sparkHeight
-      if (isHoriz) x -= 55;  // half of 110 default sparkWidth
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= 110;
+      if (isHoriz) x -= 55; // half of 110 default sparkWidth
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= 110;
       break;
     }
     case "digital_status": {
       const w = 30; // conservative estimate (unbound "—" ≈18px, bound ≈36px)
       const h = 20;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "point_name_label": {
       const w = 80; // getNodeBounds default
       const h = 12; // fontSize:10 + 2
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;   // label bottom at slot line (sits above shape)
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h; // label bottom at slot line (sits above shape)
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
   }

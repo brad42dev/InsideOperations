@@ -22,7 +22,10 @@ import type {
   SymbolInstance,
   DisplayElement,
 } from "../../../shared/types/graphics";
-import type { PlacedShapeConfig, DisplayElementUserConfig } from "./ShapeDropDialog";
+import type {
+  PlacedShapeConfig,
+  DisplayElementUserConfig,
+} from "./ShapeDropDialog";
 import {
   DEConfigPanel,
   makeDefaultElementConfig,
@@ -35,10 +38,7 @@ import {
 } from "./ShapeDropDialog";
 import { resolveSlotWithSidecar } from "../../../shared/graphics/anchorSlots";
 import { SceneRenderer } from "../../../shared/graphics/SceneRenderer";
-import {
-  ShapePointSelector,
-  resolvePointBindings,
-} from "./ShapePointSelector";
+import { ShapePointSelector, resolvePointBindings } from "./ShapePointSelector";
 import type { ShapeSlotDef, ShapeBindingEntry } from "./ShapePointSelector";
 
 // ---------------------------------------------------------------------------
@@ -297,21 +297,32 @@ function AddonThumbnailCard({
 // ---------------------------------------------------------------------------
 
 /** Pixel dimensions SceneRenderer renders each DE type at with the given config. */
-function dePixelSize(dt: DisplayElementType, cfg?: DisplayElementUserConfig): { w: number; h: number } {
+function dePixelSize(
+  dt: DisplayElementType,
+  cfg?: DisplayElementUserConfig,
+): { w: number; h: number } {
   switch (dt) {
     case "text_readout": {
       // Mirror nodeTransforms.ts getNodeLocalSize text_readout branch:
       // ROW_H=16, GAP=2; rows = value + optional pointName + optional displayName
-      const rows = 1 + (cfg?.showPointName ? 1 : 0) + (cfg?.showDisplayName ? 1 : 0);
+      const rows =
+        1 + (cfg?.showPointName ? 1 : 0) + (cfg?.showDisplayName ? 1 : 0);
       return { w: 40, h: rows * 16 + (rows - 1) * 2 };
     }
-    case "alarm_indicator":  return { w: 24,  h: 18  };
-    case "analog_bar":       return { w: 20,  h: 80  };
-    case "fill_gauge":       return { w: 22,  h: 90  };
-    case "sparkline":        return { w: 110, h: 18  };
-    case "digital_status":   return { w: 40,  h: 22  };
-    case "point_name_label": return { w: 50,  h: 12  };
-    default:                 return { w: 40,  h: 20  };
+    case "alarm_indicator":
+      return { w: 24, h: 18 };
+    case "analog_bar":
+      return { w: 20, h: 80 };
+    case "fill_gauge":
+      return { w: 22, h: 90 };
+    case "sparkline":
+      return { w: 110, h: 18 };
+    case "digital_status":
+      return { w: 40, h: 22 };
+    case "point_name_label":
+      return { w: 50, h: 12 };
+    default:
+      return { w: 40, h: 20 };
   }
 }
 
@@ -327,11 +338,11 @@ function deSlotToPosition(
   cfg?: DisplayElementUserConfig,
 ): { x: number; y: number } {
   let { x, y } = center;
-  const isTop   = slotName === "top";
+  const isTop = slotName === "top";
   const isHoriz = isTop || slotName === "bottom";
   const isRight = slotName.startsWith("right");
-  const isLeft  = slotName.startsWith("left");
-  const isVert  = isRight || isLeft;
+  const isLeft = slotName.startsWith("left");
+  const isVert = isRight || isLeft;
 
   switch (dt) {
     case "alarm_indicator":
@@ -339,48 +350,52 @@ function deSlotToPosition(
     case "text_readout": {
       const { w, h } = dePixelSize(dt, cfg);
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "analog_bar": {
       const h = 80;
       if (isRight) x += 15;
-      if (isLeft)  x -= 25;
+      if (isLeft) x -= 25;
       y -= h / 2;
       break;
     }
     case "fill_gauge": {
-      const w = 22, h = 90;
+      const w = 22,
+        h = 90;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "sparkline": {
-      const w = 110, h = 18;
+      const w = 110,
+        h = 18;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "digital_status": {
-      const w = 40, h = 22;
+      const w = 40,
+        h = 22;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
     case "point_name_label": {
-      const w = 50, h = 12;
+      const w = 50,
+        h = 12;
       if (isHoriz) x -= w / 2;
-      if (isTop)   y -= h;
-      if (isVert)  y -= h / 2;
-      if (isLeft)  x -= w;
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isLeft) x -= w;
       break;
     }
   }
@@ -402,7 +417,10 @@ function buildPreviewDocument(
   const relBbox = { x: 0, y: 0, width: shapeW, height: shapeH };
 
   // Estimate canvas bounding box including composable parts and display elements
-  let minX = 0, minY = 0, maxX = shapeW, maxY = shapeH;
+  let minX = 0,
+    minY = 0,
+    maxX = shapeW,
+    maxY = shapeH;
 
   // Composable parts: estimate from compositeAttachments or stacking fallback.
   // Must mirror renderSymbolInstanceSvg's stacking logic so the canvas is large
@@ -411,12 +429,13 @@ function buildPreviewDocument(
   // Parts with an attachment entry are placed at att.y - bodyBase.y (exact).
   // Parts without an attachment stack above/below the previous part using
   // highestAboveY / belowStacked accumulators — same as the renderer.
-  let highestAboveY = 0;   // tracks topmost y of above-stacked parts (renderer-side)
+  let highestAboveY = 0; // tracks topmost y of above-stacked parts (renderer-side)
   let belowStacked = shapeH;
   for (const [group, addonId] of Object.entries(selectedAddons)) {
     if (!addonId) continue;
-    const att = sidecar.compositeAttachments?.find((a) => a.forPart === addonId)
-      ?? sidecar.compositeAttachments?.find((a) => a.forPart === group);
+    const att =
+      sidecar.compositeAttachments?.find((a) => a.forPart === addonId) ??
+      sidecar.compositeAttachments?.find((a) => a.forPart === group);
     // Estimate part dimensions: parts are typically ~70% of the larger shape dim.
     const estPart = Math.max(shapeW, shapeH) * 0.7;
     if (att) {
@@ -466,7 +485,10 @@ function buildPreviewDocument(
 
     // vessel_overlay fill gauges are contained within the vessel — no bbox extension.
     // alarm_indicator is center-anchored; all other DEs are top-left anchored.
-    const isVesselOverlay = dt === "fill_gauge" && slotName === "vessel-interior" && !!sidecar.vesselInteriorPath;
+    const isVesselOverlay =
+      dt === "fill_gauge" &&
+      slotName === "vessel-interior" &&
+      !!sidecar.vesselInteriorPath;
     if (!isVesselOverlay) {
       if (dt === "alarm_indicator") {
         minX = Math.min(minX, pos.x - dw / 2 - 4);
@@ -486,8 +508,15 @@ function buildPreviewDocument(
       displayType: dt,
       name: dt,
       binding: {},
-      config: userConfigToDisplayConfig(dt, userCfg, { vesselOverlay: isVesselOverlay }),
-      transform: { position: pos, rotation: 0, scale: { x: 1, y: 1 }, mirror: "none" },
+      config: userConfigToDisplayConfig(dt, userCfg, {
+        vesselOverlay: isVesselOverlay,
+      }),
+      transform: {
+        position: pos,
+        rotation: 0,
+        scale: { x: 1, y: 1 },
+        mirror: "none",
+      },
       visible: true,
       locked: false,
       opacity: 1,
@@ -518,7 +547,12 @@ function buildPreviewDocument(
     textZoneOverrides: {},
     children: deChildren,
     propertyOverrides: {},
-    transform: { position: { x: symX, y: symY }, rotation: 0, scale: { x: 1, y: 1 }, mirror: "none" },
+    transform: {
+      position: { x: symX, y: symY },
+      rotation: 0,
+      scale: { x: 1, y: 1 },
+      mirror: "none",
+    },
     visible: true,
     locked: false,
     opacity: 1,
@@ -540,13 +574,17 @@ function buildPreviewDocument(
     layers: [],
     expressions: {},
     children: [symbolInstance],
-    transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: "none" },
+    transform: {
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      scale: { x: 1, y: 1 },
+      mirror: "none",
+    },
     visible: true,
     locked: false,
     opacity: 1,
   };
 }
-
 
 // ---------------------------------------------------------------------------
 // CategoryShapeWizard — main component
@@ -581,8 +619,11 @@ export function CategoryShapeWizard({
     Set<DisplayElementType>
   >(new Set());
   const [elementSlots, setElementSlots] = useState<Record<string, string>>({});
-  const [elementConfigs, setElementConfigs] = useState<Record<string, DisplayElementUserConfig>>({});
-  const [focusedElement, setFocusedElement] = useState<DisplayElementType | null>(null);
+  const [elementConfigs, setElementConfigs] = useState<
+    Record<string, DisplayElementUserConfig>
+  >({});
+  const [focusedElement, setFocusedElement] =
+    useState<DisplayElementType | null>(null);
   const [bindings, setBindings] = useState<ShapeBindingEntry[]>([]);
 
   // Steps: 0 (variant picker) + N addon groups + 1 (display elements) + 1 (point bindings)
@@ -629,13 +670,26 @@ export function CategoryShapeWizard({
 
       if (editMode && initialConfig) {
         // Pre-populate from the existing node state
-        const initBindingMap = new Map(initialConfig.bindings.map((b) => [b.partKey, b]));
-        setBindings(
-          parts.map((p) => initBindingMap.get(p.partId) ?? { partKey: p.partId, tag: "", pointId: "" }),
+        const initBindingMap = new Map(
+          initialConfig.bindings.map((b) => [b.partKey, b]),
         );
-        setSelectedElements(new Set(initialConfig.selectedElements as DisplayElementType[]));
+        setBindings(
+          parts.map(
+            (p) =>
+              initBindingMap.get(p.partId) ?? {
+                partKey: p.partId,
+                tag: "",
+                pointId: "",
+              },
+          ),
+        );
+        setSelectedElements(
+          new Set(initialConfig.selectedElements as DisplayElementType[]),
+        );
         setElementConfigs(initialConfig.elementConfigs);
-        setFocusedElement((initialConfig.selectedElements[0] as DisplayElementType) ?? null);
+        setFocusedElement(
+          (initialConfig.selectedElements[0] as DisplayElementType) ?? null,
+        );
       } else {
         setBindings(
           parts.map((p) => ({ partKey: p.partId, tag: "", pointId: "" })),
@@ -644,7 +698,6 @@ export function CategoryShapeWizard({
         setElementConfigs({});
         setFocusedElement(null);
       }
-
     });
   }, [selectedId, loadShape, editMode, initialConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -658,7 +711,9 @@ export function CategoryShapeWizard({
   // Build PlacedShapeConfig from current wizard state
   const buildConfig = useCallback((): PlacedShapeConfig => {
     const variant = sidecar?.options?.[0]?.id ?? "opt1";
-    const selectedAddonIds = new Set(Object.values(selectedAddons).filter(Boolean));
+    const selectedAddonIds = new Set(
+      Object.values(selectedAddons).filter(Boolean),
+    );
     const allParts = sidecar?.bindableParts ?? [
       { partId: "body", label: "Equipment Body", category: "equipment" },
     ];
@@ -710,7 +765,14 @@ export function CategoryShapeWizard({
       elementConfigs,
       sidecar,
     );
-  }, [selectedId, sidecar, selectedAddons, selectedElements, elementSlots, elementConfigs]);
+  }, [
+    selectedId,
+    sidecar,
+    selectedAddons,
+    selectedElements,
+    elementSlots,
+    elementConfigs,
+  ]);
 
   function handlePlace() {
     onPlace(buildConfig());
@@ -734,7 +796,11 @@ export function CategoryShapeWizard({
 
   function handleElementToggle(type: DisplayElementType) {
     if (selectedElements.has(type)) {
-      setSelectedElements((prev) => { const n = new Set(prev); n.delete(type); return n; });
+      setSelectedElements((prev) => {
+        const n = new Set(prev);
+        n.delete(type);
+        return n;
+      });
       if (focusedElement === type) setFocusedElement(null);
     } else {
       setSelectedElements((prev) => new Set([...prev, type]));
@@ -916,17 +982,29 @@ export function CategoryShapeWizard({
                   // entire 600px panel. Panel is 600px wide with 16px padding each
                   // side → 568px available. Height cap leaves room for the header.
                   width: Math.min(568, Math.ceil(previewDoc.canvas.width * 4)),
-                  height: Math.min(680, Math.ceil(previewDoc.canvas.height * 4)),
+                  height: Math.min(
+                    680,
+                    Math.ceil(previewDoc.canvas.height * 4),
+                  ),
                 }}
               />
             ) : (
-              <div style={{ color: "var(--io-text-muted)", fontSize: 11 }}>Loading…</div>
+              <div style={{ color: "var(--io-text-muted)", fontSize: 11 }}>
+                Loading…
+              </div>
             )}
           </div>
 
           {/* Right panel — scrollable content */}
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
-
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
             {/* Content area */}
             <div
               style={{
@@ -954,7 +1032,9 @@ export function CategoryShapeWizard({
                       />
                     ))}
                     {categoryShapes.length === 0 && (
-                      <div style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
+                      <div
+                        style={{ color: "var(--io-text-muted)", fontSize: 12 }}
+                      >
                         No shapes in this category yet.
                       </div>
                     )}
@@ -970,8 +1050,12 @@ export function CategoryShapeWizard({
                   const selectedAddon = selectedAddons[ag.group] ?? null;
                   return (
                     <>
-                      <div style={sectionLabel}>Select {ag.label} (optional)</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div style={sectionLabel}>
+                        Select {ag.label} (optional)
+                      </div>
+                      <div
+                        style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
+                      >
                         <button
                           onClick={() => {
                             const next = { ...selectedAddons };
@@ -979,17 +1063,46 @@ export function CategoryShapeWizard({
                             setSelectedAddons(next);
                           }}
                           style={{
-                            display: "flex", flexDirection: "column", alignItems: "center",
-                            gap: 6, padding: 8,
-                            background: !selectedAddon ? "color-mix(in srgb, var(--io-accent) 12%, transparent)" : "var(--io-surface-sunken)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: 8,
+                            background: !selectedAddon
+                              ? "color-mix(in srgb, var(--io-accent) 12%, transparent)"
+                              : "var(--io-surface-sunken)",
                             border: `2px solid ${!selectedAddon ? "var(--io-accent)" : "var(--io-border)"}`,
-                            borderRadius: "var(--io-radius)", cursor: "pointer", minWidth: 76,
+                            borderRadius: "var(--io-radius)",
+                            cursor: "pointer",
+                            minWidth: 76,
                           }}
                         >
-                          <div style={{ width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 22, color: "var(--io-text-muted)" }}>∅</span>
+                          <div
+                            style={{
+                              width: 56,
+                              height: 56,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 22,
+                                color: "var(--io-text-muted)",
+                              }}
+                            >
+                              ∅
+                            </span>
                           </div>
-                          <span style={{ fontSize: 10, color: !selectedAddon ? "var(--io-accent)" : "var(--io-text-secondary)" }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: !selectedAddon
+                                ? "var(--io-accent)"
+                                : "var(--io-text-secondary)",
+                            }}
+                          >
                             None
                           </span>
                         </button>
@@ -1010,93 +1123,191 @@ export function CategoryShapeWizard({
                 })()}
 
               {/* Point Bindings step */}
-              {isPointBindingsStep && (() => {
-                const selectedAddonIds = new Set(Object.values(selectedAddons).filter(Boolean));
-                const allParts = sidecar?.bindableParts ?? [
-                  { partId: "body", label: "Equipment Body", category: "equipment" },
-                ];
-                const activeParts = allParts.filter(
-                  (p) => p.partId === "body" || selectedAddonIds.has(p.partId),
-                );
-                const slotDefs: ShapeSlotDef[] = activeParts.map((p) => ({
-                  partId: p.partId,
-                  label: p.label,
-                  isDefault: p.partId === "body",
-                }));
-                return (
-                  <ShapePointSelector
-                    slots={slotDefs}
-                    bindings={bindings}
-                    onChange={setBindings}
-                  />
-                );
-              })()}
+              {isPointBindingsStep &&
+                (() => {
+                  const selectedAddonIds = new Set(
+                    Object.values(selectedAddons).filter(Boolean),
+                  );
+                  const allParts = sidecar?.bindableParts ?? [
+                    {
+                      partId: "body",
+                      label: "Equipment Body",
+                      category: "equipment",
+                    },
+                  ];
+                  const activeParts = allParts.filter(
+                    (p) =>
+                      p.partId === "body" || selectedAddonIds.has(p.partId),
+                  );
+                  const slotDefs: ShapeSlotDef[] = activeParts.map((p) => ({
+                    partId: p.partId,
+                    label: p.label,
+                    isDefault: p.partId === "body",
+                  }));
+                  return (
+                    <ShapePointSelector
+                      slots={slotDefs}
+                      bindings={bindings}
+                      onChange={setBindings}
+                    />
+                  );
+                })()}
 
               {/* Display Elements step — two-column: checklist left, config right */}
-              {isDisplayElementsStep && (() => {
-                const bodyBinding = bindings.find((b) => b.partKey === "body");
-                return (
-                  <div style={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}>
-                    {/* Left — element checklist */}
-                    <div style={{ width: 196, flexShrink: 0, borderRight: "1px solid var(--io-border)", paddingRight: 10, display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div style={sectionLabel}>Elements</div>
-                      {ALL_DISPLAY_ELEMENTS.map(({ id, label }) => {
-                        const isChecked = selectedElements.has(id);
-                        const isFocused = focusedElement === id;
-                        return (
+              {isDisplayElementsStep &&
+                (() => {
+                  const bodyBinding = bindings.find(
+                    (b) => b.partKey === "body",
+                  );
+                  return (
+                    <div
+                      style={{ display: "flex", gap: 0, flex: 1, minHeight: 0 }}
+                    >
+                      {/* Left — element checklist */}
+                      <div
+                        style={{
+                          width: 196,
+                          flexShrink: 0,
+                          borderRight: "1px solid var(--io-border)",
+                          paddingRight: 10,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 2,
+                        }}
+                      >
+                        <div style={sectionLabel}>Elements</div>
+                        {ALL_DISPLAY_ELEMENTS.map(({ id, label }) => {
+                          const isChecked = selectedElements.has(id);
+                          const isFocused = focusedElement === id;
+                          return (
+                            <div
+                              key={id}
+                              onClick={() => setFocusedElement(id)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "5px 6px",
+                                borderRadius: "var(--io-radius)",
+                                cursor: "pointer",
+                                background: isFocused
+                                  ? "color-mix(in srgb, var(--io-accent) 10%, transparent)"
+                                  : "transparent",
+                                border: `1px solid ${isFocused ? "var(--io-accent)" : "transparent"}`,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleElementToggle(id);
+                                }}
+                                style={{
+                                  accentColor: "var(--io-accent)",
+                                  flexShrink: 0,
+                                  width: 14,
+                                  height: 14,
+                                }}
+                              />
+                              <div
+                                style={{
+                                  width: 14,
+                                  height: 10,
+                                  borderRadius: 2,
+                                  background:
+                                    DE_CHIP[id]?.color ?? "var(--io-border)",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  color: "var(--io-text-primary)",
+                                }}
+                              >
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Right — config panel */}
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          paddingLeft: 14,
+                          overflowY: "auto",
+                        }}
+                      >
+                        {focusedElement ? (
+                          selectedElements.has(focusedElement) ? (
+                            <DEConfigPanel
+                              elementType={focusedElement}
+                              config={elementConfigs[focusedElement] ?? {}}
+                              onChange={(updates) =>
+                                setElementConfigs((prev) => ({
+                                  ...prev,
+                                  [focusedElement]: {
+                                    ...(prev[focusedElement] ?? {}),
+                                    ...updates,
+                                  },
+                                }))
+                              }
+                              slot={
+                                elementSlots[focusedElement] ??
+                                DE_FALLBACK_SLOT[
+                                  DE_SIDECAR_KEY[focusedElement]!
+                                ] ??
+                                "bottom"
+                              }
+                              availableSlots={
+                                (
+                                  sidecar?.anchorSlots as
+                                    | Record<string, string[]>
+                                    | undefined
+                                )?.[DE_SIDECAR_KEY[focusedElement]!] ??
+                                DE_FALLBACK_SLOTS_LIST[
+                                  DE_SIDECAR_KEY[focusedElement]!
+                                ] ?? ["bottom"]
+                              }
+                              onSlotChange={(slot) =>
+                                setElementSlots((prev) => ({
+                                  ...prev,
+                                  [focusedElement]: slot,
+                                }))
+                              }
+                              bodyBinding={bodyBinding}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                color: "var(--io-text-muted)",
+                                fontSize: 12,
+                                textAlign: "center",
+                                padding: "40px 16px",
+                              }}
+                            >
+                              Enable this element to configure it.
+                            </div>
+                          )
+                        ) : (
                           <div
-                            key={id}
-                            onClick={() => setFocusedElement(id)}
                             style={{
-                              display: "flex", alignItems: "center", gap: 8, padding: "5px 6px",
-                              borderRadius: "var(--io-radius)", cursor: "pointer",
-                              background: isFocused ? "color-mix(in srgb, var(--io-accent) 10%, transparent)" : "transparent",
-                              border: `1px solid ${isFocused ? "var(--io-accent)" : "transparent"}`,
+                              color: "var(--io-text-muted)",
+                              fontSize: 12,
+                              textAlign: "center",
+                              padding: "40px 16px",
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => { e.stopPropagation(); handleElementToggle(id); }}
-                              style={{ accentColor: "var(--io-accent)", flexShrink: 0, width: 14, height: 14 }}
-                            />
-                            <div style={{ width: 14, height: 10, borderRadius: 2, background: DE_CHIP[id]?.color ?? "var(--io-border)", flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, color: "var(--io-text-primary)" }}>{label}</span>
+                            Select an element on the left to configure it.
                           </div>
-                        );
-                      })}
+                        )}
+                      </div>
                     </div>
-                    {/* Right — config panel */}
-                    <div style={{ flex: 1, minWidth: 0, paddingLeft: 14, overflowY: "auto" }}>
-                      {focusedElement ? (
-                        selectedElements.has(focusedElement) ? (
-                          <DEConfigPanel
-                            elementType={focusedElement}
-                            config={elementConfigs[focusedElement] ?? {}}
-                            onChange={(updates) =>
-                              setElementConfigs((prev) => ({
-                                ...prev,
-                                [focusedElement]: { ...(prev[focusedElement] ?? {}), ...updates },
-                              }))
-                            }
-                            slot={elementSlots[focusedElement] ?? DE_FALLBACK_SLOT[DE_SIDECAR_KEY[focusedElement]!] ?? "bottom"}
-                            availableSlots={
-                              (sidecar?.anchorSlots as Record<string, string[]> | undefined)?.[DE_SIDECAR_KEY[focusedElement]!] ??
-                              DE_FALLBACK_SLOTS_LIST[DE_SIDECAR_KEY[focusedElement]!] ?? ["bottom"]
-                            }
-                            onSlotChange={(slot) => setElementSlots((prev) => ({ ...prev, [focusedElement]: slot }))}
-                            bodyBinding={bodyBinding}
-                          />
-                        ) : (
-                          <div style={{ color: "var(--io-text-muted)", fontSize: 12, textAlign: "center", padding: "40px 16px" }}>Enable this element to configure it.</div>
-                        )
-                      ) : (
-                        <div style={{ color: "var(--io-text-muted)", fontSize: 12, textAlign: "center", padding: "40px 16px" }}>Select an element on the left to configure it.</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
             </div>
           </div>
         </div>

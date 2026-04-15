@@ -84,10 +84,7 @@ export function getNodeLocalSize(
           h: Math.abs(p.geometry.y2 - p.geometry.y1) || 4,
         };
       }
-      if (
-        p.geometry.type === "polyline" ||
-        p.geometry.type === "polygon"
-      ) {
+      if (p.geometry.type === "polyline" || p.geometry.type === "polygon") {
         const xs = p.geometry.points.map((pt) => pt.x);
         const ys = p.geometry.points.map((pt) => pt.y);
         return {
@@ -136,7 +133,10 @@ export function getNodeLocalSize(
           const numRows = (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0) + 1;
           const ROW_H = 16,
             GAP = 2;
-          return { w: tCfg.minWidth ?? 40, h: numRows * ROW_H + (numRows - 1) * GAP };
+          return {
+            w: tCfg.minWidth ?? 40,
+            h: numRows * ROW_H + (numRows - 1) * GAP,
+          };
         }
         case "analog_bar":
           return { w: 40, h: cfg.barHeight ?? 80 };
@@ -259,14 +259,20 @@ export function buildExteriorSidecarTransform(
   let epy = parentScale.y;
   if (parentMirror === "horizontal") epx = -epx;
   else if (parentMirror === "vertical") epy = -epy;
-  else if (parentMirror === "both") { epx = -epx; epy = -epy; }
+  else if (parentMirror === "both") {
+    epx = -epx;
+    epy = -epy;
+  }
 
   // Effective child scale with mirror folded in
   let ecx = childScale.x;
   let ecy = childScale.y;
   if (childMirror === "horizontal") ecx = -ecx;
   else if (childMirror === "vertical") ecy = -ecy;
-  else if (childMirror === "both") { ecx = -ecx; ecy = -ecy; }
+  else if (childMirror === "both") {
+    ecx = -ecx;
+    ecy = -ecy;
+  }
 
   const parts: string[] = [];
 

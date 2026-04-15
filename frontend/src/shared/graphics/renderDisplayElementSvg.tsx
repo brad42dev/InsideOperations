@@ -46,10 +46,7 @@ export const ALARM_PRIORITY_NAMES: Record<number, string> = {
  * Printf-style value formatter supporting %auto, %.Nf, %d, and %.Ng.
  * This is the SceneRenderer implementation (the more complete one).
  */
-export function formatValue(
-  raw: string | number | null,
-  fmt: string,
-): string {
+export function formatValue(raw: string | number | null, fmt: string): string {
   if (raw === null || raw === undefined) return "---";
   if (typeof raw === "number") {
     if (fmt === "%auto") {
@@ -244,8 +241,7 @@ export function renderTextReadoutSvg(
   const pvKey = ctx.pvKey;
   const pointTag = ctx.pointTag;
 
-  const alarmPriority = (pv?.alarmPriority ?? null) as
-    | 1 | 2 | 3 | 4 | 5 | null;
+  const alarmPriority = (pv?.alarmPriority ?? null) as 1 | 2 | 3 | 4 | 5 | null;
   const unacked = pv?.unacknowledged ?? false;
   const quality = pv?.quality ?? "good";
   const isStale = pv?.stale ?? false;
@@ -309,14 +305,29 @@ export function renderTextReadoutSvg(
     const r = cfg.pointNameRow!;
     if (r.showBackground) {
       els.push(
-        <rect key="pn-bg" data-role="pn-bg" x={0} y={yOff} width={w} height={ROW_H} rx={1} fill="rgba(0,0,0,0.5)" />,
+        <rect
+          key="pn-bg"
+          data-role="pn-bg"
+          x={0}
+          y={yOff}
+          width={w}
+          height={ROW_H}
+          rx={1}
+          fill="rgba(0,0,0,0.5)"
+        />,
       );
     }
     els.push(
       <text
-        key="pn" data-role="pn" x={w / 2} y={yOff + ROW_H - 4} textAnchor="middle"
-        fontFamily="JetBrains Mono" fontSize={r.fontSize ?? 10}
-        fontWeight={r.fontWeight ?? "normal"} fill={r.color || DE_COLORS.textPrimary}
+        key="pn"
+        data-role="pn"
+        x={w / 2}
+        y={yOff + ROW_H - 4}
+        textAnchor="middle"
+        fontFamily="JetBrains Mono"
+        fontSize={r.fontSize ?? 10}
+        fontWeight={r.fontWeight ?? "normal"}
+        fill={r.color || DE_COLORS.textPrimary}
       >
         {node.binding.pointTag ?? "\u2014"}
       </text>,
@@ -328,14 +339,29 @@ export function renderTextReadoutSvg(
     const r = cfg.displayNameRow!;
     if (r.showBackground) {
       els.push(
-        <rect key="dn-bg" data-role="dn-bg" x={0} y={yOff} width={w} height={ROW_H} rx={1} fill="rgba(0,0,0,0.5)" />,
+        <rect
+          key="dn-bg"
+          data-role="dn-bg"
+          x={0}
+          y={yOff}
+          width={w}
+          height={ROW_H}
+          rx={1}
+          fill="rgba(0,0,0,0.5)"
+        />,
       );
     }
     els.push(
       <text
-        key="dn" data-role="dn" x={w / 2} y={yOff + ROW_H - 4} textAnchor="middle"
-        fontFamily="Inter" fontSize={r.fontSize ?? 12}
-        fontWeight={r.fontWeight ?? "normal"} fill={r.color || DE_COLORS.textMuted}
+        key="dn"
+        data-role="dn"
+        x={w / 2}
+        y={yOff + ROW_H - 4}
+        textAnchor="middle"
+        fontFamily="Inter"
+        fontSize={r.fontSize ?? 12}
+        fontWeight={r.fontWeight ?? "normal"}
+        fill={r.color || DE_COLORS.textMuted}
       >
         {node.binding.displayName ?? "\u2014"}
       </text>,
@@ -347,8 +373,16 @@ export function renderTextReadoutSvg(
   if (cfg.showBox !== false) {
     els.push(
       <rect
-        key="box" data-role="box" x={0} y={yOff} width={w} height={valueBoxH}
-        rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth}
+        key="box"
+        data-role="box"
+        x={0}
+        y={yOff}
+        width={w}
+        height={valueBoxH}
+        rx={2}
+        fill={boxFill}
+        stroke={boxStroke}
+        strokeWidth={strokeWidth}
         strokeDasharray={effectiveDash}
       />,
     );
@@ -358,18 +392,28 @@ export function renderTextReadoutSvg(
   const er = cfg.euRow;
   els.push(
     <text
-      key="value" data-role="value" x={textX} y={yOff + ROW_H - 4}
-      textAnchor="middle" fontFamily="JetBrains Mono"
-      fontSize={vr?.fontSize ?? 11} fontWeight={vr?.fontWeight ?? "normal"}
-      fill={valueColor} style={{ fontVariantNumeric: "tabular-nums" }}
+      key="value"
+      data-role="value"
+      x={textX}
+      y={yOff + ROW_H - 4}
+      textAnchor="middle"
+      fontFamily="JetBrains Mono"
+      fontSize={vr?.fontSize ?? 11}
+      fontWeight={vr?.fontWeight ?? "normal"}
+      fill={valueColor}
+      style={{ fontVariantNumeric: "tabular-nums" }}
     >
       <tspan data-role="v">{rawValueStr}</tspan>
       {euEnabled && (
         <tspan
-          data-role="eu" fontFamily="Inter"
+          data-role="eu"
+          fontFamily="Inter"
           fontSize={er?.fontSize ?? 9}
           fill={er?.color || DE_COLORS.textMuted}
-        > {unitText}</tspan>
+        >
+          {" "}
+          {unitText}
+        </tspan>
       )}
     </text>,
   );
@@ -377,9 +421,16 @@ export function renderTextReadoutSvg(
   if (isManual) {
     els.push(
       <text
-        key="manual-badge" data-role="manual-badge" x={w - 2} y={yOff + 2}
-        textAnchor="end" dominantBaseline="hanging"
-        fontFamily="Inter" fontSize={7} fontWeight={700} fill={DE_COLORS.manualBadge}
+        key="manual-badge"
+        data-role="manual-badge"
+        x={w - 2}
+        y={yOff + 2}
+        textAnchor="end"
+        dominantBaseline="hanging"
+        fontFamily="Inter"
+        fontSize={7}
+        fontWeight={700}
+        fill={DE_COLORS.manualBadge}
       >
         M
       </text>,
@@ -467,7 +518,9 @@ export function renderAlarmIndicatorSvg(
       data-point-tag={pointTag}
       data-display-type="alarm_indicator"
       data-point-id={pvKey}
-      style={{ display: active || designerMode || previewMode ? undefined : "none" }}
+      style={{
+        display: active || designerMode || previewMode ? undefined : "none",
+      }}
     >
       {shapeEl}
       <text
@@ -502,9 +555,7 @@ export function renderDigitalStatusSvg(
   const parentOffset = ctx.parentOffset;
 
   const rawVal =
-    pv?.value !== undefined && pv.value !== null
-      ? String(pv.value)
-      : null;
+    pv?.value !== undefined && pv.value !== null ? String(pv.value) : null;
   const label =
     rawVal !== null
       ? (cfg.stateLabels[rawVal] ?? ctx.discreteLabel ?? rawVal)
@@ -513,9 +564,7 @@ export function renderDigitalStatusSvg(
   const fill = isNormal
     ? DE_COLORS.displayZoneInactive
     : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
-  const textColor = isNormal
-    ? DE_COLORS.textSecondary
-    : DE_COLORS.textPrimary;
+  const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary;
   const w = Math.max(40, label.length * 7.5 + 12);
 
   return (
@@ -632,9 +681,7 @@ export function renderAnalogBarSvg(
   // Zone fill with alarm replacement
   const zoneFills = {
     hh:
-      valueZone === "hh" &&
-      alarmPriority &&
-      cfg.thresholds?.hhAlarmPriority
+      valueZone === "hh" && alarmPriority && cfg.thresholds?.hhAlarmPriority
         ? ALARM_COLORS[cfg.thresholds.hhAlarmPriority]
         : ZONE_FILLS.hh,
     h:
@@ -647,9 +694,7 @@ export function renderAnalogBarSvg(
         ? ALARM_COLORS[cfg.thresholds.lAlarmPriority]
         : ZONE_FILLS.l,
     ll:
-      valueZone === "ll" &&
-      alarmPriority &&
-      cfg.thresholds?.llAlarmPriority
+      valueZone === "ll" && alarmPriority && cfg.thresholds?.llAlarmPriority
         ? ALARM_COLORS[cfg.thresholds.llAlarmPriority]
         : ZONE_FILLS.ll,
   };
@@ -760,10 +805,7 @@ export function renderAnalogBarSvg(
         (() => {
           const spVal = ctx.setpointValue ?? null;
           if (spVal === null) return null;
-          const spPct = Math.max(
-            0,
-            Math.min(1, (spVal - cfg.rangeLo) / range),
-          );
+          const spPct = Math.max(0, Math.min(1, (spVal - cfg.rangeLo) / range));
           const spY = (1 - spPct) * bh;
           return (
             <polygon
@@ -838,9 +880,7 @@ export function renderSparklineSvg(
   const rawHistory = ctx.sparklineHistory;
   let polylinePoints = "";
   if (rawHistory && rawHistory.length >= 2) {
-    const nums = rawHistory.filter(
-      (v) => typeof v === "number" && isFinite(v),
-    );
+    const nums = rawHistory.filter((v) => typeof v === "number" && isFinite(v));
     const sampled =
       nums.length <= targetPoints
         ? nums
@@ -848,9 +888,7 @@ export function renderSparklineSvg(
             const out: number[] = [];
             for (let i = 0; i < targetPoints; i++) {
               out.push(
-                nums[
-                  Math.round((i * (nums.length - 1)) / (targetPoints - 1))
-                ],
+                nums[Math.round((i * (nums.length - 1)) / (targetPoints - 1))],
               );
             }
             return out;
@@ -941,9 +979,12 @@ export function renderSparklineSvg(
  * Handles M, L, H, V, A, Z commands (uppercase/absolute only).
  * Arcs are handled with full center-parameterization to get exact extremes.
  */
-export function getPathBBox(
-  d: string,
-): { x: number; y: number; width: number; height: number } {
+export function getPathBBox(d: string): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -987,27 +1028,36 @@ export function getPathBBox(
 
     switch (cmd) {
       case "M": {
-        curX = nums[0]; curY = nums[1];
+        curX = nums[0];
+        curY = nums[1];
         extend(curX, curY);
         for (let i = 2; i + 1 < nums.length; i += 2) {
-          curX = nums[i]; curY = nums[i + 1];
+          curX = nums[i];
+          curY = nums[i + 1];
           extend(curX, curY);
         }
         break;
       }
       case "L": {
         for (let i = 0; i + 1 < nums.length; i += 2) {
-          curX = nums[i]; curY = nums[i + 1];
+          curX = nums[i];
+          curY = nums[i + 1];
           extend(curX, curY);
         }
         break;
       }
       case "H": {
-        for (const n of nums) { curX = n; extend(curX, curY); }
+        for (const n of nums) {
+          curX = n;
+          extend(curX, curY);
+        }
         break;
       }
       case "V": {
-        for (const n of nums) { curY = n; extend(curX, curY); }
+        for (const n of nums) {
+          curY = n;
+          extend(curX, curY);
+        }
         break;
       }
       case "A": {
@@ -1026,30 +1076,45 @@ export function getPathBBox(
           if (rx > 0 && ry > 0) {
             const dx = (curX - x2) / 2;
             const dy = (curY - y2) / 2;
-            let _rx = rx, _ry = ry;
-            const lambda = Math.sqrt(dx * dx / (_rx * _rx) + dy * dy / (_ry * _ry));
-            if (lambda > 1) { _rx *= lambda; _ry *= lambda; }
-            const rx2 = _rx * _rx, ry2 = _ry * _ry;
+            let _rx = rx,
+              _ry = ry;
+            const lambda = Math.sqrt(
+              (dx * dx) / (_rx * _rx) + (dy * dy) / (_ry * _ry),
+            );
+            if (lambda > 1) {
+              _rx *= lambda;
+              _ry *= lambda;
+            }
+            const rx2 = _rx * _rx,
+              ry2 = _ry * _ry;
             const dq = rx2 * dy * dy + ry2 * dx * dx;
             const pq = Math.max(0, (rx2 * ry2 - dq) / dq);
             const sign = largeArc !== sweep ? 1 : -1;
             const sq = sign * Math.sqrt(pq);
-            const arcCx = sq * (_rx * dy) / _ry + (curX + x2) / 2;
-            const arcCy = sq * (-_ry * dx) / _rx + (curY + y2) / 2;
+            const arcCx = (sq * (_rx * dy)) / _ry + (curX + x2) / 2;
+            const arcCy = (sq * (-_ry * dx)) / _rx + (curY + y2) / 2;
 
-            const theta1 = Math.atan2((curY - arcCy) / _ry, (curX - arcCx) / _rx);
-            let dtheta = Math.atan2((y2 - arcCy) / _ry, (x2 - arcCx) / _rx) - theta1;
+            const theta1 = Math.atan2(
+              (curY - arcCy) / _ry,
+              (curX - arcCx) / _rx,
+            );
+            let dtheta =
+              Math.atan2((y2 - arcCy) / _ry, (x2 - arcCx) / _rx) - theta1;
             if (!sweep && dtheta > 0) dtheta -= 2 * Math.PI;
             if (sweep && dtheta < 0) dtheta += 2 * Math.PI;
 
             // x-extremes at 0/π, y-extremes at π/2 and 3π/2 (phi=0)
             for (const angle of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
               if (inArcRange(angle, theta1, dtheta)) {
-                extend(arcCx + _rx * Math.cos(angle), arcCy + _ry * Math.sin(angle));
+                extend(
+                  arcCx + _rx * Math.cos(angle),
+                  arcCy + _ry * Math.sin(angle),
+                );
               }
             }
           }
-          curX = x2; curY = y2;
+          curX = x2;
+          curY = y2;
         }
         break;
       }
@@ -1168,9 +1233,13 @@ export function renderFillGaugeSvg(
             data-vessel-mid-y={localY + localH / 2}
             data-value-position={cfg.valuePosition ?? "in-fill"}
             x={localX + localW / 2}
-            y={cfg.valuePosition === "center"
-              ? localY + localH / 2
-              : fillH > 4 ? fillY + fillH / 2 : localY + localH / 2}
+            y={
+              cfg.valuePosition === "center"
+                ? localY + localH / 2
+                : fillH > 4
+                  ? fillY + fillH / 2
+                  : localY + localH / 2
+            }
             textAnchor="middle"
             dominantBaseline="central"
             fontFamily="JetBrains Mono"
@@ -1236,9 +1305,13 @@ export function renderFillGaugeSvg(
           data-role="value"
           data-value-position={cfg.valuePosition ?? "in-fill"}
           x={bw / 2}
-          y={cfg.valuePosition === "center"
-            ? bh / 2
-            : fillH > 4 ? fillY + fillH / 2 : bh / 2}
+          y={
+            cfg.valuePosition === "center"
+              ? bh / 2
+              : fillH > 4
+                ? fillY + fillH / 2
+                : bh / 2
+          }
           textAnchor="middle"
           dominantBaseline="central"
           fontFamily="JetBrains Mono"
@@ -1302,11 +1375,7 @@ export function renderPointNameLabelSvg(
           </tspan>,
         );
       const color =
-        i === last
-          ? TAG_COLOR
-          : i === secondLast
-            ? UNIT_COLOR
-            : AREA_COLOR;
+        i === last ? TAG_COLOR : i === secondLast ? UNIT_COLOR : AREA_COLOR;
       spans.push(
         <tspan key={`part-${i}`} fill={color}>
           {part}

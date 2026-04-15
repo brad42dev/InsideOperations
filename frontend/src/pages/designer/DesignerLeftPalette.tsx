@@ -2598,7 +2598,14 @@ export default function DesignerLeftPalette({
               height={sectionHeights.elements}
               onHeightChange={(dy) => adjustHeight("elements", dy)}
             >
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  padding: 8,
+                }}
+              >
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}
@@ -2686,7 +2693,14 @@ export default function DesignerLeftPalette({
               onToggle={() => setElemOpen((v) => !v)}
               flexible
             >
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  padding: 8,
+                }}
+              >
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}

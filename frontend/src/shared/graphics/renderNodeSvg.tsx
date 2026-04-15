@@ -281,8 +281,7 @@ export function renderAnnotationSvg(
       const sbCfg = node.config as SectionBreakConfig;
       const thickness = sbCfg.thickness ?? 1.5;
       const color = sbCfg.color ?? "var(--io-accent)";
-      const dasharray =
-        sbCfg.style === "dotted" ? "2 4" : undefined;
+      const dasharray = sbCfg.style === "dotted" ? "2 4" : undefined;
       const isSpace = sbCfg.style === "space";
       return (
         <g
@@ -716,12 +715,7 @@ export function renderAnnotationSvg(
                     strokeWidth={2}
                   />
                 ) : entry.symbol === "circle" ? (
-                  <circle
-                    cx={16}
-                    cy={y + rowH / 2}
-                    r={5}
-                    fill={entry.color}
-                  />
+                  <circle cx={16} cy={y + rowH / 2} r={5} fill={entry.color} />
                 ) : (
                   <rect
                     x={8}
@@ -753,8 +747,7 @@ export function renderAnnotationSvg(
       const bH = bCfg.height ?? 150;
       const bStroke = bCfg.strokeColor ?? "#3F3F46";
       const bSW = bCfg.strokeWidth ?? 1;
-      const bRx =
-        bCfg.cornerStyle === "rounded" ? (bCfg.cornerRadius ?? 4) : 0;
+      const bRx = bCfg.cornerStyle === "rounded" ? (bCfg.cornerRadius ?? 4) : 0;
       const bDash = bCfg.strokeDasharray;
       const tb = bCfg.titleBlock;
       return (
@@ -925,23 +918,65 @@ export function renderPipeSvg(
   if (pathD) {
     strokes = node.insulated ? (
       <>
-        <path d={pathD} {...baseProps} stroke={color} strokeWidth={node.strokeWidth * 4} />
-        <path d={pathD} {...baseProps} stroke={gapColor} strokeWidth={node.strokeWidth * 2} />
-        <path d={pathD} id={pathId} {...baseProps} stroke={color} strokeWidth={node.strokeWidth * 0.5} />
+        <path
+          d={pathD}
+          {...baseProps}
+          stroke={color}
+          strokeWidth={node.strokeWidth * 4}
+        />
+        <path
+          d={pathD}
+          {...baseProps}
+          stroke={gapColor}
+          strokeWidth={node.strokeWidth * 2}
+        />
+        <path
+          d={pathD}
+          id={pathId}
+          {...baseProps}
+          stroke={color}
+          strokeWidth={node.strokeWidth * 0.5}
+        />
       </>
     ) : (
-      <path d={pathD} id={pathId} {...baseProps} stroke={color} strokeWidth={node.strokeWidth} />
+      <path
+        d={pathD}
+        id={pathId}
+        {...baseProps}
+        stroke={color}
+        strokeWidth={node.strokeWidth}
+      />
     );
   } else {
     const pts = polyPoints ?? "";
     strokes = node.insulated ? (
       <>
-        <polyline points={pts} {...baseProps} stroke={color} strokeWidth={node.strokeWidth * 4} />
-        <polyline points={pts} {...baseProps} stroke={gapColor} strokeWidth={node.strokeWidth * 2} />
-        <polyline points={pts} {...baseProps} stroke={color} strokeWidth={node.strokeWidth * 0.5} />
+        <polyline
+          points={pts}
+          {...baseProps}
+          stroke={color}
+          strokeWidth={node.strokeWidth * 4}
+        />
+        <polyline
+          points={pts}
+          {...baseProps}
+          stroke={gapColor}
+          strokeWidth={node.strokeWidth * 2}
+        />
+        <polyline
+          points={pts}
+          {...baseProps}
+          stroke={color}
+          strokeWidth={node.strokeWidth * 0.5}
+        />
       </>
     ) : (
-      <polyline points={pts} {...baseProps} stroke={color} strokeWidth={node.strokeWidth} />
+      <polyline
+        points={pts}
+        {...baseProps}
+        stroke={color}
+        strokeWidth={node.strokeWidth}
+      />
     );
   }
 
@@ -1093,7 +1128,14 @@ export function renderWidgetPlaceholderSvg(
         rx={3}
       />
       {/* Title bar */}
-      <rect x={0} y={0} width={w} height={18} fill="rgba(99,102,241,0.12)" rx={3} />
+      <rect
+        x={0}
+        y={0}
+        width={w}
+        height={18}
+        fill="rgba(99,102,241,0.12)"
+        rx={3}
+      />
       <rect x={0} y={14} width={w} height={4} fill="rgba(99,102,241,0.12)" />
       <text x={6} y={12} fontSize={9} fill="var(--io-accent)" fontWeight={500}>
         {title}
@@ -1319,8 +1361,7 @@ export function renderSymbolInstanceSvg(
   // Algorithm: resolve part shape via base sidecar addons, then compute
   // exact placement from compositeAttachments + part bodyBase. Falls back to stacking.
   // SVG content is server-fetched static files from /shapes/ -- same trust level as base shapes.
-  const bw =
-    sidecar?.geometry?.baseSize?.[0] ?? sidecar?.geometry?.width ?? 64;
+  const bw = sidecar?.geometry?.baseSize?.[0] ?? sidecar?.geometry?.width ?? 64;
   const bh =
     sidecar?.geometry?.baseSize?.[1] ?? sidecar?.geometry?.height ?? 64;
   let highestAboveY = 0;
@@ -1343,8 +1384,7 @@ export function renderSymbolInstanceSvg(
     const pw = pGeo?.baseSize?.[0] ?? pGeo?.width ?? 32;
     const ph = pGeo?.baseSize?.[1] ?? pGeo?.height ?? 32;
     const pVB =
-      partData.svg.match(/viewBox=["']([^"']+)["']/)?.[1] ??
-      `0 0 ${pw} ${ph}`;
+      partData.svg.match(/viewBox=["']([^"']+)["']/)?.[1] ?? `0 0 ${pw} ${ph}`;
     // Strip outer <svg> wrapper -- content is re-wrapped with explicit geometry below
     const pInner =
       partData.svg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i)?.[1] ?? "";
@@ -1436,9 +1476,7 @@ export function renderSymbolInstanceSvg(
       style={ctx.cursor ? { cursor: ctx.cursor } : undefined}
     >
       {/* Base shape SVG -- server-fetched trusted content */}
-      {svgContent && (
-        <g dangerouslySetInnerHTML={{ __html: svgContent }} />
-      )}
+      {svgContent && <g dangerouslySetInnerHTML={{ __html: svgContent }} />}
       {composablePartElements}
       {textZoneElements}
       {node.children.map((child) => {

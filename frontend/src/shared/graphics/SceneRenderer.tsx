@@ -640,8 +640,11 @@ export function SceneRenderer({
   function makeRenderCtx(node: SceneNode): RenderContext {
     return {
       transform: getTransformAttr(node),
-      onClick: (node.navigationLink || onNodeClick) ? (e: React.MouseEvent) => handleNodeClick(node, e) : undefined,
-      cursor: (node.navigationLink || onNodeClick) ? "pointer" : undefined,
+      onClick:
+        node.navigationLink || onNodeClick
+          ? (e: React.MouseEvent) => handleNodeClick(node, e)
+          : undefined,
+      cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
     };
   }
 
@@ -713,21 +716,22 @@ export function SceneRenderer({
     // Resolve discrete label from point metadata (for digital_status)
     const meta = pvKey ? pointMetaMapRef.current.get(pvKey) : undefined;
     const discreteLabel =
-      meta &&
-      meta.point_category !== "analog" &&
-      typeof pv?.value === "number"
+      meta && meta.point_category !== "analog" && typeof pv?.value === "number"
         ? resolvePointLabel(pv.value, meta.point_category, meta.enum_labels)
         : null;
 
     // Resolve engineering unit from metadata (for text_readout EU display)
-    const metaUnit = pvKey ? (pointMetaMap.get(pvKey)?.engineering_unit ?? undefined) : undefined;
+    const metaUnit = pvKey
+      ? (pointMetaMap.get(pvKey)?.engineering_unit ?? undefined)
+      : undefined;
 
     // Resolve setpoint value (for analog_bar)
     let setpointValue: number | null = null;
     if (node.displayType === "analog_bar") {
       const abCfg = node.config as AnalogBarConfig;
       if (abCfg.showSetpoint) {
-        const spKey = abCfg.setpointBinding?.pointId ?? abCfg.setpointBinding?.expressionId;
+        const spKey =
+          abCfg.setpointBinding?.pointId ?? abCfg.setpointBinding?.expressionId;
         const spPv = spKey ? pointValues.get(spKey) : undefined;
         setpointValue = typeof spPv?.value === "number" ? spPv.value : null;
       }
@@ -743,16 +747,18 @@ export function SceneRenderer({
     const deCtx: DisplayElementRenderContext = {
       transform,
       pvKey,
-      pointValue: pv ? {
-        value: pv.value,
-        quality: pv.quality,
-        stale: pv.stale,
-        manual: pv.manual,
-        // Include metaUnit fallback in units so shared function gets the resolved value
-        units: pv.units ?? metaUnit ?? undefined,
-        alarmPriority: pv.alarmPriority,
-        unacknowledged: pv.unacknowledged,
-      } : undefined,
+      pointValue: pv
+        ? {
+            value: pv.value,
+            quality: pv.quality,
+            stale: pv.stale,
+            manual: pv.manual,
+            // Include metaUnit fallback in units so shared function gets the resolved value
+            units: pv.units ?? metaUnit ?? undefined,
+            alarmPriority: pv.alarmPriority,
+            unacknowledged: pv.unacknowledged,
+          }
+        : undefined,
       pointTag,
       discreteLabel,
       parentOffset,
@@ -812,7 +818,10 @@ export function SceneRenderer({
     }
 
     // Build partShapes map from shapeMap using the sidecar's addon files
-    const partShapes = new Map<string, { svg: string; sidecar: import("../types/shapes").ShapeSidecar | null }>();
+    const partShapes = new Map<
+      string,
+      { svg: string; sidecar: import("../types/shapes").ShapeSidecar | null }
+    >();
     if (sidecar?.addons) {
       for (const addon of sidecar.addons) {
         const partId = addon.file.replace(/\.svg$/, "");
@@ -832,8 +841,18 @@ export function SceneRenderer({
       isSelected,
       designerMode,
       stateTag: statePv?.tag,
-      renderChild: (child, parentOffset, vesselInteriorPath, overrideTransform) =>
-        renderDisplayElement(child, parentOffset, vesselInteriorPath, overrideTransform),
+      renderChild: (
+        child,
+        parentOffset,
+        vesselInteriorPath,
+        overrideTransform,
+      ) =>
+        renderDisplayElement(
+          child,
+          parentOffset,
+          vesselInteriorPath,
+          overrideTransform,
+        ),
     };
     return renderSymbolInstanceSvg(node, ctx);
   }
@@ -1141,9 +1160,10 @@ function applyPointValue(
         textEl.setAttribute("fill", valueColor);
 
         // 2. Show/hide EU tspan based on comm/bad state
-        const euSpan = textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
+        const euSpan =
+          textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
         if (euSpan) {
-          euSpan.style.display = (!isCommFail && !isBad) ? "" : "none";
+          euSpan.style.display = !isCommFail && !isBad ? "" : "none";
         }
 
         // 3. Measure actual rendered width — exact, no font estimation needed
@@ -1218,7 +1238,9 @@ function applyPointValue(
           el.appendChild(badge);
         }
         const boxRectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
-        const w = boxRectEl ? Number(boxRectEl.getAttribute("width") ?? 60) : 60;
+        const w = boxRectEl
+          ? Number(boxRectEl.getAttribute("width") ?? 60)
+          : 60;
         const boxY = Number(el.getAttribute("data-value-box-y") ?? 0);
         badge.setAttribute("x", String(w - 2));
         badge.setAttribute("y", String(boxY + 2));
@@ -1368,22 +1390,35 @@ function applyPointValue(
         const fillRect = el.querySelector<SVGRectElement>('[data-role="fill"]');
         if (fillRect) {
           // localH and localBottom are baked in as data attrs during initial React render
-          const localH = parseFloat(fillRect.getAttribute("data-vessel-h") ?? String(bh));
-          const localBottom = parseFloat(fillRect.getAttribute("data-vessel-base-y") ?? String(bh));
+          const localH = parseFloat(
+            fillRect.getAttribute("data-vessel-h") ?? String(bh),
+          );
+          const localBottom = parseFloat(
+            fillRect.getAttribute("data-vessel-base-y") ?? String(bh),
+          );
           const fillH = pct * localH;
           const fillY = localBottom - fillH;
           fillRect.setAttribute("y", String(fillY));
           fillRect.setAttribute("height", String(Math.max(0, fillH) + 1));
-          const levelLine = el.querySelector<SVGLineElement>('[data-role="level-line"]');
+          const levelLine = el.querySelector<SVGLineElement>(
+            '[data-role="level-line"]',
+          );
           if (levelLine) {
             levelLine.setAttribute("y1", String(fillY));
             levelLine.setAttribute("y2", String(fillY));
           }
-          const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
+          const textEl = el.querySelector<SVGTextElement>(
+            '[data-role="value"]',
+          );
           if (textEl) {
-            const midY = parseFloat(textEl.getAttribute("data-vessel-mid-y") ?? String(localBottom - localH / 2));
-            const vpos = textEl.getAttribute("data-value-position") ?? "in-fill";
-            const textY = vpos === "center" ? midY : fillH > 4 ? fillY + fillH / 2 : midY;
+            const midY = parseFloat(
+              textEl.getAttribute("data-vessel-mid-y") ??
+                String(localBottom - localH / 2),
+            );
+            const vpos =
+              textEl.getAttribute("data-value-position") ?? "in-fill";
+            const textY =
+              vpos === "center" ? midY : fillH > 4 ? fillY + fillH / 2 : midY;
             textEl.setAttribute("y", String(textY));
             textEl.textContent = `${(pct * 100).toFixed(0)}%`;
           }
@@ -1396,7 +1431,9 @@ function applyPointValue(
           fillRect.setAttribute("y", String(fillY));
           fillRect.setAttribute("height", String(fillH));
         }
-        const levelLine = el.querySelector<SVGLineElement>('[data-role="level-line"]');
+        const levelLine = el.querySelector<SVGLineElement>(
+          '[data-role="level-line"]',
+        );
         if (levelLine) {
           levelLine.setAttribute("y1", String(fillY));
           levelLine.setAttribute("y2", String(fillY));
@@ -1404,7 +1441,8 @@ function applyPointValue(
         const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
         if (textEl) {
           const vpos = textEl.getAttribute("data-value-position") ?? "in-fill";
-          const textY = vpos === "center" ? bh / 2 : fillH > 4 ? fillY + fillH / 2 : bh / 2;
+          const textY =
+            vpos === "center" ? bh / 2 : fillH > 4 ? fillY + fillH / 2 : bh / 2;
           textEl.setAttribute("y", String(textY));
           textEl.textContent = `${(pct * 100).toFixed(0)}%`;
         }

@@ -1049,7 +1049,10 @@ export default function DesignerToolbar({
   useEffect(() => {
     if (!showZoomMenu) return;
     function onDown(e: MouseEvent) {
-      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+      if (
+        zoomMenuRef.current &&
+        !zoomMenuRef.current.contains(e.target as Node)
+      ) {
         setShowZoomMenu(false);
       }
     }
@@ -1067,8 +1070,14 @@ export default function DesignerToolbar({
     setShowZoomMenu(false);
     if (!doc) return;
     const nodes = doc.children;
-    if (nodes.length === 0) { handleFitToCanvas(); return; }
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    if (nodes.length === 0) {
+      handleFitToCanvas();
+      return;
+    }
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (const node of nodes) {
       const b = getNodeBounds(node);
       minX = Math.min(minX, b.x);
@@ -1076,17 +1085,26 @@ export default function DesignerToolbar({
       maxX = Math.max(maxX, b.x + b.w);
       maxY = Math.max(maxY, b.y + b.h);
     }
-    if (!isFinite(minX)) { handleFitToCanvas(); return; }
+    if (!isFinite(minX)) {
+      handleFitToCanvas();
+      return;
+    }
     const contentW = maxX - minX || 1;
     const contentH = maxY - minY || 1;
     const canvasRect = getCanvasRect?.();
     const screenW = canvasRect ? canvasRect.width : window.innerWidth - 540;
     const screenH = canvasRect ? canvasRect.height : window.innerHeight - 80;
     const MARGIN = 48;
-    const zoom = Math.min(8, Math.max(0.1, Math.min(
-      (screenW - MARGIN * 2) / contentW,
-      (screenH - MARGIN * 2) / contentH,
-    )));
+    const zoom = Math.min(
+      8,
+      Math.max(
+        0.1,
+        Math.min(
+          (screenW - MARGIN * 2) / contentW,
+          (screenH - MARGIN * 2) / contentH,
+        ),
+      ),
+    );
     const panX = (screenW - contentW * zoom) / 2 - minX * zoom;
     const panY = (screenH - contentH * zoom) / 2 - minY * zoom;
     fitToCanvas(0, 0, 0, 0); // use setViewport directly via zoomTo
@@ -1311,7 +1329,10 @@ export default function DesignerToolbar({
       </IconBtn>
 
       {/* Editable zoom percentage + preset dropdown */}
-      <div ref={zoomMenuRef} style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+      <div
+        ref={zoomMenuRef}
+        style={{ position: "relative", display: "flex", flexShrink: 0 }}
+      >
         <input
           value={zoomEditing ? zoomInputValue : `${zoomPct}%`}
           title="Type a zoom percentage"
@@ -1341,8 +1362,13 @@ export default function DesignerToolbar({
           onChange={(e) => setZoomInputValue(e.currentTarget.value)}
           onBlur={(e) => applyZoomInput(e.currentTarget.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.currentTarget.blur(); }
-            if (e.key === "Escape") { setZoomEditing(false); e.currentTarget.blur(); }
+            if (e.key === "Enter") {
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              setZoomEditing(false);
+              e.currentTarget.blur();
+            }
           }}
         />
         <button
@@ -1368,8 +1394,12 @@ export default function DesignerToolbar({
             fontSize: 9,
             flexShrink: 0,
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-surface-elevated)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--io-surface-elevated)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+          }}
         >
           ▾
         </button>
@@ -1388,13 +1418,28 @@ export default function DesignerToolbar({
               boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
               zIndex: 2000,
               padding: "4px 0",
-            }}>
-            {([
-              ["1:1 Pixels", () => { zoomTo(1.0); setShowZoomMenu(false); }],
-              ["Fit to Canvas", () => { handleFitToCanvas(); setShowZoomMenu(false); }],
-              ["Fit to Window", handleFitToContent],
-              ["Full Screen", handleFullScreen],
-            ] as [string, () => void][]).map(([label, action]) => (
+            }}
+          >
+            {(
+              [
+                [
+                  "1:1 Pixels",
+                  () => {
+                    zoomTo(1.0);
+                    setShowZoomMenu(false);
+                  },
+                ],
+                [
+                  "Fit to Canvas",
+                  () => {
+                    handleFitToCanvas();
+                    setShowZoomMenu(false);
+                  },
+                ],
+                ["Fit to Window", handleFitToContent],
+                ["Full Screen", handleFullScreen],
+              ] as [string, () => void][]
+            ).map(([label, action]) => (
               <button
                 key={label}
                 onClick={action}
@@ -1410,8 +1455,12 @@ export default function DesignerToolbar({
                   fontSize: 12,
                   fontFamily: "var(--io-font-sans)",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-surface-hover)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--io-surface-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                }}
               >
                 {label}
               </button>
@@ -1578,7 +1627,9 @@ export default function DesignerToolbar({
           cursor: onDelete && canDelete ? "pointer" : "default",
           fontSize: 12,
           color:
-            onDelete && canDelete ? "var(--io-danger)" : "var(--io-text-disabled)",
+            onDelete && canDelete
+              ? "var(--io-danger)"
+              : "var(--io-text-disabled)",
           opacity: onDelete && canDelete ? 1 : 0.4,
           flexShrink: 0,
         }}

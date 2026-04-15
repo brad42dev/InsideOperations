@@ -596,7 +596,13 @@ function RenameDialog({ currentName, onConfirm, onCancel }: RenameDialogProps) {
           gap: 16,
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--io-text-primary)" }}>
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--io-text-primary)",
+          }}
+        >
           Rename
         </div>
         <div>
@@ -631,7 +637,14 @@ function RenameDialog({ currentName, onConfirm, onCancel }: RenameDialogProps) {
             }}
           />
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 4,
+          }}
+        >
           <button
             type="button"
             onClick={onCancel}
@@ -652,8 +665,12 @@ function RenameDialog({ currentName, onConfirm, onCancel }: RenameDialogProps) {
             disabled={!canSubmit}
             style={{
               padding: "6px 14px",
-              background: canSubmit ? "var(--io-accent)" : "var(--io-surface-elevated)",
-              color: canSubmit ? "var(--io-accent-foreground)" : "var(--io-text-muted)",
+              background: canSubmit
+                ? "var(--io-accent)"
+                : "var(--io-surface-elevated)",
+              color: canSubmit
+                ? "var(--io-accent-foreground)"
+                : "var(--io-text-muted)",
               border: "none",
               borderRadius: "var(--io-radius)",
               fontSize: 12,
@@ -938,7 +955,10 @@ export default function DesignerPage() {
     try {
       const result = await graphicsApi.remove(gid);
       if (!result.success)
-        throw new Error((result as { error?: { message?: string } }).error?.message ?? "Delete failed");
+        throw new Error(
+          (result as { error?: { message?: string } }).error?.message ??
+            "Delete failed",
+        );
       tabStoreCloseAll();
       navigate("/designer/graphics");
       showToast({ title: "Graphic deleted", variant: "success" });
@@ -1207,7 +1227,10 @@ export default function DesignerPage() {
         const savedAutoSaveId = autoSaveIdRef.current;
         if (savedAutoSaveId) {
           void graphicsApi.remove(savedAutoSaveId).catch((err) => {
-            console.warn("[DesignerPage] Failed to delete server auto-save:", err);
+            console.warn(
+              "[DesignerPage] Failed to delete server auto-save:",
+              err,
+            );
           });
           autoSaveIdRef.current = null;
         }
@@ -1302,14 +1325,19 @@ export default function DesignerPage() {
     async (newName: string) => {
       if (!renameTabId) return;
       const tab = useTabStore.getState().getTab(renameTabId);
-      if (!tab) { setRenameTabId(null); return; }
+      if (!tab) {
+        setRenameTabId(null);
+        return;
+      }
 
       const isNewGraphic = tab.graphicId.startsWith("new-");
       const isActive = useTabStore.getState().activeTabId === renameTabId;
 
       try {
         if (!isNewGraphic) {
-          const result = await graphicsApi.update(tab.graphicId, { name: newName });
+          const result = await graphicsApi.update(tab.graphicId, {
+            name: newName,
+          });
           if (!result.success) {
             showToast({ title: "Rename failed", variant: "error" });
             return;
@@ -1448,10 +1476,7 @@ export default function DesignerPage() {
   // -------------------------------------------------------------------------
 
   const handlePreviewVersion = useCallback(
-    (
-      _versionId: string,
-      doc: GraphicDocument,
-    ) => {
+    (_versionId: string, doc: GraphicDocument) => {
       // Load the version content into the scene for preview (non-destructive — user can still close without saving)
       loadGraphic(useSceneStore.getState().graphicId ?? "", doc);
     },
@@ -2199,7 +2224,12 @@ export default function DesignerPage() {
           historyDocs?: GraphicDocument[];
           savedAt?: number;
         };
-        const { autosaveId = null, doc: idbDoc, historyDocs = [], savedAt = 0 } = record;
+        const {
+          autosaveId = null,
+          doc: idbDoc,
+          historyDocs = [],
+          savedAt = 0,
+        } = record;
 
         // Nothing meaningful to offer
         if (!autosaveId && !idbDoc) return;
@@ -2257,7 +2287,9 @@ export default function DesignerPage() {
             const rTx = db.transaction(STORE, "readonly");
             const rReq = rTx.objectStore(STORE).get(tabKey);
             rReq.onsuccess = () => {
-              tabAutosaveId = (rReq.result as { autosaveId?: string } | undefined)?.autosaveId ?? null;
+              tabAutosaveId =
+                (rReq.result as { autosaveId?: string } | undefined)
+                  ?.autosaveId ?? null;
               resolve();
             };
             rReq.onerror = () => resolve();
@@ -2284,7 +2316,7 @@ export default function DesignerPage() {
         idbWrite(db, {
           autosaveId: tabAutosaveId,
           doc: sceneDoc,
-          historyDocs: [],   // inactive tab — history not available
+          historyDocs: [], // inactive tab — history not available
           savedAt: Date.now(),
         });
       }
@@ -2346,7 +2378,11 @@ export default function DesignerPage() {
         if (tab.id === activeTabId) continue;
         if (!tab.isModified || !tab.savedScene) continue;
         if (tab.graphicId.startsWith("new-")) continue;
-        void saveTabToServer(tab.graphicId, tab.savedScene.scene, tab.graphicId);
+        void saveTabToServer(
+          tab.graphicId,
+          tab.savedScene.scene,
+          tab.graphicId,
+        );
       }
     }, 30_000);
 
@@ -2603,8 +2639,13 @@ export default function DesignerPage() {
                   try {
                     const db = idbRef.current;
                     if (db) {
-                      const tx = db.transaction("designer-autosave", "readwrite");
-                      tx.objectStore("designer-autosave").delete(crashRecovery.id);
+                      const tx = db.transaction(
+                        "designer-autosave",
+                        "readwrite",
+                      );
+                      tx.objectStore("designer-autosave").delete(
+                        crashRecovery.id,
+                      );
                     }
                   } catch {
                     /* best-effort */
@@ -2961,16 +3002,17 @@ export default function DesignerPage() {
       )}
 
       {/* Rename dialog */}
-      {renameTabId !== null && (() => {
-        const renameTab = tabs.find((t) => t.id === renameTabId);
-        return renameTab ? (
-          <RenameDialog
-            currentName={renameTab.graphicName}
-            onConfirm={handleRenameConfirm}
-            onCancel={() => setRenameTabId(null)}
-          />
-        ) : null;
-      })()}
+      {renameTabId !== null &&
+        (() => {
+          const renameTab = tabs.find((t) => t.id === renameTabId);
+          return renameTab ? (
+            <RenameDialog
+              currentName={renameTab.graphicName}
+              onConfirm={handleRenameConfirm}
+              onCancel={() => setRenameTabId(null)}
+            />
+          ) : null;
+        })()}
 
       {/* Mode tabs */}
       <DesignerModeTabs
@@ -3028,9 +3070,13 @@ export default function DesignerPage() {
             : undefined
         }
         canDelete={
-          canDelete && !!graphicIdInStore && !graphicIdInStore.startsWith("new-")
+          canDelete &&
+          !!graphicIdInStore &&
+          !graphicIdInStore.startsWith("new-")
         }
-        getCanvasRect={() => canvasAreaRef.current?.getBoundingClientRect() ?? null}
+        getCanvasRect={() =>
+          canvasAreaRef.current?.getBoundingClientRect() ?? null
+        }
       />
 
       {/* File tab bar — between toolbar and canvas area */}

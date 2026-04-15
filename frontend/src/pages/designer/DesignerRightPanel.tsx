@@ -551,7 +551,10 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
               new ChangePropertyCommand(
                 node.id,
                 "transform",
-                { ...node.transform, position: { ...node.transform.position, x: v } },
+                {
+                  ...node.transform,
+                  position: { ...node.transform.position, x: v },
+                },
                 node.transform,
               ),
             )
@@ -566,7 +569,10 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
               new ChangePropertyCommand(
                 node.id,
                 "transform",
-                { ...node.transform, position: { ...node.transform.position, y: v } },
+                {
+                  ...node.transform,
+                  position: { ...node.transform.position, y: v },
+                },
                 node.transform,
               ),
             )
@@ -596,7 +602,14 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
           min={0}
           max={100}
           onChange={(v) =>
-            executeCmd(new ChangePropertyCommand(node.id, "opacity", v / 100, node.opacity))
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "opacity",
+                v / 100,
+                node.opacity,
+              ),
+            )
           }
         />
       </Field>
@@ -606,7 +619,12 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
             value={node.layerId ?? ""}
             onChange={(v) =>
               executeCmd(
-                new ChangePropertyCommand(node.id, "layerId", v || undefined, node.layerId),
+                new ChangePropertyCommand(
+                  node.id,
+                  "layerId",
+                  v || undefined,
+                  node.layerId,
+                ),
               )
             }
             options={[
@@ -649,7 +667,11 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
             value={node.shapeRef.variant ?? "default"}
             onChange={(v) =>
               executeCmd(
-                new ChangeShapeVariantCommand(node.id, v, node.shapeRef.variant ?? "default"),
+                new ChangeShapeVariantCommand(
+                  node.id,
+                  v,
+                  node.shapeRef.variant ?? "default",
+                ),
               )
             }
             options={[
@@ -660,42 +682,54 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
         </Field>
       )}
 
-      {shapeEntry?.sidecar.configurations && shapeEntry.sidecar.configurations.length > 0 && (
-        <Field label="Configuration">
-          <SelectInput
-            value={node.shapeRef.configuration ?? "default"}
-            onChange={(v) =>
-              executeCmd(
-                new ChangeShapeConfigurationCommand(
-                  node.id,
-                  v === "default" ? undefined : v,
-                  node.shapeRef.configuration,
-                ),
-              )
-            }
-            options={[
-              { value: "default", label: "Default" },
-              ...shapeEntry.sidecar.configurations.map((cfg) => ({
-                value: cfg.id,
-                label: cfg.label,
-              })),
-            ]}
-          />
-        </Field>
-      )}
+      {shapeEntry?.sidecar.configurations &&
+        shapeEntry.sidecar.configurations.length > 0 && (
+          <Field label="Configuration">
+            <SelectInput
+              value={node.shapeRef.configuration ?? "default"}
+              onChange={(v) =>
+                executeCmd(
+                  new ChangeShapeConfigurationCommand(
+                    node.id,
+                    v === "default" ? undefined : v,
+                    node.shapeRef.configuration,
+                  ),
+                )
+              }
+              options={[
+                { value: "default", label: "Default" },
+                ...shapeEntry.sidecar.configurations.map((cfg) => ({
+                  value: cfg.id,
+                  label: cfg.label,
+                })),
+              ]}
+            />
+          </Field>
+        )}
 
       {shapeEntry?.sidecar.options && shapeEntry.sidecar.options.length > 0 && (
         <div style={{ marginBottom: 10 }}>
           <FieldLabel>Composable Parts</FieldLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {node.composableParts.map((part: ComposablePart) => (
-              <div key={part.partId} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, color: "var(--io-text-secondary)", flex: 1 }}>
+              <div
+                key={part.partId}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--io-text-secondary)",
+                    flex: 1,
+                  }}
+                >
                   {part.partId}
                 </span>
                 <button
                   onClick={() =>
-                    executeCmd(new RemoveComposablePartCommand(node.id, part.partId))
+                    executeCmd(
+                      new RemoveComposablePartCommand(node.id, part.partId),
+                    )
                   }
                   style={{
                     fontSize: 10,
@@ -751,12 +785,19 @@ function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
           <input
             type="text"
             key={node.id}
-            defaultValue={node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""}
+            defaultValue={
+              node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""
+            }
             onBlur={(e) => {
               const val = e.target.value.trim();
               const newBinding = val ? { pointTag: val } : undefined;
               executeCmd(
-                new ChangePropertyCommand(node.id, "stateBinding", newBinding, node.stateBinding),
+                new ChangePropertyCommand(
+                  node.id,
+                  "stateBinding",
+                  newBinding,
+                  node.stateBinding,
+                ),
               );
             }}
             style={{ ...inputStyle, flex: 1 }}
@@ -774,9 +815,13 @@ function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {(shapeEntry.sidecar.textZones ?? []).map((zone) => {
               const overrideVal =
-                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ?? "";
+                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ??
+                "";
               return (
-                <div key={zone.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div
+                  key={zone.id}
+                  style={{ display: "flex", alignItems: "center", gap: 4 }}
+                >
                   <span
                     style={{
                       fontSize: 10,
@@ -797,7 +842,10 @@ function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
                     onBlur={(e) => {
                       const v = e.target.value;
                       const overrides = {
-                        ...((node.textZoneOverrides as Record<string, string>) ?? {}),
+                        ...((node.textZoneOverrides as Record<
+                          string,
+                          string
+                        >) ?? {}),
                       };
                       if (v) overrides[zone.id] = v;
                       else delete overrides[zone.id];
@@ -822,7 +870,14 @@ function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
       <div style={{ marginBottom: 8 }}>
         <FieldLabel>Display Elements</FieldLabel>
         {node.children && node.children.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              marginBottom: 4,
+            }}
+          >
             {node.children.map((child) => {
               const de = child as DisplayElement;
               return (
@@ -837,16 +892,28 @@ function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
                   }}
                 >
                   <span
-                    style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
                   >
-                    {de.config?.displayType ?? child.type} — {de.binding?.pointId ?? "Unbound"}
+                    {de.config?.displayType ?? child.type} —{" "}
+                    {de.binding?.pointId ?? "Unbound"}
                   </span>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div style={{ fontSize: 11, color: "var(--io-text-muted)", marginBottom: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              marginBottom: 4,
+            }}
+          >
             No display elements
           </div>
         )}
@@ -3643,7 +3710,9 @@ function TabBar({
                 ? "2px solid var(--io-accent)"
                 : "2px solid transparent",
               background: "transparent",
-              color: isActive ? "var(--io-text-primary)" : "var(--io-text-muted)",
+              color: isActive
+                ? "var(--io-text-primary)"
+                : "var(--io-text-muted)",
               cursor: "pointer",
               textTransform: "uppercase",
               letterSpacing: "0.06em",
@@ -3686,13 +3755,17 @@ function getNodeDisplayName(node: SceneNode): string {
   if (node.name) return node.name;
   switch (node.type) {
     case "symbol_instance":
-      return (node as SymbolInstance).shapeRef.shapeId.split("/").pop() ?? "Symbol";
+      return (
+        (node as SymbolInstance).shapeRef.shapeId.split("/").pop() ?? "Symbol"
+      );
     case "display_element":
       return (
-        ((node as DisplayElement).config?.displayType ?? "Display").replace(/_/g, " ")
-      );
+        (node as DisplayElement).config?.displayType ?? "Display"
+      ).replace(/_/g, " ");
     case "primitive":
-      return ((node as Primitive).geometry as { type?: string })?.type ?? "Shape";
+      return (
+        ((node as Primitive).geometry as { type?: string })?.type ?? "Shape"
+      );
     case "group":
       return "Group";
     case "text_block":
@@ -3794,7 +3867,9 @@ function CanvasLayerRow({
           borderLeft: isSelected
             ? "2px solid var(--io-accent)"
             : "2px solid transparent",
-          color: node.visible ? "var(--io-text-primary)" : "var(--io-text-muted)",
+          color: node.visible
+            ? "var(--io-text-primary)"
+            : "var(--io-text-muted)",
           userSelect: "none",
         }}
       >
@@ -3819,7 +3894,12 @@ function CanvasLayerRow({
           onClick={(e) => {
             e.stopPropagation();
             executeCmd(
-              new ChangePropertyCommand(node.id, "visible", !node.visible, node.visible),
+              new ChangePropertyCommand(
+                node.id,
+                "visible",
+                !node.visible,
+                node.visible,
+              ),
             );
           }}
           title={node.visible ? "Hide" : "Show"}
@@ -3833,7 +3913,12 @@ function CanvasLayerRow({
           onClick={(e) => {
             e.stopPropagation();
             executeCmd(
-              new ChangePropertyCommand(node.id, "locked", !node.locked, node.locked),
+              new ChangePropertyCommand(
+                node.id,
+                "locked",
+                !node.locked,
+                node.locked,
+              ),
             );
           }}
           title={node.locked ? "Unlock" : "Lock"}
@@ -3902,7 +3987,9 @@ function CanvasLayerRow({
               style={{ ...LAYER_ICON_BTN, opacity: canMoveUp ? 1 : 0.25 }}
               disabled={!canMoveUp}
               onClick={() =>
-                executeCmd(new ReorderNodeCommand(actualIndex + 1, actualIndex, null))
+                executeCmd(
+                  new ReorderNodeCommand(actualIndex + 1, actualIndex, null),
+                )
               }
               title="Move forward (up in stack)"
             >
@@ -3912,7 +3999,9 @@ function CanvasLayerRow({
               style={{ ...LAYER_ICON_BTN, opacity: canMoveDown ? 1 : 0.25 }}
               disabled={!canMoveDown}
               onClick={() =>
-                executeCmd(new ReorderNodeCommand(actualIndex - 1, actualIndex, null))
+                executeCmd(
+                  new ReorderNodeCommand(actualIndex - 1, actualIndex, null),
+                )
               }
               title="Move backward (down in stack)"
             >
@@ -4003,7 +4092,11 @@ function CanvasLayersPanel() {
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {reversed.length === 0 ? (
           <div
-            style={{ padding: "8px 12px", fontSize: 11, color: "var(--io-text-muted)" }}
+            style={{
+              padding: "8px 12px",
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+            }}
           >
             Canvas is empty
           </div>
@@ -4143,13 +4236,17 @@ export default function DesignerRightPanel({
   // Document tab is always last / rightmost
   tabs.push({ id: "doc", label: "Doc" });
 
-  const validTab = tabs.find((t) => t.id === activeTab) ? activeTab : tabs[0]?.id ?? "doc";
+  const validTab = tabs.find((t) => t.id === activeTab)
+    ? activeTab
+    : (tabs[0]?.id ?? "doc");
 
   function renderTabContent() {
     if (validTab === "doc") {
       if (!doc) {
         return (
-          <div style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}>
+          <div
+            style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}
+          >
             No document open
           </div>
         );
@@ -4161,13 +4258,19 @@ export default function DesignerRightPanel({
 
     if (validTab === "shape" && singleNode?.type === "symbol_instance") {
       return (
-        <SymbolInstanceShapeTab key={singleNode.id} node={singleNode as SymbolInstance} />
+        <SymbolInstanceShapeTab
+          key={singleNode.id}
+          node={singleNode as SymbolInstance}
+        />
       );
     }
 
     if (validTab === "sidecar" && singleNode?.type === "symbol_instance") {
       return (
-        <SymbolInstanceSidecarTab key={singleNode.id} node={singleNode as SymbolInstance} />
+        <SymbolInstanceSidecarTab
+          key={singleNode.id}
+          node={singleNode as SymbolInstance}
+        />
       );
     }
 
@@ -4185,7 +4288,9 @@ export default function DesignerRightPanel({
       const layer = doc.layers.find((l) => l.id === nodeId);
       if (layer) return <LayerPropertiesPanel key={layer.id} layer={layer} />;
       return (
-        <div style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}>
+        <div
+          style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}
+        >
           Selected item not found
         </div>
       );
@@ -4193,7 +4298,9 @@ export default function DesignerRightPanel({
 
     switch (node.type) {
       case "symbol_instance":
-        return <SymbolInstancePanel key={node.id} node={node as SymbolInstance} />;
+        return (
+          <SymbolInstancePanel key={node.id} node={node as SymbolInstance} />
+        );
       case "text_block":
         return <TextBlockPanel key={node.id} node={node as TextBlock} />;
       case "primitive":
@@ -4201,13 +4308,17 @@ export default function DesignerRightPanel({
       case "pipe":
         return <PipePanel key={node.id} node={node as Pipe} />;
       case "display_element":
-        return <DisplayElementPanel key={node.id} node={node as DisplayElement} />;
+        return (
+          <DisplayElementPanel key={node.id} node={node as DisplayElement} />
+        );
       case "widget":
         return <WidgetPanel key={node.id} node={node as WidgetNode} />;
       case "image":
         return <ImageNodePanel key={node.id} node={node as ImageNode} />;
       case "embedded_svg":
-        return <EmbeddedSvgPanel key={node.id} node={node as EmbeddedSvgNode} />;
+        return (
+          <EmbeddedSvgPanel key={node.id} node={node as EmbeddedSvgNode} />
+        );
       case "group":
         return <GroupPanel key={node.id} node={node as Group} />;
       case "annotation":
@@ -4264,4 +4375,3 @@ export default function DesignerRightPanel({
     </div>
   );
 }
-

@@ -618,17 +618,37 @@ export function ShapePointSelector({
 export function resolvePointBindings(
   activePartIds: Array<{ partId: string }>,
   bindings: ShapeBindingEntry[],
-): Array<{ partKey: string; pointId: string; pointTag: string; displayName?: string; unit?: string }> {
+): Array<{
+  partKey: string;
+  pointId: string;
+  pointTag: string;
+  displayName?: string;
+  unit?: string;
+}> {
   const defaultPt = bindings.find((b) => b.partKey === "body");
 
   return activePartIds.flatMap(({ partId }) => {
     const b = bindings.find((x) => x.partKey === partId);
     if (b?.pointId) {
-      return [{ partKey: partId, pointId: b.pointId, pointTag: b.tag, displayName: b.displayName, unit: b.unit }];
+      return [
+        {
+          partKey: partId,
+          pointId: b.pointId,
+          pointTag: b.tag,
+          displayName: b.displayName,
+          unit: b.unit,
+        },
+      ];
     }
     if (partId !== "body" && defaultPt?.pointId) {
       return [
-        { partKey: partId, pointId: defaultPt.pointId, pointTag: defaultPt.tag, displayName: defaultPt.displayName, unit: defaultPt.unit },
+        {
+          partKey: partId,
+          pointId: defaultPt.pointId,
+          pointTag: defaultPt.tag,
+          displayName: defaultPt.displayName,
+          unit: defaultPt.unit,
+        },
       ];
     }
     return [];

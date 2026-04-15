@@ -768,9 +768,10 @@ export default function DesignerGraphicsList() {
         ? data.data
         : ((data.data as { data?: GraphicSummary[] })?.data ?? [])
       : []
-  // Auto-save entries are stored as hidden graphics with a reserved name prefix.
-  // They are never surfaced in the list — they exist only for crash recovery.
-  ).filter((g) => !g.name.startsWith("__autosave_"));
+  )
+    // Auto-save entries are stored as hidden graphics with a reserved name prefix.
+    // They are never surfaced in the list — they exist only for crash recovery.
+    .filter((g) => !g.name.startsWith("__autosave_"));
 
   // Client-side filtering
   const filtered = useMemo(() => {

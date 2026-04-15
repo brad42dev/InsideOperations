@@ -20,11 +20,7 @@ import {
 import { ChangePropertyCommand } from "../../../shared/graphics/commands";
 import { getNodeBounds } from "../DesignerCanvas";
 import type { SceneNode } from "../../../shared/types/graphics";
-import {
-  AspectPreset,
-  ASPECT_PRESETS,
-  ChainLinkIcon,
-} from "./canvasPresets";
+import { AspectPreset, ASPECT_PRESETS, ChainLinkIcon } from "./canvasPresets";
 
 const GRID_OPTIONS = [4, 8, 10, 16, 32];
 
@@ -435,7 +431,9 @@ export default function CanvasPropertiesDialog({
                       background: isActive
                         ? "var(--io-accent)"
                         : "var(--io-surface)",
-                      color: isActive ? "var(--io-accent-foreground)" : "var(--io-text-secondary)",
+                      color: isActive
+                        ? "var(--io-accent-foreground)"
+                        : "var(--io-text-secondary)",
                       border: "1px solid var(--io-border)",
                       borderRadius: "calc(var(--io-radius) * 2)",
                       cursor: "pointer",
@@ -501,7 +499,9 @@ export default function CanvasPropertiesDialog({
                 background: proportionalLock
                   ? "var(--io-accent)"
                   : "var(--io-surface)",
-                color: proportionalLock ? "var(--io-accent-foreground)" : "var(--io-text-muted)",
+                color: proportionalLock
+                  ? "var(--io-accent-foreground)"
+                  : "var(--io-text-muted)",
                 border: "1px solid var(--io-border)",
                 borderRadius: "var(--io-radius)",
                 cursor: "pointer",
