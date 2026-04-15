@@ -399,6 +399,11 @@ async fn main() -> anyhow::Result<()> {
         )
         // Static sub-paths MUST come before parameterised /:id routes
         .route(
+            "/api/v1/design-objects/:id/lock",
+            post(handlers::graphics::acquire_design_object_lock)
+                .delete(handlers::graphics::release_design_object_lock),
+        )
+        .route(
             "/api/v1/design-objects/:id/publish",
             post(handlers::graphics::publish_graphic),
         )

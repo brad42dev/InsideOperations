@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "vessel-vertical-welded",
   "version": "1.0",
-  "display_name": "Vessel — Vertical Welded",
+  "display_name": "Vessel \u2014 Vertical Welded",
   "category": "vessels",
   "subcategory": "vertical",
   "tags": [
@@ -47,7 +47,13 @@
   "geometry": {
     "viewBox": "0 0 40 80",
     "width": 40,
-    "height": 80
+    "height": 80,
+    "selectionBounds": {
+      "x": 9,
+      "y": 6,
+      "w": 22,
+      "h": 68
+    }
   },
   "connections": [
     {
@@ -195,6 +201,13 @@
       "partId": "body",
       "label": "Vessel Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support",
+      "x": 0,
+      "y": 0
     }
   ]
 }

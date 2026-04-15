@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "agitator-turbine",
   "version": "1.0",
-  "display_name": "Agitator \u2014 Turbine",
+  "display_name": "Agitator — Turbine",
   "category": "agitators",
   "subcategory": "turbine",
   "tags": [
@@ -37,7 +37,12 @@
   "geometry": {
     "viewBox": "0 0 40 80",
     "width": 40,
-    "height": 80
+    "height": 80,
+    "bodyBase": {
+      "x": 0,
+      "y": 0
+    },
+    "selectionBounds": { "x": 12, "y": 1, "w": 16, "h": 48 }
   },
   "connections": [
     {

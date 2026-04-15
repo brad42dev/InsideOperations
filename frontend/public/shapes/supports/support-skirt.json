@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "support-skirt",
   "version": "1.0",
-  "display_name": "Support \u2014 Skirt",
+  "display_name": "Support — Skirt",
   "category": "supports",
   "subcategory": "skirt",
   "tags": [
@@ -37,7 +37,12 @@
   "geometry": {
     "viewBox": "0 0 40 86",
     "width": 40,
-    "height": 86
+    "height": 86,
+    "bodyBase": {
+      "x": 0,
+      "y": 0
+    },
+    "selectionBounds": { "x": 2, "y": 67, "w": 36, "h": 14 }
   },
   "connections": [],
   "textZones": [],

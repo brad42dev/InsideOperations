@@ -307,7 +307,9 @@ export default function DesignerReportsList() {
     },
   });
 
-  const templates = query.data ?? [];
+  const templates = (query.data ?? []).filter(
+    (t) => !t.name.startsWith("__autosave_"),
+  );
   const filtered = templates.filter((t) => {
     const matchesSearch =
       !search ||

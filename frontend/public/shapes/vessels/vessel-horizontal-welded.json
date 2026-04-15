@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "vessel-horizontal-welded",
   "version": "1.0",
-  "display_name": "Vessel — Horizontal Welded",
+  "display_name": "Vessel \u2014 Horizontal Welded",
   "category": "vessels",
   "subcategory": "horizontal",
   "tags": [
@@ -47,7 +47,13 @@
   "geometry": {
     "viewBox": "0 0 80 40",
     "width": 80,
-    "height": 40
+    "height": 40,
+    "selectionBounds": {
+      "x": 6,
+      "y": 9,
+      "w": 68,
+      "h": 22
+    }
   },
   "connections": [
     {
@@ -115,7 +121,9 @@
     {
       "id": "support-saddles",
       "file": "support-saddles.svg",
-      "label": "Saddle Supports"
+      "label": "Saddle Supports",
+      "group": "support",
+      "exclusive": true
     }
   ],
   "anchorSlots": {
@@ -172,6 +180,13 @@
       "partId": "body",
       "label": "Vessel Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support-saddles",
+      "x": 0,
+      "y": 30
     }
   ]
 }

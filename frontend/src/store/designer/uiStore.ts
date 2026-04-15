@@ -174,6 +174,7 @@ export interface UiStore {
 
   // ----- Test mode -----
   testMode: boolean;
+  testModePaused: boolean;
 
   // ----- Panels -----
   panels: PanelState;
@@ -268,6 +269,7 @@ export interface UiStore {
   setHover(nodeId: string | null): void;
   setSmartGuides(guides: SmartGuide[]): void;
   setTestMode(active: boolean): void;
+  setTestModePaused(paused: boolean): void;
   setPanel(updates: Partial<PanelState>): void;
   setPhonePreview(active: boolean): void;
   setDrawPreview(preview: DrawPreview | null): void;
@@ -348,6 +350,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   smartGuides: [],
 
   testMode: false,
+  testModePaused: false,
 
   panels: {
     leftCollapsed: false,
@@ -586,6 +589,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   setTestMode(active) {
     set({
       testMode: active,
+      ...(active ? {} : { testModePaused: false }),
       // Leaving interactions active in test mode is meaningless — clear them
       dragState: null,
       resizeState: null,
@@ -594,6 +598,10 @@ export const useUiStore = create<UiStore>((set, get) => ({
       drawPreview: null,
       marquee: null,
     });
+  },
+
+  setTestModePaused(paused) {
+    set({ testModePaused: paused });
   },
 
   // ----- Panels -----

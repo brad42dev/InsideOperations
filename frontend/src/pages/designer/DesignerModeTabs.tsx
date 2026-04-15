@@ -30,6 +30,7 @@ export interface DesignerModeTabsProps {
   onNew?: () => void;
   onOpen?: () => void;
   onProperties?: () => void;
+  onRename?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,7 @@ export default function DesignerModeTabs({
   onNew,
   onOpen,
   onProperties,
+  onRename,
 }: DesignerModeTabsProps) {
   const designMode = useSceneStore((s) => s.designMode);
   const setDesignMode = useSceneStore((s) => s.setDesignMode);
@@ -136,6 +138,15 @@ export default function DesignerModeTabs({
         onProperties?.();
         setFileMenuOpen(false);
       },
+    },
+    {
+      label: "Rename…",
+      action: perms.canWrite
+        ? () => {
+            onRename?.();
+            setFileMenuOpen(false);
+          }
+        : undefined,
     },
     { divider: true },
     {

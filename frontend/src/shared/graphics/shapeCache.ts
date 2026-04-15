@@ -1,57 +1,17 @@
-export interface ShapeVariantOption {
-  file: string;
-  label: string;
-}
-
-export interface ShapeVariants {
-  options: Record<string, ShapeVariantOption>;
-  configurations: Array<{ file: string; label: string }>;
-}
-
-export interface ShapeAlarmBinding {
-  stateSource: string;
-  priorityMapping: Record<string, string>;
-  unacknowledgedFlash: boolean;
-  flashRate: string;
-}
-
-export interface ShapeSidecar {
-  $schema?: string;
-  shape_id?: string;
-  version?: string;
-  display_name?: string;
-  category?: string;
-  subcategory?: string;
-  tags?: string[];
-  recognition_class?: string;
-  isPart?: boolean;
-  partClass?: string;
-  variants?: ShapeVariants;
-  alarmBinding?: ShapeAlarmBinding;
-  geometry: { viewBox: string; width: number; height: number };
-  connections: Array<{
-    id: string;
-    type: string;
-    x: number;
-    y: number;
-    direction: string;
-  }>;
-  textZones: Array<{
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    anchor: string;
-    fontSize: number;
-  }>;
-  valueAnchors: Array<{ nx: number; ny: number; preferredElement: string }>;
-  alarmAnchor: { nx: number; ny: number } | null;
-  states: Record<string, string>;
-}
+export type {
+  ShapeSidecar,
+  ShapeVariantOption,
+  ShapeVariants,
+  ShapeAlarmBinding,
+  ConnectionPoint,
+  TextZone,
+  ValueAnchor,
+} from "../types/shapes";
+import type { ShapeSidecar } from "../types/shapes";
 
 export interface ShapeData {
   svg: string;
-  sidecar: Record<string, unknown>;
+  sidecar: ShapeSidecar;
 }
 
 const CACHE_MAX = 200;
@@ -120,20 +80,14 @@ async function getShapeIndex(): Promise<Map<string, string>> {
  */
 function resolveSvgFilename(
   shapeId: string,
-  sidecar: Record<string, unknown>,
+  sidecar: ShapeSidecar,
   optionKey?: string,
 ): string {
-  const variants = sidecar["variants"] as Record<string, unknown> | undefined;
-  if (variants) {
-    const options = variants["options"] as
-      | Record<string, Record<string, unknown>>
-      | undefined;
-    if (options) {
-      const key = optionKey ?? "opt1";
-      const option = options[key] ?? Object.values(options)[0];
-      const file = option?.["file"];
-      if (typeof file === "string") return file;
-    }
+  const options = sidecar.variants?.options;
+  if (options) {
+    const key = optionKey ?? "opt1";
+    const option = options[key] ?? Object.values(options)[0];
+    if (option?.file) return option.file;
   }
   // No variants.options — fall back to shape ID as filename
   return `${shapeId}.svg`;
@@ -158,7 +112,7 @@ export async function fetchShapesFromPublic(
       try {
         const jsonRes = await fetch(`${base}.json`);
         if (!jsonRes.ok) return;
-        const sidecar = (await jsonRes.json()) as Record<string, unknown>;
+        const sidecar = (await jsonRes.json()) as ShapeSidecar;
 
         const svgFilename = resolveSvgFilename(id, sidecar, optionKey);
         const svgRes = await fetch(`/shapes/${category}/${svgFilename}`);

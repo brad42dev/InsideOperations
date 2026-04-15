@@ -881,7 +881,7 @@ pub async fn list_points(
                 "id": r.get::<String, _>("id"),
                 "tagname": r.get::<String, _>("tagname"),
                 "display_name": r.get::<Option<String>, _>("description"),
-                "engineering_units": r.get::<Option<String>, _>("engineering_units"),
+                "unit": r.get::<Option<String>, _>("engineering_units"),
                 "data_type": r.get::<Option<String>, _>("data_type"),
                 "source_id": r.get::<Option<String>, _>("source_id"),
                 "active": r.get::<bool, _>("active"),

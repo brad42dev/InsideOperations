@@ -762,12 +762,15 @@ export default function DesignerGraphicsList() {
   // The client unwraps the envelope differently depending on whether the server
   // includes a `pagination` key, so data.data may be the array itself or an
   // object with a nested `data` property.
-  const allGraphics: GraphicSummary[] =
+  const allGraphics: GraphicSummary[] = (
     data?.success === true
       ? Array.isArray(data.data)
         ? data.data
         : ((data.data as { data?: GraphicSummary[] })?.data ?? [])
-      : [];
+      : []
+  // Auto-save entries are stored as hidden graphics with a reserved name prefix.
+  // They are never surfaced in the list — they exist only for crash recovery.
+  ).filter((g) => !g.name.startsWith("__autosave_"));
 
   // Client-side filtering
   const filtered = useMemo(() => {

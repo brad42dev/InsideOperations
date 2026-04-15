@@ -81,6 +81,23 @@ export interface HistoryStore {
    * Record the current pointer as the clean point (called from sceneStore.markClean).
    */
   markClean(): void;
+
+  /**
+   * Reconstruct undo history from a sequence of document snapshots.
+   *
+   * Used after crash recovery. SceneCommand objects are closures and cannot be
+   * serialized, so only the `docBefore` snapshots are persisted. This method
+   * rebuilds the history stack from those snapshots using synthetic commands
+   * whose execute() and undo() simply restore the adjacent snapshot.
+   *
+   * @param docStates - Ordered array of docBefore snapshots (oldest first).
+   *   docStates[i] is the document state immediately BEFORE the i-th change.
+   * @param currentDoc - The document state after all changes (the recovered doc).
+   */
+  restoreFromSnapshots(
+    docStates: GraphicDocument[],
+    currentDoc: GraphicDocument,
+  ): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,5 +212,45 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
 
   markClean() {
     set((state) => ({ cleanPointer: state.pointer }));
+  },
+
+  restoreFromSnapshots(docStates, currentDoc) {
+    if (docStates.length === 0) {
+      // No history to restore — just clear
+      set({
+        entries: [],
+        pointer: 0,
+        cleanPointer: 0,
+        canUndo: false,
+        canRedo: false,
+        undoDescription: null,
+        redoDescription: null,
+      });
+      return;
+    }
+
+    // allStates[i] is the doc BEFORE change i; allStates[pointer] is currentDoc.
+    const allStates = [...docStates, currentDoc];
+
+    // Build synthetic entries.  Each entry's execute() re-applies the change
+    // (advances to the next snapshot) and undo() steps back.  historyStore.undo()
+    // restores entry.docBefore directly, so undo() on the command itself is only
+    // needed if callers ever invoke it directly.
+    const entries: HistoryEntry[] = docStates.map((docBefore, i) => ({
+      command: {
+        description: `Recovered change ${i + 1}`,
+        execute: (_doc: GraphicDocument) => allStates[i + 1],
+        undo: (_doc: GraphicDocument) => docBefore,
+      },
+      docBefore,
+    }));
+
+    const pointer = entries.length;
+    set({
+      entries,
+      pointer,
+      cleanPointer: 0, // recovered state is not a saved state
+      ...derivedState(entries, pointer),
+    });
   },
 }));

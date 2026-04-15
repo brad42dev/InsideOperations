@@ -72,8 +72,8 @@
   ],
   "valueAnchors": [
     {
-      "nx": 1.2,
-      "ny": 0.5,
+      "nx": 0.5,
+      "ny": 1.15,
       "preferredElement": "text_readout"
     },
     {
@@ -93,11 +93,26 @@
     "transitioning": "io-transitioning",
     "oos": "io-oos"
   },
+  "compositeAttachments": [
+    { "forPart": "fail-open",        "x": 36.5, "y": -8.5 },
+    { "forPart": "fail-open-left",   "x": 11.5, "y": -8.5 },
+    { "forPart": "fail-closed",      "x": 36.5, "y": -8.5 },
+    { "forPart": "fail-closed-left", "x": 11.5, "y": -8.5 },
+    { "forPart": "fail-last",        "x": 36.5, "y": -8.5 },
+    { "forPart": "fail-last-left",   "x": 11.5, "y": -8.5 }
+  ],
   "addons": [
     {
       "id": "fail-open",
       "file": "part-fail-open.svg",
       "label": "Fail Open (FO)",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
+      "id": "fail-open-left",
+      "file": "part-fail-open.svg",
+      "label": "Fail Open (FO) \u2014 Left",
       "group": "fail-indicator",
       "exclusive": true
     },
@@ -109,9 +124,23 @@
       "exclusive": true
     },
     {
+      "id": "fail-closed-left",
+      "file": "part-fail-closed.svg",
+      "label": "Fail Closed (FC) \u2014 Left",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
       "id": "fail-last",
       "file": "part-fail-last.svg",
       "label": "Fail Last (FL)",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
+      "id": "fail-last-left",
+      "file": "part-fail-last.svg",
+      "label": "Fail Last (FL) \u2014 Left",
       "group": "fail-indicator",
       "exclusive": true
     }
@@ -158,7 +187,8 @@
   },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
-    "TextReadout": "right",
+    "TextReadout": "bottom",
+    "DigitalStatus": "bottom",
     "Sparkline": "right-top",
     "PointNameLabel": "top"
   },

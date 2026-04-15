@@ -81,6 +81,20 @@
     "transitioning": "io-transitioning",
     "oos": "io-oos"
   },
+  "compositeAttachments": [
+    {
+      "forPart": "actuator",
+      "x": 30,
+      "y": -2,
+      "stemFrom": { "x": 30, "y": 12 }
+    },
+    { "forPart": "fail-open",        "x": 42.5, "y": -2.5 },
+    { "forPart": "fail-open-left",   "x": 18.5, "y": -2.5 },
+    { "forPart": "fail-closed",      "x": 42.5, "y": -2.5 },
+    { "forPart": "fail-closed-left", "x": 18.5, "y": -2.5 },
+    { "forPart": "fail-last",        "x": 42.5, "y": -2.5 },
+    { "forPart": "fail-last-left",   "x": 18.5, "y": -2.5 }
+  ],
   "addons": [
     {
       "id": "actuator-diaphragm",
@@ -111,6 +125,13 @@
       "exclusive": true
     },
     {
+      "id": "fail-open-left",
+      "file": "part-fail-open.svg",
+      "label": "Fail Open (FO) \u2014 Left",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
       "id": "fail-closed",
       "file": "part-fail-closed.svg",
       "label": "Fail Closed (FC)",
@@ -118,9 +139,23 @@
       "exclusive": true
     },
     {
+      "id": "fail-closed-left",
+      "file": "part-fail-closed.svg",
+      "label": "Fail Closed (FC) \u2014 Left",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
       "id": "fail-last",
       "file": "part-fail-last.svg",
       "label": "Fail Last (FL)",
+      "group": "fail-indicator",
+      "exclusive": true
+    },
+    {
+      "id": "fail-last-left",
+      "file": "part-fail-last.svg",
+      "label": "Fail Last (FL) \u2014 Left",
       "group": "fail-indicator",
       "exclusive": true
     }

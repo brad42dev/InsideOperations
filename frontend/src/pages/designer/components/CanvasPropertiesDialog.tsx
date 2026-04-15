@@ -18,122 +18,15 @@ import {
   useUiStore,
 } from "../../../store/designer";
 import { ChangePropertyCommand } from "../../../shared/graphics/commands";
-import { getNodeBounds } from "../../../shared/graphics/pointExtractor";
+import { getNodeBounds } from "../DesignerCanvas";
 import type { SceneNode } from "../../../shared/types/graphics";
-
-// ---------------------------------------------------------------------------
-// Aspect presets (same as New Graphic dialog)
-// ---------------------------------------------------------------------------
-
-interface AspectPreset {
-  label: string;
-  width: number;
-  height: number;
-  reportOnly?: boolean;
-}
-
-const ASPECT_PRESETS: AspectPreset[] = [
-  { label: "720p", width: 1280, height: 720 },
-  { label: "1080p", width: 1920, height: 1080 },
-  { label: "1440p", width: 2560, height: 1440 },
-  { label: "4K", width: 3840, height: 2160 },
-  { label: "16:10 M", width: 1920, height: 1200 },
-  { label: "16:10 L", width: 2560, height: 1600 },
-  { label: "4:3 Std", width: 1024, height: 768 },
-  { label: "4:3 Lg", width: 1600, height: 1200 },
-  { label: "Ultrawide", width: 3440, height: 1440 },
-  { label: "Super-UW", width: 5120, height: 1440 },
-  { label: "A4 Portrait", width: 794, height: 1123, reportOnly: true },
-  { label: "A4 Landscape", width: 1123, height: 794, reportOnly: true },
-  { label: "Letter Portrait", width: 816, height: 1056, reportOnly: true },
-  { label: "Letter Landscape", width: 1056, height: 816, reportOnly: true },
-];
+import {
+  AspectPreset,
+  ASPECT_PRESETS,
+  ChainLinkIcon,
+} from "./canvasPresets";
 
 const GRID_OPTIONS = [4, 8, 10, 16, 32];
-
-// ---------------------------------------------------------------------------
-// Chain-link icon for proportional lock
-// ---------------------------------------------------------------------------
-
-function ChainLinkIcon({ locked }: { locked: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden="true"
-    >
-      {locked ? (
-        <>
-          <rect
-            x="1"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <rect
-            x="9"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="5"
-            y1="7"
-            x2="9"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-        </>
-      ) : (
-        <>
-          <rect
-            x="1"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <rect
-            x="9"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="5"
-            y1="7"
-            x2="6.5"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="7.5"
-            y1="7"
-            x2="9"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-        </>
-      )}
-    </svg>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Count nodes outside the given bounds
@@ -147,9 +40,8 @@ function countOutOfBounds(
   const ids: string[] = [];
   for (const node of nodes) {
     const bounds = getNodeBounds(node);
-    if (!bounds) continue;
-    const right = bounds.x + bounds.width;
-    const bottom = bounds.y + bounds.height;
+    const right = bounds.x + bounds.w;
+    const bottom = bounds.y + bounds.h;
     if (bounds.x < 0 || bounds.y < 0 || right > w || bottom > h) {
       ids.push(node.id);
     }
@@ -193,7 +85,7 @@ export default function CanvasPropertiesDialog({
     doc?.canvas.autoHeight ?? false,
   );
   const [bgColor, setBgColor] = useState<string>(
-    doc?.canvas.backgroundColor ?? "#09090b",
+    doc?.canvas.backgroundColor ?? "var(--io-accent-foreground)",
   );
   const [gridSize, setGridSize] = useState<number>(doc?.metadata.gridSize ?? 8);
   const [proportionalLock, setProportionalLock] = useState(false);
@@ -543,7 +435,7 @@ export default function CanvasPropertiesDialog({
                       background: isActive
                         ? "var(--io-accent)"
                         : "var(--io-surface)",
-                      color: isActive ? "#09090b" : "var(--io-text-secondary)",
+                      color: isActive ? "var(--io-accent-foreground)" : "var(--io-text-secondary)",
                       border: "1px solid var(--io-border)",
                       borderRadius: "calc(var(--io-radius) * 2)",
                       cursor: "pointer",
@@ -609,7 +501,7 @@ export default function CanvasPropertiesDialog({
                 background: proportionalLock
                   ? "var(--io-accent)"
                   : "var(--io-surface)",
-                color: proportionalLock ? "#09090b" : "var(--io-text-muted)",
+                color: proportionalLock ? "var(--io-accent-foreground)" : "var(--io-text-muted)",
                 border: "1px solid var(--io-border)",
                 borderRadius: "var(--io-radius)",
                 cursor: "pointer",

@@ -5,9 +5,10 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { shapeCache } from "../shared/graphics/shapeCache";
+import type { ShapeSidecar } from "../shared/types/shapes";
 
 function makeShape(id: string) {
-  return { svg: `<svg id="${id}"/>`, sidecar: { id } };
+  return { svg: `<svg id="${id}"/>`, sidecar: { id } as unknown as ShapeSidecar };
 }
 
 beforeEach(() => {
@@ -53,8 +54,8 @@ describe("shapeCache — basic operations", () => {
   });
 
   it("overwrites existing shape on set()", () => {
-    shapeCache.set("x", { svg: "<svg>old</svg>", sidecar: {} });
-    shapeCache.set("x", { svg: "<svg>new</svg>", sidecar: {} });
+    shapeCache.set("x", { svg: "<svg>old</svg>", sidecar: {} as unknown as ShapeSidecar });
+    shapeCache.set("x", { svg: "<svg>new</svg>", sidecar: {} as unknown as ShapeSidecar });
     expect(shapeCache.get("x")?.svg).toBe("<svg>new</svg>");
     // Size should remain 1 (not 2) after overwrite
     expect(shapeCache.size()).toBe(1);

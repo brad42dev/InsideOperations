@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "agitator-helical",
   "version": "1.0",
-  "display_name": "Agitator \u2014 Helical",
+  "display_name": "Agitator — Helical",
   "category": "agitators",
   "subcategory": "helical",
   "tags": [
@@ -37,7 +37,12 @@
   "geometry": {
     "viewBox": "0 0 40 80",
     "width": 40,
-    "height": 80
+    "height": 80,
+    "bodyBase": {
+      "x": 0,
+      "y": 0
+    },
+    "selectionBounds": { "x": 13, "y": 1, "w": 14, "h": 65 }
   },
   "connections": [
     {

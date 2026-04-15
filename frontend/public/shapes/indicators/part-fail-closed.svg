@@ -7,8 +7,4 @@
     <polygon points="10,22 5,12 8,12 8,2 12,2 12,12 15,12" fill="none" stroke="#808080" stroke-width="1.5"/>
     <text x="10" y="30" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" fill="#808080">FC</text>
   </g>
-  <g class="io-connections" display="none">
-    <!-- Shaft top — attachment point to actuator (arrow points down, mounts from top) -->
-    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-stem" cx="10" cy="0"/>
-  </g>
 </svg>

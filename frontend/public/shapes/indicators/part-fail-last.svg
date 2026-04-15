@@ -4,13 +4,8 @@
      data-io-category="indicators"
      viewBox="0 0 20 34">
   <g class="io-shape-body">
-    <!-- Double horizontal bars — fail in last position (derived; not in source HTML) -->
     <line x1="4" y1="10" x2="16" y2="10" stroke="#808080" stroke-width="1.5"/>
     <line x1="4" y1="14" x2="16" y2="14" stroke="#808080" stroke-width="1.5"/>
     <text x="10" y="30" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" fill="#808080">FL</text>
-  </g>
-  <g class="io-connections" display="none">
-    <!-- Stem base — attachment point to actuator -->
-    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-stem" cx="10" cy="16"/>
   </g>
 </svg>

@@ -1985,3 +1985,121 @@ pub async fn delete_user_shape(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/design-objects/:id/lock — acquire pessimistic edit lock
+// ---------------------------------------------------------------------------
+
+pub async fn acquire_design_object_lock(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    let user_id = match claims.sub.parse::<Uuid>() {
+        Ok(u) => u,
+        Err(_) => return IoError::Internal("Invalid user ID in token".into()).into_response(),
+    };
+
+    // Try to acquire the lock: succeeds if unlocked OR already held by this user.
+    let updated = match sqlx::query_scalar::<_, i64>(
+        r#"
+        WITH attempt AS (
+            UPDATE design_objects
+            SET locked_by = $1, locked_at = NOW()
+            WHERE id = $2
+              AND (locked_by IS NULL OR locked_by = $1)
+            RETURNING 1
+        )
+        SELECT COUNT(*) FROM attempt
+        "#,
+    )
+    .bind(user_id)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "acquire_design_object_lock query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    if updated > 0 {
+        return Json(ApiResponse::ok(serde_json::json!({
+            "data": { "acquired": true }
+        })))
+        .into_response();
+    }
+
+    // Lock held by another user — fetch their name and the lock timestamp.
+    let row = match sqlx::query(
+        r#"
+        SELECT u.display_name, d.locked_at
+        FROM design_objects d
+        LEFT JOIN users u ON u.id = d.locked_by
+        WHERE d.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Design object {} not found", id)).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "acquire_design_object_lock fetch failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let locked_by_name: Option<String> = row.try_get("display_name").ok().flatten();
+    let locked_at: Option<DateTime<Utc>> = row.try_get("locked_at").ok().flatten();
+
+    Json(ApiResponse::ok(serde_json::json!({
+        "data": {
+            "acquired": false,
+            "locked_by_name": locked_by_name.unwrap_or_else(|| "another user".to_string()),
+            "locked_at": locked_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+        }
+    })))
+    .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/v1/design-objects/:id/lock — release pessimistic edit lock
+// ---------------------------------------------------------------------------
+
+pub async fn release_design_object_lock(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    let user_id = match claims.sub.parse::<Uuid>() {
+        Ok(u) => u,
+        Err(_) => return IoError::Internal("Invalid user ID in token".into()).into_response(),
+    };
+
+    match sqlx::query(
+        "UPDATE design_objects SET locked_by = NULL, locked_at = NULL WHERE id = $1 AND locked_by = $2",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(&state.db)
+    .await
+    {
+        Ok(_) => Json(ApiResponse::ok(serde_json::json!({ "released": true }))).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "release_design_object_lock query failed");
+            IoError::Database(e).into_response()
+        }
+    }
+}

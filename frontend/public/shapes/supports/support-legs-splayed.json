@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "support-legs-splayed",
   "version": "1.0",
-  "display_name": "Support \u2014 Splayed Legs",
+  "display_name": "Support — Splayed Legs",
   "category": "supports",
   "subcategory": "legs",
   "tags": [
@@ -38,7 +38,12 @@
   "geometry": {
     "viewBox": "0 0 70 20",
     "width": 70,
-    "height": 20
+    "height": 20,
+    "bodyBase": {
+      "x": 0,
+      "y": 2
+    },
+    "selectionBounds": { "x": 9, "y": 1, "w": 52, "h": 19 }
   },
   "connections": [],
   "textZones": [],

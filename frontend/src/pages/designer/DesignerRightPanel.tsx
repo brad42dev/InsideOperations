@@ -6,8 +6,6 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { useContextMenu } from "../../shared/hooks/useContextMenu";
-import ContextMenu from "../../shared/components/ContextMenu";
 import {
   useSceneStore,
   useHistoryStore,
@@ -23,7 +21,6 @@ import type {
   Pipe,
   DisplayElement,
   LayerDefinition,
-  LayerFolder,
   GraphicDocument,
   NavigationLink,
   ComposablePart,
@@ -61,13 +58,7 @@ import {
   DistributeNodesCommand,
   DeleteNodesCommand,
   GroupNodesCommand,
-  AddLayerCommand,
-  RemoveLayerCommand,
-  CompoundCommand,
-  SetLayerCommand,
-  AddLayerFolderCommand,
-  RemoveLayerFolderCommand,
-  ChangeLayerFolderPropertyCommand,
+  ReorderNodeCommand,
 } from "../../shared/graphics/commands";
 import type {
   SceneCommand,
@@ -315,30 +306,6 @@ function SelectInput({
 }
 
 // ---------------------------------------------------------------------------
-// Section header
-// ---------------------------------------------------------------------------
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.07em",
-        color: "var(--io-text-muted)",
-        padding: "10px 12px 4px",
-        borderBottom: "1px solid var(--io-border)",
-        marginBottom: 8,
-        flexShrink: 0,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // NavigationLinkEditor
 // ---------------------------------------------------------------------------
 
@@ -563,168 +530,19 @@ function DocPropertiesPanel({ doc }: { doc: GraphicDocument }) {
 }
 
 // ---------------------------------------------------------------------------
-// SymbolInstance panel
+// SymbolInstance panels — split across three tabs:
+//   SymbolInstancePanel     → Properties tab (transform, opacity, layer, nav link)
+//   SymbolInstanceShapeTab  → Shape tab (variant, config, composable parts)
+//   SymbolInstanceSidecarTab→ Sidecar tab (binding, text zones, display elements)
 // ---------------------------------------------------------------------------
 
+// Properties tab: transform, opacity, layer assignment, navigation link only
 function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
   const executeCmd = useExecuteCmd();
   const doc = useSceneStore((s) => s.doc);
-  const getShape = useLibraryStore((s) => s.getShape);
-  const shapeEntry = getShape(node.shapeRef.shapeId);
-  const variants = shapeEntry?.sidecar.options ?? [];
 
   return (
     <div style={{ padding: "0 12px" }}>
-      <Field label="Shape">
-        <input
-          readOnly
-          value={node.shapeRef.shapeId}
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-
-      {/* Variant picker */}
-      {variants.length > 0 && (
-        <Field label="Variant">
-          <SelectInput
-            value={node.shapeRef.variant ?? "default"}
-            onChange={(v) =>
-              executeCmd(
-                new ChangeShapeVariantCommand(
-                  node.id,
-                  v,
-                  node.shapeRef.variant ?? "default",
-                ),
-              )
-            }
-            options={[
-              { value: "default", label: "Default" },
-              ...variants.map((opt) => ({ value: opt.id, label: opt.label })),
-            ]}
-          />
-        </Field>
-      )}
-
-      {/* Configuration picker (physical config: welded/flanged/etc.) */}
-      {shapeEntry?.sidecar.configurations &&
-        shapeEntry.sidecar.configurations.length > 0 && (
-          <Field label="Configuration">
-            <SelectInput
-              value={node.shapeRef.configuration ?? "default"}
-              onChange={(v) =>
-                executeCmd(
-                  new ChangeShapeConfigurationCommand(
-                    node.id,
-                    v === "default" ? undefined : v,
-                    node.shapeRef.configuration,
-                  ),
-                )
-              }
-              options={[
-                { value: "default", label: "Default" },
-                ...shapeEntry.sidecar.configurations.map((cfg) => ({
-                  value: cfg.id,
-                  label: cfg.label,
-                })),
-              ]}
-            />
-          </Field>
-        )}
-
-      {/* Composable parts */}
-      {shapeEntry &&
-        shapeEntry.sidecar.options &&
-        shapeEntry.sidecar.options.length > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            <FieldLabel>Composable Parts</FieldLabel>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {node.composableParts.map((part: ComposablePart) => (
-                <div
-                  key={part.partId}
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "var(--io-text-secondary)",
-                      flex: 1,
-                    }}
-                  >
-                    {part.partId}
-                  </span>
-                  <button
-                    onClick={() =>
-                      executeCmd(
-                        new RemoveComposablePartCommand(node.id, part.partId),
-                      )
-                    }
-                    style={{
-                      fontSize: 10,
-                      color: "var(--io-text-muted)",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                    title="Remove part"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => {
-                  const partId = crypto.randomUUID();
-                  executeCmd(
-                    new AddComposablePartCommand(node.id, {
-                      partId,
-                      attachment: "default",
-                    }),
-                  );
-                }}
-                style={{
-                  fontSize: 11,
-                  color: "var(--io-accent)",
-                  background: "transparent",
-                  border: "1px dashed var(--io-border)",
-                  borderRadius: "var(--io-radius)",
-                  padding: "3px 8px",
-                  cursor: "pointer",
-                }}
-              >
-                + Add Part
-              </button>
-            </div>
-          </div>
-        )}
-
-      <Field label="Binding (Point Tag)">
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="text"
-            key={node.id}
-            defaultValue={
-              node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""
-            }
-            onBlur={(e) => {
-              const val = e.target.value.trim();
-              const newBinding = val ? { pointTag: val } : undefined;
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "stateBinding",
-                  newBinding,
-                  node.stateBinding,
-                ),
-              );
-            }}
-            style={{ ...inputStyle, flex: 1 }}
-            placeholder="e.g. 25-AI-1401"
-          />
-          <PointResolutionIndicator
-            pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId}
-          />
-        </div>
-      </Field>
       <Field label="X">
         <NumberInput
           value={Math.round(node.transform.position.x)}
@@ -733,10 +551,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
               new ChangePropertyCommand(
                 node.id,
                 "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, x: v },
-                },
+                { ...node.transform, position: { ...node.transform.position, x: v } },
                 node.transform,
               ),
             )
@@ -751,10 +566,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
               new ChangePropertyCommand(
                 node.id,
                 "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, y: v },
-                },
+                { ...node.transform, position: { ...node.transform.position, y: v } },
                 node.transform,
               ),
             )
@@ -771,10 +583,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
               new ChangePropertyCommand(
                 node.id,
                 "transform",
-                {
-                  ...node.transform,
-                  rotation: v,
-                },
+                { ...node.transform, rotation: v },
                 node.transform,
               ),
             )
@@ -787,14 +596,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
           min={0}
           max={100}
           onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
+            executeCmd(new ChangePropertyCommand(node.id, "opacity", v / 100, node.opacity))
           }
         />
       </Field>
@@ -804,12 +606,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
             value={node.layerId ?? ""}
             onChange={(v) =>
               executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "layerId",
-                  v || undefined,
-                  node.layerId,
-                ),
+                new ChangePropertyCommand(node.id, "layerId", v || undefined, node.layerId),
               )
             }
             options={[
@@ -825,21 +622,161 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
         prevLink={node.navigationLink}
         executeCmd={executeCmd}
       />
+    </div>
+  );
+}
 
-      {/* Text Zone Overrides — one row per zone defined in the sidecar */}
+// Shape tab: variant, physical configuration, composable parts
+function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
+  const executeCmd = useExecuteCmd();
+  const getShape = useLibraryStore((s) => s.getShape);
+  const shapeEntry = getShape(node.shapeRef.shapeId);
+  const variants = shapeEntry?.sidecar.options ?? [];
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Shape ID">
+        <input
+          readOnly
+          value={node.shapeRef.shapeId}
+          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+        />
+      </Field>
+
+      {variants.length > 0 && (
+        <Field label="Variant">
+          <SelectInput
+            value={node.shapeRef.variant ?? "default"}
+            onChange={(v) =>
+              executeCmd(
+                new ChangeShapeVariantCommand(node.id, v, node.shapeRef.variant ?? "default"),
+              )
+            }
+            options={[
+              { value: "default", label: "Default" },
+              ...variants.map((opt) => ({ value: opt.id, label: opt.label })),
+            ]}
+          />
+        </Field>
+      )}
+
+      {shapeEntry?.sidecar.configurations && shapeEntry.sidecar.configurations.length > 0 && (
+        <Field label="Configuration">
+          <SelectInput
+            value={node.shapeRef.configuration ?? "default"}
+            onChange={(v) =>
+              executeCmd(
+                new ChangeShapeConfigurationCommand(
+                  node.id,
+                  v === "default" ? undefined : v,
+                  node.shapeRef.configuration,
+                ),
+              )
+            }
+            options={[
+              { value: "default", label: "Default" },
+              ...shapeEntry.sidecar.configurations.map((cfg) => ({
+                value: cfg.id,
+                label: cfg.label,
+              })),
+            ]}
+          />
+        </Field>
+      )}
+
+      {shapeEntry?.sidecar.options && shapeEntry.sidecar.options.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <FieldLabel>Composable Parts</FieldLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {node.composableParts.map((part: ComposablePart) => (
+              <div key={part.partId} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, color: "var(--io-text-secondary)", flex: 1 }}>
+                  {part.partId}
+                </span>
+                <button
+                  onClick={() =>
+                    executeCmd(new RemoveComposablePartCommand(node.id, part.partId))
+                  }
+                  style={{
+                    fontSize: 10,
+                    color: "var(--io-text-muted)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  title="Remove part"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() =>
+                executeCmd(
+                  new AddComposablePartCommand(node.id, {
+                    partId: crypto.randomUUID(),
+                    attachment: "default",
+                  }),
+                )
+              }
+              style={{
+                fontSize: 11,
+                color: "var(--io-accent)",
+                background: "transparent",
+                border: "1px dashed var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                padding: "3px 8px",
+                cursor: "pointer",
+              }}
+            >
+              + Add Part
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sidecar tab: point binding, text zone overrides, display element children
+function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
+  const executeCmd = useExecuteCmd();
+  const getShape = useLibraryStore((s) => s.getShape);
+  const shapeEntry = getShape(node.shapeRef.shapeId);
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Point Binding (Tag)">
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="text"
+            key={node.id}
+            defaultValue={node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""}
+            onBlur={(e) => {
+              const val = e.target.value.trim();
+              const newBinding = val ? { pointTag: val } : undefined;
+              executeCmd(
+                new ChangePropertyCommand(node.id, "stateBinding", newBinding, node.stateBinding),
+              );
+            }}
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="e.g. 25-AI-1401"
+          />
+          <PointResolutionIndicator
+            pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId}
+          />
+        </div>
+      </Field>
+
       {shapeEntry && (shapeEntry.sidecar.textZones ?? []).length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <FieldLabel>Text Zones</FieldLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {(shapeEntry.sidecar.textZones ?? []).map((zone) => {
               const overrideVal =
-                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ??
-                "";
+                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ?? "";
               return (
-                <div
-                  key={zone.id}
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
+                <div key={zone.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <span
                     style={{
                       fontSize: 10,
@@ -860,10 +797,7 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
                     onBlur={(e) => {
                       const v = e.target.value;
                       const overrides = {
-                        ...((node.textZoneOverrides as Record<
-                          string,
-                          string
-                        >) ?? {}),
+                        ...((node.textZoneOverrides as Record<string, string>) ?? {}),
                       };
                       if (v) overrides[zone.id] = v;
                       else delete overrides[zone.id];
@@ -885,21 +819,12 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
         </div>
       )}
 
-      {/* Display Elements — list children, allow adding new ones */}
       <div style={{ marginBottom: 8 }}>
         <FieldLabel>Display Elements</FieldLabel>
         {node.children && node.children.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 4 }}>
             {node.children.map((child) => {
-              const de =
-                child as import("../../shared/types/graphics").DisplayElement;
+              const de = child as DisplayElement;
               return (
                 <div
                   key={child.id}
@@ -912,28 +837,16 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
                   }}
                 >
                   <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                   >
-                    {de.config?.displayType ?? child.type} —{" "}
-                    {de.binding?.pointId ?? "Unbound"}
+                    {de.config?.displayType ?? child.type} — {de.binding?.pointId ?? "Unbound"}
                   </span>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ fontSize: 11, color: "var(--io-text-muted)", marginBottom: 4 }}>
             No display elements
           </div>
         )}
@@ -2276,6 +2189,22 @@ function DisplayElementTypeFields({
               style={{ cursor: "pointer" }}
             />
           </Field>
+          {cfg.showValue && (
+            <Field label="Value Position">
+              <SelectInput
+                value={cfg.valuePosition ?? "in-fill"}
+                onChange={(v) =>
+                  patchConfig({
+                    valuePosition: v as FillGaugeConfig["valuePosition"],
+                  } as Partial<FillGaugeConfig>)
+                }
+                options={[
+                  { value: "in-fill", label: "In fill" },
+                  { value: "center", label: "Center" },
+                ]}
+              />
+            </Field>
+          )}
           <Field label="Value Format">
             <input
               type="text"
@@ -3669,28 +3598,107 @@ function LayerPropertiesPanel({ layer }: { layer: LayerDefinition }) {
 }
 
 // ---------------------------------------------------------------------------
-// Scene Tree Panel — collapsible node hierarchy, groups shown as rows with
-// chevron toggle; double-click a group row to rename inline.
+// Tab bar
 // ---------------------------------------------------------------------------
 
-type SceneTreeNode = SceneNode & { children?: SceneNode[] };
+interface TabDef {
+  id: string;
+  label: string;
+}
 
-function nodeTypeLabel(type: string): string {
-  switch (type) {
+function TabBar({
+  tabs,
+  activeTab,
+  onTabChange,
+}: {
+  tabs: TabDef[];
+  activeTab: string;
+  onTabChange: (id: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexShrink: 0,
+        borderBottom: "1px solid var(--io-border)",
+        background: "var(--io-surface)",
+        overflowX: "auto",
+      }}
+    >
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        const isDoc = tab.id === "doc";
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            style={{
+              flex: isDoc ? "0 0 auto" : 1,
+              marginLeft: isDoc ? "auto" : 0,
+              padding: "6px 8px",
+              fontSize: 10,
+              fontWeight: isActive ? 700 : 500,
+              border: "none",
+              borderBottom: isActive
+                ? "2px solid var(--io-accent)"
+                : "2px solid transparent",
+              background: "transparent",
+              color: isActive ? "var(--io-text-primary)" : "var(--io-text-muted)",
+              cursor: "pointer",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Canvas Layers Panel — replaces SceneTreePanel + LayersPanel.
+// Shows all canvas objects in z-order (front = top) with eye/lock toggles,
+// type labels, point binding badges, and move up/down arrows.
+// Groups and symbol_instances expand to reveal children as sub-rows.
+// ---------------------------------------------------------------------------
+
+function getNodeTypeShort(type: string): string {
+  const map: Record<string, string> = {
+    symbol_instance: "SYM",
+    display_element: "DE",
+    primitive: "GEO",
+    pipe: "PIPE",
+    text_block: "TXT",
+    group: "GRP",
+    annotation: "ANN",
+    image: "IMG",
+    widget: "WGT",
+    embedded_svg: "SVG",
+    stencil: "STN",
+  };
+  return map[type] ?? type.slice(0, 3).toUpperCase();
+}
+
+function getNodeDisplayName(node: SceneNode): string {
+  if (node.name) return node.name;
+  switch (node.type) {
     case "symbol_instance":
-      return "Symbol";
+      return (node as SymbolInstance).shapeRef.shapeId.split("/").pop() ?? "Symbol";
     case "display_element":
-      return "Display";
+      return (
+        ((node as DisplayElement).config?.displayType ?? "Display").replace(/_/g, " ")
+      );
     case "primitive":
-      return "Shape";
-    case "pipe":
-      return "Pipe";
-    case "text_block":
-      return "Text";
-    case "stencil":
-      return "Stencil";
+      return ((node as Primitive).geometry as { type?: string })?.type ?? "Shape";
     case "group":
       return "Group";
+    case "text_block":
+      return "Text";
+    case "pipe":
+      return "Pipe";
     case "annotation":
       return "Annotation";
     case "image":
@@ -3699,932 +3707,324 @@ function nodeTypeLabel(type: string): string {
       return "Widget";
     case "embedded_svg":
       return "SVG";
+    case "stencil":
+      return "Stencil";
     default:
-      return type;
+      return node.type;
   }
 }
 
-function SceneTreeRow({
+function getNodeBindingTag(node: SceneNode): string | null {
+  if (node.type === "symbol_instance") {
+    const sym = node as SymbolInstance;
+    return sym.stateBinding?.pointTag ?? sym.stateBinding?.pointId ?? null;
+  }
+  if (node.type === "display_element") {
+    const de = node as DisplayElement;
+    return de.binding?.pointTag ?? de.binding?.pointId ?? null;
+  }
+  return null;
+}
+
+const LAYER_ICON_BTN: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 16,
+  height: 16,
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  color: "var(--io-text-muted)",
+  cursor: "pointer",
+  fontSize: 10,
+  flexShrink: 0,
+  borderRadius: 2,
+  lineHeight: 1,
+};
+
+function CanvasLayerRow({
   node,
   depth,
-  selectedIds,
-  onSelect,
+  actualIndex,
+  siblingCount,
+  expandedIds,
+  onExpand,
   executeCmd,
 }: {
-  node: SceneTreeNode;
+  node: SceneNode;
   depth: number;
-  selectedIds: string[];
-  onSelect: (id: string) => void;
-  executeCmd: (
-    cmd: import("../../shared/graphics/commands").SceneCommand,
-  ) => void;
+  actualIndex: number;
+  siblingCount: number;
+  expandedIds: Set<string>;
+  onExpand: (id: string) => void;
+  executeCmd: (cmd: SceneCommand) => void;
 }) {
-  const isGroup = node.type === "group";
-  const children = isGroup ? ((node as Group).children ?? []) : [];
-  const [expanded, setExpanded] = useState(true);
-  const [renaming, setRenaming] = useState(false);
-  const [renameVal, setRenameVal] = useState(node.name ?? "");
-  const isSelected = selectedIds.includes(node.id);
+  const isSelected = useUiStore((s) => s.selectedNodeIds.has(node.id));
 
-  const rowStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    paddingLeft: 8 + depth * 12,
-    paddingRight: 8,
-    paddingTop: 2,
-    paddingBottom: 2,
-    fontSize: 11,
-    cursor: "pointer",
-    background: isSelected
-      ? "var(--io-accent-muted, rgba(59,130,246,0.15))"
-      : "transparent",
-    color: isSelected ? "var(--io-accent)" : "var(--io-text-primary)",
-    userSelect: "none",
-  };
+  const childNodes: SceneNode[] =
+    node.type === "group"
+      ? ((node as Group).children as SceneNode[])
+      : node.type === "symbol_instance"
+        ? ((node as SymbolInstance).children as SceneNode[])
+        : [];
+  const hasChildren = childNodes.length > 0;
+  const isExpanded = expandedIds.has(node.id);
 
-  function commitRename() {
-    const trimmed = renameVal.trim();
-    if (trimmed && trimmed !== (node.name ?? "")) {
-      executeCmd(
-        new ChangePropertyCommand(node.id, "name", trimmed, node.name ?? ""),
-      );
-    } else {
-      setRenameVal(node.name ?? "");
-    }
-    setRenaming(false);
-  }
+  const binding = getNodeBindingTag(node);
+  const canMoveUp = depth === 0 && actualIndex < siblingCount - 1;
+  const canMoveDown = depth === 0 && actualIndex > 0;
 
   return (
     <>
       <div
-        style={rowStyle}
-        onClick={() => onSelect(node.id)}
-        onDoubleClick={() => {
-          if (isGroup) {
-            setRenameVal(node.name ?? "");
-            setRenaming(true);
-          }
+        onClick={() => useUiStore.getState().setSelectedNodes([node.id])}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+          paddingLeft: 4 + depth * 14,
+          paddingRight: 4,
+          paddingTop: 2,
+          paddingBottom: 2,
+          cursor: "pointer",
+          background: isSelected
+            ? "var(--io-accent-subtle, rgba(99,102,241,0.1))"
+            : "transparent",
+          borderLeft: isSelected
+            ? "2px solid var(--io-accent)"
+            : "2px solid transparent",
+          color: node.visible ? "var(--io-text-primary)" : "var(--io-text-muted)",
+          userSelect: "none",
         }}
       >
-        {/* Chevron for groups */}
-        {isGroup ? (
-          <span
-            style={{
-              marginRight: 4,
-              fontSize: 9,
-              color: "var(--io-text-muted)",
-              flexShrink: 0,
-              lineHeight: 1,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded((v) => !v);
-            }}
-          >
-            {expanded ? "▾" : "▸"}
-          </span>
-        ) : (
-          <span style={{ marginRight: 4, width: 13, flexShrink: 0 }} />
-        )}
+        {/* Expand toggle */}
+        <button
+          style={{
+            ...LAYER_ICON_BTN,
+            visibility: hasChildren ? "visible" : "hidden",
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand(node.id);
+          }}
+          title={isExpanded ? "Collapse" : "Expand"}
+        >
+          {isExpanded ? "▾" : "▸"}
+        </button>
 
-        {renaming ? (
-          <input
-            autoFocus
-            value={renameVal}
-            onChange={(e) => setRenameVal(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") {
-                setRenameVal(node.name ?? "");
-                setRenaming(false);
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              flex: 1,
-              fontSize: 11,
-              padding: "1px 4px",
-              background: "var(--io-surface-sunken)",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              color: "var(--io-text-primary)",
-              outline: "none",
-            }}
-          />
-        ) : (
+        {/* Visibility */}
+        <button
+          style={LAYER_ICON_BTN}
+          onClick={(e) => {
+            e.stopPropagation();
+            executeCmd(
+              new ChangePropertyCommand(node.id, "visible", !node.visible, node.visible),
+            );
+          }}
+          title={node.visible ? "Hide" : "Show"}
+        >
+          {node.visible ? "◉" : "○"}
+        </button>
+
+        {/* Lock */}
+        <button
+          style={LAYER_ICON_BTN}
+          onClick={(e) => {
+            e.stopPropagation();
+            executeCmd(
+              new ChangePropertyCommand(node.id, "locked", !node.locked, node.locked),
+            );
+          }}
+          title={node.locked ? "Unlock" : "Lock"}
+        >
+          {node.locked ? "⊠" : "⊡"}
+        </button>
+
+        {/* Type pill */}
+        <span
+          style={{
+            fontSize: 8,
+            padding: "1px 3px",
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: 2,
+            color: "var(--io-text-muted)",
+            flexShrink: 0,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {getNodeTypeShort(node.type)}
+        </span>
+
+        {/* Name */}
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: 11,
+            paddingLeft: 3,
+          }}
+        >
+          {getNodeDisplayName(node)}
+        </span>
+
+        {/* Binding badge */}
+        {binding && (
           <span
             style={{
-              flex: 1,
+              fontSize: 8,
+              padding: "1px 4px",
+              background: "var(--io-accent)",
+              color: "#fff",
+              borderRadius: 2,
+              flexShrink: 0,
+              maxWidth: 60,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}
+            title={binding}
           >
-            {node.name ?? nodeTypeLabel(node.type)}
+            {binding}
           </span>
         )}
 
-        <span
-          style={{
-            fontSize: 9,
-            color: "var(--io-text-muted)",
-            marginLeft: 4,
-            flexShrink: 0,
-          }}
-        >
-          {nodeTypeLabel(node.type)}
-        </span>
+        {/* Move up / down — top-level canvas nodes only */}
+        {depth === 0 && (
+          <div
+            style={{ display: "flex", gap: 1, flexShrink: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              style={{ ...LAYER_ICON_BTN, opacity: canMoveUp ? 1 : 0.25 }}
+              disabled={!canMoveUp}
+              onClick={() =>
+                executeCmd(new ReorderNodeCommand(actualIndex + 1, actualIndex, null))
+              }
+              title="Move forward (up in stack)"
+            >
+              ↑
+            </button>
+            <button
+              style={{ ...LAYER_ICON_BTN, opacity: canMoveDown ? 1 : 0.25 }}
+              disabled={!canMoveDown}
+              onClick={() =>
+                executeCmd(new ReorderNodeCommand(actualIndex - 1, actualIndex, null))
+              }
+              title="Move backward (down in stack)"
+            >
+              ↓
+            </button>
+          </div>
+        )}
       </div>
 
-      {isGroup &&
-        expanded &&
-        children.map((child) => (
-          <SceneTreeRow
-            key={child.id}
-            node={child as SceneTreeNode}
-            depth={depth + 1}
-            selectedIds={selectedIds}
-            onSelect={onSelect}
-            executeCmd={executeCmd}
-          />
-        ))}
+      {/* Children */}
+      {hasChildren &&
+        isExpanded &&
+        [...childNodes].reverse().map((child, ri) => {
+          const childActualIdx = childNodes.length - 1 - ri;
+          return (
+            <CanvasLayerRow
+              key={(child as SceneNode).id}
+              node={child as SceneNode}
+              depth={depth + 1}
+              actualIndex={childActualIdx}
+              siblingCount={childNodes.length}
+              expandedIds={expandedIds}
+              onExpand={onExpand}
+              executeCmd={executeCmd}
+            />
+          );
+        })}
     </>
   );
 }
 
-function SceneTreePanel({ selectedIds }: { selectedIds: string[] }) {
-  const executeCmd = useExecuteCmd();
+function CanvasLayersPanel() {
   const doc = useSceneStore((s) => s.doc);
-  const [collapsed, setCollapsed] = useState(false);
+  const executeCmd = useExecuteCmd();
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   if (!doc) return null;
 
-  function handleSelect(id: string) {
-    useUiStore.getState().setSelectedNodes([id]);
+  function handleExpand(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
+
+  // Reverse so frontmost node appears at the top of the list
+  const reversed = [...doc.children].reverse();
 
   return (
     <div
       style={{
-        borderTop: "1px solid var(--io-border)",
-        flexShrink: 0,
-        maxHeight: 200,
+        flex: 1,
         display: "flex",
         flexDirection: "column",
+        minHeight: 0,
+        overflow: "hidden",
+        borderTop: "1px solid var(--io-border)",
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          padding: "6px 12px",
-          cursor: "pointer",
-          userSelect: "none",
+          padding: "5px 10px 5px 12px",
           flexShrink: 0,
+          borderBottom: "1px solid var(--io-border)",
         }}
-        onClick={() => setCollapsed((v) => !v)}
       >
         <span
           style={{
             fontSize: 10,
             fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "var(--io-text-secondary)",
             textTransform: "uppercase",
-            flex: 1,
-          }}
-        >
-          Scene
-        </span>
-        <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>
-          {collapsed ? "▸" : "▾"}
-        </span>
-      </div>
-      {!collapsed && (
-        <div style={{ overflowY: "auto", flex: 1 }}>
-          {doc.children.length === 0 ? (
-            <div
-              style={{
-                padding: "4px 12px",
-                fontSize: 11,
-                color: "var(--io-text-muted)",
-              }}
-            >
-              No elements
-            </div>
-          ) : (
-            [...doc.children]
-              .reverse()
-              .map((node) => (
-                <SceneTreeRow
-                  key={node.id}
-                  node={node as SceneTreeNode}
-                  depth={0}
-                  selectedIds={selectedIds}
-                  onSelect={handleSelect}
-                  executeCmd={executeCmd}
-                />
-              ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Layers Panel — always visible at the bottom of the right panel (spec §15)
-// ---------------------------------------------------------------------------
-
-/** Collect all node IDs in the scene tree that belong to a given layer. */
-function collectNodeIdsByLayer(
-  nodes: import("../../shared/types/graphics").SceneNode[],
-  layerId: string,
-): string[] {
-  const result: string[] = [];
-  function walk(list: import("../../shared/types/graphics").SceneNode[]) {
-    for (const n of list) {
-      if (n.layerId === layerId) result.push(n.id);
-      if ("children" in n && Array.isArray(n.children)) {
-        walk(n.children as import("../../shared/types/graphics").SceneNode[]);
-      }
-    }
-  }
-  walk(nodes);
-  return result;
-}
-
-function LayersPanel() {
-  const executeCmd = useExecuteCmd();
-  const doc = useSceneStore((s) => s.doc);
-  const [collapsed, setCollapsed] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState<
-    Record<string, boolean>
-  >({});
-  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<
-    string | null
-  >(null);
-  const {
-    menuState: layerMenu,
-    handleContextMenu: handleLayerCtx,
-    closeMenu: closeLayerMenu,
-  } = useContextMenu<{ layer: LayerDefinition; layerIndex: number }>();
-
-  if (!doc) return null;
-  // TypeScript doesn't narrow across closures; capture as non-null for handler use
-  const docNN = doc as GraphicDocument;
-
-  const folders = docNN.folders ?? [];
-
-  // Build display items interleaved by order descending (top = frontmost).
-  type DisplayItem =
-    | { kind: "folder"; folder: LayerFolder; layers: LayerDefinition[] }
-    | { kind: "layer"; layer: LayerDefinition };
-
-  const sortEntries: Array<{ order: number; item: DisplayItem }> = [];
-  for (const folder of folders) {
-    const flLayers = docNN.layers
-      .filter((l) => l.folderId === folder.id)
-      .sort((a, b) => b.order - a.order);
-    sortEntries.push({
-      order: folder.order,
-      item: { kind: "folder", folder, layers: flLayers },
-    });
-  }
-  for (const layer of docNN.layers.filter((l) => !l.folderId)) {
-    sortEntries.push({ order: layer.order, item: { kind: "layer", layer } });
-  }
-  sortEntries.sort((a, b) => b.order - a.order);
-  const items = sortEntries.map((e) => e.item);
-
-  // Flat sorted layer list used for context menu index tracking
-  const allLayersSorted = [...docNN.layers].sort((a, b) => b.order - a.order);
-
-  // ── Layer handlers ──────────────────────────────────────────────────────────
-
-  function handleToggleVisible(layer: LayerDefinition) {
-    executeCmd(
-      new ChangeLayerPropertyCommand(
-        layer.id,
-        { visible: !layer.visible },
-        { visible: layer.visible },
-      ),
-    );
-  }
-  function handleToggleLocked(layer: LayerDefinition) {
-    executeCmd(
-      new ChangeLayerPropertyCommand(
-        layer.id,
-        { locked: !layer.locked },
-        { locked: layer.locked },
-      ),
-    );
-  }
-  function handleRenameStart(id: string, name: string) {
-    setEditingId(id);
-    setEditName(name);
-  }
-  function handleRenameCommit(layer: LayerDefinition) {
-    const trimmed = editName.trim();
-    if (trimmed && trimmed !== layer.name) {
-      executeCmd(
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { name: trimmed },
-          { name: layer.name },
-        ),
-      );
-    } else {
-      setEditName(layer.name);
-    }
-    setEditingId(null);
-  }
-  function handleAddLayer() {
-    const maxOrder = docNN.layers.reduce((m, l) => Math.max(m, l.order), 0);
-    const n = docNN.layers.length + 1;
-    const firstFolder =
-      folders.length > 0
-        ? [...folders].sort((a, b) => b.order - a.order)[0]
-        : undefined;
-    executeCmd(
-      new AddLayerCommand({
-        id: crypto.randomUUID(),
-        name: `Layer ${n}`,
-        visible: true,
-        locked: false,
-        order: maxOrder + 1,
-        folderId: firstFolder?.id,
-      }),
-    );
-  }
-  function handleDeleteLayer(layerId: string) {
-    if (docNN.layers.length <= 1) return;
-    const defaultLayer = [...docNN.layers]
-      .sort((a, b) => a.order - b.order)
-      .find((l) => l.id !== layerId);
-    if (!defaultLayer) return;
-    const nodeIds = collectNodeIdsByLayer(docNN.children, layerId);
-    const subCmds = nodeIds.map((nid) => {
-      const node =
-        docNN.children.find((n) => n.id === nid) ??
-        docNN.children
-          .flatMap(
-            function flatten(
-              n,
-            ): import("../../shared/types/graphics").SceneNode[] {
-              return "children" in n && Array.isArray(n.children)
-                ? [
-                    n,
-                    ...(
-                      n.children as import("../../shared/types/graphics").SceneNode[]
-                    ).flatMap(flatten),
-                  ]
-                : [n];
-            },
-          )
-          .find((n) => n.id === nid);
-      return new SetLayerCommand(nid, defaultLayer.id, node?.layerId);
-    });
-    const cmds =
-      subCmds.length > 0
-        ? [...subCmds, new RemoveLayerCommand(layerId)]
-        : [new RemoveLayerCommand(layerId)];
-    executeCmd(new CompoundCommand("Delete Layer", cmds));
-  }
-  function handleMoveLayerUp(layer: LayerDefinition) {
-    const scope = layer.folderId
-      ? docNN.layers.filter((l) => l.folderId === layer.folderId)
-      : docNN.layers.filter((l) => !l.folderId);
-    const sorted = [...scope].sort((a, b) => b.order - a.order);
-    const idx = sorted.findIndex((l) => l.id === layer.id);
-    if (idx <= 0) return;
-    const above = sorted[idx - 1];
-    executeCmd(
-      new CompoundCommand("Move Layer Up", [
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { order: above.order },
-          { order: layer.order },
-        ),
-        new ChangeLayerPropertyCommand(
-          above.id,
-          { order: layer.order },
-          { order: above.order },
-        ),
-      ]),
-    );
-  }
-  function handleMoveLayerDown(layer: LayerDefinition) {
-    const scope = layer.folderId
-      ? docNN.layers.filter((l) => l.folderId === layer.folderId)
-      : docNN.layers.filter((l) => !l.folderId);
-    const sorted = [...scope].sort((a, b) => b.order - a.order);
-    const idx = sorted.findIndex((l) => l.id === layer.id);
-    if (idx < 0 || idx >= sorted.length - 1) return;
-    const below = sorted[idx + 1];
-    executeCmd(
-      new CompoundCommand("Move Layer Down", [
-        new ChangeLayerPropertyCommand(
-          layer.id,
-          { order: below.order },
-          { order: layer.order },
-        ),
-        new ChangeLayerPropertyCommand(
-          below.id,
-          { order: layer.order },
-          { order: below.order },
-        ),
-      ]),
-    );
-  }
-
-  // ── Folder handlers ─────────────────────────────────────────────────────────
-
-  function handleFolderToggleVisible(folder: LayerFolder) {
-    executeCmd(
-      new ChangeLayerFolderPropertyCommand(
-        folder.id,
-        { visible: !folder.visible },
-        { visible: folder.visible },
-      ),
-    );
-  }
-  function handleFolderToggleLocked(folder: LayerFolder) {
-    executeCmd(
-      new ChangeLayerFolderPropertyCommand(
-        folder.id,
-        { locked: !folder.locked },
-        { locked: folder.locked },
-      ),
-    );
-  }
-  function handleFolderRenameCommit(folder: LayerFolder) {
-    const trimmed = editName.trim();
-    if (trimmed && trimmed !== folder.name) {
-      executeCmd(
-        new ChangeLayerFolderPropertyCommand(
-          folder.id,
-          { name: trimmed },
-          { name: folder.name },
-        ),
-      );
-    } else {
-      setEditName(folder.name);
-    }
-    setEditingId(null);
-  }
-  function handleDeleteFolder(folderId: string) {
-    // RemoveLayerFolderCommand already moves contained layers to root
-    executeCmd(new RemoveLayerFolderCommand(folderId));
-    setConfirmDeleteFolderId(null);
-  }
-  function handleAddFolder() {
-    const maxOrder = folders.reduce((m, f) => Math.max(m, f.order), 0);
-    const n = folders.length + 1;
-    executeCmd(
-      new AddLayerFolderCommand({
-        id: crypto.randomUUID(),
-        name: `Group ${n}`,
-        visible: true,
-        locked: false,
-        order: maxOrder + 1,
-        childLayerIds: [],
-      }),
-    );
-  }
-
-  const iconBtn: React.CSSProperties = {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "0 2px",
-    color: "var(--io-text-secondary)",
-    fontSize: 13,
-    lineHeight: 1,
-  };
-
-  return (
-    <div style={{ borderTop: "1px solid var(--io-border)", flexShrink: 0 }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "6px 12px",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-        onClick={() => setCollapsed((v) => !v)}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
             letterSpacing: "0.08em",
-            color: "var(--io-text-secondary)",
-            textTransform: "uppercase",
+            color: "var(--io-text-muted)",
             flex: 1,
           }}
         >
           Layers
         </span>
-        <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>
-          {collapsed ? "▸" : "▾"}
+        <span style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
+          {doc.children.length}
         </span>
       </div>
 
-      {!collapsed && (
-        <div>
-          {items.map((item) => {
-            if (item.kind === "folder") {
-              const { folder, layers: flLayers } = item;
-              const isExpanded = expandedFolders[folder.id] !== false;
-              const isEditingFolder = editingId === folder.id;
-              return (
-                <div key={folder.id}>
-                  {/* Folder header row */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: "3px 8px 3px 8px",
-                      fontSize: 12,
-                      cursor: "default",
-                      background:
-                        "var(--io-surface-elevated, rgba(255,255,255,0.03))",
-                      color: folder.visible
-                        ? "var(--io-text-primary)"
-                        : "var(--io-text-muted)",
-                      borderTop:
-                        "1px solid var(--io-border-subtle, rgba(255,255,255,0.05))",
-                    }}
-                  >
-                    <button
-                      style={{
-                        ...iconBtn,
-                        fontSize: 9,
-                        color: "var(--io-text-muted)",
-                        minWidth: 12,
-                      }}
-                      onClick={() =>
-                        setExpandedFolders((p) => ({
-                          ...p,
-                          [folder.id]: !isExpanded,
-                        }))
-                      }
-                      title={isExpanded ? "Collapse" : "Expand"}
-                    >
-                      {isExpanded ? "▾" : "▸"}
-                    </button>
-                    <button
-                      title={folder.visible ? "Hide folder" : "Show folder"}
-                      style={iconBtn}
-                      onClick={() => handleFolderToggleVisible(folder)}
-                    >
-                      {folder.visible ? "👁" : "○"}
-                    </button>
-                    <button
-                      title={folder.locked ? "Unlock folder" : "Lock folder"}
-                      style={iconBtn}
-                      onClick={() => handleFolderToggleLocked(folder)}
-                    >
-                      {folder.locked ? "🔒" : "🔓"}
-                    </button>
-                    {isEditingFolder ? (
-                      <input
-                        autoFocus
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onBlur={() => handleFolderRenameCommit(folder)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter")
-                            handleFolderRenameCommit(folder);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
-                        style={{
-                          ...inputStyle,
-                          flex: 1,
-                          height: 20,
-                          fontSize: 12,
-                        }}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          cursor: "default",
-                          fontWeight: 500,
-                        }}
-                        onDoubleClick={() =>
-                          handleRenameStart(folder.id, folder.name)
-                        }
-                      >
-                        📁 {folder.name}
-                      </span>
-                    )}
-                    {confirmDeleteFolderId === folder.id ? (
-                      <>
-                        <button
-                          style={{
-                            ...iconBtn,
-                            color: "var(--io-error, #ef4444)",
-                            fontSize: 10,
-                          }}
-                          onClick={() => handleDeleteFolder(folder.id)}
-                          title="Confirm delete"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          style={{ ...iconBtn, fontSize: 10 }}
-                          onClick={() => setConfirmDeleteFolderId(null)}
-                          title="Cancel"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        style={{ ...iconBtn, fontSize: 10 }}
-                        onClick={() => setConfirmDeleteFolderId(folder.id)}
-                        title="Delete folder"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  {/* Contained layers (indented) */}
-                  {isExpanded &&
-                    flLayers.map((layer) => {
-                      const layerIndex = allLayersSorted.findIndex(
-                        (l) => l.id === layer.id,
-                      );
-                      return (
-                        <div
-                          key={layer.id}
-                          onContextMenu={(e) =>
-                            handleLayerCtx(e, { layer, layerIndex })
-                          }
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                            padding: "3px 8px 3px 24px",
-                            fontSize: 12,
-                            cursor: "context-menu",
-                            color:
-                              layer.visible && folder.visible
-                                ? "var(--io-text-primary)"
-                                : "var(--io-text-muted)",
-                          }}
-                        >
-                          <button
-                            title={layer.visible ? "Hide" : "Show"}
-                            style={iconBtn}
-                            onClick={() => handleToggleVisible(layer)}
-                          >
-                            {layer.visible ? "👁" : "○"}
-                          </button>
-                          <button
-                            title={layer.locked ? "Unlock" : "Lock"}
-                            style={iconBtn}
-                            onClick={() => handleToggleLocked(layer)}
-                          >
-                            {layer.locked ? "🔒" : "🔓"}
-                          </button>
-                          {editingId === layer.id ? (
-                            <input
-                              autoFocus
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              onBlur={() => handleRenameCommit(layer)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  handleRenameCommit(layer);
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              style={{
-                                ...inputStyle,
-                                flex: 1,
-                                height: 20,
-                                fontSize: 12,
-                              }}
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                flex: 1,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                cursor: "default",
-                              }}
-                              onDoubleClick={() =>
-                                handleRenameStart(layer.id, layer.name)
-                              }
-                            >
-                              {layer.name}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Root layer row
-            const { layer } = item;
-            const layerIndex = allLayersSorted.findIndex(
-              (l) => l.id === layer.id,
-            );
-            return (
-              <div
-                key={layer.id}
-                onContextMenu={(e) => handleLayerCtx(e, { layer, layerIndex })}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "3px 8px 3px 12px",
-                  fontSize: 12,
-                  cursor: "context-menu",
-                  color: layer.visible
-                    ? "var(--io-text-primary)"
-                    : "var(--io-text-muted)",
-                }}
-              >
-                <button
-                  title={layer.visible ? "Hide" : "Show"}
-                  style={iconBtn}
-                  onClick={() => handleToggleVisible(layer)}
-                >
-                  {layer.visible ? "👁" : "○"}
-                </button>
-                <button
-                  title={layer.locked ? "Unlock" : "Lock"}
-                  style={iconBtn}
-                  onClick={() => handleToggleLocked(layer)}
-                >
-                  {layer.locked ? "🔒" : "🔓"}
-                </button>
-                {editingId === layer.id ? (
-                  <input
-                    autoFocus
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onBlur={() => handleRenameCommit(layer)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRenameCommit(layer);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
-                  />
-                ) : (
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      cursor: "default",
-                    }}
-                    onDoubleClick={() =>
-                      handleRenameStart(layer.id, layer.name)
-                    }
-                  >
-                    {layer.name}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Layer context menu */}
-          {layerMenu?.data && (
-            <ContextMenu
-              x={layerMenu.x}
-              y={layerMenu.y}
-              items={[
-                {
-                  label: "Rename",
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleRenameStart(
-                      layerMenu.data!.layer.id,
-                      layerMenu.data!.layer.name,
-                    );
-                  },
-                },
-                {
-                  label: "Duplicate",
-                  onClick: () => {
-                    closeLayerMenu();
-                    const maxOrder = docNN.layers.reduce(
-                      (m, l) => Math.max(m, l.order),
-                      0,
-                    );
-                    executeCmd(
-                      new AddLayerCommand({
-                        ...layerMenu.data!.layer,
-                        id: crypto.randomUUID(),
-                        name: layerMenu.data!.layer.name + " Copy",
-                        order: maxOrder + 1,
-                      }),
-                    );
-                  },
-                },
-                {
-                  label: layerMenu.data.layer.visible
-                    ? "Hide Layer"
-                    : "Show Layer",
-                  divider: true,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleToggleVisible(layerMenu.data!.layer);
-                  },
-                },
-                {
-                  label: layerMenu.data.layer.locked
-                    ? "Unlock Layer"
-                    : "Lock Layer",
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleToggleLocked(layerMenu.data!.layer);
-                  },
-                },
-                {
-                  label: "Move Up",
-                  divider: true,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleMoveLayerUp(layerMenu.data!.layer);
-                  },
-                },
-                {
-                  label: "Move Down",
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleMoveLayerDown(layerMenu.data!.layer);
-                  },
-                },
-                {
-                  label: "Delete",
-                  divider: true,
-                  danger: true,
-                  disabled: docNN.layers.length <= 1,
-                  onClick: () => {
-                    closeLayerMenu();
-                    handleDeleteLayer(layerMenu.data!.layer.id);
-                  },
-                },
-              ]}
-              onClose={closeLayerMenu}
-            />
-          )}
-
-          {/* Add buttons */}
-          <div style={{ padding: "4px 12px 6px", display: "flex", gap: 6 }}>
-            <button
-              onClick={handleAddLayer}
-              style={{
-                flex: 1,
-                padding: "3px 0",
-                fontSize: 11,
-                border: "1px dashed var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                background: "none",
-                color: "var(--io-text-secondary)",
-                cursor: "pointer",
-              }}
-            >
-              + Layer
-            </button>
-            <button
-              onClick={handleAddFolder}
-              style={{
-                flex: 1,
-                padding: "3px 0",
-                fontSize: 11,
-                border: "1px dashed var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                background: "none",
-                color: "var(--io-text-secondary)",
-                cursor: "pointer",
-              }}
-            >
-              + Folder
-            </button>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {reversed.length === 0 ? (
+          <div
+            style={{ padding: "8px 12px", fontSize: 11, color: "var(--io-text-muted)" }}
+          >
+            Canvas is empty
           </div>
-        </div>
-      )}
+        ) : (
+          reversed.map((node, revIdx) => {
+            const actualIdx = doc.children.length - 1 - revIdx;
+            return (
+              <CanvasLayerRow
+                key={(node as SceneNode).id}
+                node={node as SceneNode}
+                depth={0}
+                actualIndex={actualIdx}
+                siblingCount={doc.children.length}
+                expandedIds={expandedIds}
+                onExpand={handleExpand}
+                executeCmd={executeCmd}
+              />
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -4638,22 +4038,40 @@ export default function DesignerRightPanel({
   width,
 }: DesignerRightPanelProps) {
   const doc = useSceneStore((s) => s.doc);
-
-  // Subscribe to selection from uiStore — reactive, no CustomEvents needed
   const selectedNodeIds = useUiStore((s) => s.selectedNodeIds);
   const selectedIds = Array.from(selectedNodeIds);
+  const getShape = useLibraryStore((s) => s.getShape);
 
+  const [activeTab, setActiveTab] = useState<string>("doc");
+
+  const singleId = selectedIds.length === 1 ? selectedIds[0] : null;
+  const singleNode = singleId && doc ? findNodeById(doc, singleId) : null;
+  const isSymbol = singleNode?.type === "symbol_instance";
+  const shapeEntry = isSymbol
+    ? getShape((singleNode as SymbolInstance).shapeRef.shapeId)
+    : null;
+
+  // Auto-scroll to top when a display_element is selected
   const scrollRef = useRef<HTMLDivElement>(null);
-  const singleSelectedId = selectedIds.length === 1 ? selectedIds[0] : null;
-
-  // Auto-scroll the panel to top when a display_element is selected so its
-  // config section is immediately visible without manual scrolling.
   useEffect(() => {
-    if (!singleSelectedId || !doc) return;
-    const node = findNodeById(doc, singleSelectedId);
+    if (!singleId || !doc) return;
+    const node = findNodeById(doc, singleId);
     if (node?.type !== "display_element") return;
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, [singleSelectedId]);
+  }, [singleId]);
+
+  // Switch to "properties" when selection changes; fall back to "doc" when cleared
+  const prevSelKey = useRef("");
+  useEffect(() => {
+    const key = selectedIds.join(",");
+    if (key === prevSelKey.current) return;
+    prevSelKey.current = key;
+    if (selectedIds.length === 0) {
+      setActiveTab("doc");
+    } else {
+      setActiveTab("properties");
+    }
+  }, [selectedIds.join(",")]);
 
   if (collapsed) {
     return (
@@ -4683,53 +4101,91 @@ export default function DesignerRightPanel({
     );
   }
 
-  function renderContent() {
-    if (!doc) {
+  // Build tab list dynamically based on selection state
+  const tabs: TabDef[] = [];
+
+  if (!doc) {
+    // No document — just Doc tab
+  } else if (selectedIds.length === 0) {
+    // No selection — Doc tab only (pushed below)
+  } else if (selectedIds.length > 1) {
+    tabs.push({ id: "properties", label: `${selectedIds.length} Items` });
+  } else if (singleNode) {
+    const propertiesLabel: Record<string, string> = {
+      symbol_instance: "Properties",
+      text_block: "Text",
+      primitive: "Shape",
+      pipe: "Pipe",
+      display_element: "Display",
+      widget: "Widget",
+      image: "Image",
+      embedded_svg: "SVG",
+      group: "Group",
+      annotation: "Annotation",
+      stencil: "Stencil",
+    };
+    tabs.push({
+      id: "properties",
+      label: propertiesLabel[singleNode.type] ?? "Properties",
+    });
+    if (isSymbol) {
+      tabs.push({ id: "shape", label: "Shape" });
+      if (shapeEntry) {
+        tabs.push({ id: "sidecar", label: "Sidecar" });
+      }
+    }
+  } else if (singleId) {
+    // May be a layer ID
+    const layer = doc.layers.find((l) => l.id === singleId);
+    if (layer) tabs.push({ id: "properties", label: "Layer" });
+  }
+
+  // Document tab is always last / rightmost
+  tabs.push({ id: "doc", label: "Doc" });
+
+  const validTab = tabs.find((t) => t.id === activeTab) ? activeTab : tabs[0]?.id ?? "doc";
+
+  function renderTabContent() {
+    if (validTab === "doc") {
+      if (!doc) {
+        return (
+          <div style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}>
+            No document open
+          </div>
+        );
+      }
+      return <DocPropertiesPanel doc={doc} />;
+    }
+
+    if (!doc) return null;
+
+    if (validTab === "shape" && singleNode?.type === "symbol_instance") {
       return (
-        <div
-          style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}
-        >
-          No document open
-        </div>
+        <SymbolInstanceShapeTab key={singleNode.id} node={singleNode as SymbolInstance} />
       );
     }
 
-    if (selectedIds.length === 0) {
+    if (validTab === "sidecar" && singleNode?.type === "symbol_instance") {
       return (
-        <>
-          <SectionHeader>Document</SectionHeader>
-          <DocPropertiesPanel doc={doc} />
-        </>
+        <SymbolInstanceSidecarTab key={singleNode.id} node={singleNode as SymbolInstance} />
       );
     }
+
+    // "properties" tab
+    if (selectedIds.length === 0) return null;
 
     if (selectedIds.length > 1) {
-      return (
-        <>
-          <SectionHeader>Selection ({selectedIds.length})</SectionHeader>
-          <MultiSelectionPanel ids={selectedIds} />
-        </>
-      );
+      return <MultiSelectionPanel ids={selectedIds} />;
     }
 
     const nodeId = selectedIds[0];
     const node = findNodeById(doc, nodeId);
 
     if (!node) {
-      // Check if it's a layer ID
       const layer = doc.layers.find((l) => l.id === nodeId);
-      if (layer) {
-        return (
-          <>
-            <SectionHeader>Layer</SectionHeader>
-            <LayerPropertiesPanel key={layer.id} layer={layer} />
-          </>
-        );
-      }
+      if (layer) return <LayerPropertiesPanel key={layer.id} layer={layer} />;
       return (
-        <div
-          style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}
-        >
+        <div style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}>
           Selected item not found
         </div>
       );
@@ -4737,97 +4193,39 @@ export default function DesignerRightPanel({
 
     switch (node.type) {
       case "symbol_instance":
-        return (
-          <>
-            <SectionHeader>Symbol</SectionHeader>
-            <SymbolInstancePanel key={node.id} node={node as SymbolInstance} />
-          </>
-        );
+        return <SymbolInstancePanel key={node.id} node={node as SymbolInstance} />;
       case "text_block":
-        return (
-          <>
-            <SectionHeader>Text</SectionHeader>
-            <TextBlockPanel key={node.id} node={node as TextBlock} />
-          </>
-        );
+        return <TextBlockPanel key={node.id} node={node as TextBlock} />;
       case "primitive":
-        return (
-          <>
-            <SectionHeader>Shape</SectionHeader>
-            <PrimitivePanel key={node.id} node={node as Primitive} />
-          </>
-        );
+        return <PrimitivePanel key={node.id} node={node as Primitive} />;
       case "pipe":
-        return (
-          <>
-            <SectionHeader>Pipe</SectionHeader>
-            <PipePanel key={node.id} node={node as Pipe} />
-          </>
-        );
+        return <PipePanel key={node.id} node={node as Pipe} />;
       case "display_element":
-        return (
-          <>
-            <SectionHeader>Display Element</SectionHeader>
-            <DisplayElementPanel key={node.id} node={node as DisplayElement} />
-          </>
-        );
+        return <DisplayElementPanel key={node.id} node={node as DisplayElement} />;
       case "widget":
-        return (
-          <>
-            <SectionHeader>Widget</SectionHeader>
-            <WidgetPanel key={node.id} node={node as WidgetNode} />
-          </>
-        );
+        return <WidgetPanel key={node.id} node={node as WidgetNode} />;
       case "image":
-        return (
-          <>
-            <SectionHeader>Image</SectionHeader>
-            <ImageNodePanel key={node.id} node={node as ImageNode} />
-          </>
-        );
+        return <ImageNodePanel key={node.id} node={node as ImageNode} />;
       case "embedded_svg":
-        return (
-          <>
-            <SectionHeader>Embedded SVG</SectionHeader>
-            <EmbeddedSvgPanel key={node.id} node={node as EmbeddedSvgNode} />
-          </>
-        );
+        return <EmbeddedSvgPanel key={node.id} node={node as EmbeddedSvgNode} />;
       case "group":
-        return (
-          <>
-            <SectionHeader>Group</SectionHeader>
-            <GroupPanel key={node.id} node={node as Group} />
-          </>
-        );
+        return <GroupPanel key={node.id} node={node as Group} />;
       case "annotation":
-        return (
-          <>
-            <SectionHeader>Annotation</SectionHeader>
-            <AnnotationPanel key={node.id} node={node as Annotation} />
-          </>
-        );
+        return <AnnotationPanel key={node.id} node={node as Annotation} />;
       case "stencil":
-        return (
-          <>
-            <SectionHeader>Stencil</SectionHeader>
-            <StencilPanel key={node.id} node={node as Stencil} />
-          </>
-        );
+        return <StencilPanel key={node.id} node={node as Stencil} />;
       default:
         return (
-          <>
-            <SectionHeader>{node.type.replace(/_/g, " ")}</SectionHeader>
-            <div style={{ padding: "0 12px" }}>
-              <Field label="Opacity">
-                <NumberInput
-                  value={Math.round(node.opacity * 100)}
-                  min={0}
-                  max={100}
-                  onChange={(_v) => {}}
-                />
-              </Field>
-            </div>
-          </>
+          <div style={{ padding: "0 12px" }}>
+            <Field label="Opacity">
+              <NumberInput
+                value={Math.round(node.opacity * 100)}
+                min={0}
+                max={100}
+                onChange={() => {}}
+              />
+            </Field>
+          </div>
         );
     }
   }
@@ -4836,20 +4234,34 @@ export default function DesignerRightPanel({
     <div
       style={{
         width,
+        flex: 1,
         display: "flex",
         flexDirection: "column",
         background: "var(--io-surface)",
         borderLeft: "1px solid var(--io-border)",
         overflow: "hidden",
+        height: "100%",
       }}
     >
-      <div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
-        {renderContent()}
+      {/* Tab bar */}
+      <TabBar tabs={tabs} activeTab={validTab} onTabChange={setActiveTab} />
+
+      {/* Tab content — scrollable, takes top half */}
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          minHeight: 0,
+          paddingTop: 8,
+        }}
+      >
+        {renderTabContent()}
       </div>
-      {/* Scene tree — shows node hierarchy with groups as collapsible rows */}
-      <SceneTreePanel selectedIds={selectedIds} />
-      {/* Layer panel — always visible at the bottom */}
-      <LayersPanel />
+
+      {/* Canvas Layers — bottom half, full height remaining */}
+      <CanvasLayersPanel />
     </div>
   );
 }
+

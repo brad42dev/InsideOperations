@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "column-distillation-standard-plain",
   "version": "1.0",
-  "display_name": "Column — Standard Plain",
+  "display_name": "Column \u2014 Standard Plain",
   "category": "columns",
   "subcategory": "distillation",
   "tags": [
@@ -29,7 +29,13 @@
   "geometry": {
     "viewBox": "0 0 44 120",
     "width": 44,
-    "height": 120
+    "height": 120,
+    "selectionBounds": {
+      "x": 9,
+      "y": 4,
+      "w": 26,
+      "h": 112
+    }
   },
   "connections": [
     {
@@ -184,6 +190,13 @@
       "partId": "body",
       "label": "Column Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support",
+      "x": 2,
+      "y": 42
     }
   ]
 }

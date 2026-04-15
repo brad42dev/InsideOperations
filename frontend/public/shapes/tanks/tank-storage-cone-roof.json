@@ -55,7 +55,13 @@
   "geometry": {
     "viewBox": "0 0 70 70",
     "width": 70,
-    "height": 70
+    "height": 70,
+    "selectionBounds": {
+      "x": 9,
+      "y": 5,
+      "w": 52,
+      "h": 56
+    }
   },
   "connections": [
     {
@@ -189,6 +195,13 @@
       "partId": "body",
       "label": "Tank Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support",
+      "x": 15,
+      "y": -8
     }
   ]
 }

@@ -142,7 +142,7 @@ export function resolveNamedSlot(
 /** Minimal shape fields needed for sidecar-aware slot resolution. */
 interface SidecarLike {
   valueAnchors?: Array<{ nx?: number; ny?: number; preferredElement?: string }>;
-  alarmAnchor?: [number, number] | { nx: number; ny: number };
+  alarmAnchor?: [number, number] | { nx: number; ny: number } | null;
 }
 
 /**

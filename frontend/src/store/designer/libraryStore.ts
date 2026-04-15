@@ -28,88 +28,16 @@
 import { create } from "zustand";
 
 // ---------------------------------------------------------------------------
-// Exported sidecar types (mirror the .iographic shape sidecar schema)
+// Sidecar types — canonical definition lives in shared/types/shapes.ts
 // ---------------------------------------------------------------------------
 
-/** Connection point — actual JSON uses absolute x/y coords */
-export interface ConnectionPoint {
-  id: string;
-  /** Absolute x coordinate in viewBox space */
-  x?: number;
-  /** Absolute y coordinate in viewBox space */
-  y?: number;
-  direction: "left" | "right" | "up" | "down" | "top" | "bottom";
-  type: "process" | "signal" | "actuator" | "electrical";
-  rotatesWithShape?: boolean;
-}
-
-/** Text zone — actual JSON uses absolute x/y with width */
-export interface TextZone {
-  id: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  anchor?: "start" | "middle" | "end";
-  fontSize?: number;
-}
-
-/** Value anchor — actual JSON uses normalized nx/ny with preferredElement */
-export interface ValueAnchor {
-  /** Normalized x (0–1) relative to shape width */
-  nx?: number;
-  /** Normalized y (0–1) relative to shape height */
-  ny?: number;
-  preferredElement?: string;
-}
-
-export interface ShapeSidecar {
-  id?: string;
-  category?: string;
-  geometry: {
-    viewBox: string;
-    /** Preferred: [width, height] tuple */
-    baseSize?: [number, number];
-    /** Flat format used by most sidecar files */
-    width?: number;
-    height?: number;
-    gridSnap?: number;
-    orientations?: number[];
-    mirrorable?: boolean;
-  };
-  connections?: ConnectionPoint[];
-  textZones?: TextZone[];
-  valueAnchors?: ValueAnchor[];
-  /** Alarm anchor — either normalized [nx, ny] tuple or {nx, ny} object */
-  alarmAnchor?: [number, number] | { nx: number; ny: number };
-  states?: Record<string, string> | string[];
-  /** Optional variant files — normalized flat array (populated from `variants.options` on load) */
-  options?: Array<{ id: string; file: string; label: string }>;
-  /** Raw variant structure from JSON sidecar — normalized into `options` on load */
-  variants?: { options?: Record<string, { file: string; label: string }> };
-  /** Optional configuration files */
-  configurations?: Array<{ id: string; label: string; file: string }>;
-  addons?: Array<{
-    id: string;
-    file: string;
-    label: string;
-    group?: string;
-    exclusive?: boolean;
-  }>;
-  anchorSlots?: Partial<
-    Record<
-      | "PointNameLabel"
-      | "AlarmIndicator"
-      | "TextReadout"
-      | "AnalogBar"
-      | "FillGauge"
-      | "Sparkline"
-      | "DigitalStatus",
-      string[]
-    >
-  >;
-  defaultSlots?: Record<string, string>;
-  bindableParts?: Array<{ partId: string; label: string; category: string }>;
-}
+import type {
+  ShapeSidecar,
+  ConnectionPoint,
+  TextZone,
+  ValueAnchor,
+} from "../../shared/types/shapes";
+export type { ShapeSidecar, ConnectionPoint, TextZone, ValueAnchor };
 
 // ---------------------------------------------------------------------------
 // Cache entry
@@ -464,6 +392,17 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             }
             return { loadingIds };
           });
+
+          // Pre-load addon shapes so they're ready when composable parts render.
+          // Addon parts have empty addons themselves, so no infinite recursion.
+          if (entry) {
+            for (const addon of entry.sidecar.addons ?? []) {
+              const addonId = addon.file.replace(/\.svg$/, "");
+              if (addonId !== id && !get().cache.has(addonId)) {
+                void get().loadShape(addonId);
+              }
+            }
+          }
         }
       })();
 

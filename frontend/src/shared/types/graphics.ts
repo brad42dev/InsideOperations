@@ -22,6 +22,10 @@ export interface PointBinding {
 
 export interface PortablePointBinding {
   pointTag?: string;
+  /** Human-readable display name of the bound point (e.g. "AI Tag Description"). */
+  displayName?: string;
+  /** Engineering unit of the bound point (e.g. "ppm", "°C"). */
+  unit?: string;
   sourceHint?: string;
   expressionKey?: string;
   pointAttribute?: string;
@@ -181,6 +185,8 @@ export interface TextReadoutConfig {
     fontSize: number;
     color: string;
     showBackground: boolean;
+    textAlign?: "left" | "center" | "right";
+    fontWeight?: "normal" | "bold";
   };
   displayNameRow?: {
     enabled: boolean;
@@ -188,11 +194,23 @@ export interface TextReadoutConfig {
     fontSize: number;
     color: string;
     showBackground: boolean;
+    textAlign?: "left" | "center" | "right";
+    fontWeight?: "normal" | "bold";
   };
   valueRow?: {
     fontFamily: DisplayElementFontFamily;
     fontSize: number;
     showBackground: boolean;
+    color?: string;
+    textAlign?: "left" | "center" | "right";
+    fontWeight?: "normal" | "bold";
+  };
+  euRow?: {
+    fontFamily?: DisplayElementFontFamily;
+    fontSize?: number;
+    color?: string;
+    textAlign?: "left" | "center" | "right";
+    fontWeight?: "normal" | "bold";
   };
 }
 
@@ -233,6 +251,7 @@ export interface FillGaugeConfig {
   barHeight?: number;
   showLevelLine: boolean;
   showValue: boolean;
+  valuePosition?: "in-fill" | "center";
   valueFormat: string;
   showSignalLine?: boolean;
 }

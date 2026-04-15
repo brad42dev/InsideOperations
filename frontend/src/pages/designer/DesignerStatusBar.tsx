@@ -125,6 +125,8 @@ export default function DesignerStatusBar({
   const zoom = useUiStore((s) => s.viewport.zoom);
   const zoomTo = useUiStore((s) => s.zoomTo);
   const testMode = useUiStore((s) => s.testMode);
+  const testModePaused = useUiStore((s) => s.testModePaused);
+  const setTestModePaused = useUiStore((s) => s.setTestModePaused);
 
   // Zoom dropdown visibility
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -161,16 +163,10 @@ export default function DesignerStatusBar({
     setGrid(gridVisible, next);
   }
 
-  // Mode label
+  // Mode label (non-test-mode cases)
   let modeLabel: string;
-  let modeDot: string | null = null;
-  let modeColor = "var(--io-text-secondary)";
   if (readOnly) {
     modeLabel = "Read-Only";
-  } else if (testMode) {
-    modeLabel = "Test Mode";
-    modeDot = "●";
-    modeColor = "#22c55e";
   } else {
     modeLabel = "Edit";
   }
@@ -315,12 +311,51 @@ export default function DesignerStatusBar({
       <Divider />
 
       {/* 5. Mode indicator */}
-      <div style={{ ...segmentStyle, color: modeColor }}>
-        {modeDot && (
-          <span style={{ fontSize: 8, lineHeight: 1 }}>{modeDot}</span>
-        )}
-        <span>{modeLabel}</span>
-      </div>
+      {testMode ? (
+        <div style={{ ...segmentStyle, gap: 6 }}>
+          <style>{`@keyframes io-test-mode-glow { 0%,100% { text-shadow: 0 0 6px #4ade80; opacity:1; } 50% { text-shadow: 0 0 14px #4ade80, 0 0 28px #4ade80; opacity:0.9; } }`}</style>
+          <span
+            style={{
+              color: "#4ade80",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+              animation: "io-test-mode-glow 2s ease-in-out infinite",
+            }}
+          >
+            TEST MODE
+          </span>
+          <button
+            onClick={() => setTestModePaused(!testModePaused)}
+            title={testModePaused ? "Resume live data" : "Pause live data"}
+            style={{
+              background: testModePaused
+                ? "rgba(74,222,128,0.12)"
+                : "rgba(239,68,68,0.12)",
+              border: testModePaused
+                ? "1px solid rgba(74,222,128,0.4)"
+                : "1px solid rgba(239,68,68,0.4)",
+              borderRadius: 3,
+              color: testModePaused ? "#4ade80" : "#ef4444",
+              fontSize: 13,
+              cursor: "pointer",
+              padding: "0 5px",
+              lineHeight: 1,
+              height: 20,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              gap: 4,
+            }}
+          >
+            {testModePaused ? "▶ Resume" : "⏸ Pause"}
+          </button>
+        </div>
+      ) : (
+        <div style={{ ...segmentStyle, color: "var(--io-text-secondary)" }}>
+          <span>{modeLabel}</span>
+        </div>
+      )}
 
       {/* Spacer pushes auto-save to the right */}
       <div style={{ flex: 1 }} />

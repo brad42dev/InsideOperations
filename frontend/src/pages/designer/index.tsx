@@ -23,6 +23,7 @@ import {
   useSceneStore,
   useHistoryStore,
   useTabStore,
+  useLibraryStore,
   MAX_TABS,
 } from "../../store/designer";
 import { useUiStore } from "../../store/designer/uiStore";
@@ -30,6 +31,7 @@ import { graphicsApi } from "../../api/graphics";
 import { pointsApi } from "../../api/points";
 import type {
   SceneNode,
+  GraphicDocument,
   DisplayElement,
   SymbolInstance,
 } from "../../shared/types/graphics";
@@ -52,6 +54,11 @@ import IographicExportDialog from "./components/IographicExportDialog";
 import CanvasPropertiesDialog from "./components/CanvasPropertiesDialog";
 import TabClosePrompt from "./components/TabClosePrompt";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
+import {
+  AspectPreset,
+  ASPECT_PRESETS,
+  ChainLinkIcon,
+} from "./components/canvasPresets";
 
 // ---------------------------------------------------------------------------
 // New Graphic dialog
@@ -70,34 +77,6 @@ interface NewGraphicDialogProps {
   initialMode?: "graphic" | "dashboard" | "report";
 }
 
-// ---------------------------------------------------------------------------
-// Aspect presets
-// ---------------------------------------------------------------------------
-
-interface AspectPreset {
-  label: string;
-  width: number;
-  height: number;
-  reportOnly?: boolean;
-}
-
-const ASPECT_PRESETS: AspectPreset[] = [
-  { label: "720p", width: 1280, height: 720 },
-  { label: "1080p", width: 1920, height: 1080 },
-  { label: "1440p", width: 2560, height: 1440 },
-  { label: "4K", width: 3840, height: 2160 },
-  { label: "16:10 M", width: 1920, height: 1200 },
-  { label: "16:10 L", width: 2560, height: 1600 },
-  { label: "4:3 Std", width: 1024, height: 768 },
-  { label: "4:3 Lg", width: 1600, height: 1200 },
-  { label: "Ultrawide", width: 3440, height: 1440 },
-  { label: "Super-UW", width: 5120, height: 1440 },
-  { label: "A4 Portrait", width: 794, height: 1123, reportOnly: true },
-  { label: "A4 Landscape", width: 1123, height: 794, reportOnly: true },
-  { label: "Letter Portrait", width: 816, height: 1056, reportOnly: true },
-  { label: "Letter Landscape", width: 1056, height: 816, reportOnly: true },
-];
-
 // Defaults per mode
 const MODE_DEFAULTS: Record<
   "graphic" | "dashboard" | "report",
@@ -107,92 +86,6 @@ const MODE_DEFAULTS: Record<
   dashboard: { width: 1920, height: 1080, autoHeight: false },
   report: { width: 794, height: 1123, autoHeight: true },
 };
-
-// ---------------------------------------------------------------------------
-// Chain-link SVG icon for proportional lock toggle
-// ---------------------------------------------------------------------------
-
-function ChainLinkIcon({ locked }: { locked: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      aria-hidden="true"
-    >
-      {locked ? (
-        // Closed chain: two ovals linked
-        <>
-          <rect
-            x="1"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <rect
-            x="9"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="5"
-            y1="7"
-            x2="9"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-        </>
-      ) : (
-        // Open chain: two ovals unlinked with a gap
-        <>
-          <rect
-            x="1"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <rect
-            x="9"
-            y="5"
-            width="4"
-            height="4"
-            rx="2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="5"
-            y1="7"
-            x2="6.5"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="7.5"
-            y1="7"
-            x2="9"
-            y2="7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-        </>
-      )}
-    </svg>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // NewGraphicDialog
@@ -219,7 +112,7 @@ function NewGraphicDialog({
     MODE_DEFAULTS[initialMode].height,
   );
   const [autoHeight, setAutoHeight] = useState<boolean>(
-    MODE_DEFAULTS.graphic.autoHeight,
+    MODE_DEFAULTS[initialMode].autoHeight,
   );
   const [proportionalLock, setProportionalLock] = useState(false);
   const [activePreset, setActivePreset] = useState<string | null>("1080p");
@@ -369,7 +262,11 @@ function NewGraphicDialog({
             color: "var(--io-text-primary)",
           }}
         >
-          New Graphic
+          {mode === "dashboard"
+            ? "New Dashboard"
+            : mode === "report"
+              ? "New Report"
+              : "New Graphic"}
         </div>
 
         {/* Name */}
@@ -649,14 +546,142 @@ function NewGraphicDialog({
 }
 
 // ---------------------------------------------------------------------------
+// RenameDialog
+// ---------------------------------------------------------------------------
+
+interface RenameDialogProps {
+  currentName: string;
+  onConfirm: (newName: string) => void;
+  onCancel: () => void;
+}
+
+function RenameDialog({ currentName, onConfirm, onCancel }: RenameDialogProps) {
+  const [name, setName] = useState(currentName);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onConfirm(trimmed);
+  }
+
+  const canSubmit = name.trim().length > 0 && name.trim() !== currentName;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.6)",
+      }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          padding: 24,
+          width: 360,
+          maxWidth: "92%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--io-text-primary)" }}>
+          Rename
+        </div>
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              marginBottom: 4,
+            }}
+          >
+            Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              color: "var(--io-text-primary)",
+              fontSize: 13,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: "6px 14px",
+              background: "transparent",
+              color: "var(--io-text-secondary)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            style={{
+              padding: "6px 14px",
+              background: canSubmit ? "var(--io-accent)" : "var(--io-surface-elevated)",
+              color: canSubmit ? "var(--io-accent-foreground)" : "var(--io-text-muted)",
+              border: "none",
+              borderRadius: "var(--io-radius)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: canSubmit ? "pointer" : "not-allowed",
+            }}
+          >
+            Rename
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Resizable divider
 // ---------------------------------------------------------------------------
 
 interface DividerProps {
   onDrag: (dx: number) => void;
+  /** Which panel edge this handle sits on. Controls absolute positioning. */
+  side: "left" | "right";
 }
 
-function VerticalDivider({ onDrag }: DividerProps) {
+// Resize handle rendered *inside* the panel container (position absolute),
+// matching the ConsolePalette pattern. No flex-flow footprint → zero gap.
+function VerticalDivider({ onDrag, side }: DividerProps) {
   const startX = useRef(0);
   const active = useRef(false);
 
@@ -682,22 +707,28 @@ function VerticalDivider({ onDrag }: DividerProps) {
 
   return (
     <div
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
       onMouseDown={handleMouseDown}
       style={{
-        width: 4,
+        position: "absolute",
+        top: 0,
+        ...(side === "left" ? { right: 0 } : { left: 0 }),
+        width: 5,
+        height: "100%",
         cursor: "col-resize",
-        flexShrink: 0,
         background: "transparent",
-        position: "relative",
         zIndex: 10,
         transition: "background 0.15s",
+        userSelect: "none",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "var(--io-accent)";
-        e.currentTarget.style.opacity = "0.4";
+        e.currentTarget.style.opacity = "0.3";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.opacity = "1";
       }}
     />
   );
@@ -836,6 +867,9 @@ export default function DesignerPage() {
   const markClean = useSceneStore((s) => s.markClean);
   const historyMarkClean = useHistoryStore((s) => s.markClean);
   const historyClear = useHistoryStore((s) => s.clear);
+  const historyRestoreFromSnapshots = useHistoryStore(
+    (s) => s.restoreFromSnapshots,
+  );
 
   const graphicIdInStore = useSceneStore((s) => s.graphicId);
   const doc = useSceneStore((s) => s.doc);
@@ -890,6 +924,7 @@ export default function DesignerPage() {
     lockedAt: string;
   } | null>(null);
   const lockHeldRef = useRef(false); // true when this session holds the lock
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -916,11 +951,16 @@ export default function DesignerPage() {
     }
   }, [navigate, tabStoreCloseAll]);
 
-  // Crash recovery — includes the saved doc so Recover action can load it
+  // Crash recovery — populated when an auto-save is found on load
   const [crashRecovery, setCrashRecovery] = useState<{
+    /** IDB key (graphicId or "__new__") */
     id: string;
     savedAt: number;
     savedDoc: unknown;
+    /** Server-side auto-save graphic ID, if one exists */
+    autosaveId: string | null;
+    /** Ordered docBefore snapshots for undo history reconstruction */
+    historyDocs: GraphicDocument[];
   } | null>(null);
   const [showCrashPreview, setShowCrashPreview] = useState(false);
 
@@ -930,6 +970,7 @@ export default function DesignerPage() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showPropertiesDialog, setShowPropertiesDialog] = useState(false);
+  const [renameTabId, setRenameTabId] = useState<string | null>(null);
 
   // Validate bindings results
   const [bindingValidation, setBindingValidation] = useState<{
@@ -940,6 +981,16 @@ export default function DesignerPage() {
 
   // Auto-save timestamp (updated whenever IndexedDB auto-save fires)
   const [lastAutoSave, setLastAutoSave] = useState<number | null>(null);
+
+  // Ref to the open IndexedDB connection — shared between the auto-save effect
+  // and the beforeunload handler so both can write without re-opening the DB.
+  const idbRef = useRef<IDBDatabase | null>(null);
+
+  // Server-side auto-save graphic ID for the currently open document.
+  // Populated when the first auto-save creates the server entry; cleared when
+  // the user performs a real save (which deletes the server auto-save).
+  // Reset to null whenever graphicId changes (effect cleanup).
+  const autoSaveIdRef = useRef<string | null>(null);
 
   // WebSocket connection state for status bar
   const [wsConnected, setWsConnected] = useState(
@@ -996,6 +1047,16 @@ export default function DesignerPage() {
         return;
       }
       const record = resp.data;
+
+      // Re-check after the async fetch: recovery may have loaded this document
+      // while the server response was in flight. The pre-await guard above uses
+      // closure values captured at loadDoc() call time (stale). Use getState()
+      // here to read the actual current state.
+      {
+        const s = useSceneStore.getState();
+        if (s.graphicId === gid && s.doc) return;
+      }
+
       loadGraphic(record.id, record.scene_data);
       historyClear();
 
@@ -1138,6 +1199,29 @@ export default function DesignerPage() {
         markClean();
         historyMarkClean();
 
+        // Delete the server auto-save now that the real save succeeded.
+        // Also clear the IDB record so no stale recovery is offered next load.
+        // NOTE: capture autoSaveIdRef and idbKey using currentId (not graphicId from store)
+        // because loadGraphic() above already updated the store's graphicId to the new real ID,
+        // so getState().graphicId would return the wrong key for the "__new__" IDB record.
+        const savedAutoSaveId = autoSaveIdRef.current;
+        if (savedAutoSaveId) {
+          void graphicsApi.remove(savedAutoSaveId).catch((err) => {
+            console.warn("[DesignerPage] Failed to delete server auto-save:", err);
+          });
+          autoSaveIdRef.current = null;
+        }
+        try {
+          const idbKey = currentId ?? "__new__";
+          const db = idbRef.current;
+          if (db) {
+            const tx = db.transaction("designer-autosave", "readwrite");
+            tx.objectStore("designer-autosave").delete(idbKey);
+          }
+        } catch {
+          /* best-effort */
+        }
+
         // Success toast — only for explicit saves (Ctrl+S / toolbar Save), not auto-save
         if (explicit) {
           const mode = useSceneStore.getState().designMode;
@@ -1212,6 +1296,45 @@ export default function DesignerPage() {
   const handleExplicitSave = useCallback(
     () => handleSave({ explicit: true }),
     [handleSave],
+  );
+
+  const handleRenameConfirm = useCallback(
+    async (newName: string) => {
+      if (!renameTabId) return;
+      const tab = useTabStore.getState().getTab(renameTabId);
+      if (!tab) { setRenameTabId(null); return; }
+
+      const isNewGraphic = tab.graphicId.startsWith("new-");
+      const isActive = useTabStore.getState().activeTabId === renameTabId;
+
+      try {
+        if (!isNewGraphic) {
+          const result = await graphicsApi.update(tab.graphicId, { name: newName });
+          if (!result.success) {
+            showToast({ title: "Rename failed", variant: "error" });
+            return;
+          }
+        }
+        useTabStore.getState().setTabName(renameTabId, newName);
+        if (isActive) {
+          const { doc } = useSceneStore.getState();
+          if (doc) useSceneStore.setState({ doc: { ...doc, name: newName } });
+        } else {
+          const currentTab = useTabStore.getState().getTab(renameTabId);
+          if (currentTab?.savedScene) {
+            useTabStore.getState().saveTabScene(renameTabId, {
+              ...currentTab.savedScene.scene,
+              name: newName,
+            });
+          }
+        }
+      } catch {
+        showToast({ title: "Rename failed", variant: "error" });
+      } finally {
+        setRenameTabId(null);
+      }
+    },
+    [renameTabId],
   );
 
   /**
@@ -1327,7 +1450,7 @@ export default function DesignerPage() {
   const handlePreviewVersion = useCallback(
     (
       _versionId: string,
-      doc: import("../../shared/types/graphics").GraphicDocument,
+      doc: GraphicDocument,
     ) => {
       // Load the version content into the scene for preview (non-destructive — user can still close without saving)
       loadGraphic(useSceneStore.getState().graphicId ?? "", doc);
@@ -1991,10 +2114,26 @@ export default function DesignerPage() {
   }, [requestCloseTab, switchToTab]);
 
   // -------------------------------------------------------------------------
-  // Auto-save to IndexedDB (every 60s when dirty)
+  // Auto-save — server-backed with IDB fallback and undo history persistence
+  //
+  // Architecture:
+  //   Server  — primary store for the document scene data.  Every 30s a
+  //             hidden graphic named "__autosave_…" is created/updated via
+  //             the existing CRUD API.  Deleted on a successful real save.
+  //             Survives browser storage clears and device switches.
+  //
+  //   IDB     — stores the lightweight metadata record:
+  //             { autosaveId, doc, historyDocs, savedAt }
+  //             autosaveId  — server graphic ID for primary recovery
+  //             doc         — most-recent doc snapshot (beforeunload fallback)
+  //             historyDocs — ordered docBefore snapshots for undo restore
+  //             savedAt     — epoch ms of last write
+  //
+  // Recovery priority:
+  //   1. Server graphic (fetched via autosaveId from IDB) — most reliable
+  //   2. IDB doc field — captures state from beforeunload, up to 30s newer
+  //   History is always restored from IDB historyDocs (server doesn't store it).
   // -------------------------------------------------------------------------
-
-  const isDirty = useSceneStore((s) => s.isDirty);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.indexedDB) return;
@@ -2002,8 +2141,41 @@ export default function DesignerPage() {
     const STORE = "designer-autosave";
     const DB_NAME = "io-designer";
     const DB_VERSION = 2;
+    const key = graphicId ?? "__new__";
 
-    // Open/upgrade IndexedDB
+    // Reset per-graphic auto-save ID when graphicId changes
+    autoSaveIdRef.current = null;
+
+    // ---- IDB helpers -------------------------------------------------------
+
+    function idbWrite(
+      db: IDBDatabase,
+      record: {
+        autosaveId: string | null;
+        doc: unknown;
+        historyDocs: GraphicDocument[];
+        savedAt: number;
+      },
+    ) {
+      try {
+        const tx = db.transaction(STORE, "readwrite");
+        tx.objectStore(STORE).put(record, key);
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    function idbDelete(db: IDBDatabase) {
+      try {
+        const tx = db.transaction(STORE, "readwrite");
+        tx.objectStore(STORE).delete(key);
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // ---- Open IDB ----------------------------------------------------------
+
     const openReq = indexedDB.open(DB_NAME, DB_VERSION);
     openReq.onupgradeneeded = () => {
       const upgradeDb = openReq.result;
@@ -2012,46 +2184,200 @@ export default function DesignerPage() {
       }
     };
 
-    let db: IDBDatabase | null = null;
     openReq.onsuccess = () => {
-      db = openReq.result;
+      const db = openReq.result;
+      idbRef.current = db;
 
-      // Check for crash recovery on first open
-      const key = graphicId ?? "__new__";
+      // ---- Crash-recovery check on mount ----------------------------------
       const tx = db.transaction(STORE, "readonly");
       const req = tx.objectStore(STORE).get(key);
-      req.onsuccess = () => {
-        if (req.result) {
-          const { doc: savedDoc, savedAt } = req.result as {
-            doc: unknown;
-            savedAt: number;
-          };
-          // Only offer recovery if there's something meaningful
-          if (savedDoc && !doc && !isNew) {
-            setCrashRecovery({ id: key, savedAt, savedDoc });
+      req.onsuccess = async () => {
+        if (!req.result) return;
+        const record = req.result as {
+          autosaveId?: string | null;
+          doc?: unknown;
+          historyDocs?: GraphicDocument[];
+          savedAt?: number;
+        };
+        const { autosaveId = null, doc: idbDoc, historyDocs = [], savedAt = 0 } = record;
+
+        // Nothing meaningful to offer
+        if (!autosaveId && !idbDoc) return;
+        // New-graphic recovery allowed (no !isNew guard — they may have hours
+        // of work in an unsaved new document and deserve the same recovery UX).
+        // Use getState() not closure — `doc` in the closure is captured at
+        // effect-setup time (always null) so it cannot detect a concurrent
+        // server load that populated the store before this IDB callback fired.
+        if (useSceneStore.getState().doc) return;
+
+        let savedDoc: unknown = idbDoc ?? null;
+
+        // Prefer server auto-save when available — it is the canonical record
+        if (autosaveId) {
+          try {
+            const resp = await graphicsApi.get(autosaveId);
+            if (resp.success) {
+              savedDoc = resp.data.scene_data;
+              autoSaveIdRef.current = autosaveId;
+            } else {
+              // Server copy gone (e.g. manually deleted) — fall back to IDB doc
+              // and clear the stale autosaveId so the next save creates a fresh one
+              idbDelete(db);
+            }
+          } catch {
+            // Network error — use IDB doc as fallback
           }
+        }
+
+        if (savedDoc) {
+          setCrashRecovery({
+            id: key,
+            savedAt,
+            savedDoc,
+            autosaveId,
+            historyDocs,
+          });
         }
       };
     };
 
-    const interval = setInterval(() => {
-      if (!isDirty || !db) return;
-      const currentDoc = useSceneStore.getState().doc;
-      if (!currentDoc) return;
-      const key = graphicId ?? "__new__";
-      try {
-        const now = Date.now();
-        const tx = db.transaction(STORE, "readwrite");
-        tx.objectStore(STORE).put({ doc: currentDoc, savedAt: now }, key);
-        setLastAutoSave(now);
-      } catch {
-        // Silently ignore IDB errors
+    // ---- Per-tab auto-save helper -----------------------------------------
+
+    async function saveTabToServer(
+      tabGraphicId: string,
+      sceneDoc: GraphicDocument,
+      tabKey: string,
+    ) {
+      const db = idbRef.current;
+      // Read existing record to preserve autosaveId across intervals
+      let tabAutosaveId: string | null = null;
+      if (db) {
+        await new Promise<void>((resolve) => {
+          try {
+            const rTx = db.transaction(STORE, "readonly");
+            const rReq = rTx.objectStore(STORE).get(tabKey);
+            rReq.onsuccess = () => {
+              tabAutosaveId = (rReq.result as { autosaveId?: string } | undefined)?.autosaveId ?? null;
+              resolve();
+            };
+            rReq.onerror = () => resolve();
+          } catch {
+            resolve();
+          }
+        });
       }
-    }, 60_000);
+
+      if (tabAutosaveId) {
+        await graphicsApi.update(tabAutosaveId, { scene_data: sceneDoc });
+      } else {
+        const resp = await graphicsApi.create({
+          name: `__autosave_${tabGraphicId}`,
+          scene_data: sceneDoc,
+          metadata: { autosave: true, sourceId: tabGraphicId },
+        });
+        if (resp.success) {
+          tabAutosaveId = resp.data.id;
+        }
+      }
+
+      if (db && tabAutosaveId) {
+        idbWrite(db, {
+          autosaveId: tabAutosaveId,
+          doc: sceneDoc,
+          historyDocs: [],   // inactive tab — history not available
+          savedAt: Date.now(),
+        });
+      }
+    }
+
+    // ---- 30-second interval -----------------------------------------------
+
+    const interval = setInterval(() => {
+      const db = idbRef.current;
+      const sceneState = useSceneStore.getState();
+      if (!sceneState.isDirty) return;
+
+      // Active tab
+      if (sceneState.doc) {
+        const histState = useHistoryStore.getState();
+        const historyDocs = histState.entries
+          .slice(0, histState.pointer)
+          .map((e) => e.docBefore)
+          .slice(-20);
+
+        void (async () => {
+          const activeGraphicId = sceneState.graphicId;
+          const activeDoc = sceneState.doc!;
+
+          // Create or update the server auto-save graphic
+          if (autoSaveIdRef.current) {
+            await graphicsApi.update(autoSaveIdRef.current, {
+              scene_data: activeDoc,
+            });
+          } else {
+            const resp = await graphicsApi.create({
+              name: `__autosave_${activeGraphicId ?? "new"}`,
+              scene_data: activeDoc,
+              metadata: {
+                autosave: true,
+                sourceId: activeGraphicId ?? null,
+              },
+            });
+            if (resp.success) autoSaveIdRef.current = resp.data.id;
+          }
+
+          // Write IDB record (metadata + history + fallback doc)
+          if (db) {
+            const now = Date.now();
+            idbWrite(db, {
+              autosaveId: autoSaveIdRef.current,
+              doc: activeDoc,
+              historyDocs,
+              savedAt: now,
+            });
+            setLastAutoSave(now);
+          }
+        })();
+      }
+
+      // Inactive tabs — doc state only (history unavailable for inactive tabs)
+      const { tabs, activeTabId } = useTabStore.getState();
+      for (const tab of tabs) {
+        if (tab.id === activeTabId) continue;
+        if (!tab.isModified || !tab.savedScene) continue;
+        if (tab.graphicId.startsWith("new-")) continue;
+        void saveTabToServer(tab.graphicId, tab.savedScene.scene, tab.graphicId);
+      }
+    }, 30_000);
+
+    // ---- beforeunload: IDB-only (async server call won't complete in time) -
+
+    function handleBeforeUnload() {
+      const db = idbRef.current;
+      if (!db) return;
+
+      const sceneState = useSceneStore.getState();
+      if (sceneState.isDirty && sceneState.doc) {
+        const histState = useHistoryStore.getState();
+        idbWrite(db, {
+          autosaveId: autoSaveIdRef.current,
+          doc: sceneState.doc,
+          historyDocs: histState.entries
+            .slice(0, histState.pointer)
+            .map((e) => e.docBefore)
+            .slice(-20),
+          savedAt: Date.now(),
+        });
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       clearInterval(interval);
-      if (db) db.close();
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      idbRef.current?.close();
+      idbRef.current = null;
+      autoSaveIdRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphicId, isNew]);
@@ -2274,18 +2600,15 @@ export default function DesignerPage() {
               <button
                 onClick={() => {
                   // Discard — delete the auto-save from IndexedDB and load normally
-                  const STORE = "designer-autosave";
-                  const openReq = indexedDB.open("io-designer", 1);
-                  openReq.onsuccess = () => {
-                    try {
-                      const db = openReq.result;
-                      const tx = db.transaction(STORE, "readwrite");
-                      tx.objectStore(STORE).delete(crashRecovery.id);
-                      db.close();
-                    } catch {
-                      /* best-effort */
+                  try {
+                    const db = idbRef.current;
+                    if (db) {
+                      const tx = db.transaction("designer-autosave", "readwrite");
+                      tx.objectStore("designer-autosave").delete(crashRecovery.id);
                     }
-                  };
+                  } catch {
+                    /* best-effort */
+                  }
                   setCrashRecovery(null);
                 }}
                 style={{
@@ -2305,29 +2628,97 @@ export default function DesignerPage() {
                   // Recover — load the auto-saved doc into the editor
                   if (crashRecovery.savedDoc) {
                     try {
-                      const savedSceneGraph = crashRecovery.savedDoc;
+                      const savedSceneGraph =
+                        crashRecovery.savedDoc as GraphicDocument;
+
                       if (graphicId) {
-                        loadGraphic(
-                          graphicId,
-                          savedSceneGraph as Parameters<typeof loadGraphic>[1],
+                        // Existing saved graphic — load recovered doc over it
+                        loadGraphic(graphicId, savedSceneGraph);
+                      } else {
+                        // New unsaved graphic (Bug #14) — can't pass null to
+                        // loadGraphic, so set store state directly
+                        useSceneStore.setState({
+                          doc: savedSceneGraph,
+                          graphicId: null,
+                          isDirty: true,
+                          designMode:
+                            savedSceneGraph.metadata?.designMode ?? "graphic",
+                          version: 1,
+                        });
+                        // Ensure the New Graphic dialog doesn't show on top
+                        setShowNewDialog(false);
+                        // Register a placeholder tab for the recovered document
+                        tabStoreOpenTab(
+                          "new-" + crypto.randomUUID(),
+                          savedSceneGraph.name ?? "Recovered Graphic",
                         );
                       }
-                    } catch {
-                      /* ignore parse errors */
-                    }
-                    // Delete auto-save after recovery
-                    const STORE = "designer-autosave";
-                    const openReq = indexedDB.open("io-designer", 1);
-                    openReq.onsuccess = () => {
-                      try {
-                        const db = openReq.result;
-                        const tx = db.transaction(STORE, "readwrite");
-                        tx.objectStore(STORE).delete(crashRecovery.id);
-                        db.close();
-                      } catch {
-                        /* best-effort */
+
+                      // Restore undo/redo history from persisted snapshots.
+                      // Must happen after the doc is in the store.
+                      historyRestoreFromSnapshots(
+                        crashRecovery.historyDocs,
+                        savedSceneGraph,
+                      );
+
+                      // Mark dirty so the user knows to save (loadGraphic sets
+                      // isDirty: false, _setDoc re-sets it true).
+                      useSceneStore.getState()._setDoc(savedSceneGraph, true);
+
+                      // Force-load all shapes in the recovered doc.
+                      // The DesignerCanvas preload effect keyed on doc.id will
+                      // NOT re-fire when the recovered doc shares the same UUID
+                      // as the server-loaded doc (same graphic, newer edits).
+                      // Any shapes added since the last real save would render
+                      // as dashed placeholder boxes without this explicit load.
+                      const recShapeIds: string[] = [];
+                      const walkShapes = (nodes: SceneNode[]) => {
+                        for (const n of nodes) {
+                          if (n.type === "symbol_instance") {
+                            recShapeIds.push(
+                              (n as SymbolInstance).shapeRef.shapeId,
+                            );
+                          }
+                          if (
+                            "children" in n &&
+                            Array.isArray(
+                              (n as { children?: unknown[] }).children,
+                            )
+                          ) {
+                            walkShapes(
+                              (n as { children: SceneNode[] }).children,
+                            );
+                          }
+                        }
+                      };
+                      walkShapes(savedSceneGraph.children ?? []);
+                      if (recShapeIds.length > 0) {
+                        void useLibraryStore.getState().loadShapes(recShapeIds);
                       }
-                    };
+                    } catch {
+                      /* ignore parse/load errors */
+                    }
+
+                    // Clean up — delete server auto-save and IDB record.
+                    // The server auto-save will be re-created if the user makes
+                    // further changes before doing a real save.
+                    const { autosaveId, id: idbKey } = crashRecovery;
+                    if (autosaveId) {
+                      void graphicsApi.remove(autosaveId);
+                      autoSaveIdRef.current = null;
+                    }
+                    try {
+                      const db = idbRef.current;
+                      if (db) {
+                        const tx = db.transaction(
+                          "designer-autosave",
+                          "readwrite",
+                        );
+                        tx.objectStore("designer-autosave").delete(idbKey);
+                      }
+                    } catch {
+                      /* best-effort */
+                    }
                   }
                   setCrashRecovery(null);
                 }}
@@ -2354,9 +2745,7 @@ export default function DesignerPage() {
         showCrashPreview &&
         (() => {
           const currentDoc = useSceneStore.getState().doc;
-          const savedDoc = crashRecovery.savedDoc as
-            | import("../../shared/types/graphics").GraphicDocument
-            | null;
+          const savedDoc = crashRecovery.savedDoc as GraphicDocument | null;
           return (
             <div
               style={{
@@ -2571,6 +2960,18 @@ export default function DesignerPage() {
         />
       )}
 
+      {/* Rename dialog */}
+      {renameTabId !== null && (() => {
+        const renameTab = tabs.find((t) => t.id === renameTabId);
+        return renameTab ? (
+          <RenameDialog
+            currentName={renameTab.graphicName}
+            onConfirm={handleRenameConfirm}
+            onCancel={() => setRenameTabId(null)}
+          />
+        ) : null;
+      })()}
+
       {/* Mode tabs */}
       <DesignerModeTabs
         onSave={handleExplicitSave}
@@ -2582,6 +2983,7 @@ export default function DesignerPage() {
         onNew={() => setShowNewDialog(true)}
         onOpen={() => navigate("/designer/graphics")}
         onProperties={() => setShowPropertiesDialog(true)}
+        onRename={() => setRenameTabId(activeTabId)}
       />
 
       {/* Tab close prompt */}
@@ -2628,6 +3030,7 @@ export default function DesignerPage() {
         canDelete={
           canDelete && !!graphicIdInStore && !graphicIdInStore.startsWith("new-")
         }
+        getCanvasRect={() => canvasAreaRef.current?.getBoundingClientRect() ?? null}
       />
 
       {/* File tab bar — between toolbar and canvas area */}
@@ -2636,6 +3039,7 @@ export default function DesignerPage() {
         activeTabId={activeTabId}
         onSwitchTab={switchToTab}
         onCloseTab={(tabId) => requestCloseTab(tabId)}
+        onRenameTab={(tabId) => setRenameTabId(tabId)}
         onCloseOthers={(keepTabId) => {
           const toClose = tabStoreCloseOthers(keepTabId);
           // Save prompt for each modified tab being closed
@@ -2698,11 +3102,9 @@ export default function DesignerPage() {
               collapsed={false}
               onToggle={() => setLeftCollapsed(true)}
             />
+            <VerticalDivider side="left" onDrag={handleLeftDividerDrag} />
           </div>
         )}
-
-        {/* Left divider */}
-        {!leftCollapsed && <VerticalDivider onDrag={handleLeftDividerDrag} />}
 
         {/* Collapsed left re-expand tab */}
         {leftCollapsed && (
@@ -2729,6 +3131,7 @@ export default function DesignerPage() {
 
         {/* Canvas */}
         <div
+          ref={canvasAreaRef}
           style={{
             flex: 1,
             display: "flex",
@@ -2754,9 +3157,6 @@ export default function DesignerPage() {
             </ErrorBoundary>
           )}
         </div>
-
-        {/* Right divider */}
-        {!rightCollapsed && <VerticalDivider onDrag={handleRightDividerDrag} />}
 
         {/* Collapsed right re-expand tab */}
         {rightCollapsed && (
@@ -2801,6 +3201,7 @@ export default function DesignerPage() {
               collapsed={false}
               onToggle={() => setRightCollapsed(true)}
             />
+            <VerticalDivider side="right" onDrag={handleRightDividerDrag} />
           </div>
         )}
       </div>

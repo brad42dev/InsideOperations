@@ -56,7 +56,8 @@
   "geometry": {
     "viewBox": "0 0 80 52",
     "width": 80,
-    "height": 52
+    "height": 52,
+    "selectionBounds": { "x": 7, "y": 13, "w": 66, "h": 26 }
   },
   "connections": [
     {
@@ -108,6 +109,10 @@
     "transitioning": "io-transitioning",
     "oos": "io-oos"
   },
+  "compositeAttachments": [
+    { "forPart": "support-legs-splayed", "x": 5, "y": 38 },
+    { "forPart": "support-saddles",      "x": 0, "y": 38 }
+  ],
   "addons": [
     {
       "id": "support-legs-splayed",

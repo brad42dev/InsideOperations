@@ -22,18 +22,11 @@ import type {
   FillGaugeConfig,
   SparklineConfig,
   DigitalStatusConfig,
-  PointNameLabelConfig,
   Stencil,
-  DimensionLineConfig,
-  NorthArrowConfig,
-  LegendConfig,
-  SectionBreakConfig,
-  HeaderConfig,
-  FooterConfig,
 } from "../types/graphics";
-import { PIPE_SERVICE_COLORS, canvasToScreen } from "../types/graphics";
+import { canvasToScreen } from "../types/graphics";
 import { ALARM_COLORS, ZONE_FILLS, DE_COLORS } from "./displayElementColors";
-import { fetchShapes } from "./shapeCache";
+import { fetchShapes, type ShapeData } from "./shapeCache";
 import { graphicsApi } from "../../api/graphics";
 import "./alarmFlash.css";
 import "./operationalState.css";
@@ -43,6 +36,27 @@ import type { PointValue as WsPointValue } from "../hooks/useWebSocket";
 import { wsWorkerConnector } from "../hooks/useWsWorker";
 import type { AlarmStateUpdate } from "../hooks/useWsWorker";
 import { SharedSvgDefs } from "./svgDefs";
+import { buildNodeTransform } from "./nodeTransforms";
+import {
+  renderPrimitiveSvg,
+  renderTextBlockSvg,
+  renderAnnotationSvg,
+  renderImageSvg,
+  renderEmbeddedSvgSvg,
+  renderStencilSvg,
+  renderPipeSvg,
+  renderDisplayElementSvg,
+  renderGroupSvg,
+  renderSymbolInstanceSvg,
+  formatValue,
+  ALARM_PRIORITY_NAMES,
+  type RenderContext,
+  type StencilRenderContext,
+  type PipeRenderContext,
+  type DisplayElementRenderContext,
+  type SymbolInstanceRenderContext,
+  type GroupRenderContext,
+} from "./renderNodeSvg";
 
 // ---- Point value types received from WebSocket ----
 
@@ -96,6 +110,19 @@ export interface SceneRendererProps {
    * regardless of the current zoom. Useful for the global LOD toggle in Console/Process.
    */
   forceLod?: 1 | 2 | 3;
+  /**
+   * When true, renders display elements in placeholder/no-data state.
+   * Use for wizard and drop-dialog previews where no live point data exists.
+   * Currently affects: alarm_indicator (shown as ghost placeholder instead of hidden).
+   */
+  previewMode?: boolean;
+  /**
+   * Per-node overlay hook. Called after rendering each node. DesignerCanvas uses this
+   * to inject selection highlights, resize handles, and rotation handles without
+   * coupling SceneRenderer to designer concepts.
+   * Return null to render no overlay for a given node.
+   */
+  renderNodeOverlay?: (node: SceneNode) => React.ReactElement | null;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -114,14 +141,14 @@ export function SceneRenderer({
   preserveAspectRatio = "xMidYMid meet",
   liveSubscribe = false,
   forceLod,
+  previewMode = false,
+  renderNodeOverlay,
   className,
   style,
 }: SceneRendererProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [shapeMap, setShapeMap] = useState<
-    Map<string, { svg: string; sidecar: Record<string, unknown> }>
-  >(new Map());
+  const [shapeMap, setShapeMap] = useState<Map<string, ShapeData>>(new Map());
   const [stencilMap, setStencilMap] = useState<Map<string, string>>(new Map());
   // Tag-to-UUID resolution for PortablePointBinding (pointTag) bindings
   const [resolvedTagMap, setResolvedTagMap] = useState<Map<string, string>>(
@@ -425,21 +452,14 @@ export function SceneRenderer({
     return true;
   }
 
-  // Collect all shapeIds needed
-  const collectShapeIds = useCallback((nodes: SceneNode[]): string[] => {
+  // Collect base shape IDs only (symbol_instance.shapeRef.shapeId).
+  // Part shape IDs are derived in a second pass once base sidecars are loaded,
+  // because the part file name lives in the base shape's sidecar addons list.
+  const collectBaseShapeIds = useCallback((nodes: SceneNode[]): string[] => {
     const ids: string[] = [];
     function walk(n: SceneNode) {
       if (n.type === "symbol_instance") {
-        const si = n as SymbolInstance;
-        ids.push(si.shapeRef.shapeId);
-        if (si.composableParts) {
-          for (const p of si.composableParts) {
-            // DB may store partId as snake_case (part_id) — handle both
-            const pid =
-              p.partId ?? (p as unknown as Record<string, string>)["part_id"];
-            if (pid) ids.push(pid);
-          }
-        }
+        ids.push((n as SymbolInstance).shapeRef.shapeId);
       }
       if ("children" in n && Array.isArray(n.children)) {
         for (const c of n.children) walk(c as SceneNode);
@@ -449,22 +469,57 @@ export function SceneRenderer({
     return [...new Set(ids)];
   }, []);
 
-  // Fetch shapes on mount / document change
+  // Fetch shapes on mount / document change — two phases:
+  // 1. Fetch base shapes; 2. derive part shape IDs from base sidecars and fetch those.
   useEffect(() => {
-    const shapeIds = collectShapeIds(children);
-    if (shapeIds.length === 0) return;
-    fetchShapes(shapeIds, async (ids) => {
-      const result = await graphicsApi.batchShapes(ids);
-      if (result.success && result.data)
-        return result.data as Record<
-          string,
-          { svg: string; sidecar: Record<string, unknown> }
-        >;
-      return {};
-    })
-      .then(setShapeMap)
+    const baseIds = collectBaseShapeIds(children);
+    if (baseIds.length === 0) return;
+    let cancelled = false;
+
+    // Always load from public static files (canonical source, always current).
+    // The DB-backed batchShapes API can return stale sidecars that lack `addons`/
+    // `compositeAttachments`, which breaks composable part resolution in Phase 2.
+    fetchShapes(baseIds)
+      .then(async (baseMap) => {
+        if (cancelled) return;
+        // Phase 2: walk symbol_instance nodes, look up each composable part's addon
+        // in the base shape sidecar, and derive the part shape ID from addon.file.
+        const partIds: string[] = [];
+        function walkForParts(nodes: SceneNode[]) {
+          for (const n of nodes) {
+            if (n.type === "symbol_instance") {
+              const si = n as SymbolInstance;
+              const baseSidecar = baseMap.get(si.shapeRef.shapeId)?.sidecar;
+              for (const cp of si.composableParts ?? []) {
+                const pid =
+                  cp.partId ??
+                  (cp as unknown as Record<string, string>)["part_id"];
+                if (!pid) continue;
+                const addon = baseSidecar?.addons?.find((a) => a.id === pid);
+                if (addon) partIds.push(addon.file.replace(/\.svg$/, ""));
+              }
+            }
+            if ("children" in n && Array.isArray(n.children)) {
+              walkForParts(n.children as SceneNode[]);
+            }
+          }
+        }
+        walkForParts(children);
+
+        const uniquePartIds = [...new Set(partIds)];
+        if (uniquePartIds.length === 0) {
+          if (!cancelled) setShapeMap(baseMap);
+          return;
+        }
+        const partMap = await fetchShapes(uniquePartIds);
+        if (!cancelled) setShapeMap(new Map([...baseMap, ...partMap]));
+      })
       .catch(console.error);
-  }, [document.id, children, collectShapeIds]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [document.id, children, collectBaseShapeIds]);
 
   // Collect stencil IDs and fetch their SVG on mount / document change
   useEffect(() => {
@@ -565,310 +620,77 @@ export function SceneRenderer({
     onNodeClick?.(node.id, e);
   }
 
+  // Shape size lookup for rotation pivot computation — derives dimensions from
+  // the fetched sidecar geometry (same source DesignerCanvas uses via libraryStore).
+  function shapeSizeLookup(shapeId: string): { w: number; h: number } | null {
+    const entry = shapeMap.get(shapeId);
+    if (!entry?.sidecar) return null;
+    const geo = entry.sidecar.geometry;
+    if (!geo) return null;
+    const w = geo.baseSize?.[0] ?? geo.width ?? 64;
+    const h = geo.baseSize?.[1] ?? geo.height ?? 64;
+    return { w, h };
+  }
+
   function getTransformAttr(node: SceneNode): string {
-    const { position, rotation, scale, mirror } = node.transform;
-    const parts: string[] = [];
-    parts.push(`translate(${position.x},${position.y})`);
-    if (rotation !== 0) parts.push(`rotate(${rotation})`);
-    if (scale.x !== 1 || scale.y !== 1)
-      parts.push(`scale(${scale.x},${scale.y})`);
-    if (mirror === "horizontal") parts.push("scale(-1,1)");
-    else if (mirror === "vertical") parts.push("scale(1,-1)");
-    else if (mirror === "both") parts.push("scale(-1,-1)");
-    return parts.join(" ");
+    return buildNodeTransform(node, shapeSizeLookup);
+  }
+
+  // Build a RenderContext for the shared render functions
+  function makeRenderCtx(node: SceneNode): RenderContext {
+    return {
+      transform: getTransformAttr(node),
+      onClick: (node.navigationLink || onNodeClick) ? (e: React.MouseEvent) => handleNodeClick(node, e) : undefined,
+      cursor: (node.navigationLink || onNodeClick) ? "pointer" : undefined,
+    };
   }
 
   function renderPrimitive(node: Primitive): React.ReactElement | null {
-    const { geometry, style } = node;
-    const styleProps = {
-      fill: style.fill,
-      fillOpacity: style.fillOpacity,
-      stroke: style.stroke,
-      strokeWidth: style.strokeWidth,
-      strokeDasharray: style.strokeDasharray,
-      strokeLinecap: style.strokeLinecap,
-      strokeLinejoin: style.strokeLinejoin,
-    };
-    let shape: React.ReactElement | null = null;
-    switch (geometry.type) {
-      case "rect":
-        shape = (
-          <rect
-            width={geometry.width}
-            height={geometry.height}
-            rx={geometry.rx}
-            ry={geometry.ry}
-            {...styleProps}
-          />
-        );
-        break;
-      case "circle":
-        shape = <circle r={geometry.r} {...styleProps} />;
-        break;
-      case "ellipse":
-        shape = <ellipse rx={geometry.rx} ry={geometry.ry} {...styleProps} />;
-        break;
-      case "line":
-        shape = (
-          <line
-            x1={geometry.x1}
-            y1={geometry.y1}
-            x2={geometry.x2}
-            y2={geometry.y2}
-            {...styleProps}
-          />
-        );
-        break;
-      case "polyline":
-        shape = (
-          <polyline
-            points={geometry.points.map((p) => `${p.x},${p.y}`).join(" ")}
-            {...styleProps}
-          />
-        );
-        break;
-      case "polygon":
-        shape = (
-          <polygon
-            points={geometry.points.map((p) => `${p.x},${p.y}`).join(" ")}
-            {...styleProps}
-          />
-        );
-        break;
-      case "path":
-        shape = <path d={geometry.d} {...styleProps} />;
-        break;
-    }
-    if (!shape) return null;
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod="1"
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-      >
-        {shape}
-      </g>
-    );
+    return renderPrimitiveSvg(node, makeRenderCtx(node));
   }
 
   function renderPipe(node: Pipe): React.ReactElement {
-    const color = PIPE_SERVICE_COLORS[node.serviceType] ?? "#6B8CAE";
-    const gapColor = canvas.backgroundColor ?? "var(--io-surface-secondary)";
-    const commonProps = {
-      d: node.pathData,
-      fill: "none" as const,
-      strokeLinecap: "round" as const,
-      strokeLinejoin: "round" as const,
-      strokeDasharray: node.dashPattern,
+    const ctx: PipeRenderContext = {
+      ...makeRenderCtx(node),
+      canvasBgColor: canvas.backgroundColor ?? "var(--io-surface-secondary)",
     };
-    const paths = node.insulated ? (
-      <>
-        <path
-          {...commonProps}
-          stroke={color}
-          strokeWidth={node.strokeWidth * 4}
-        />
-        <path
-          {...commonProps}
-          stroke={gapColor}
-          strokeWidth={node.strokeWidth * 2}
-        />
-        <path
-          {...commonProps}
-          stroke={color}
-          strokeWidth={node.strokeWidth * 0.5}
-        />
-      </>
-    ) : (
-      <path {...commonProps} stroke={color} strokeWidth={node.strokeWidth} />
-    );
-    return (
-      <g
-        key={node.id}
-        data-node-id={node.id}
-        data-lod="0"
-        opacity={node.opacity}
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-      >
-        {paths}
-        {node.label && (
-          <text fill="#71717A" fontSize={9} fontFamily="Inter">
-            <textPath
-              href={`#pipe-path-${node.id}`}
-              startOffset="50%"
-              textAnchor="middle"
-            >
-              {node.label}
-            </textPath>
-          </text>
-        )}
-      </g>
-    );
+    return renderPipeSvg(node, ctx);
   }
 
   function renderTextBlock(node: TextBlock): React.ReactElement {
-    const {
-      content,
-      fontFamily,
-      fontSize,
-      fontWeight,
-      fontStyle,
-      textAnchor,
-      fill,
-    } = node;
-    const textLod = fontSize >= 24 ? 0 : fontSize >= 14 ? 1 : 2;
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod={String(textLod)}
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-      >
-        {node.background && (
-          <rect
-            x={0}
-            y={0}
-            width={200}
-            height={fontSize + node.background.padding * 2}
-            fill={node.background.fill}
-            stroke={node.background.stroke}
-            strokeWidth={node.background.strokeWidth}
-            rx={node.background.borderRadius}
-          />
-        )}
-        <text
-          fontFamily={fontFamily}
-          fontSize={fontSize}
-          fontWeight={fontWeight}
-          fontStyle={fontStyle}
-          textAnchor={textAnchor}
-          fill={fill}
-        >
-          {content}
-        </text>
-      </g>
-    );
+    const textLod = node.fontSize >= 24 ? 0 : node.fontSize >= 14 ? 1 : 2;
+    const ctx = makeRenderCtx(node);
+    ctx.dataLod = String(textLod);
+    return renderTextBlockSvg(node, ctx);
   }
 
   function renderImage(node: ImageNode): React.ReactElement {
-    const url = graphicsApi.imageUrl(node.assetRef.hash);
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod="0"
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-      >
-        <image
-          href={url}
-          width={node.displayWidth}
-          height={node.displayHeight}
-          preserveAspectRatio={
-            node.preserveAspectRatio ? "xMidYMid meet" : "none"
-          }
-          imageRendering={node.imageRendering}
-        />
-      </g>
-    );
+    return renderImageSvg(node, makeRenderCtx(node));
   }
 
   function renderEmbeddedSvg(node: EmbeddedSvgNode): React.ReactElement {
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod="0"
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-        dangerouslySetInnerHTML={{ __html: node.svgContent }}
-      />
-    );
+    return renderEmbeddedSvgSvg(node, makeRenderCtx(node));
   }
 
   function renderStencil(node: Stencil): React.ReactElement {
-    const svgContent = stencilMap.get(node.stencilRef.stencilId);
-    const w = node.size?.width ?? 48;
-    const h = node.size?.height ?? 48;
-    if (!svgContent) {
-      // Placeholder while loading
-      return (
-        <g
-          key={node.id}
-          transform={getTransformAttr(node)}
-          opacity={node.opacity}
-          data-node-id={node.id}
-          data-lod="0"
-          onClick={(e) => handleNodeClick(node, e)}
-          style={{
-            cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-          }}
-        >
-          <rect
-            width={w}
-            height={h}
-            fill="none"
-            stroke="var(--io-border, #3F3F46)"
-            strokeWidth={1}
-            strokeDasharray="4 2"
-          />
-          <text
-            x={w / 2}
-            y={h / 2 + 4}
-            textAnchor="middle"
-            fontSize={8}
-            fill="var(--io-text-muted, #71717A)"
-          >
-            {node.name || "Stencil"}
-          </text>
-        </g>
-      );
-    }
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod="0"
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-        dangerouslySetInnerHTML={{ __html: svgContent }}
-      />
-    );
+    const ctx: StencilRenderContext = {
+      ...makeRenderCtx(node),
+      svgContent: stencilMap.get(node.stencilRef.stencilId) ?? null,
+      size: { width: node.size?.width ?? 48, height: node.size?.height ?? 48 },
+      displayName: node.name,
+    };
+    return renderStencilSvg(node, ctx);
   }
 
-  // parentOffset: displacement of this element from parent SymbolInstance origin (in parent space).
-  // Used to draw the signal line back toward the parent shape.
+  // parentOffset: parent-relative offset of this element (used for signal lines).
   // vesselInteriorPath: SVG path string from parent SymbolInstance's sidecar, used for vessel_overlay fill_gauge clip.
+  // overrideTransform: when set, use this pre-computed SVG transform string instead of deriving one from the node.
+  //   Passed for exterior sidecars with counter-rotation applied in renderSymbolInstanceSvg.
   function renderDisplayElement(
     node: DisplayElement,
     parentOffset?: { x: number; y: number },
     vesselInteriorPath?: string,
+    overrideTransform?: string,
   ): React.ReactElement | null {
     // Resolve binding: UUID pointId wins; fall back to resolved tag (pointTag or legacy
     // pointId-stored-as-tag); then expressionId.
@@ -887,939 +709,66 @@ export function SceneRenderer({
     // Human-readable tag for tooltip — prefer explicit pointTag, fall back to legacy tag-in-pointId
     const pointTag =
       node.binding.pointTag ?? (isTagInPointId ? rawPointId : undefined);
-    const deTransform = getTransformAttr(node);
 
-    switch (node.displayType) {
-      case "text_readout": {
-        const cfg = node.config as TextReadoutConfig;
-        const alarmPriority = (pv?.alarmPriority ?? null) as
-          | 1
-          | 2
-          | 3
-          | 4
-          | 5
-          | null;
-        const unacked = pv?.unacknowledged ?? false;
-        const quality = pv?.quality ?? "good";
-        const isStale = pv?.stale ?? false;
-        const isCommFail = quality === "comm_fail";
-        const isBad = quality === "bad" && !isCommFail;
-        const isManual = pv?.manual ?? false;
-        // Display value: spec-defined replacements for bad quality states
-        const rawValueStr = isCommFail
-          ? "COMM"
-          : isBad
-            ? "????"
-            : formatValue(pv?.value ?? null, cfg.valueFormat);
-        const valueStr = rawValueStr;
-        const unitStr =
-          cfg.showUnits && pv?.units && !isCommFail && !isBad
-            ? ` ${pv.units}`
-            : "";
-        const label = cfg.showLabel ? (cfg.labelText ?? pv?.tag ?? "") : "";
-        const alarmColor = alarmPriority ? ALARM_COLORS[alarmPriority] : null;
-        // Box styling per quality state
-        const boxFill = isCommFail
-          ? DE_COLORS.displayZoneInactive
-          : alarmColor
-            ? `${alarmColor}33`
-            : DE_COLORS.surfaceElevated;
-        const boxStroke = isBad
-          ? ALARM_COLORS[1]
-          : isCommFail
-            ? DE_COLORS.borderStrong
-            : (alarmColor ?? DE_COLORS.border);
-        const strokeWidth = isBad || alarmColor ? 2 : 1;
-        const strokeDash = isStale ? "4 2" : isBad ? "4 2" : undefined;
-        const opacity = isStale ? 0.6 : node.opacity;
-        const strokeDotted = quality === "uncertain" ? "2 2" : undefined;
-        const effectiveDash = strokeDash ?? strokeDotted;
-        const valueColor = isCommFail
-          ? DE_COLORS.textMuted
-          : isBad
-            ? ALARM_COLORS[1]
-            : alarmColor
-              ? DE_COLORS.textPrimary
-              : DE_COLORS.textSecondary;
-        const charWidth = 7;
-        const w = Math.max(
-          cfg.minWidth,
-          (valueStr.length + unitStr.length) * charWidth + 10,
-        );
-        const h = cfg.showLabel && label ? 36 : 24;
-        const valueY = cfg.showLabel && label ? h * 0.65 : h / 2;
-        const flashClass = unacked && alarmColor ? "io-alarm-flash" : "";
-        return (
-          <g
-            key={node.id}
-            className={`io-display-element ${flashClass}`}
-            transform={deTransform}
-            opacity={opacity}
-            data-node-id={node.id}
-            data-lod="1"
-            data-point-id={pvKey}
-            data-point-tag={pointTag}
-            data-display-type="text_readout"
-          >
-            {cfg.showBox && (
-              <rect
-                data-role="box"
-                x={0}
-                y={0}
-                width={w}
-                height={h}
-                rx={2}
-                fill={boxFill}
-                stroke={boxStroke}
-                strokeWidth={strokeWidth}
-                strokeDasharray={effectiveDash}
-              />
-            )}
-            {cfg.showLabel && label && (
-              <text
-                x={w / 2}
-                y={6}
-                textAnchor="middle"
-                dominantBaseline="hanging"
-                fontFamily="Inter"
-                fontSize={8}
-                fill={DE_COLORS.textMuted}
-              >
-                {label}
-              </text>
-            )}
-            <text
-              data-role="value"
-              x={w / 2}
-              y={valueY}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontFamily="JetBrains Mono"
-              fontSize={11}
-              fill={valueColor}
-              style={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {valueStr}
-              {unitStr && (
-                <tspan
-                  fontFamily="Inter"
-                  fontSize={9}
-                  fill={DE_COLORS.textMuted}
-                >
-                  {unitStr}
-                </tspan>
-              )}
-            </text>
-            {/* Manual/forced override badge — spec: cyan 'M' badge */}
-            {isManual && (
-              <text
-                data-role="manual-badge"
-                x={w - 2}
-                y={2}
-                textAnchor="end"
-                dominantBaseline="hanging"
-                fontFamily="Inter"
-                fontSize={7}
-                fontWeight={700}
-                fill={DE_COLORS.manualBadge}
-              >
-                M
-              </text>
-            )}
-            {cfg.showSignalLine &&
-              parentOffset &&
-              (() => {
-                const ex = -parentOffset.x;
-                const ey = -parentOffset.y;
-                return (
-                  <line
-                    x1={0}
-                    y1={h / 2}
-                    x2={ex}
-                    y2={ey}
-                    stroke="#52525B"
-                    strokeWidth={0.75}
-                    strokeDasharray="3 2"
-                  />
-                );
-              })()}
-          </g>
-        );
+    // Resolve discrete label from point metadata (for digital_status)
+    const meta = pvKey ? pointMetaMapRef.current.get(pvKey) : undefined;
+    const discreteLabel =
+      meta &&
+      meta.point_category !== "analog" &&
+      typeof pv?.value === "number"
+        ? resolvePointLabel(pv.value, meta.point_category, meta.enum_labels)
+        : null;
+
+    // Resolve engineering unit from metadata (for text_readout EU display)
+    const metaUnit = pvKey ? (pointMetaMap.get(pvKey)?.engineering_unit ?? undefined) : undefined;
+
+    // Resolve setpoint value (for analog_bar)
+    let setpointValue: number | null = null;
+    if (node.displayType === "analog_bar") {
+      const abCfg = node.config as AnalogBarConfig;
+      if (abCfg.showSetpoint) {
+        const spKey = abCfg.setpointBinding?.pointId ?? abCfg.setpointBinding?.expressionId;
+        const spPv = spKey ? pointValues.get(spKey) : undefined;
+        setpointValue = typeof spPv?.value === "number" ? spPv.value : null;
       }
-
-      case "alarm_indicator": {
-        const active = !!pv?.alarmPriority;
-        const priority = (pv?.alarmPriority ?? 1) as 1 | 2 | 3 | 4 | 5;
-        const unacked = pv?.unacknowledged ?? false;
-        const isGhost = !active && designerMode;
-        const color = isGhost
-          ? DE_COLORS.equipStroke
-          : (ALARM_COLORS[priority] ?? ALARM_COLORS[1]);
-        const flashClass =
-          unacked && !isGhost
-            ? `io-alarm-flash-${ALARM_PRIORITY_NAMES[priority]}`
-            : "";
-        const label = isGhost ? "—" : String(priority);
-        const shapeEl = renderAlarmShape(priority, isGhost, color);
-        // Always render (even when inactive in live view) so the DOM element
-        // exists for applyPointValue to show/hide on real-time alarm updates.
-        return (
-          <g
-            key={node.id}
-            className={`io-alarm-indicator ${flashClass}`}
-            data-node-id={node.id}
-            data-lod="1"
-            data-lod-override="always"
-            opacity={isGhost ? 0.25 : node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="alarm_indicator"
-            data-point-id={pvKey}
-            style={{ display: active || designerMode ? undefined : "none" }}
-          >
-            {shapeEl}
-            <text
-              x={0}
-              y={0}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontFamily="JetBrains Mono"
-              fontSize={9}
-              fontWeight={600}
-              fill={color}
-            >
-              {label}
-            </text>
-          </g>
-        );
-      }
-
-      case "digital_status": {
-        const cfg = node.config as DigitalStatusConfig;
-        const rawVal =
-          pv?.value !== undefined && pv.value !== null
-            ? String(pv.value)
-            : null;
-        const dsMeta = pvKey ? pointMetaMapRef.current.get(pvKey) : undefined;
-        const dsDiscreteLabel =
-          dsMeta &&
-          dsMeta.point_category !== "analog" &&
-          typeof pv?.value === "number"
-            ? resolvePointLabel(
-                pv.value,
-                dsMeta.point_category,
-                dsMeta.enum_labels,
-              )
-            : null;
-        const label =
-          rawVal !== null
-            ? (cfg.stateLabels[rawVal] ?? dsDiscreteLabel ?? rawVal)
-            : "---";
-        const isNormal = rawVal === null || cfg.normalStates.includes(rawVal);
-        const fill = isNormal
-          ? DE_COLORS.displayZoneInactive
-          : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
-        const textColor = isNormal
-          ? DE_COLORS.textSecondary
-          : DE_COLORS.textPrimary;
-        const w = Math.max(40, label.length * 7.5 + 12);
-        return (
-          <g
-            key={node.id}
-            className="io-display-element"
-            data-node-id={node.id}
-            data-lod="2"
-            opacity={node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="digital_status"
-            data-point-id={pvKey}
-          >
-            <rect
-              data-role="bg"
-              x={0}
-              y={0}
-              width={w}
-              height={22}
-              rx={2}
-              fill={fill}
-            />
-            <text
-              data-role="value"
-              x={w / 2}
-              y={11}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontFamily="JetBrains Mono"
-              fontSize={9}
-              fill={textColor}
-            >
-              {label}
-            </text>
-            {cfg.showSignalLine &&
-              parentOffset &&
-              (() => {
-                const h = 22;
-                const ex = -parentOffset.x;
-                const ey = -parentOffset.y;
-                return (
-                  <line
-                    x1={0}
-                    y1={h / 2}
-                    x2={ex}
-                    y2={ey}
-                    stroke="#52525B"
-                    strokeWidth={0.75}
-                    strokeDasharray="3 2"
-                  />
-                );
-              })()}
-          </g>
-        );
-      }
-
-      case "analog_bar": {
-        const cfg = node.config as AnalogBarConfig;
-        const value = typeof pv?.value === "number" ? pv.value : null;
-        const alarmPriority = pv?.alarmPriority as
-          | (1 | 2 | 3 | 4 | 5)
-          | null
-          | undefined;
-        const range = cfg.rangeHi - cfg.rangeLo || 1;
-        const pct =
-          value !== null
-            ? Math.max(0, Math.min(1, (value - cfg.rangeLo) / range))
-            : 0;
-        const { barWidth: bw, barHeight: bh, thresholds } = cfg;
-        const hhH =
-          thresholds?.hh !== undefined
-            ? ((cfg.rangeHi - thresholds.hh) / range) * bh
-            : bh * 0.1;
-        const hH =
-          thresholds?.h !== undefined && thresholds?.hh !== undefined
-            ? ((thresholds.hh - thresholds.h) / range) * bh
-            : bh * 0.18;
-        const llH =
-          thresholds?.ll !== undefined
-            ? ((thresholds.ll - cfg.rangeLo) / range) * bh
-            : bh * 0.1;
-        const lH =
-          thresholds?.l !== undefined && thresholds?.ll !== undefined
-            ? ((thresholds.l - thresholds.ll) / range) * bh
-            : bh * 0.18;
-        const normalH = bh - hhH - hH - llH - lH;
-        const pointerY = (1 - pct) * bh;
-
-        // Determine which zone the current value falls in
-        const valueZone = (() => {
-          if (value === null) return null;
-          const { hh, h, l, ll } = cfg.thresholds ?? {};
-          if (hh !== undefined && value >= hh) return "hh";
-          if (h !== undefined && value >= h) return "h";
-          if (ll !== undefined && value < ll) return "ll";
-          if (l !== undefined && value < l) return "l";
-          return "normal";
-        })();
-
-        // Zone fill with alarm replacement — only the zone containing the current value
-        // and only when that zone has a configured alarm priority that matches an active alarm
-        const zoneFills = {
-          hh:
-            valueZone === "hh" &&
-            alarmPriority &&
-            cfg.thresholds?.hhAlarmPriority
-              ? ALARM_COLORS[cfg.thresholds.hhAlarmPriority]
-              : ZONE_FILLS.hh,
-          h:
-            valueZone === "h" && alarmPriority && cfg.thresholds?.hAlarmPriority
-              ? ALARM_COLORS[cfg.thresholds.hAlarmPriority]
-              : ZONE_FILLS.h,
-          normal: ZONE_FILLS.normal,
-          l:
-            valueZone === "l" && alarmPriority && cfg.thresholds?.lAlarmPriority
-              ? ALARM_COLORS[cfg.thresholds.lAlarmPriority]
-              : ZONE_FILLS.l,
-          ll:
-            valueZone === "ll" &&
-            alarmPriority &&
-            cfg.thresholds?.llAlarmPriority
-              ? ALARM_COLORS[cfg.thresholds.llAlarmPriority]
-              : ZONE_FILLS.ll,
-        };
-        const zones = [
-          { fill: zoneFills.hh, y: 0, h: hhH, label: "HH", role: "zone-hh" },
-          { fill: zoneFills.h, y: hhH, h: hH, label: "H", role: "zone-h" },
-          {
-            fill: zoneFills.normal,
-            y: hhH + hH,
-            h: normalH,
-            label: "",
-            role: "zone-normal",
-          },
-          {
-            fill: zoneFills.l,
-            y: hhH + hH + normalH,
-            h: lH,
-            label: "L",
-            role: "zone-l",
-          },
-          {
-            fill: zoneFills.ll,
-            y: hhH + hH + normalH + lH,
-            h: llH,
-            label: "LL",
-            role: "zone-ll",
-          },
-        ];
-        return (
-          <g
-            key={node.id}
-            className="io-display-element"
-            data-node-id={node.id}
-            data-lod="2"
-            opacity={node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="analog_bar"
-            data-point-id={pvKey}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={bw}
-              height={bh}
-              fill={DE_COLORS.surfaceElevated}
-              stroke={DE_COLORS.borderStrong}
-              strokeWidth={0.5}
-            />
-            {zones.map((z, i) => (
-              <rect
-                key={i}
-                data-role={z.role}
-                x={1}
-                y={z.y}
-                width={bw - 2}
-                height={Math.max(0, z.h)}
-                fill={z.fill}
-                stroke={DE_COLORS.borderStrong}
-                strokeWidth={0.5}
-              />
-            ))}
-            {cfg.showZoneLabels &&
-              zones
-                .filter((z) => z.label)
-                .map((z, i) => (
-                  <text
-                    key={i}
-                    x={-3}
-                    y={z.y + z.h / 2}
-                    textAnchor="end"
-                    dominantBaseline="central"
-                    fontFamily="JetBrains Mono"
-                    fontSize={7}
-                    fill={DE_COLORS.textMuted}
-                  >
-                    {z.label}
-                  </text>
-                ))}
-            {cfg.showPointer && value !== null && (
-              <>
-                <polygon
-                  data-role="pointer"
-                  points={`${bw},${pointerY - 3} ${bw + 6},${pointerY} ${bw},${pointerY + 3}`}
-                  fill={
-                    alarmPriority
-                      ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
-                      : DE_COLORS.textSecondary
-                  }
-                />
-                <line
-                  data-role="pointer-line"
-                  x1={1}
-                  y1={pointerY}
-                  x2={bw - 1}
-                  y2={pointerY}
-                  stroke={
-                    alarmPriority
-                      ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
-                      : DE_COLORS.textSecondary
-                  }
-                  strokeWidth={1}
-                />
-              </>
-            )}
-            {cfg.showSetpoint &&
-              (() => {
-                const spKey =
-                  cfg.setpointBinding?.pointId ??
-                  cfg.setpointBinding?.expressionId;
-                const spPv = spKey ? pointValues.get(spKey) : undefined;
-                const spVal =
-                  typeof spPv?.value === "number" ? spPv.value : null;
-                if (spVal === null) return null;
-                const spPct = Math.max(
-                  0,
-                  Math.min(1, (spVal - cfg.rangeLo) / range),
-                );
-                const spY = (1 - spPct) * bh;
-                // Diamond marker — 5px wide, 4px tall, teal stroke, no fill
-                return (
-                  <polygon
-                    points={`${bw},${spY - 4} ${bw + 5},${spY} ${bw},${spY + 4} ${bw - 5},${spY}`}
-                    fill="none"
-                    stroke={DE_COLORS.accent}
-                    strokeWidth={1}
-                  />
-                );
-              })()}
-            {cfg.showNumericReadout && value !== null && (
-              <text
-                data-role="numeric"
-                x={bw / 2}
-                y={bh + 10}
-                textAnchor="middle"
-                fontFamily="JetBrains Mono"
-                fontSize={11}
-                fill={
-                  alarmPriority
-                    ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
-                    : DE_COLORS.textSecondary
-                }
-              >
-                {value.toFixed(1)}
-              </text>
-            )}
-            {cfg.showSignalLine &&
-              parentOffset &&
-              (() => {
-                // Dashed line from bar left-center back toward parent shape origin
-                // In display element local space, parent origin is at (-parentOffset.x, -parentOffset.y)
-                const ex = -parentOffset.x;
-                const ey = -parentOffset.y;
-                return (
-                  <line
-                    x1={0}
-                    y1={bh / 2}
-                    x2={ex}
-                    y2={ey}
-                    stroke={DE_COLORS.borderStrong}
-                    strokeWidth={0.75}
-                    strokeDasharray="3 2"
-                  />
-                );
-              })()}
-          </g>
-        );
-      }
-
-      case "sparkline": {
-        const cfg = node.config as SparklineConfig;
-        const W = cfg.sparkWidth ?? 110;
-        const H = cfg.sparkHeight ?? 18;
-        const targetPoints = cfg.dataPoints ?? 60;
-        const alarmPriority = pv?.alarmPriority as number | null | undefined;
-        const strokeColor = alarmPriority
-          ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
-          : DE_COLORS.textSecondary;
-        const rawHistory = pvKey ? sparklineHistories.get(pvKey) : undefined;
-        // Trim to time window, then downsample to targetPoints
-        let polylinePoints = "";
-        if (rawHistory && rawHistory.length >= 2) {
-          const nums = rawHistory.filter(
-            (v) => typeof v === "number" && isFinite(v),
-          );
-          // Downsample: pick evenly spaced samples if more than targetPoints
-          const sampled =
-            nums.length <= targetPoints
-              ? nums
-              : (() => {
-                  const out: number[] = [];
-                  for (let i = 0; i < targetPoints; i++) {
-                    out.push(
-                      nums[
-                        Math.round((i * (nums.length - 1)) / (targetPoints - 1))
-                      ],
-                    );
-                  }
-                  return out;
-                })();
-          if (sampled.length >= 2) {
-            const lo = Math.min(...sampled);
-            const hi = Math.max(...sampled);
-            const range = hi - lo || 1;
-            const pad = 2;
-            polylinePoints = sampled
-              .map((v, i) => {
-                const px = pad + (i / (sampled.length - 1)) * (W - pad * 2);
-                const py = pad + (1 - (v - lo) / range) * (H - pad * 2);
-                return `${px.toFixed(1)},${py.toFixed(1)}`;
-              })
-              .join(" ");
-          }
-        }
-        return (
-          <g
-            key={node.id}
-            className="io-display-element"
-            data-node-id={node.id}
-            data-lod="2"
-            opacity={node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="sparkline"
-            data-point-id={pvKey}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={W}
-              height={H}
-              rx={1}
-              fill={DE_COLORS.surfaceElevated}
-            />
-            {polylinePoints ? (
-              <polyline
-                points={polylinePoints}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={1.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            ) : (
-              <line
-                x1={3}
-                y1={H / 2}
-                x2={W - 3}
-                y2={H / 2}
-                stroke={strokeColor}
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                opacity={0.3}
-              />
-            )}
-            {cfg.showSignalLine &&
-              parentOffset &&
-              (() => {
-                const ex = -parentOffset.x;
-                const ey = -parentOffset.y;
-                return (
-                  <line
-                    x1={0}
-                    y1={H / 2}
-                    x2={ex}
-                    y2={ey}
-                    stroke="#52525B"
-                    strokeWidth={0.75}
-                    strokeDasharray="3 2"
-                  />
-                );
-              })()}
-          </g>
-        );
-      }
-
-      case "fill_gauge": {
-        const cfg = node.config as FillGaugeConfig;
-        const value = typeof pv?.value === "number" ? pv.value : null;
-        const alarmPriority = pv?.alarmPriority as number | null | undefined;
-        const range = cfg.rangeHi - cfg.rangeLo || 1;
-        const pct =
-          value !== null
-            ? Math.max(0, Math.min(1, (value - cfg.rangeLo) / range))
-            : 0;
-        const bw = cfg.barWidth ?? 22;
-        const bh = cfg.barHeight ?? 90;
-        const fillColor = alarmPriority
-          ? `${ALARM_COLORS[alarmPriority]}4D`
-          : "var(--io-fill-normal)"; // token value; opacity applied on fill rect
-        const fillOpacity = alarmPriority ? 1 : 0.6;
-        const fmtPct = `${(pct * 100).toFixed(0)}%`;
-        const clipId = `fg-clip-${node.id.replace(/[^a-z0-9]/gi, "")}`;
-
-        if (cfg.mode === "vessel_overlay") {
-          // Vessel-interior mode: fill clips to vessel shape interior using sidecar vesselInteriorPath.
-          // Falls back to a rect path if no sidecar path is available.
-          const fillH = pct * bh;
-          const fillY = bh - fillH;
-          const clipPathData = vesselInteriorPath ?? `M0,0 H${bw} V${bh} H0 Z`;
-          return (
-            <g
-              key={node.id}
-              className="io-display-element"
-              data-node-id={node.id}
-              data-lod="2"
-              opacity={node.opacity}
-              transform={deTransform}
-              data-point-tag={pointTag}
-              data-display-type="fill_gauge"
-              data-point-id={pvKey}
-            >
-              <defs>
-                <clipPath id={clipId}>
-                  <path d={clipPathData} />
-                </clipPath>
-              </defs>
-              <rect
-                data-role="fill"
-                x={0}
-                y={fillY}
-                width={bw}
-                height={fillH + 20}
-                fill={fillColor}
-                opacity={fillOpacity}
-                clipPath={`url(#${clipId})`}
-              />
-              {cfg.showLevelLine && fillH > 0 && (
-                <line
-                  x1={0}
-                  y1={fillY}
-                  x2={bw}
-                  y2={fillY}
-                  stroke={DE_COLORS.borderStrong}
-                  strokeWidth={1}
-                  strokeDasharray="5 3"
-                />
-              )}
-              {cfg.showValue && fillH > 0 && (
-                <text
-                  data-role="value"
-                  x={bw / 2}
-                  y={fillY + fillH / 2}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontFamily="JetBrains Mono"
-                  fontSize={10}
-                  fill={DE_COLORS.textSecondary}
-                >
-                  {fmtPct}
-                </text>
-              )}
-              {cfg.showSignalLine &&
-                parentOffset &&
-                (() => {
-                  const ex = -parentOffset.x;
-                  const ey = -parentOffset.y;
-                  return (
-                    <line
-                      x1={0}
-                      y1={bh / 2}
-                      x2={ex}
-                      y2={ey}
-                      stroke="#52525B"
-                      strokeWidth={0.75}
-                      strokeDasharray="3 2"
-                    />
-                  );
-                })()}
-            </g>
-          );
-        }
-
-        // Standalone bar mode
-        const fillH = pct * (bh - 2);
-        const fillY = bh - 1 - fillH;
-        return (
-          <g
-            key={node.id}
-            className="io-display-element"
-            data-node-id={node.id}
-            data-lod="2"
-            opacity={node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="fill_gauge"
-            data-point-id={pvKey}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={bw}
-              height={bh}
-              rx={2}
-              fill="none"
-              stroke={DE_COLORS.borderStrong}
-              strokeWidth={0.5}
-            />
-            <rect
-              data-role="fill"
-              x={1}
-              y={fillY}
-              width={bw - 2}
-              height={fillH}
-              rx={1}
-              fill={fillColor}
-              opacity={fillOpacity}
-            />
-            {cfg.showLevelLine && fillH > 0 && (
-              <line
-                x1={1}
-                y1={fillY}
-                x2={bw - 1}
-                y2={fillY}
-                stroke={DE_COLORS.borderStrong}
-                strokeWidth={1}
-                strokeDasharray="5 3"
-              />
-            )}
-            {cfg.showValue && (
-              <text
-                data-role="value"
-                x={bw / 2}
-                y={fillY + fillH / 2}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontFamily="JetBrains Mono"
-                fontSize={10}
-                fill={DE_COLORS.textSecondary}
-              >
-                {fmtPct}
-              </text>
-            )}
-            {cfg.showSignalLine &&
-              parentOffset &&
-              (() => {
-                const ex = -parentOffset.x;
-                const ey = -parentOffset.y;
-                return (
-                  <line
-                    x1={0}
-                    y1={bh / 2}
-                    x2={ex}
-                    y2={ey}
-                    stroke="#52525B"
-                    strokeWidth={0.75}
-                    strokeDasharray="3 2"
-                  />
-                );
-              })()}
-          </g>
-        );
-      }
-
-      case "point_name_label": {
-        const cfg = node.config as PointNameLabelConfig;
-        const text = cfg.staticText ?? pointTag ?? pvKey ?? "";
-        const AREA_COLOR = "#52525B";
-        const UNIT_COLOR = "#71717A";
-        const TAG_COLOR = "#A1A1AA";
-        const SEP_COLOR = "#3F3F46";
-
-        let labelContent: React.ReactNode;
-        if (cfg.style === "hierarchy" && text.includes(".")) {
-          const parts = text.split(".");
-          const last = parts.length - 1;
-          const secondLast = parts.length - 2;
-          const spans: React.ReactNode[] = [];
-          parts.forEach((part: string, i: number) => {
-            if (i > 0)
-              spans.push(
-                <tspan key={`sep-${i}`} fill={SEP_COLOR}>
-                  .
-                </tspan>,
-              );
-            const color =
-              i === last
-                ? TAG_COLOR
-                : i === secondLast
-                  ? UNIT_COLOR
-                  : AREA_COLOR;
-            spans.push(
-              <tspan key={`part-${i}`} fill={color}>
-                {part}
-              </tspan>,
-            );
-          });
-          labelContent = spans;
-        } else {
-          labelContent = text;
-        }
-
-        return (
-          <g
-            key={node.id}
-            className="io-display-element"
-            data-node-id={node.id}
-            data-lod="2"
-            opacity={node.opacity}
-            transform={deTransform}
-            data-point-tag={pointTag}
-            data-display-type="point_name_label"
-          >
-            <text
-              x={0}
-              y={0}
-              fontFamily="Inter"
-              fontSize={9}
-              fill={cfg.style === "uniform" ? UNIT_COLOR : undefined}
-              dominantBaseline="hanging"
-              style={{ pointerEvents: "none" }}
-            >
-              {labelContent}
-            </text>
-          </g>
-        );
-      }
-
-      default:
-        return null;
     }
+
+    // Resolve sparkline history
+    const sparklineHistory = pvKey ? sparklineHistories.get(pvKey) : undefined;
+
+    // Build context and delegate to shared pure function.
+    // overrideTransform is pre-computed by renderSymbolInstanceSvg for exterior sidecars —
+    // it embeds counter-rotation so the element keeps its canvas position/orientation.
+    const transform = overrideTransform ?? getTransformAttr(node);
+    const deCtx: DisplayElementRenderContext = {
+      transform,
+      pvKey,
+      pointValue: pv ? {
+        value: pv.value,
+        quality: pv.quality,
+        stale: pv.stale,
+        manual: pv.manual,
+        // Include metaUnit fallback in units so shared function gets the resolved value
+        units: pv.units ?? metaUnit ?? undefined,
+        alarmPriority: pv.alarmPriority,
+        unacknowledged: pv.unacknowledged,
+      } : undefined,
+      pointTag,
+      discreteLabel,
+      parentOffset,
+      vesselInteriorPath,
+      sparklineHistory,
+      setpointValue,
+      designerMode,
+      previewMode,
+    };
+
+    return renderDisplayElementSvg(node, deCtx);
   }
 
   function renderSymbolInstance(node: SymbolInstance): React.ReactElement {
     const shapeData = shapeMap.get(node.shapeRef.shapeId);
-    const sidecar = shapeData?.sidecar as
-      | {
-          textZones?: Array<{
-            id: string;
-            x: number;
-            y: number;
-            width?: number;
-            anchor?: string;
-            fontSize?: number;
-          }>;
-          vesselInteriorPath?: string;
-          geometry?: { viewBox: string; width: number; height: number };
-          valueAnchors?: Array<{
-            nx: number;
-            ny: number;
-            preferredElement?: string;
-          }>;
-          alarmAnchor?: { nx: number; ny: number };
-          /** Normalized [nx, ny] position for each named attachment slot */
-          anchorSlots?: Record<string, [number, number]>;
-        }
-      | undefined;
-
-    // Shape SVG files include a full <svg> wrapper without explicit width/height.
-    // Inject geometry dimensions so nested SVGs don't default to 300×150.
-    // Fall back to parsing the SVG's own viewBox when sidecar.geometry is absent.
-    let svgContent = shapeData?.svg ?? "";
-    // Hoisted so the LOD chip below can reference them after the if block.
-    let shapeW: number | undefined = sidecar?.geometry?.width;
-    let shapeH: number | undefined = sidecar?.geometry?.height;
-    if (svgContent) {
-      let w: number | undefined = shapeW;
-      let h: number | undefined = shapeH;
-      if (w == null || h == null) {
-        const vbMatch = svgContent.match(/viewBox=["']([^"']+)["']/);
-        if (vbMatch) {
-          const parts = vbMatch[1].trim().split(/[\s,]+/);
-          if (parts.length >= 4) {
-            w = parseFloat(parts[2]);
-            h = parseFloat(parts[3]);
-            shapeW = w;
-            shapeH = h;
-          }
-        }
-      }
-      if (w != null && h != null) {
-        svgContent = svgContent.replace(
-          /(<svg\b[^>]*?)>/,
-          `$1 width="${w}" height="${h}">`,
-        );
-      }
-    }
+    const sidecar = shapeData?.sidecar;
 
     // Derive operational state CSS class from stateBinding point value
     let stateClass = "";
@@ -1862,690 +811,43 @@ export function SceneRenderer({
       }
     }
 
-    // Render text zones from shape sidecar (spec §Shape Library: Text Zones)
-    const textZoneElements = (sidecar?.textZones ?? []).map((zone) => {
-      const override = node.textZoneOverrides?.[zone.id];
-      if (override?.visible === false) return null;
-      // Determine text content: static override > tag from bound point > empty
-      const text = override?.staticText ?? statePv?.tag ?? "";
-      if (!text && !designerMode) return null;
-      const displayText = text || (designerMode ? `[${zone.id}]` : "");
-
-      // Instrument designation zones (spec §Shape Library: Typography):
-      // Use Arial 12px weight 600 with textLength auto-fit when zone.width is defined.
-      const isDesignation = zone.id === "designation";
-      const fontFamily = isDesignation ? "Arial" : "Inter";
-      const fontSize =
-        override?.fontSize ?? zone.fontSize ?? (isDesignation ? 12 : 10);
-      const fontWeight = isDesignation ? 600 : undefined;
-
-      // Apply textLength + lengthAdjust="spacingAndGlyphs" whenever zone.width is set
-      const autoFitProps =
-        zone.width != null
-          ? {
-              textLength: zone.width,
-              lengthAdjust: "spacingAndGlyphs" as const,
-            }
-          : {};
-
-      return (
-        <text
-          key={`tz-${zone.id}`}
-          x={zone.x}
-          y={zone.y}
-          textAnchor={(zone.anchor as "start" | "middle" | "end") ?? "middle"}
-          dominantBaseline="auto"
-          fontFamily={fontFamily}
-          fontSize={fontSize}
-          fontWeight={fontWeight}
-          fill="#71717A"
-          data-lod="2"
-          {...autoFitProps}
-        >
-          {displayText}
-        </text>
-      );
-    });
-
-    // Render composable parts (actuators, supports, etc.) — spec §Shape Library: Composable Parts
-    // Each part is positioned at its named attachment slot from sidecar.anchorSlots.
-    // Slot value = normalized [nx, ny] on the base shape bbox. Default: top-center [0.5, 0.0].
-    const partGeoW = sidecar?.geometry?.width ?? 40;
-    const partGeoH = sidecar?.geometry?.height ?? 40;
-    const composablePartElements = (node.composableParts ?? []).map((part) => {
-      // DB may store partId as snake_case (part_id) — handle both
-      const pid =
-        part.partId ?? (part as unknown as Record<string, string>)["part_id"];
-      if (!pid) return null;
-      const partData = shapeMap.get(pid);
-      if (!partData?.svg) return null;
-      const slot = sidecar?.anchorSlots?.[part.attachment];
-      const nx = Array.isArray(slot) ? slot[0] : 0.5;
-      const ny = Array.isArray(slot) ? slot[1] : 0.0;
-      const partTx = nx * partGeoW;
-      const partTy = ny * partGeoH;
-      return (
-        <g
-          key={`part-${pid}`}
-          transform={`translate(${partTx},${partTy})`}
-          dangerouslySetInnerHTML={{ __html: partData.svg }}
-        />
-      );
-    });
+    // Build partShapes map from shapeMap using the sidecar's addon files
+    const partShapes = new Map<string, { svg: string; sidecar: import("../types/shapes").ShapeSidecar | null }>();
+    if (sidecar?.addons) {
+      for (const addon of sidecar.addons) {
+        const partId = addon.file.replace(/\.svg$/, "");
+        const partData = shapeMap.get(partId);
+        if (partData) partShapes.set(partId, partData);
+      }
+    }
 
     const isSelected = designerMode && selectedNodeIds.has(node.id);
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-        data-lod="0"
-        // stateBinding point drives operational state CSS class (io-running, io-fault, etc.)
-        // data-point-id enables DOM mutation when liveSubscribe is true
-        data-point-id={statePvKey || undefined}
-        className={[stateClass, isSelected ? "io-selected" : ""]
-          .filter(Boolean)
-          .join(" ")}
-        onClick={(e) => handleNodeClick(node, e)}
-        style={{
-          cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-        }}
-      >
-        {svgContent && <g dangerouslySetInnerHTML={{ __html: svgContent }} />}
-        {composablePartElements}
-        {textZoneElements}
-        {node.children.map((child) =>
-          renderDisplayElement(
-            child,
-            child.transform.position,
-            sidecar?.vesselInteriorPath,
-          ),
-        )}
-      </g>
-    );
+    const ctx: SymbolInstanceRenderContext = {
+      ...makeRenderCtx(node),
+      shapeSvg: shapeData?.svg ?? null,
+      shapeSidecar: sidecar ?? null,
+      partShapes,
+      stateClass,
+      statePointId: statePvKey,
+      isSelected,
+      designerMode,
+      stateTag: statePv?.tag,
+      renderChild: (child, parentOffset, vesselInteriorPath, overrideTransform) =>
+        renderDisplayElement(child, parentOffset, vesselInteriorPath, overrideTransform),
+    };
+    return renderSymbolInstanceSvg(node, ctx);
   }
 
   function renderAnnotation(node: Annotation): React.ReactElement | null {
-    const { config } = node;
-    const clickProps = {
-      onClick: (e: React.MouseEvent) => handleNodeClick(node, e),
-      style: {
-        cursor: node.navigationLink || onNodeClick ? "pointer" : undefined,
-      } as React.CSSProperties,
-    };
-    const gBase = {
-      key: node.id,
-      transform: getTransformAttr(node),
-      opacity: node.opacity,
-      "data-node-id": node.id,
-      "data-lod": "0",
-    };
-
-    if (config.annotationType === "border") {
-      return (
-        <g {...gBase} {...clickProps}>
-          <rect
-            x={0}
-            y={0}
-            width={config.width}
-            height={config.height}
-            fill="none"
-            stroke={config.strokeColor}
-            strokeWidth={config.strokeWidth}
-            strokeDasharray={config.strokeDasharray}
-            rx={
-              config.cornerStyle === "rounded" ? (config.cornerRadius ?? 4) : 0
-            }
-          />
-          {config.titleBlock && (
-            <text
-              x={10}
-              y={config.height - 10}
-              fontFamily="Inter"
-              fontSize={10}
-              fill="#A1A1AA"
-            >
-              {config.titleBlock.title} — {config.titleBlock.drawingNumber} Rev{" "}
-              {config.titleBlock.revision}
-            </text>
-          )}
-        </g>
-      );
-    }
-
-    if (config.annotationType === "callout") {
-      return (
-        <g {...gBase} {...clickProps}>
-          <text
-            fontFamily="Inter"
-            fontSize={config.fontSize}
-            fill={config.fill}
-          >
-            {config.text}
-          </text>
-        </g>
-      );
-    }
-
-    if (config.annotationType === "dimension_line") {
-      const cfg = config as DimensionLineConfig;
-      const sx = cfg.startPoint.x;
-      const sy = cfg.startPoint.y;
-      const ex = cfg.endPoint.x;
-      const ey = cfg.endPoint.y;
-      // Determine if primarily horizontal or vertical
-      const isHoriz = Math.abs(ex - sx) >= Math.abs(ey - sy);
-      // The dimension line is offset perpendicularly from the measured object
-      const off = cfg.offset ?? 0;
-      // For a horizontal dimension: offset in Y; for vertical: offset in X
-      const dlx1 = isHoriz ? sx : sx + off;
-      const dly1 = isHoriz ? sy + off : sy;
-      const dlx2 = isHoriz ? ex : ex + off;
-      const dly2 = isHoriz ? ey + off : ey;
-      // Extension lines (short perpendicular lines from object to dimension line)
-      const extLen = 6;
-      const ext1x1 = isHoriz ? sx : sx;
-      const ext1y1 = isHoriz ? sy : sy;
-      const ext1x2 = isHoriz ? dlx1 : dlx1;
-      const ext1y2 = isHoriz ? dly1 + extLen : dly1;
-      const ext2x1 = isHoriz ? ex : ex;
-      const ext2y1 = isHoriz ? ey : ey;
-      const ext2x2 = isHoriz ? dlx2 : dlx2;
-      const ext2y2 = isHoriz ? dly2 + extLen : dly2;
-      // Arrow tick marks at ends of dimension line
-      const tickLen = 4;
-      const midX = (dlx1 + dlx2) / 2;
-      const midY = (dly1 + dly2) / 2;
-      return (
-        <g {...gBase} {...clickProps}>
-          {/* Extension lines */}
-          <line
-            x1={ext1x1}
-            y1={ext1y1}
-            x2={ext1x2}
-            y2={ext1y2}
-            stroke={cfg.color}
-            strokeWidth={1}
-          />
-          <line
-            x1={ext2x1}
-            y1={ext2y1}
-            x2={ext2x2}
-            y2={ext2y2}
-            stroke={cfg.color}
-            strokeWidth={1}
-          />
-          {/* Main dimension line */}
-          <line
-            x1={dlx1}
-            y1={dly1}
-            x2={dlx2}
-            y2={dly2}
-            stroke={cfg.color}
-            strokeWidth={1}
-          />
-          {/* Tick marks at ends */}
-          {isHoriz ? (
-            <>
-              <line
-                x1={dlx1}
-                y1={dly1 - tickLen}
-                x2={dlx1}
-                y2={dly1 + tickLen}
-                stroke={cfg.color}
-                strokeWidth={1}
-              />
-              <line
-                x1={dlx2}
-                y1={dly2 - tickLen}
-                x2={dlx2}
-                y2={dly2 + tickLen}
-                stroke={cfg.color}
-                strokeWidth={1}
-              />
-            </>
-          ) : (
-            <>
-              <line
-                x1={dlx1 - tickLen}
-                y1={dly1}
-                x2={dlx1 + tickLen}
-                y2={dly1}
-                stroke={cfg.color}
-                strokeWidth={1}
-              />
-              <line
-                x1={dlx2 - tickLen}
-                y1={dly2}
-                x2={dlx2 + tickLen}
-                y2={dly2}
-                stroke={cfg.color}
-                strokeWidth={1}
-              />
-            </>
-          )}
-          {/* Optional label */}
-          {cfg.label && (
-            <text
-              x={midX}
-              y={isHoriz ? midY - 4 : midY}
-              textAnchor="middle"
-              dominantBaseline={isHoriz ? "auto" : "central"}
-              fontFamily="Inter"
-              fontSize={cfg.fontSize ?? 10}
-              fill={cfg.color}
-            >
-              {cfg.label}
-            </text>
-          )}
-        </g>
-      );
-    }
-
-    if (config.annotationType === "north_arrow") {
-      const cfg = config as NorthArrowConfig;
-      const sz = cfg.size ?? 40;
-      const cx = sz / 2;
-      const cy = sz / 2;
-      const r = sz / 2 - 2;
-      if (cfg.style === "compass") {
-        // Compass rose: circle outline + N/S/E/W labels + cardinal tick marks
-        return (
-          <g {...gBase} {...clickProps}>
-            <circle
-              cx={cx}
-              cy={cy}
-              r={r}
-              fill="none"
-              stroke={cfg.color}
-              strokeWidth={1}
-            />
-            {/* Cardinal ticks */}
-            <line
-              x1={cx}
-              y1={cy - r}
-              x2={cx}
-              y2={cy - r + 6}
-              stroke={cfg.color}
-              strokeWidth={1.5}
-            />
-            <line
-              x1={cx}
-              y1={cy + r}
-              x2={cx}
-              y2={cy + r - 6}
-              stroke={cfg.color}
-              strokeWidth={1.5}
-            />
-            <line
-              x1={cx - r}
-              y1={cy}
-              x2={cx - r + 6}
-              y2={cy}
-              stroke={cfg.color}
-              strokeWidth={1.5}
-            />
-            <line
-              x1={cx + r}
-              y1={cy}
-              x2={cx + r - 6}
-              y2={cy}
-              stroke={cfg.color}
-              strokeWidth={1.5}
-            />
-            {/* N/S/E/W labels */}
-            <text
-              x={cx}
-              y={cy - r - 3}
-              textAnchor="middle"
-              dominantBaseline="auto"
-              fontFamily="Inter"
-              fontSize={Math.max(8, sz * 0.2)}
-              fontWeight="bold"
-              fill={cfg.color}
-            >
-              N
-            </text>
-            <text
-              x={cx}
-              y={cy + r + 3}
-              textAnchor="middle"
-              dominantBaseline="hanging"
-              fontFamily="Inter"
-              fontSize={Math.max(8, sz * 0.18)}
-              fill={cfg.color}
-            >
-              S
-            </text>
-            <text
-              x={cx + r + 3}
-              y={cy}
-              textAnchor="start"
-              dominantBaseline="central"
-              fontFamily="Inter"
-              fontSize={Math.max(8, sz * 0.18)}
-              fill={cfg.color}
-            >
-              E
-            </text>
-            <text
-              x={cx - r - 3}
-              y={cy}
-              textAnchor="end"
-              dominantBaseline="central"
-              fontFamily="Inter"
-              fontSize={Math.max(8, sz * 0.18)}
-              fill={cfg.color}
-            >
-              W
-            </text>
-          </g>
-        );
-      }
-      // Simple: upward-pointing arrow (triangle + stem)
-      const arrowH = sz * 0.55;
-      const arrowW = sz * 0.28;
-      const stemW = sz * 0.1;
-      const stemH = sz * 0.3;
-      const tipY = cy - arrowH / 2;
-      const baseY = tipY + arrowH;
-      return (
-        <g {...gBase} {...clickProps}>
-          {/* Triangle head */}
-          <polygon
-            points={`${cx},${tipY} ${cx - arrowW / 2},${baseY} ${cx + arrowW / 2},${baseY}`}
-            fill={cfg.color}
-            stroke={cfg.color}
-            strokeWidth={1}
-          />
-          {/* Stem */}
-          <rect
-            x={cx - stemW / 2}
-            y={baseY}
-            width={stemW}
-            height={stemH}
-            fill={cfg.color}
-          />
-          {/* N label above arrow tip */}
-          <text
-            x={cx}
-            y={tipY - 3}
-            textAnchor="middle"
-            dominantBaseline="auto"
-            fontFamily="Inter"
-            fontSize={Math.max(8, sz * 0.2)}
-            fontWeight="bold"
-            fill={cfg.color}
-          >
-            N
-          </text>
-        </g>
-      );
-    }
-
-    if (config.annotationType === "legend") {
-      const cfg = config as LegendConfig;
-      const padding = 8;
-      const rowH = (cfg.fontSize ?? 12) + 6;
-      const symbolW = 20;
-      const symbolH = cfg.fontSize ?? 12;
-      const textOffset = symbolW + 6;
-      const boxH = padding * 2 + cfg.entries.length * rowH;
-      const boxW = node.width ?? 160;
-      return (
-        <g {...gBase} {...clickProps}>
-          {/* Background box */}
-          <rect
-            x={0}
-            y={0}
-            width={boxW}
-            height={boxH}
-            rx={4}
-            fill={cfg.backgroundColor ?? "var(--io-surface-primary)"}
-            stroke={cfg.borderColor ?? "#3F3F46"}
-            strokeWidth={1}
-          />
-          {/* Legend entries */}
-          {cfg.entries.map((entry, i) => {
-            const rowY = padding + i * rowH;
-            const symY = rowY + rowH / 2;
-            return (
-              <g key={i}>
-                {entry.symbol === "line" && (
-                  <line
-                    x1={padding}
-                    y1={symY}
-                    x2={padding + symbolW}
-                    y2={symY}
-                    stroke={entry.color}
-                    strokeWidth={2}
-                  />
-                )}
-                {entry.symbol === "rect" && (
-                  <rect
-                    x={padding}
-                    y={symY - symbolH / 2}
-                    width={symbolW}
-                    height={symbolH}
-                    fill={entry.color}
-                  />
-                )}
-                {entry.symbol === "circle" && (
-                  <circle
-                    cx={padding + symbolW / 2}
-                    cy={symY}
-                    r={symbolH / 2}
-                    fill={entry.color}
-                  />
-                )}
-                <text
-                  x={padding + textOffset}
-                  y={symY}
-                  dominantBaseline="central"
-                  fontFamily="Inter"
-                  fontSize={cfg.fontSize ?? 12}
-                  fill="#E4E4E7"
-                >
-                  {entry.label}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      );
-    }
-
-    if (config.annotationType === "section_break") {
-      const cfg = config as SectionBreakConfig;
-      const w = canvas.width;
-      const dashArray = cfg.style === "dotted" ? "2 4" : undefined;
-      if (cfg.style === "space") {
-        // Two lighter lines with a gap between them
-        return (
-          <g {...gBase} {...clickProps}>
-            <line
-              x1={0}
-              y1={0}
-              x2={w}
-              y2={0}
-              stroke={cfg.color}
-              strokeWidth={cfg.thickness ?? 1}
-              opacity={0.5}
-            />
-            <line
-              x1={0}
-              y1={cfg.thickness ?? 4}
-              x2={w}
-              y2={cfg.thickness ?? 4}
-              stroke={cfg.color}
-              strokeWidth={cfg.thickness ?? 1}
-              opacity={0.5}
-            />
-          </g>
-        );
-      }
-      return (
-        <g {...gBase} {...clickProps}>
-          <line
-            x1={0}
-            y1={0}
-            x2={w}
-            y2={0}
-            stroke={cfg.color}
-            strokeWidth={cfg.thickness ?? 1}
-            strokeDasharray={dashArray}
-          />
-        </g>
-      );
-    }
-
-    if (config.annotationType === "page_break") {
-      const w = canvas.width;
-      return (
-        <g {...gBase} {...clickProps}>
-          <line
-            x1={0}
-            y1={0}
-            x2={w}
-            y2={0}
-            stroke="#6B7280"
-            strokeWidth={1}
-            strokeDasharray="8 4"
-          />
-          <text
-            x={w / 2}
-            y={-4}
-            textAnchor="middle"
-            dominantBaseline="auto"
-            fontFamily="Inter"
-            fontSize={9}
-            fill="#6B7280"
-            opacity={0.7}
-          >
-            page break
-          </text>
-        </g>
-      );
-    }
-
-    if (config.annotationType === "header") {
-      const cfg = config as HeaderConfig;
-      const w = canvas.width;
-      const h = cfg.height ?? 40;
-      const textX =
-        cfg.textAlign === "left"
-          ? 12
-          : cfg.textAlign === "right"
-            ? w - 12
-            : w / 2;
-      const anchor =
-        cfg.textAlign === "left"
-          ? "start"
-          : cfg.textAlign === "right"
-            ? "end"
-            : "middle";
-      return (
-        <g {...gBase} {...clickProps}>
-          <rect
-            x={0}
-            y={0}
-            width={w}
-            height={h}
-            fill="var(--io-surface-raised, #27272A)"
-            stroke="var(--io-border, #3F3F46)"
-            strokeWidth={1}
-          />
-          <text
-            x={textX}
-            y={h / 2}
-            textAnchor={anchor}
-            dominantBaseline="central"
-            fontFamily="Inter"
-            fontSize={cfg.fontSize ?? 13}
-            fill="#E4E4E7"
-          >
-            {cfg.content}
-          </text>
-        </g>
-      );
-    }
-
-    if (config.annotationType === "footer") {
-      const cfg = config as FooterConfig;
-      const w = canvas.width;
-      const h = cfg.height ?? 40;
-      const footerY = canvas.height - h;
-      const textX =
-        cfg.textAlign === "left"
-          ? 12
-          : cfg.textAlign === "right"
-            ? w - 12
-            : w / 2;
-      const anchor =
-        cfg.textAlign === "left"
-          ? "start"
-          : cfg.textAlign === "right"
-            ? "end"
-            : "middle";
-      return (
-        <g {...gBase} {...clickProps}>
-          <rect
-            x={0}
-            y={footerY}
-            width={w}
-            height={h}
-            fill="var(--io-surface-raised, #27272A)"
-            stroke="var(--io-border, #3F3F46)"
-            strokeWidth={1}
-          />
-          <text
-            x={textX}
-            y={footerY + h / 2}
-            textAnchor={anchor}
-            dominantBaseline="central"
-            fontFamily="Inter"
-            fontSize={cfg.fontSize ?? 13}
-            fill="#E4E4E7"
-          >
-            {cfg.content}
-          </text>
-        </g>
-      );
-    }
-
-    // Fallback: visible placeholder for any unrecognized annotation type
-    return (
-      <g {...gBase} {...clickProps}>
-        <rect
-          x={0}
-          y={0}
-          width={node.width ?? 80}
-          height={node.height ?? 24}
-          rx={2}
-          fill="none"
-          stroke="#F59E0B"
-          strokeWidth={1}
-          strokeDasharray="4 2"
-        />
-        <text x={4} y={12} fontFamily="Inter" fontSize={9} fill="#F59E0B">
-          {node.annotationType}
-        </text>
-      </g>
-    );
+    return renderAnnotationSvg(node, makeRenderCtx(node));
   }
 
   function renderGroup(node: Group): React.ReactElement {
-    return (
-      <g
-        key={node.id}
-        transform={getTransformAttr(node)}
-        opacity={node.opacity}
-        data-node-id={node.id}
-      >
-        {node.children.map((child) => renderNode(child as SceneNode))}
-      </g>
-    );
+    const ctx: GroupRenderContext = {
+      ...makeRenderCtx(node),
+      renderChild: (child) => renderNode(child as SceneNode),
+    };
+    return renderGroupSvg(node, ctx);
   }
 
   function renderNode(node: SceneNode): React.ReactElement | null {
@@ -2591,9 +893,19 @@ export function SceneRenderer({
     }
     // Wrap with LOD attribute if specified so CSS can hide low-detail elements
     if (el && node.lodLevel && node.lodLevel > 1) {
-      return (
+      el = (
         <g key={`lod-${node.id}`} data-lod={node.lodLevel}>
           {el}
+        </g>
+      );
+    }
+    // Call per-node overlay hook (designer uses this for selection rects, resize handles, rotation handle)
+    const overlay = renderNodeOverlay?.(node) ?? null;
+    if (overlay && el) {
+      return (
+        <g key={`no-${node.id}`}>
+          {el}
+          {overlay}
         </g>
       );
     }
@@ -2747,7 +1059,7 @@ export function SceneRenderer({
                 fontSize: 12,
               }}
             >
-              {node.config.widgetType}
+              {node.widgetType}
             </div>
           );
         })}
@@ -2757,89 +1069,6 @@ export function SceneRenderer({
 }
 
 // ---- Helpers ----
-
-const ALARM_PRIORITY_NAMES: Record<number, string> = {
-  1: "urgent",
-  2: "high",
-  3: "low",
-  4: "diagnostic",
-  5: "custom",
-};
-
-function formatValue(raw: string | number | null, fmt: string): string {
-  if (raw === null || raw === undefined) return "---";
-  if (typeof raw === "number") {
-    if (fmt === "%auto") {
-      const abs = Math.abs(raw);
-      if (!isFinite(raw)) return String(raw);
-      if (abs === 0) return "0";
-      if (abs >= 10000) return raw.toFixed(0);
-      if (abs >= 1000) return raw.toFixed(1);
-      if (abs >= 100) return raw.toFixed(2);
-      if (abs >= 10) return raw.toFixed(3);
-      if (abs >= 1) return raw.toFixed(3);
-      return parseFloat(raw.toPrecision(3)).toString();
-    }
-    const fMatch = fmt.match(/^%\.(\d+)f/);
-    if (fMatch) return raw.toFixed(parseInt(fMatch[1]));
-    if (/^%\.?0?d$|^%d$/.test(fmt)) return Math.round(raw).toString();
-    const gMatch = fmt.match(/^%\.(\d+)g/);
-    if (gMatch)
-      return parseFloat(raw.toPrecision(parseInt(gMatch[1]))).toString();
-  }
-  return String(raw);
-}
-
-function renderAlarmShape(
-  priority: number,
-  isGhost: boolean,
-  color: string,
-): React.ReactElement {
-  if (isGhost || priority === 1) {
-    return (
-      <rect
-        x={-12}
-        y={-9}
-        width={24}
-        height={18}
-        rx={2}
-        fill="none"
-        stroke={color}
-        strokeWidth={1.8}
-      />
-    );
-  }
-  if (priority === 2)
-    return (
-      <polygon
-        points="0,-12 12,8 -12,8"
-        fill="none"
-        stroke={color}
-        strokeWidth={1.8}
-      />
-    );
-  if (priority === 3)
-    return (
-      <polygon
-        points="0,12 12,-8 -12,-8"
-        fill="none"
-        stroke={color}
-        strokeWidth={1.8}
-      />
-    );
-  if (priority === 4)
-    return (
-      <ellipse rx={14} ry={10} fill="none" stroke={color} strokeWidth={1.8} />
-    );
-  return (
-    <polygon
-      points="0,-12 12,0 0,12 -12,0"
-      fill="none"
-      stroke={color}
-      strokeWidth={1.8}
-    />
-  );
-}
 
 // ---- Direct DOM mutation (spec §5.1 Real-Time Update Pipeline) ----
 // Called from the rAF drain loop — no React involved.
@@ -2894,39 +1123,82 @@ function applyPointValue(
         : isBad
           ? ALARM_COLORS[1]
           : DE_COLORS.textSecondary;
+
+      // Recalculate box width so the combined "value EU" string stays centered.
+      // The React render sizes the box from the placeholder value; when the live
+      // value arrives with a different character count the box must resize too.
+      const minW = parseInt(el.dataset.minWidth ?? "40", 10);
+
       const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
       if (textEl) {
-        textEl.textContent = rawValueStr;
-        textEl.setAttribute("fill", valueColor);
-      }
-
-      // Box rect (fill, stroke, strokeDasharray, strokeWidth)
-      const boxFill = isCommFail
-        ? DE_COLORS.displayZoneInactive
-        : DE_COLORS.surfaceElevated;
-      const boxStroke = isBad
-        ? ALARM_COLORS[1]
-        : isCommFail
-          ? DE_COLORS.borderStrong
-          : DE_COLORS.border;
-      const strokeDash = isBad || isStale ? "4 2" : isUncertain ? "2 2" : "";
-      const strokeWidth = isBad || isCommFail ? "2" : "1";
-      const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
-      if (rectEl) {
-        rectEl.setAttribute("fill", boxFill);
-        rectEl.setAttribute("stroke", boxStroke);
-        rectEl.setAttribute("stroke-width", strokeWidth);
-        if (strokeDash) {
-          rectEl.setAttribute("stroke-dasharray", strokeDash);
+        // 1. Update value text content
+        const vSpan = textEl.querySelector<SVGTSpanElement>('[data-role="v"]');
+        if (vSpan) {
+          vSpan.textContent = rawValueStr;
         } else {
-          rectEl.removeAttribute("stroke-dasharray");
+          textEl.textContent = rawValueStr;
+        }
+        textEl.setAttribute("fill", valueColor);
+
+        // 2. Show/hide EU tspan based on comm/bad state
+        const euSpan = textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
+        if (euSpan) {
+          euSpan.style.display = (!isCommFail && !isBad) ? "" : "none";
+        }
+
+        // 3. Measure actual rendered width — exact, no font estimation needed
+        const measured = textEl.getComputedTextLength();
+        const newW = Math.max(minW, Math.ceil(measured) + 12); // 6px padding each side
+        textEl.setAttribute("x", String(Math.round(newW / 2)));
+
+        // 4. Resize the box rect
+        const boxFill = isCommFail
+          ? DE_COLORS.displayZoneInactive
+          : DE_COLORS.surfaceElevated;
+        const boxStroke = isBad
+          ? ALARM_COLORS[1]
+          : isCommFail
+            ? DE_COLORS.borderStrong
+            : DE_COLORS.border;
+        const strokeDash = isBad || isStale ? "4 2" : isUncertain ? "2 2" : "";
+        const strokeWidth = isBad || isCommFail ? "2" : "1";
+        const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
+        if (rectEl) {
+          rectEl.setAttribute("width", String(newW));
+          rectEl.setAttribute("fill", boxFill);
+          rectEl.setAttribute("stroke", boxStroke);
+          rectEl.setAttribute("stroke-width", strokeWidth);
+          if (strokeDash) {
+            rectEl.setAttribute("stroke-dasharray", strokeDash);
+          } else {
+            rectEl.removeAttribute("stroke-dasharray");
+          }
+        }
+
+        // 5. Re-center label rows (PointName / DisplayName) on the new box width
+        const pnEl = el.querySelector<SVGTextElement>('[data-role="pn"]');
+        if (pnEl) pnEl.setAttribute("x", String(Math.round(newW / 2)));
+        const pnBgEl = el.querySelector<SVGRectElement>('[data-role="pn-bg"]');
+        if (pnBgEl) pnBgEl.setAttribute("width", String(newW));
+        const dnEl = el.querySelector<SVGTextElement>('[data-role="dn"]');
+        if (dnEl) dnEl.setAttribute("x", String(Math.round(newW / 2)));
+        const dnBgEl = el.querySelector<SVGRectElement>('[data-role="dn-bg"]');
+        if (dnBgEl) dnBgEl.setAttribute("width", String(newW));
+
+        // 6. Re-center the box on the shape slot
+        const baseTransform = el.dataset.baseTransform;
+        if (baseTransform) {
+          el.setAttribute(
+            "transform",
+            `${baseTransform} translate(${Math.round(20 - newW / 2)},0)`,
+          );
         }
       }
 
       // Opacity (stale = 60%)
       el.style.opacity = isStale ? "0.6" : "";
 
-      // Manual badge — find or create
+      // Manual badge — find or create; y offset from value box top (data-value-box-y)
       let badge = el.querySelector<SVGTextElement>(
         '[data-role="manual-badge"]',
       );
@@ -2945,10 +1217,11 @@ function applyPointValue(
           badge.setAttribute("fill", DE_COLORS.manualBadge);
           el.appendChild(badge);
         }
-        // Position at top-right — read width from box rect
-        const w = rectEl ? Number(rectEl.getAttribute("width") ?? 60) : 60;
+        const boxRectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
+        const w = boxRectEl ? Number(boxRectEl.getAttribute("width") ?? 60) : 60;
+        const boxY = Number(el.getAttribute("data-value-box-y") ?? 0);
         badge.setAttribute("x", String(w - 2));
-        badge.setAttribute("y", "2");
+        badge.setAttribute("y", String(boxY + 2));
         badge.textContent = "M";
         badge.style.display = "";
       } else if (badge) {
@@ -3092,12 +1365,28 @@ function applyPointValue(
           : 0;
       const bh = cfg.barHeight ?? 90;
       if (cfg.mode === "vessel_overlay") {
-        const fillH = pct * bh;
-        const fillY = bh - fillH;
         const fillRect = el.querySelector<SVGRectElement>('[data-role="fill"]');
         if (fillRect) {
+          // localH and localBottom are baked in as data attrs during initial React render
+          const localH = parseFloat(fillRect.getAttribute("data-vessel-h") ?? String(bh));
+          const localBottom = parseFloat(fillRect.getAttribute("data-vessel-base-y") ?? String(bh));
+          const fillH = pct * localH;
+          const fillY = localBottom - fillH;
           fillRect.setAttribute("y", String(fillY));
-          fillRect.setAttribute("height", String(fillH));
+          fillRect.setAttribute("height", String(Math.max(0, fillH) + 1));
+          const levelLine = el.querySelector<SVGLineElement>('[data-role="level-line"]');
+          if (levelLine) {
+            levelLine.setAttribute("y1", String(fillY));
+            levelLine.setAttribute("y2", String(fillY));
+          }
+          const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
+          if (textEl) {
+            const midY = parseFloat(textEl.getAttribute("data-vessel-mid-y") ?? String(localBottom - localH / 2));
+            const vpos = textEl.getAttribute("data-value-position") ?? "in-fill";
+            const textY = vpos === "center" ? midY : fillH > 4 ? fillY + fillH / 2 : midY;
+            textEl.setAttribute("y", String(textY));
+            textEl.textContent = `${(pct * 100).toFixed(0)}%`;
+          }
         }
       } else {
         const fillH = pct * (bh - 2);
@@ -3107,9 +1396,19 @@ function applyPointValue(
           fillRect.setAttribute("y", String(fillY));
           fillRect.setAttribute("height", String(fillH));
         }
+        const levelLine = el.querySelector<SVGLineElement>('[data-role="level-line"]');
+        if (levelLine) {
+          levelLine.setAttribute("y1", String(fillY));
+          levelLine.setAttribute("y2", String(fillY));
+        }
+        const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
+        if (textEl) {
+          const vpos = textEl.getAttribute("data-value-position") ?? "in-fill";
+          const textY = vpos === "center" ? bh / 2 : fillH > 4 ? fillY + fillH / 2 : bh / 2;
+          textEl.setAttribute("y", String(textY));
+          textEl.textContent = `${(pct * 100).toFixed(0)}%`;
+        }
       }
-      const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
-      if (textEl) textEl.textContent = `${(pct * 100).toFixed(0)}%`;
       break;
     }
 

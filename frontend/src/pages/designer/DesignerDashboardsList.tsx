@@ -323,7 +323,9 @@ export default function DesignerDashboardsList() {
     },
   });
 
-  const dashboards = query.data ?? [];
+  const dashboards = (query.data ?? []).filter(
+    (d) => !d.name.startsWith("__autosave_"),
+  );
   const filtered = dashboards.filter(
     (d) => !search || d.name.toLowerCase().includes(search.toLowerCase()),
   );

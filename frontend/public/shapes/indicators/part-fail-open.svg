@@ -7,8 +7,4 @@
     <polygon points="10,2 5,10 8,10 8,22 12,22 12,10 15,10" fill="none" stroke="#808080" stroke-width="1.5"/>
     <text x="10" y="30" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" fill="#808080">FO</text>
   </g>
-  <g class="io-connections" display="none">
-    <!-- Stem base — attachment point to actuator -->
-    <circle r="2" fill="none" stroke="#4A9EFF" stroke-width="1" data-io-conn-id="nozzle-stem" cx="10" cy="24"/>
-  </g>
 </svg>

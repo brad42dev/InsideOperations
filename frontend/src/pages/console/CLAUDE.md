@@ -23,6 +23,10 @@ Key spec sections to check for common tasks:
 - **Grid uses react-grid-layout v2** — not CSS grid, not flexbox, not a custom drag implementation.
 - **Auto-save** — workspace layout saves to the server within 2s of any change. No manual save button.
 
+## Gotchas
+
+- **`position: fixed` inside panes** — react-grid-layout uses CSS transforms, which break `position: fixed`. Use `createPortal(el, document.body)` for any overlay/dropdown rendered inside a pane.
+
 ## False-DONE Patterns — Do Not Accept
 
 - WebSocket opened inside a React component or hook (must be SharedWorker)

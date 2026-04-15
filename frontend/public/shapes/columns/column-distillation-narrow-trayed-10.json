@@ -35,7 +35,13 @@
   "geometry": {
     "viewBox": "0 0 40 120",
     "width": 40,
-    "height": 120
+    "height": 120,
+    "selectionBounds": {
+      "x": 11,
+      "y": 4,
+      "w": 18,
+      "h": 112
+    }
   },
   "connections": [
     {
@@ -166,6 +172,13 @@
       "partId": "body",
       "label": "Column Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support",
+      "x": 0,
+      "y": 42
     }
   ]
 }

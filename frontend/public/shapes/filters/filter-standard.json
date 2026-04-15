@@ -34,7 +34,8 @@
   "geometry": {
     "viewBox": "0 0 50 60",
     "width": 50,
-    "height": 60
+    "height": 60,
+    "selectionBounds": { "x": 5, "y": 9, "w": 40, "h": 42 }
   },
   "connections": [
     {

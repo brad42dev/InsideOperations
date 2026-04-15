@@ -9,7 +9,7 @@
  * Layers belong in the right panel only (spec §15).
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
@@ -97,6 +97,114 @@ function SectionHeader({
       <IconChevron open={open} />
       {label}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Resizable palette section — header + scrollable content + bottom drag handle
+// ---------------------------------------------------------------------------
+
+interface PaletteSectionProps {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  /** Controlled height of the scrollable content area in px. Omit for flexible. */
+  height?: number;
+  /** If true, fills remaining flex space instead of using a fixed height. */
+  flexible?: boolean;
+  onHeightChange?: (dy: number) => void;
+  children: React.ReactNode;
+}
+
+function PaletteSection({
+  title,
+  open,
+  onToggle,
+  height,
+  flexible = false,
+  onHeightChange,
+  children,
+}: PaletteSectionProps) {
+  const startY = useRef(0);
+  const activeRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const canResize = !flexible && !!onHeightChange;
+
+  function handleResizeMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    activeRef.current = true;
+    startY.current = e.clientY;
+    setIsResizing(true);
+
+    const onMove = (ev: MouseEvent) => {
+      if (!activeRef.current) return;
+      const dy = ev.clientY - startY.current;
+      startY.current = ev.clientY;
+      onHeightChange!(dy);
+    };
+    const onUp = () => {
+      activeRef.current = false;
+      setIsResizing(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        overflow: "hidden",
+        ...(flexible && open ? { flex: "1 1 0", minHeight: 80 } : {}),
+      }}
+    >
+      <SectionHeader label={title} open={open} onToggle={onToggle} />
+      {open && (
+        <>
+          <div
+            style={{
+              overflowY: "auto",
+              overflowX: "hidden",
+              ...(flexible ? { flex: 1 } : { height: height ?? "auto" }),
+            }}
+          >
+            {children}
+          </div>
+          {canResize && (
+            <div
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              onMouseDown={handleResizeMouseDown}
+              style={{
+                height: 4,
+                flexShrink: 0,
+                cursor: "ns-resize",
+                background: isResizing ? "var(--io-accent)" : "transparent",
+                transition: "background 0.1s",
+                borderBottom: "1px solid var(--io-border)",
+                userSelect: "none",
+              }}
+              onMouseEnter={(e) => {
+                if (!isResizing)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--io-surface-elevated)";
+              }}
+              onMouseLeave={(e) => {
+                if (!isResizing)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -2310,6 +2418,22 @@ export default function DesignerLeftPalette({
   const [widgetsOpen, setWidgetsOpen] = useState(true);
   const [reportElemOpen, setReportElemOpen] = useState(true);
 
+  const [sectionHeights, setSectionHeights] = useState<Record<string, number>>({
+    equipment: 200,
+    myShapes: 160,
+    stencils: 160,
+    elements: 110,
+    widgets: 120,
+    reportElements: 120,
+  });
+
+  function adjustHeight(key: string, dy: number) {
+    setSectionHeights((prev) => ({
+      ...prev,
+      [key]: Math.max(60, prev[key] + dy),
+    }));
+  }
+
   const containerStyle: React.CSSProperties = {
     width,
     flex: 1,
@@ -2426,132 +2550,148 @@ export default function DesignerLeftPalette({
 
   return (
     <div style={containerStyle}>
-      {/* Single scrollable column — all sections stack at natural height */}
+      {/* Per-section scroll — each section has its own scrollable content area */}
       <div
         style={{
           flex: 1,
-          overflowY: "auto",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
         {isGraphicMode ? (
           <>
-            <SectionHeader
-              label="Equipment"
+            <PaletteSection
+              title="Equipment"
               open={equipOpen}
               onToggle={() => setEquipOpen((v) => !v)}
-            />
-            {equipOpen && <EquipmentSection collapsed={false} />}
+              height={sectionHeights.equipment}
+              onHeightChange={(dy) => adjustHeight("equipment", dy)}
+            >
+              <EquipmentSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="My Shapes"
+            <PaletteSection
+              title="My Shapes"
               open={myShapesOpen}
               onToggle={() => setMyShapesOpen((v) => !v)}
-            />
-            {myShapesOpen && <CustomShapesPaletteSection collapsed={false} />}
+              height={sectionHeights.myShapes}
+              onHeightChange={(dy) => adjustHeight("myShapes", dy)}
+            >
+              <CustomShapesPaletteSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="Stencils"
+            <PaletteSection
+              title="Stencils"
               open={stencilsOpen}
               onToggle={() => setStencilsOpen((v) => !v)}
-            />
-            {stencilsOpen && <StencilsSection collapsed={false} />}
+              height={sectionHeights.stencils}
+              onHeightChange={(dy) => adjustHeight("stencils", dy)}
+            >
+              <StencilsSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="Display Elements"
+            <PaletteSection
+              title="Display Elements"
               open={elemOpen}
               onToggle={() => setElemOpen((v) => !v)}
-            />
-            {elemOpen && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  padding: 8,
-                }}
-              >
+              height={sectionHeights.elements}
+              onHeightChange={(dy) => adjustHeight("elements", dy)}
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}
               </div>
-            )}
+            </PaletteSection>
 
-            <SectionHeader
-              label="Widgets"
+            <PaletteSection
+              title="Widgets"
               open={widgetsOpen}
               onToggle={() => setWidgetsOpen((v) => !v)}
-            />
-            {widgetsOpen && <WidgetsSection collapsed={false} />}
+              height={sectionHeights.widgets}
+              onHeightChange={(dy) => adjustHeight("widgets", dy)}
+            >
+              <WidgetsSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="Points"
+            {/* Points fills remaining space */}
+            <PaletteSection
+              title="Points"
               open={pointsOpen}
               onToggle={() => setPointsOpen((v) => !v)}
-            />
-            {pointsOpen && <PointBrowserSection collapsed={false} />}
+              flexible
+            >
+              <PointBrowserSection collapsed={false} />
+            </PaletteSection>
           </>
         ) : (
           <>
-            <SectionHeader
-              label="Widgets"
+            <PaletteSection
+              title="Widgets"
               open={widgetsOpen}
               onToggle={() => setWidgetsOpen((v) => !v)}
-            />
-            {widgetsOpen && <WidgetsSection collapsed={false} />}
+              height={sectionHeights.widgets}
+              onHeightChange={(dy) => adjustHeight("widgets", dy)}
+            >
+              <WidgetsSection collapsed={false} />
+            </PaletteSection>
 
             {isReportMode && (
-              <>
-                <SectionHeader
-                  label="Report Elements"
-                  open={reportElemOpen}
-                  onToggle={() => setReportElemOpen((v) => !v)}
-                />
-                {reportElemOpen && <ReportElementsSection collapsed={false} />}
-              </>
+              <PaletteSection
+                title="Report Elements"
+                open={reportElemOpen}
+                onToggle={() => setReportElemOpen((v) => !v)}
+                height={sectionHeights.reportElements}
+                onHeightChange={(dy) => adjustHeight("reportElements", dy)}
+              >
+                <ReportElementsSection collapsed={false} />
+              </PaletteSection>
             )}
 
-            <SectionHeader
-              label="Equipment"
+            <PaletteSection
+              title="Equipment"
               open={equipOpen}
               onToggle={() => setEquipOpen((v) => !v)}
-            />
-            {equipOpen && <EquipmentSection collapsed={false} />}
+              height={sectionHeights.equipment}
+              onHeightChange={(dy) => adjustHeight("equipment", dy)}
+            >
+              <EquipmentSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="My Shapes"
+            <PaletteSection
+              title="My Shapes"
               open={myShapesOpen}
               onToggle={() => setMyShapesOpen((v) => !v)}
-            />
-            {myShapesOpen && <CustomShapesPaletteSection collapsed={false} />}
+              height={sectionHeights.myShapes}
+              onHeightChange={(dy) => adjustHeight("myShapes", dy)}
+            >
+              <CustomShapesPaletteSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="Stencils"
+            <PaletteSection
+              title="Stencils"
               open={stencilsOpen}
               onToggle={() => setStencilsOpen((v) => !v)}
-            />
-            {stencilsOpen && <StencilsSection collapsed={false} />}
+              height={sectionHeights.stencils}
+              onHeightChange={(dy) => adjustHeight("stencils", dy)}
+            >
+              <StencilsSection collapsed={false} />
+            </PaletteSection>
 
-            <SectionHeader
-              label="Display Elements"
+            {/* Display Elements fills remaining space in non-graphic modes */}
+            <PaletteSection
+              title="Display Elements"
               open={elemOpen}
               onToggle={() => setElemOpen((v) => !v)}
-            />
-            {elemOpen && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  padding: 8,
-                }}
-              >
+              flexible
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
                 {DISPLAY_ELEMENT_TYPES.map((t) => (
                   <DisplayElementTile key={t.type} {...t} collapsed={false} />
                 ))}
               </div>
-            )}
+            </PaletteSection>
           </>
         )}
       </div>

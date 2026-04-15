@@ -26,6 +26,7 @@ interface DesignerTabBarProps {
   onCloseTab: (tabId: string) => void;
   onCloseOthers: (keepTabId: string) => void;
   onCloseAll: () => void;
+  onRenameTab: (tabId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,7 @@ interface TabItemProps {
   onClose: () => void;
   onCloseOthers: () => void;
   onCloseAll: () => void;
+  onRename: () => void;
 }
 
 function TabItem({
@@ -73,6 +75,7 @@ function TabItem({
   onClose,
   onCloseOthers,
   onCloseAll,
+  onRename,
 }: TabItemProps) {
   const [hovered, setHovered] = useState(false);
 
@@ -100,7 +103,15 @@ function TabItem({
 
   const menuItems = [
     {
+      label: "Rename…",
+      onClick: () => {
+        closeMenu();
+        onRename();
+      },
+    },
+    {
       label: "Close",
+      divider: true,
       onClick: () => {
         closeMenu();
         onClose();
@@ -300,6 +311,7 @@ export default function DesignerTabBar({
   onCloseTab,
   onCloseOthers,
   onCloseAll,
+  onRenameTab,
 }: DesignerTabBarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -398,6 +410,7 @@ export default function DesignerTabBar({
               onClose={() => onCloseTab(tab.id)}
               onCloseOthers={() => onCloseOthers(tab.id)}
               onCloseAll={onCloseAll}
+              onRename={() => onRenameTab(tab.id)}
             />
           ))}
         </div>

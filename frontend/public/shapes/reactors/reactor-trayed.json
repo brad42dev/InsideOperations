@@ -47,7 +47,8 @@
   "geometry": {
     "viewBox": "0 0 40 80",
     "width": 40,
-    "height": 80
+    "height": 80,
+    "selectionBounds": { "x": 9, "y": 6, "w": 22, "h": 63 }
   },
   "connections": [
     {
@@ -250,6 +251,18 @@
       "partId": "agitator-helical",
       "label": "Helical Ribbon Agitator",
       "category": "agitator"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "agitator",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "forPart": "support",
+      "x": 0,
+      "y": 0
     }
   ]
 }

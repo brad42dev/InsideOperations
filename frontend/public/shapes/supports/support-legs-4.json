@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "support-legs-4",
   "version": "1.0",
-  "display_name": "Support \u2014 4 Straight Legs",
+  "display_name": "Support — 4 Straight Legs",
   "category": "supports",
   "subcategory": "legs",
   "tags": [
@@ -38,7 +38,12 @@
   "geometry": {
     "viewBox": "0 0 40 86",
     "width": 40,
-    "height": 86
+    "height": 86,
+    "bodyBase": {
+      "x": 0,
+      "y": 0
+    },
+    "selectionBounds": { "x": 7, "y": 67, "w": 26, "h": 16 }
   },
   "connections": [],
   "textZones": [],

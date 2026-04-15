@@ -15,6 +15,11 @@ These take priority over design-docs/09_DESIGNER_MODULE.md when they conflict.
 - **Canvas context menus use Radix ContextMenu** — custom `onContextMenu` + `<div>` menu is not acceptable. See spec §6 for the 9 context menu subsections.
 - **All 3 designer modes** — Graphics, Dashboard, Report. Ensure all spec-required context menu items exist per mode.
 
+## Gotchas
+
+- **`graphicScope`** — stored in `doc.metadata.graphicScope`, not `doc.scope`. Reading `doc.scope` will always be undefined.
+- **DashboardBuilder is gone** — the old DashboardBuilder component was removed during the reconciliation. There is one Designer for all 3 modes (Graphics, Dashboard, Report).
+
 ## False-DONE Patterns — Do Not Accept
 
 - SVG.js element properties used as the source of truth for position, size, or node identity

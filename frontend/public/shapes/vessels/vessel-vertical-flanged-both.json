@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "vessel-vertical-flanged-both",
   "version": "1.0",
-  "display_name": "Vessel — Vertical Flanged Both",
+  "display_name": "Vessel \u2014 Vertical Flanged Both",
   "category": "vessels",
   "subcategory": "vertical",
   "tags": [
@@ -48,7 +48,13 @@
   "geometry": {
     "viewBox": "0 0 40 80",
     "width": 40,
-    "height": 80
+    "height": 80,
+    "selectionBounds": {
+      "x": 7,
+      "y": 6,
+      "w": 26,
+      "h": 68
+    }
   },
   "connections": [
     {
@@ -196,6 +202,13 @@
       "partId": "body",
       "label": "Vessel Body",
       "category": "equipment"
+    }
+  ],
+  "compositeAttachments": [
+    {
+      "forPart": "support",
+      "x": 0,
+      "y": 0
     }
   ]
 }

@@ -5,7 +5,7 @@
  * Mode-aware: different tool sets for graphic / dashboard / report modes.
  */
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   useSceneStore,
   useUiStore,
@@ -22,6 +22,7 @@ import type {
   DistributionAxis,
 } from "../../shared/graphics/commands";
 import { useDesignerPermissions } from "../../shared/hooks/usePermission";
+import { getNodeBounds } from "./DesignerCanvas";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -37,6 +38,7 @@ export interface DesignerToolbarProps {
   onNew: () => void;
   onDelete?: () => void;
   canDelete?: boolean;
+  getCanvasRect?: () => DOMRect | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +962,7 @@ export default function DesignerToolbar({
   onNew,
   onDelete,
   canDelete = false,
+  getCanvasRect,
 }: DesignerToolbarProps) {
   const perms = useDesignerPermissions();
   // Read-only mode if user lacks write permission
@@ -1034,6 +1037,72 @@ export default function DesignerToolbar({
 
   const zoomPct = Math.round(viewport.zoom * 100);
 
+  // Zoom input state
+  const [zoomInputValue, setZoomInputValue] = useState("");
+  const [zoomEditing, setZoomEditing] = useState(false);
+  const [showZoomMenu, setShowZoomMenu] = useState(false);
+  const [zoomMenuPos, setZoomMenuPos] = useState({ x: 0, y: 0 });
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
+  const zoomDropBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Close zoom menu on outside click
+  useEffect(() => {
+    if (!showZoomMenu) return;
+    function onDown(e: MouseEvent) {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setShowZoomMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showZoomMenu]);
+
+  function applyZoomInput(raw: string) {
+    const n = parseFloat(raw.replace("%", "").trim());
+    if (!isNaN(n) && n > 0) zoomTo(n / 100);
+    setZoomEditing(false);
+  }
+
+  function handleFitToContent() {
+    setShowZoomMenu(false);
+    if (!doc) return;
+    const nodes = doc.children;
+    if (nodes.length === 0) { handleFitToCanvas(); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of nodes) {
+      const b = getNodeBounds(node);
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.w);
+      maxY = Math.max(maxY, b.y + b.h);
+    }
+    if (!isFinite(minX)) { handleFitToCanvas(); return; }
+    const contentW = maxX - minX || 1;
+    const contentH = maxY - minY || 1;
+    const canvasRect = getCanvasRect?.();
+    const screenW = canvasRect ? canvasRect.width : window.innerWidth - 540;
+    const screenH = canvasRect ? canvasRect.height : window.innerHeight - 80;
+    const MARGIN = 48;
+    const zoom = Math.min(8, Math.max(0.1, Math.min(
+      (screenW - MARGIN * 2) / contentW,
+      (screenH - MARGIN * 2) / contentH,
+    )));
+    const panX = (screenW - contentW * zoom) / 2 - minX * zoom;
+    const panY = (screenH - contentH * zoom) / 2 - minY * zoom;
+    fitToCanvas(0, 0, 0, 0); // use setViewport directly via zoomTo
+    // Apply via store setViewport
+    useUiStore.getState().setViewport({ panX, panY, zoom });
+  }
+
+  function handleFullScreen() {
+    setShowZoomMenu(false);
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
   function execAlignDistribute(
     cmd: AlignNodesCommand | DistributeNodesCommand,
   ) {
@@ -1055,13 +1124,10 @@ export default function DesignerToolbar({
 
   function handleFitToCanvas() {
     if (!doc) return;
-    // Use the window inner dimensions as a rough estimate for the canvas area
-    fitToCanvas(
-      doc.canvas.width,
-      doc.canvas.height,
-      window.innerWidth - 540,
-      window.innerHeight - 80,
-    );
+    const canvasRect = getCanvasRect?.();
+    const screenW = canvasRect ? canvasRect.width : window.innerWidth - 540;
+    const screenH = canvasRect ? canvasRect.height : window.innerHeight - 80;
+    fitToCanvas(doc.canvas.width, doc.canvas.height, screenW, screenH);
   }
 
   function handleZoomIn() {
@@ -1244,34 +1310,115 @@ export default function DesignerToolbar({
         <IconZoomOut />
       </IconBtn>
 
-      <button
-        onClick={handleFitToCanvas}
-        title="Fit to canvas (click to reset)"
-        style={{
-          height: 28,
-          minWidth: 52,
-          padding: "0 6px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "transparent",
-          color: "var(--io-text-secondary)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "var(--io-radius)",
-          cursor: "pointer",
-          fontSize: 12,
-          fontFamily: "var(--io-font-mono)",
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--io-surface-elevated)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
-      >
-        {zoomPct}%
-      </button>
+      {/* Editable zoom percentage + preset dropdown */}
+      <div ref={zoomMenuRef} style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+        <input
+          value={zoomEditing ? zoomInputValue : `${zoomPct}%`}
+          title="Type a zoom percentage"
+          style={{
+            height: 28,
+            width: 52,
+            padding: "0 4px",
+            background: "transparent",
+            color: "var(--io-text-secondary)",
+            border: "1px solid var(--io-border)",
+            borderRight: "none",
+            borderRadius: "var(--io-radius) 0 0 var(--io-radius)",
+            cursor: "text",
+            fontSize: 12,
+            fontFamily: "var(--io-font-mono)",
+            textAlign: "center",
+            outline: "none",
+          }}
+          onFocus={(e) => {
+            setZoomEditing(true);
+            setZoomInputValue(`${zoomPct}`);
+            const target = e.currentTarget;
+            // Defer select() until after React re-renders with the new value,
+            // otherwise the re-render resets the cursor and keystrokes append.
+            setTimeout(() => target.select(), 0);
+          }}
+          onChange={(e) => setZoomInputValue(e.currentTarget.value)}
+          onBlur={(e) => applyZoomInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.currentTarget.blur(); }
+            if (e.key === "Escape") { setZoomEditing(false); e.currentTarget.blur(); }
+          }}
+        />
+        <button
+          ref={zoomDropBtnRef}
+          title="Zoom presets"
+          onClick={() => {
+            const rect = zoomDropBtnRef.current?.getBoundingClientRect();
+            if (rect) setZoomMenuPos({ x: rect.left, y: rect.bottom + 4 });
+            setShowZoomMenu((v) => !v);
+          }}
+          style={{
+            height: 28,
+            width: 20,
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "transparent",
+            color: "var(--io-text-secondary)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "0 var(--io-radius) var(--io-radius) 0",
+            cursor: "pointer",
+            fontSize: 9,
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-surface-elevated)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          ▾
+        </button>
+
+        {showZoomMenu && (
+          <div
+            ref={zoomMenuRef}
+            style={{
+              position: "fixed",
+              top: zoomMenuPos.y,
+              left: zoomMenuPos.x,
+              minWidth: 160,
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              zIndex: 2000,
+              padding: "4px 0",
+            }}>
+            {([
+              ["1:1 Pixels", () => { zoomTo(1.0); setShowZoomMenu(false); }],
+              ["Fit to Canvas", () => { handleFitToCanvas(); setShowZoomMenu(false); }],
+              ["Fit to Window", handleFitToContent],
+              ["Full Screen", handleFullScreen],
+            ] as [string, () => void][]).map(([label, action]) => (
+              <button
+                key={label}
+                onClick={action}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "6px 12px",
+                  background: "transparent",
+                  color: "var(--io-text-primary)",
+                  border: "none",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontFamily: "var(--io-font-sans)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-surface-hover)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <IconBtn onClick={handleZoomIn} title="Zoom in (Ctrl+=)">
         <IconZoomIn />

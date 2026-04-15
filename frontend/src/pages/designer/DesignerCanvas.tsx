@@ -13,11 +13,10 @@
 import React, {
   useRef,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useState,
   useMemo,
-  useContext,
-  createContext,
 } from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import {
@@ -86,16 +85,15 @@ import type { SceneCommand } from "../../shared/graphics/commands";
 import { PIPE_SERVICE_COLORS } from "../../shared/types/graphics";
 import { routePipe } from "../../shared/graphics/pipeRouter";
 import { useNavigate } from "react-router-dom";
-import { usePointValues } from "../../shared/hooks/usePointValues";
-import type { PointValue } from "../../shared/hooks/usePointValues";
 import { usePermission } from "../../shared/hooks/usePermission";
 import { SaveAsStencilDialog } from "./components/SaveAsStencilDialog";
 import { PromoteToShapeWizard } from "./components/PromoteToShapeWizard";
 import PointPickerModal from "./components/PointPickerModal";
-import PointContextMenu from "../../shared/components/PointContextMenu";
 import {
   ShapeDropDialog,
   type PlacedShapeConfig,
+  displayConfigToUserConfig,
+  userConfigToDisplayConfig,
 } from "./components/ShapeDropDialog";
 import { CategoryShapeWizard } from "./components/CategoryShapeWizard";
 import {
@@ -108,6 +106,33 @@ import {
   type SlotTarget,
 } from "../../shared/graphics/useSnapToSlot";
 import { useThemeName } from "../../shared/theme/ThemeContext";
+import { SceneRenderer } from "../../shared/graphics/SceneRenderer";
+import {
+  buildTransform as sharedBuildTransform,
+  getNodeRotationPivot as sharedGetNodeRotationPivot,
+  buildExteriorSidecarTransform,
+} from "../../shared/graphics/nodeTransforms";
+import {
+  renderPrimitiveSvg,
+  renderTextBlockSvg,
+  renderAnnotationSvg,
+  renderImageSvg,
+  renderEmbeddedSvgSvg,
+  renderStencilSvg,
+  renderWidgetPlaceholderSvg,
+  renderPipeSvg,
+  renderDisplayElementSvg,
+  renderGroupSvg,
+  renderSymbolInstanceSvg,
+  formatDesignPlaceholder,
+  deFontToCss,
+  type RenderContext,
+  type StencilRenderContext,
+  type PipeRenderContext,
+  type DisplayElementRenderContext,
+  type SymbolInstanceRenderContext,
+  type GroupRenderContext,
+} from "../../shared/graphics/renderNodeSvg";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -445,18 +470,38 @@ export function getNodeBounds(node: SceneNode): {
     const de = node as DisplayElement;
     const cfg = de.config;
     switch (cfg.displayType) {
-      case "text_readout":
-        return { x, y, w: cfg.width ?? 92, h: cfg.height ?? 22 };
+      case "text_readout": {
+        const tCfg = cfg as TextReadoutConfig;
+        const pnEnabled = tCfg.pointNameRow?.enabled ?? false;
+        const dnEnabled = tCfg.displayNameRow?.enabled ?? false;
+        const numRows = (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0) + 1;
+        const ROW_H = 16,
+          GAP = 2;
+        const boxW = tCfg.minWidth ?? 40;
+        return { x, y, w: boxW, h: numRows * ROW_H + (numRows - 1) * GAP };
+      }
       case "analog_bar":
-        return { x, y, w: cfg.barWidth ?? 25, h: cfg.barHeight ?? 100 };
+        // Design preview: bar body is 18px wide. Zone labels (HH/H/L/LL) sit at
+        // x=-3 textAnchor=end and extend ~15px to the left of the DE origin.
+        // The pointer triangle extends 7px to the right of the bar (to x=25).
+        // Bounds must cover this full visual range: -15 to +25 = 40px wide.
+        return { x: x - 15, y, w: 40, h: cfg.barHeight ?? 80 };
       case "fill_gauge":
         return { x, y, w: cfg.barWidth ?? 24, h: cfg.barHeight ?? 80 };
       case "sparkline":
         return { x, y, w: cfg.sparkWidth ?? 110, h: cfg.sparkHeight ?? 18 };
       case "alarm_indicator":
-        return { x, y, w: cfg.width ?? 24, h: cfg.height ?? 20 };
-      case "digital_status":
-        return { x, y, w: cfg.width ?? 30, h: cfg.height ?? 20 };
+        // Design preview: 24×18 rect centered at origin (x: -12..12, y: -9..9).
+        return { x: x - 12, y: y - 9, w: 24, h: 18 };
+      case "digital_status": {
+        // Design preview width tracks content: "AUTO" (bound) → 36px, "—" → 18px.
+        const stateText = de.binding.pointId ? "AUTO" : "—";
+        return { x, y, w: stateText.length * 6 + 12, h: 20 };
+      }
+      case "point_name_label": {
+        const fs = (cfg as PointNameLabelConfig).fontSize ?? 10;
+        return { x, y, w: 80, h: fs + 2 };
+      }
       default:
         return { x, y, w: 80, h: 24 };
     }
@@ -492,40 +537,30 @@ export function getNodeBounds(node: SceneNode): {
 }
 
 // Returns the rotation pivot in "post-scale local" space for center-pivot rotation.
-// For shapes where content spans (0,0)→(w,h) in local coords, pivot = (w*sx/2, h*sy/2).
-// For ellipse/circle, position IS the center so pivot = (0,0).
-function getNodeRotationPivot(node: SceneNode): { x: number; y: number } {
-  const sx = node.transform.scale?.x ?? 1;
-  const sy = node.transform.scale?.y ?? 1;
-  if (node.type === "primitive") {
-    const p = node as Primitive;
-    if (p.geometry.type === "ellipse" || p.geometry.type === "circle")
-      return { x: 0, y: 0 };
-    if (p.geometry.type === "rect")
-      return {
-        x: (p.geometry.width * sx) / 2,
-        y: (p.geometry.height * sy) / 2,
-      };
-    return { x: 0, y: 0 };
-  }
-  if (node.type === "symbol_instance") {
-    // getNodeBounds already includes scale for symbol_instance
-    const b = getNodeBounds(node);
-    return { x: b.w / 2, y: b.h / 2 };
-  }
-  // text_block, image, widget, embedded_svg, annotation, stencil: bounds.w doesn't include scale
-  const b = getNodeBounds(node);
-  return { x: (b.w * sx) / 2, y: (b.h * sy) / 2 };
+// Delegates to shared nodeTransforms utility, providing libraryStore shape lookup.
+function designerShapeSizeLookup(
+  shapeId: string,
+): { w: number; h: number } | null {
+  const shapeData = useLibraryStore.getState().getShape(shapeId);
+  if (!shapeData) return null;
+  const geo = shapeData.sidecar.geometry;
+  const w = geo?.baseSize?.[0] ?? geo?.width ?? 64;
+  const h = geo?.baseSize?.[1] ?? geo?.height ?? 64;
+  return { w, h };
 }
 
-function boundsOverlap(
+function getNodeRotationPivot(node: SceneNode): { x: number; y: number } {
+  return sharedGetNodeRotationPivot(node, designerShapeSizeLookup);
+}
+
+function boundsContains(
   b: { x: number; y: number; w: number; h: number },
   rx: number,
   ry: number,
   rw: number,
   rh: number,
 ): boolean {
-  return b.x < rx + rw && b.x + b.w > rx && b.y < ry + rh && b.y + b.h > ry;
+  return b.x >= rx && b.y >= ry && b.x + b.w <= rx + rw && b.y + b.h <= ry + rh;
 }
 
 // ---------------------------------------------------------------------------
@@ -558,216 +593,205 @@ function getNodeAbsoluteBounds(
     const parent = getNodeParent(node.id, docChildren);
     if (parent?.type === "symbol_instance") {
       const pp = parent.transform.position;
-      return { x: b.x + pp.x, y: b.y + pp.y, w: b.w, h: b.h };
+      const sx = parent.transform.scale?.x ?? 1;
+      const sy = parent.transform.scale?.y ?? 1;
+      return { x: b.x * sx + pp.x, y: b.y * sy + pp.y, w: b.w * sx, h: b.h * sy };
     }
   }
   return b;
 }
 
-// ---------------------------------------------------------------------------
-// Test mode: live point value context
-// ---------------------------------------------------------------------------
-
-const TestModeContext = createContext<Map<string, PointValue>>(new Map());
-
-// Context that provides a setter for triggering PointContextMenu from DisplayElementRenderer
-type PointCtxMenuTrigger = {
-  pointId: string;
-  tagName: string;
-  x: number;
-  y: number;
-};
-const PointCtxMenuSetterContext = createContext<
-  ((data: PointCtxMenuTrigger) => void) | null
->(null);
-
-// Extract all unique point IDs from a doc for WebSocket subscription
-function extractPointIds(doc: GraphicDocument): string[] {
-  const ids = new Set<string>();
-
-  function scanNode(node: SceneNode) {
-    if (node.type === "display_element") {
-      const de = node as DisplayElement;
-      if (de.binding.pointId) ids.add(de.binding.pointId);
-    }
-    if (node.type === "symbol_instance") {
-      const si = node as SymbolInstance;
-      if (si.stateBinding?.pointId) ids.add(si.stateBinding.pointId);
-      si.children?.forEach(scanNode);
-    }
-    if ("children" in node && Array.isArray((node as Group).children)) {
-      (node as Group).children.forEach((c) => scanNode(c as SceneNode));
+/**
+ * Like getNodeAbsoluteBounds but uses the sidecar's selectionBounds (if defined)
+ * for symbol_instance nodes. This gives a tighter visual rect that hugs the
+ * shape body rather than the full viewBox, which can include large padding for
+ * process equipment (reactors, tanks, etc.).
+ *
+ * Does NOT affect resize handles or hit-testing — those use getNodeBounds /
+ * getNodeAbsoluteBounds as before.
+ */
+function getNodeVisualBounds(
+  node: SceneNode,
+  docChildren: SceneNode[],
+): { x: number; y: number; w: number; h: number } {
+  if (node.type === "symbol_instance") {
+    const si = node as SymbolInstance;
+    const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId);
+    const sel = shapeData?.sidecar.geometry?.selectionBounds;
+    if (sel) {
+      const { x, y } = si.transform.position;
+      const sx = si.transform.scale.x ?? 1;
+      const sy = si.transform.scale.y ?? 1;
+      return {
+        x: x + sel.x * sx,
+        y: y + sel.y * sy,
+        w: sel.w * sx,
+        h: sel.h * sy,
+      };
     }
   }
-
-  doc.children.forEach(scanNode);
-  return Array.from(ids);
-}
-
-// Simple printf-style value formatter (%.1f, %.0f, %d, %s)
-function formatValue(value: number, format: string): string {
-  const m = format.match(/%\.?(\d*)([fds])/);
-  if (!m) return String(value);
-  if (m[2] === "d") return Math.round(value).toString();
-  if (m[2] === "s") return String(value);
-  const dec = m[1] ? parseInt(m[1]) : 2;
-  return value.toFixed(dec);
+  return getNodeAbsoluteBounds(node, docChildren);
 }
 
 // ---------------------------------------------------------------------------
-// SVG transform string builder
+// Test mode: pause/play state lives in uiStore; overlay is SceneRenderer
+// (see DesignerCanvas render — the SceneRenderer overlay block)
 // ---------------------------------------------------------------------------
 
-function buildTransform(
-  x: number,
-  y: number,
-  rotation: number,
-  scaleX: number,
-  scaleY: number,
-  mirror: string,
-  pivotX = 0,
-  pivotY = 0,
-): string {
-  let sx = scaleX;
-  let sy = scaleY;
-  if (mirror === "horizontal") sx = -sx;
-  if (mirror === "vertical") sy = -sy;
-  if (mirror === "both") {
-    sx = -sx;
-    sy = -sy;
-  }
+// ---------------------------------------------------------------------------
+// SVG transform string builder — delegates to shared nodeTransforms utility
+// ---------------------------------------------------------------------------
 
-  const parts: string[] = [`translate(${x},${y})`];
-  if (rotation !== 0) parts.push(`rotate(${rotation},${pivotX},${pivotY})`);
-  if (sx !== 1 || sy !== 1) parts.push(`scale(${sx},${sy})`);
-  return parts.join(" ");
-}
+const buildTransform = sharedBuildTransform;
 
 // ---------------------------------------------------------------------------
 // Primitive geometry → SVG element
 // ---------------------------------------------------------------------------
 
-function renderPrimitiveGeometry(node: Primitive): React.ReactNode {
-  const { geometry, style, transform, opacity, id, visible } = node;
-  if (!visible) return null;
-
-  const svgStyle: React.SVGProps<SVGElement>["style"] = {
-    fill: style.fill,
-    fillOpacity: style.fillOpacity,
-    stroke: style.stroke,
-    strokeWidth: style.strokeWidth,
-    strokeDasharray: style.strokeDasharray,
-    strokeLinecap: style.strokeLinecap,
-    strokeLinejoin: style.strokeLinejoin,
-    opacity,
-  };
-
-  const pivot = getNodeRotationPivot(node);
-  const t = buildTransform(
-    transform.position.x,
-    transform.position.y,
-    transform.rotation,
-    transform.scale.x,
-    transform.scale.y,
-    transform.mirror,
-    pivot.x,
-    pivot.y,
-  );
-
-  const gProps = {
-    key: id,
-    transform: t,
-    "data-node-id": id,
-    "data-canvas-x": String(Math.round(transform.position.x)),
-    "data-canvas-y": String(Math.round(transform.position.y)),
-  };
-
-  switch (geometry.type) {
-    case "rect":
-      return (
-        <g {...gProps}>
-          <rect
-            x={0}
-            y={0}
-            width={geometry.width}
-            height={geometry.height}
-            rx={geometry.rx}
-            ry={geometry.ry}
-            style={svgStyle as React.CSSProperties}
-          />
-        </g>
-      );
-    case "circle":
-      return (
-        <g {...gProps}>
-          <circle
-            cx={0}
-            cy={0}
-            r={geometry.r}
-            style={svgStyle as React.CSSProperties}
-          />
-        </g>
-      );
-    case "ellipse":
-      return (
-        <g {...gProps}>
-          <ellipse
-            cx={0}
-            cy={0}
-            rx={geometry.rx}
-            ry={geometry.ry}
-            style={svgStyle as React.CSSProperties}
-          />
-        </g>
-      );
-    case "line":
-      return (
-        <g {...gProps}>
-          <line
-            x1={geometry.x1}
-            y1={geometry.y1}
-            x2={geometry.x2}
-            y2={geometry.y2}
-            style={svgStyle as React.CSSProperties}
-          />
-        </g>
-      );
-    case "polyline": {
-      const pts = geometry.points.map((p) => `${p.x},${p.y}`).join(" ");
-      return (
-        <g {...gProps}>
-          <polyline points={pts} style={svgStyle as React.CSSProperties} />
-        </g>
-      );
-    }
-    case "polygon": {
-      const pts = geometry.points.map((p) => `${p.x},${p.y}`).join(" ");
-      return (
-        <g {...gProps}>
-          <polygon points={pts} style={svgStyle as React.CSSProperties} />
-        </g>
-      );
-    }
-    case "path":
-      return (
-        <g {...gProps}>
-          <path d={geometry.d} style={svgStyle as React.CSSProperties} />
-        </g>
-      );
-    default:
-      return null;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // DisplayElement renderer — static (design) and live (test mode)
 // ---------------------------------------------------------------------------
 
-/** Convert DisplayElementFontFamily to a CSS font-family string. */
-function deFontToCss(f: string | undefined): string {
-  if (f === "IBM Plex Sans") return "'IBM Plex Sans', sans-serif";
-  if (f === "Inter") return "Inter, sans-serif";
-  return "'JetBrains Mono', monospace";
+// ---------------------------------------------------------------------------
+// TextReadoutDE — text_readout display element with real SVG text measurement.
+// Uses useLayoutEffect + getComputedTextLength() so box width is always exact
+// regardless of EU string length, font, or font size.
+// ---------------------------------------------------------------------------
+function TextReadoutDE({
+  de,
+  tx,
+  valueStr,
+  euStr,
+  mode,
+  stale = false,
+  onContextMenu,
+}: {
+  de: DisplayElement;
+  tx: string;
+  valueStr: string;   // formatted value or "—" placeholder
+  euStr: string;      // EU unit WITHOUT leading space, or ""
+  mode: "design" | "live";
+  stale?: boolean;
+  onContextMenu?: (e: React.MouseEvent<SVGGElement>) => void;
+}) {
+  const cfg = de.config as TextReadoutConfig;
+  const minW = cfg.minWidth ?? 40;
+  const [boxW, setBoxW] = useState(minW);
+  const textRef = useRef<SVGTextElement>(null);
+
+  const ROW_H = 16;
+  const GAP = 2;
+  const pnEnabled = cfg.pointNameRow?.enabled ?? false;
+  const dnEnabled = cfg.displayNameRow?.enabled ?? false;
+  const euEnabled = !!euStr;
+  const labelRows = (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0);
+  const totalH = labelRows * (ROW_H + GAP) + ROW_H;
+
+  // Size the box on the value+EU text only — label rows (point name, display name)
+  // are centered in the same width and may overflow, matching console/graphics behavior.
+  // getComputedTextLength() is exact for mixed-font tspans (JetBrains Mono value + Inter EU).
+  const measure = useCallback(() => {
+    let maxW = minW;
+    const PAD = 12; // 6px each side
+    if (textRef.current) maxW = Math.max(maxW, Math.ceil(textRef.current.getComputedTextLength()) + PAD);
+    setBoxW(maxW);
+  }, [minW]);
+
+  // Re-measure whenever value or EU changes.
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, valueStr, euStr]);
+
+  // Re-measure once fonts finish loading — first render may use fallback metrics
+  // if the web font (JetBrains Mono) hasn't been fetched yet.
+  useEffect(() => {
+    document.fonts.ready.then(() => measure());
+  }, [measure]);
+
+  // applyDeSlotOffset bakes x -= 20 (half of 40px assumed box) into position.x
+  // for horizontal slots. Compensate with the actual measured width.
+  const hOff = Math.round(20 - boxW / 2);
+
+  const isLive = mode === "live";
+  const vR = cfg.valueRow;
+  const vFs = vR?.fontSize ?? 11;
+  const textFill = stale ? "#6b7280" : (vR?.color || "var(--io-text-primary)");
+  const euFill = stale ? "#6b7280" : "var(--io-text-muted)";
+  const boxFill = isLive ? "rgba(0,0,0,0.6)" : "#27272A";
+  const boxStroke = isLive ? (stale ? "#6b7280" : "var(--io-accent)") : "#3F3F46";
+  const strokeW = isLive ? 0.5 : 1;
+
+  const rows: React.ReactNode[] = [];
+  let yOff = 0;
+
+  if (pnEnabled) {
+    const r = cfg.pointNameRow!;
+    if (r.showBackground) {
+      rows.push(<rect key="pn-bg" x={0} y={yOff} width={boxW} height={ROW_H}
+        fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"} rx={1} />);
+    }
+    rows.push(
+      <text key="pn-tx" x={boxW / 2} y={yOff + ROW_H - 4} textAnchor="middle"
+        fontSize={r.fontSize} fontWeight={r.fontWeight ?? "normal"}
+        fill={stale ? "#6b7280" : r.color || "var(--io-text-primary)"}
+        fontFamily={deFontToCss(r.fontFamily)}>
+        {de.binding.pointTag ?? (isLive ? "—" : "TAG.NAME")}
+      </text>,
+    );
+    yOff += ROW_H + GAP;
+  }
+
+  if (dnEnabled) {
+    const r = cfg.displayNameRow!;
+    if (r.showBackground) {
+      rows.push(<rect key="dn-bg" x={0} y={yOff} width={boxW} height={ROW_H}
+        fill={isLive ? "rgba(0,0,0,0.5)" : "#1E293B"} rx={1} />);
+    }
+    rows.push(
+      <text key="dn-tx" x={boxW / 2} y={yOff + ROW_H - 4} textAnchor="middle"
+        fontSize={r.fontSize} fontWeight={r.fontWeight ?? "normal"}
+        fill={stale ? "#6b7280" : r.color || "var(--io-text-secondary)"}
+        fontFamily={deFontToCss(r.fontFamily)}>
+        {de.binding.displayName ?? (isLive ? "—" : "Display Name")}
+      </text>,
+    );
+    yOff += ROW_H + GAP;
+  }
+
+  if (cfg.showBox !== false) {
+    rows.push(
+      <rect key="v-bg" x={0} y={yOff} width={boxW} height={ROW_H}
+        fill={boxFill} stroke={boxStroke} strokeWidth={strokeW} rx={1} />,
+    );
+  }
+
+  // The ref is on the value text so getComputedTextLength() measures value+EU together.
+  rows.push(
+    <text key="v-tx" ref={textRef}
+      x={boxW / 2} y={yOff + ROW_H - 4}
+      textAnchor="middle"
+      fontSize={vFs} fontWeight={vR?.fontWeight ?? "normal"}
+      fill={textFill} fontFamily={deFontToCss(vR?.fontFamily)} fontVariant="tabular-nums">
+      {valueStr}
+      {euEnabled && (
+        <tspan fontFamily="Inter" fontSize={9} fill={euFill}> {euStr}</tspan>
+      )}
+    </text>,
+  );
+
+  return (
+    <g
+      transform={`${tx} translate(${hOff},0)`}
+      data-node-id={de.id}
+      data-canvas-x={String(Math.round(de.transform.position.x))}
+      data-canvas-y={String(Math.round(de.transform.position.y))}
+      opacity={de.opacity}
+      onContextMenu={onContextMenu}
+    >
+      <rect x={0} y={0} width={boxW} height={totalH} rx={2} fill="none" />
+      {rows}
+    </g>
+  );
 }
 
 function DisplayElementRenderer({
@@ -777,461 +801,18 @@ function DisplayElementRenderer({
   node: DisplayElement;
   tx: string;
 }) {
-  const liveValues = useContext(TestModeContext);
-  const pointCtxMenuSetter = useContext(PointCtxMenuSetterContext);
-  const live = node.binding.pointId
-    ? liveValues.get(node.binding.pointId)
-    : undefined;
   const cfg = node.config;
   const de = node;
 
-  // Shared right-click handler for test mode — only fires when setter is available
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent<SVGGElement>) => {
-      if (!pointCtxMenuSetter) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const pointId = de.binding.pointId || "";
-      pointCtxMenuSetter({
-        pointId,
-        tagName: pointId,
-        x: e.clientX,
-        y: e.clientY,
-      });
-    },
-    [pointCtxMenuSetter, de.binding.pointId],
-  );
-
-  // ── Live rendering (test mode has a value) ────────────────────────────────
-  if (live !== undefined) {
-    const v = live.value;
-    const stale = live.stale;
-    const textColor = stale ? "#6b7280" : "var(--io-text-primary)";
-
-    switch (cfg.displayType) {
-      case "text_readout": {
-        const tCfg = cfg as TextReadoutConfig;
-        const formatted = formatValue(v, tCfg.valueFormat ?? "%.2f");
-        const boxW = Math.max(tCfg.minWidth ?? 60, formatted.length * 8 + 8);
-        const ROW_H = 16;
-        const GAP = 2;
-
-        const pnEnabled = tCfg.pointNameRow?.enabled ?? false;
-        const dnEnabled = tCfg.displayNameRow?.enabled ?? false;
-        const rowEls: React.ReactNode[] = [];
-        let yOff = 0;
-
-        if (pnEnabled) {
-          const r = tCfg.pointNameRow!;
-          if (r.showBackground) {
-            rowEls.push(
-              <rect
-                key="pn-bg"
-                x={0}
-                y={yOff}
-                width={boxW}
-                height={ROW_H}
-                fill="rgba(0,0,0,0.5)"
-                rx={1}
-              />,
-            );
-          }
-          rowEls.push(
-            <text
-              key="pn-tx"
-              x={4}
-              y={yOff + ROW_H - 4}
-              fontSize={r.fontSize}
-              fill={stale ? "#6b7280" : r.color || "var(--io-text-primary)"}
-              fontFamily={deFontToCss(r.fontFamily)}
-            >
-              {de.binding.pointId ?? "—"}
-            </text>,
-          );
-          yOff += ROW_H + GAP;
-        }
-
-        if (dnEnabled) {
-          const r = tCfg.displayNameRow!;
-          if (r.showBackground) {
-            rowEls.push(
-              <rect
-                key="dn-bg"
-                x={0}
-                y={yOff}
-                width={boxW}
-                height={ROW_H}
-                fill="rgba(0,0,0,0.5)"
-                rx={1}
-              />,
-            );
-          }
-          rowEls.push(
-            <text
-              key="dn-tx"
-              x={4}
-              y={yOff + ROW_H - 4}
-              fontSize={r.fontSize}
-              fill={stale ? "#6b7280" : r.color || "var(--io-text-secondary)"}
-              fontFamily={deFontToCss(r.fontFamily)}
-            >
-              {tCfg.labelText ?? "—"}
-            </text>,
-          );
-          yOff += ROW_H + GAP;
-        }
-
-        const vR = tCfg.valueRow;
-        const vFs = vR?.fontSize ?? 11;
-        const vShowBg = vR?.showBackground ?? true;
-        if (vShowBg) {
-          rowEls.push(
-            <rect
-              key="v-bg"
-              x={0}
-              y={yOff}
-              width={boxW}
-              height={ROW_H}
-              fill="rgba(0,0,0,0.6)"
-              stroke={stale ? "#6b7280" : "var(--io-accent)"}
-              strokeWidth={0.5}
-              rx={1}
-            />,
-          );
-        }
-        rowEls.push(
-          <text
-            key="v-tx"
-            x={4}
-            y={yOff + ROW_H - 4}
-            fontSize={vFs}
-            fill={stale ? "#6b7280" : "var(--io-text-primary)"}
-            fontFamily={deFontToCss(vR?.fontFamily)}
-            fontVariant="tabular-nums"
-          >
-            {formatted}
-          </text>,
-        );
-
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            {rowEls}
-          </g>
-        );
-      }
-      case "analog_bar": {
-        const barW =
-          cfg.orientation === "vertical" ? cfg.barWidth : cfg.barHeight;
-        const barH =
-          cfg.orientation === "vertical" ? cfg.barHeight : cfg.barWidth;
-        const range = cfg.rangeHi - cfg.rangeLo || 1;
-        const pct = Math.max(0, Math.min(1, (v - cfg.rangeLo) / range));
-        const fillW = cfg.orientation === "horizontal" ? barW * pct : barW;
-        const fillH = cfg.orientation === "vertical" ? barH * pct : barH;
-        const fillY = cfg.orientation === "vertical" ? barH - fillH : 0;
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={barW}
-              height={barH}
-              fill="rgba(0,0,0,0.4)"
-              stroke="var(--io-border)"
-              strokeWidth={0.5}
-              rx={1}
-            />
-            <rect
-              x={0}
-              y={fillY}
-              width={fillW}
-              height={fillH}
-              fill={stale ? "#6b7280" : "var(--io-accent)"}
-              rx={1}
-              style={{ transition: "height 0.3s, width 0.3s, y 0.3s" }}
-            />
-            {cfg.showNumericReadout && (
-              <text
-                x={barW / 2}
-                y={barH + 11}
-                fontSize={9}
-                fill={textColor}
-                textAnchor="middle"
-                fontFamily="var(--io-font-mono)"
-              >
-                {formatValue(v, "%.1f")}
-              </text>
-            )}
-          </g>
-        );
-      }
-      case "alarm_indicator": {
-        const alarming = v !== 0;
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            <circle
-              cx={8}
-              cy={8}
-              r={7}
-              fill={alarming ? "#ef4444" : "#22c55e"}
-              stroke={alarming ? "#dc2626" : "#16a34a"}
-              strokeWidth={1}
-            />
-          </g>
-        );
-      }
-      case "digital_status": {
-        const label =
-          cfg.stateLabels[String(Math.round(v))] ?? String(Math.round(v));
-        const isNormal = cfg.normalStates.includes(String(Math.round(v)));
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={60}
-              height={20}
-              fill={isNormal ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}
-              stroke={isNormal ? "#22c55e" : "#ef4444"}
-              strokeWidth={0.5}
-              rx={2}
-            />
-            <text
-              x={4}
-              y={13}
-              fontSize={9}
-              fill={isNormal ? "#22c55e" : "#ef4444"}
-            >
-              {label}
-            </text>
-          </g>
-        );
-      }
-      case "fill_gauge": {
-        const range = cfg.rangeHi - cfg.rangeLo || 1;
-        const pct = Math.max(0, Math.min(1, (v - cfg.rangeLo) / range));
-        const w = cfg.barWidth ?? 40,
-          h = cfg.barHeight ?? 80;
-        const fillH = h * pct;
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={w}
-              height={h}
-              fill="rgba(0,0,0,0.4)"
-              stroke="var(--io-border)"
-              strokeWidth={0.5}
-              rx={2}
-            />
-            <rect
-              x={0}
-              y={h - fillH}
-              width={w}
-              height={fillH}
-              fill={stale ? "#6b7280" : "#3b82f6"}
-              rx={1}
-            />
-            {cfg.showValue && (
-              <text
-                x={w / 2}
-                y={h / 2 + 4}
-                fontSize={9}
-                fill={textColor}
-                textAnchor="middle"
-                fontFamily="var(--io-font-mono)"
-              >
-                {formatValue(v, cfg.valueFormat ?? "%.0f")}
-              </text>
-            )}
-          </g>
-        );
-      }
-      case "point_name_label": {
-        const pnCfg = cfg as PointNameLabelConfig;
-        const text = pnCfg.staticText ?? de.binding.pointId ?? "—";
-        const fs = pnCfg.fontSize ?? 10;
-        const ff = deFontToCss(pnCfg.fontFamily);
-        const color = stale
-          ? "#6b7280"
-          : pnCfg.color || "var(--io-text-secondary)";
-        return (
-          <g
-            transform={tx}
-            data-node-id={de.id}
-            data-canvas-x={String(Math.round(de.transform.position.x))}
-            data-canvas-y={String(Math.round(de.transform.position.y))}
-            opacity={de.opacity}
-            onContextMenu={handleContextMenu}
-          >
-            <text x={0} y={fs} fontSize={fs} fill={color} fontFamily={ff}>
-              {text}
-            </text>
-          </g>
-        );
-      }
-      default:
-        break;
-    }
-  }
-
   // ── Design mode (static) spec-accurate preview ──────────────────────────
-  const tagLabel = de.binding.pointId ? "⬤" : "";
   switch (cfg.displayType) {
     case "text_readout": {
       const tCfg = cfg as TextReadoutConfig;
-      const ROW_H = 16;
-      const GAP = 2;
-      const pnEnabled = tCfg.pointNameRow?.enabled ?? false;
-      const dnEnabled = tCfg.displayNameRow?.enabled ?? false;
-      const numRows = (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0) + 1;
-      const boxW = Math.max(tCfg.minWidth ?? 60, 92);
-      const totalH = numRows * ROW_H + (numRows - 1) * GAP;
-      const designEls: React.ReactNode[] = [];
-      let yOff = 0;
-
-      if (pnEnabled) {
-        const r = tCfg.pointNameRow!;
-        designEls.push(
-          <rect
-            key="pn-bg"
-            x={0}
-            y={yOff}
-            width={boxW}
-            height={ROW_H}
-            rx={1}
-            fill="#1E293B"
-          />,
-          <text
-            key="pn-tx"
-            x={4}
-            y={yOff + ROW_H - 4}
-            fontSize={r.fontSize}
-            fill="#94A3B8"
-            fontFamily={deFontToCss(r.fontFamily)}
-          >
-            {de.binding.pointId ?? "TAG.NAME"}
-          </text>,
-        );
-        yOff += ROW_H + GAP;
-      }
-
-      if (dnEnabled) {
-        const r = tCfg.displayNameRow!;
-        designEls.push(
-          <rect
-            key="dn-bg"
-            x={0}
-            y={yOff}
-            width={boxW}
-            height={ROW_H}
-            rx={1}
-            fill="#1E293B"
-          />,
-          <text
-            key="dn-tx"
-            x={4}
-            y={yOff + ROW_H - 4}
-            fontSize={r.fontSize}
-            fill="#64748B"
-            fontFamily={deFontToCss(r.fontFamily)}
-          >
-            {tCfg.labelText ?? "Display Name"}
-          </text>,
-        );
-        yOff += ROW_H + GAP;
-      }
-
-      const vR = tCfg.valueRow;
-      designEls.push(
-        <rect
-          key="v-bg"
-          x={0}
-          y={yOff}
-          width={boxW}
-          height={ROW_H}
-          rx={1}
-          fill="#27272A"
-          stroke="#3F3F46"
-          strokeWidth={1}
-        />,
-        <text
-          key="v-tx"
-          x={boxW / 2}
-          y={yOff + ROW_H - 4}
-          textAnchor="middle"
-          fontSize={vR?.fontSize ?? 11}
-          fill="#A1A1AA"
-          fontFamily={deFontToCss(vR?.fontFamily)}
-          fontVariant="tabular-nums"
-        >
-          —
-        </text>,
-      );
-
-      if (de.binding.pointId) {
-        designEls.push(
-          <text
-            key="tag-dot"
-            x={boxW - 3}
-            y={8}
-            textAnchor="end"
-            fontSize={7}
-            fill="#2DD4BF"
-            opacity={0.7}
-          >
-            {tagLabel}
-          </text>,
-        );
-      }
-
+      const euStr = tCfg.showUnits ? (de.binding.unit ?? "EU") : "";
       return (
-        <g
-          transform={tx}
-          data-node-id={de.id}
-          data-canvas-x={String(Math.round(de.transform.position.x))}
-          data-canvas-y={String(Math.round(de.transform.position.y))}
-          opacity={de.opacity}
-        >
-          <rect x={0} y={0} width={boxW} height={totalH} rx={2} fill="none" />
-          {designEls}
-        </g>
+        <TextReadoutDE
+          de={de} tx={tx} valueStr={formatDesignPlaceholder(tCfg.valueFormat ?? "%.2f")} euStr={euStr} mode="design"
+        />
       );
     }
     case "analog_bar": {
@@ -1357,46 +938,13 @@ function DisplayElementRenderer({
       );
     }
     case "fill_gauge": {
-      const gW = "barWidth" in cfg ? (cfg.barWidth as number) : 24;
-      const gH = "barHeight" in cfg ? (cfg.barHeight as number) : 80;
-      return (
-        <g
-          transform={tx}
-          data-node-id={de.id}
-          data-canvas-x={String(Math.round(de.transform.position.x))}
-          data-canvas-y={String(Math.round(de.transform.position.y))}
-          opacity={de.opacity}
-        >
-          <rect
-            x={0}
-            y={0}
-            width={gW}
-            height={gH}
-            rx={2}
-            fill="none"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={Math.round(gH * 0.38)}
-            width={gW - 2}
-            height={Math.round(gH * 0.61)}
-            rx={1}
-            fill="#475569"
-            opacity={0.6}
-          />
-          <line
-            x1={1}
-            y1={Math.round(gH * 0.38)}
-            x2={gW - 1}
-            y2={Math.round(gH * 0.38)}
-            stroke="#64748B"
-            strokeWidth={0.8}
-            strokeDasharray="5 3"
-          />
-        </g>
-      );
+      const fgCtx: DisplayElementRenderContext = {
+        transform: tx,
+        pointValue: { value: 60, quality: "Good" },
+        designerMode: true,
+        previewMode: true,
+      };
+      return renderDisplayElementSvg(de, fgCtx);
     }
     case "sparkline": {
       const sW = "sparkWidth" in cfg ? (cfg.sparkWidth as number) : 110;
@@ -1534,192 +1082,8 @@ function DisplayElementRenderer({
 // Widget renderer — design-time placeholder for dashboard/report widgets
 // ---------------------------------------------------------------------------
 
-const WIDGET_ICONS: Record<string, string> = {
-  trend: "📈",
-  table: "▦",
-  gauge: "⏱",
-  kpi_card: "◈",
-  bar_chart: "📊",
-  pie_chart: "◕",
-  alarm_list: "🔔",
-  muster_point: "📍",
-};
-
 function WidgetRenderer({ node, tx }: { node: WidgetNode; tx: string }) {
-  const { widgetType, width, height, config } = node;
-  const title =
-    ("title" in config ? (config as { title?: string }).title : undefined) ??
-    widgetType.replace(/_/g, " ");
-  const icon = WIDGET_ICONS[widgetType] ?? "▭";
-  const isSmall = width < 80 || height < 50;
-
-  // In dashboard test mode, render an HTML live preview via foreignObject
-  const testMode = useUiStore((s) => s.testMode);
-  const designMode = useSceneStore((s) => s.designMode);
-  const liveValues = useContext(TestModeContext);
-
-  const showLivePreview = testMode && designMode === "dashboard";
-
-  if (showLivePreview) {
-    const w = Math.max(width, 40);
-    const h = Math.max(height, 28);
-    // Get live value for point-bound widget types
-    const pointId = (config as { binding?: { pointId?: string } }).binding
-      ?.pointId;
-    const liveVal = pointId ? liveValues.get(pointId) : undefined;
-    const displayVal =
-      liveVal !== undefined
-        ? typeof liveVal.value === "number"
-          ? liveVal.value.toFixed(2)
-          : String(liveVal.value)
-        : null;
-
-    return (
-      <g
-        transform={tx}
-        data-node-id={node.id}
-        data-canvas-x={String(Math.round(node.transform.position.x))}
-        data-canvas-y={String(Math.round(node.transform.position.y))}
-        opacity={node.opacity}
-      >
-        <foreignObject x={0} y={0} width={w} height={h}>
-          <div
-            // @ts-expect-error — xmlns required for SVG foreignObject
-            xmlns="http://www.w3.org/1999/xhtml"
-            style={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: 3,
-              overflow: "hidden",
-              boxSizing: "border-box",
-              fontFamily: "inherit",
-            }}
-          >
-            {/* Title bar */}
-            <div
-              style={{
-                height: 20,
-                flexShrink: 0,
-                background: "rgba(99,102,241,0.15)",
-                borderBottom: "1px solid var(--io-border)",
-                padding: "0 6px",
-                display: "flex",
-                alignItems: "center",
-                fontSize: 9,
-                fontWeight: 600,
-                color: "var(--io-accent)",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {title}
-            </div>
-            {/* Body */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-              }}
-            >
-              {displayVal !== null ? (
-                <span
-                  style={{
-                    fontSize: Math.min(h * 0.3, 28),
-                    fontWeight: 700,
-                    color: "var(--io-text-primary)",
-                  }}
-                >
-                  {displayVal}
-                </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: 10,
-                    color: "var(--io-text-muted)",
-                  }}
-                >
-                  {widgetType.replace(/_/g, " ")}
-                </span>
-              )}
-            </div>
-          </div>
-        </foreignObject>
-      </g>
-    );
-  }
-
-  return (
-    <g
-      transform={tx}
-      data-node-id={node.id}
-      data-canvas-x={String(Math.round(node.transform.position.x))}
-      data-canvas-y={String(Math.round(node.transform.position.y))}
-      opacity={node.opacity}
-    >
-      {/* Background */}
-      <rect
-        x={0}
-        y={0}
-        width={Math.max(width, 40)}
-        height={Math.max(height, 28)}
-        fill="var(--io-surface-elevated)"
-        stroke="var(--io-border)"
-        strokeWidth={1}
-        rx={3}
-      />
-      {/* Title bar */}
-      <rect
-        x={0}
-        y={0}
-        width={Math.max(width, 40)}
-        height={18}
-        fill="rgba(99,102,241,0.12)"
-        rx={3}
-      />
-      <rect
-        x={0}
-        y={14}
-        width={Math.max(width, 40)}
-        height={4}
-        fill="rgba(99,102,241,0.12)"
-      />
-      <text x={6} y={12} fontSize={9} fill="var(--io-accent)" fontWeight={500}>
-        {title}
-      </text>
-      {/* Center icon */}
-      {!isSmall && (
-        <>
-          <text
-            x={Math.max(width, 40) / 2}
-            y={Math.max(height, 28) / 2 + 10}
-            textAnchor="middle"
-            fontSize={22}
-            fill="rgba(99,102,241,0.25)"
-            fontFamily="serif"
-          >
-            {icon}
-          </text>
-          <text
-            x={Math.max(width, 40) / 2}
-            y={Math.max(height, 28) - 6}
-            textAnchor="middle"
-            fontSize={8}
-            fill="var(--io-text-muted)"
-          >
-            {widgetType.replace(/_/g, " ")}
-          </text>
-        </>
-      )}
-    </g>
-  );
+  return renderWidgetPlaceholderSvg(node, { transform: tx });
 }
 
 // ---------------------------------------------------------------------------
@@ -1735,7 +1099,6 @@ function RenderNode({
   getShapeSvg: (id: string) => string | null;
   selectedIds: Set<NodeId>;
 }): React.ReactElement | null {
-  const testMode = useUiStore((s) => s.testMode);
   if (!node.visible) return null;
 
   const { transform } = node;
@@ -1753,145 +1116,28 @@ function RenderNode({
   );
 
   switch (node.type) {
-    case "primitive":
-      return renderPrimitiveGeometry(
-        node as Primitive,
-      ) as React.ReactElement | null;
+    case "primitive": {
+      const pCtx: RenderContext = { transform: tx };
+      return renderPrimitiveSvg(node as Primitive, pCtx);
+    }
 
     case "pipe": {
       const pipe = node as Pipe;
-      const color = PIPE_SERVICE_COLORS[pipe.serviceType] ?? "#6B8CAE";
-      const commonStrokeProps = {
-        fill: "none" as const,
-        stroke: color,
-        strokeWidth: pipe.strokeWidth,
-        strokeLinecap: "round" as const,
-        strokeLinejoin: "round" as const,
-        strokeDasharray: pipe.dashPattern,
-      };
-      // Insulation: parallel offset lines on each side
-      const insulationOffset = pipe.strokeWidth + 2;
-      const renderPipePath = (d: string | null, pts: string | null) => (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          {pipe.insulated && d && (
-            <>
-              <path
-                d={d}
-                fill="none"
-                stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.5}
-                strokeDasharray="4 2"
-                style={{
-                  transform: `translate(0, ${-insulationOffset}px)`,
-                  pointerEvents: "none" as const,
-                }}
-              />
-              <path
-                d={d}
-                fill="none"
-                stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.5}
-                strokeDasharray="4 2"
-                style={{
-                  transform: `translate(0, ${insulationOffset}px)`,
-                  pointerEvents: "none" as const,
-                }}
-              />
-            </>
-          )}
-          {pipe.insulated && pts && (
-            <>
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.5}
-                strokeDasharray="4 2"
-                style={{
-                  transform: `translate(0, ${-insulationOffset}px)`,
-                  pointerEvents: "none" as const,
-                }}
-              />
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.5}
-                strokeDasharray="4 2"
-                style={{
-                  transform: `translate(0, ${insulationOffset}px)`,
-                  pointerEvents: "none" as const,
-                }}
-              />
-            </>
-          )}
-          {d && <path d={d} {...commonStrokeProps} />}
-          {pts && <polyline points={pts} {...commonStrokeProps} />}
-        </g>
-      );
+      const pipeCtx: PipeRenderContext = { transform: tx };
       if (pipe.routingMode === "auto" && pipe.waypoints.length >= 2) {
         const [start, ...rest] = pipe.waypoints;
         const end = rest[rest.length - 1];
         const midWaypoints = rest.slice(0, -1);
         const pathD = routePipe(start, end, new Set(), midWaypoints);
-        return renderPipePath(pathD, null);
+        return renderPipeSvg(pipe, pipeCtx, { pathD, polylinePoints: null });
       }
       const pts = pipe.waypoints.map((p) => `${p.x},${p.y}`).join(" ");
-      return renderPipePath(null, pts);
+      return renderPipeSvg(pipe, pipeCtx, { pathD: null, polylinePoints: pts });
     }
 
     case "text_block": {
-      const tb = node as TextBlock;
-      const bgPad = tb.background?.padding ?? 0;
-      const tbW = (tb.maxWidth ?? 120) + bgPad * 2;
-      const tbH = (tb.fontSize ? tb.fontSize * 1.4 : 20) + bgPad * 2;
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          {tb.background && (
-            <rect
-              x={0}
-              y={0}
-              width={tbW}
-              height={tbH}
-              rx={tb.background.borderRadius ?? 2}
-              fill={tb.background.fill}
-              stroke={tb.background.stroke}
-              strokeWidth={tb.background.strokeWidth}
-            />
-          )}
-          <text
-            x={bgPad}
-            y={bgPad}
-            fontFamily={tb.fontFamily}
-            fontSize={tb.fontSize}
-            fontWeight={tb.fontWeight}
-            fontStyle={tb.fontStyle}
-            textAnchor={tb.textAnchor}
-            fill={tb.fill}
-            dominantBaseline="hanging"
-          >
-            {tb.content}
-          </text>
-        </g>
-      );
+      const tbCtx: RenderContext = { transform: tx };
+      return renderTextBlockSvg(node as TextBlock, tbCtx);
     }
 
     case "symbol_instance": {
@@ -1899,188 +1145,132 @@ function RenderNode({
       const shapeEntry = useLibraryStore
         .getState()
         .getShape(si.shapeRef.shapeId);
-      const svgStr = shapeEntry?.svg ?? null;
-      const geo = shapeEntry?.sidecar.geometry;
-      const bw = geo?.baseSize?.[0] ?? geo?.width ?? 64;
-      const bh = geo?.baseSize?.[1] ?? geo?.height ?? 64;
-      const viewBox =
-        svgStr?.match(/viewBox=["']([^"']+)["']/)?.[1] ?? `0 0 ${bw} ${bh}`;
-      if (!svgStr) {
-        // Placeholder box while shape loads
-        return (
-          <g
-            key={node.id}
-            transform={tx}
-            data-node-id={node.id}
-            data-canvas-x={String(Math.round(node.transform.position.x))}
-            data-canvas-y={String(Math.round(node.transform.position.y))}
-            opacity={node.opacity}
-          >
-            <rect
-              x={0}
-              y={0}
-              width={bw}
-              height={bh}
-              fill="none"
-              stroke="var(--io-border)"
-              strokeDasharray="4 2"
-              rx={2}
-            />
-            <text
-              x={bw / 2}
-              y={bh / 2 + 4}
-              textAnchor="middle"
-              fontSize={9}
-              fill="var(--io-text-muted)"
-            >
-              {si.shapeRef.shapeId.replace(/_/g, " ")}
-            </text>
-          </g>
-        );
+
+      // Build partShapes map from libraryStore using the sidecar's addon files
+      const partShapes = new Map<string, { svg: string; sidecar: import("../../shared/types/shapes").ShapeSidecar | null }>();
+      if (shapeEntry?.sidecar?.addons) {
+        for (const addon of shapeEntry.sidecar.addons) {
+          const partId = addon.file.replace(/\.svg$/, "");
+          const partData = useLibraryStore.getState().getShape(partId);
+          if (partData) partShapes.set(partId, partData);
+        }
       }
-      // Extract inner SVG content (strip outer <svg> wrapper tag)
-      const innerMatch = svgStr.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i);
-      const inner = innerMatch ? innerMatch[1] : svgStr;
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          <svg
-            x={0}
-            y={0}
-            width={bw}
-            height={bh}
-            viewBox={viewBox}
-            overflow="visible"
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: inner }}
-          />
-          {/* Render display element children in symbol-relative space.
-              When an association highlight is active, boost matching DEs and
-              dim non-matching ones. Read via getState() — DesignerCanvas holds
-              the single subscription that drives re-renders when the value changes. */}
-          {si.children.map((child) => {
-            const activeHighlight = useUiStore.getState().highlightedPointId;
-            let childFilter: string | undefined;
-            let childOpacity: number | undefined;
-            if (activeHighlight) {
-              if (child.binding?.pointId === activeHighlight) {
-                childFilter = "brightness(1.3)";
-              } else {
-                childOpacity = 0.5;
-              }
+
+      const siCtx: SymbolInstanceRenderContext = {
+        transform: tx,
+        shapeSvg: shapeEntry?.svg ?? null,
+        shapeSidecar: shapeEntry?.sidecar ?? null,
+        partShapes,
+        stateClass: "",
+        renderChild: (child: DisplayElement, _parentOffset?: { x: number; y: number }, _vesselInteriorPath?: string, _overrideTransform?: string) => {
+          // When an association highlight is active, boost matching DEs and
+          // dim non-matching ones. Read via getState() -- DesignerCanvas holds
+          // the single subscription that drives re-renders when the value changes.
+          const activeHighlight = useUiStore.getState().highlightedPointId;
+          let childFilter: string | undefined;
+          let childOpacity: number | undefined;
+          if (activeHighlight) {
+            if (child.binding?.pointId === activeHighlight) {
+              childFilter = "brightness(1.3)";
+            } else {
+              childOpacity = 0.5;
             }
+          }
+
+          // vessel_overlay fill gauges require the vesselInteriorPath to render correctly.
+          // Use the shared renderer with a 60% design-preview value so the clip path is shown.
+          // These are interior sidecars — no overrideTransform is passed for them.
+          if (
+            child.config.displayType === "fill_gauge" &&
+            (child.config as FillGaugeConfig).mode === "vessel_overlay" &&
+            _vesselInteriorPath
+          ) {
+            const childTx = buildTransform(
+              child.transform.position.x,
+              child.transform.position.y,
+              child.transform.rotation,
+              child.transform.scale.x,
+              child.transform.scale.y,
+              child.transform.mirror,
+              0,
+              0,
+            );
+            const deCtx: DisplayElementRenderContext = {
+              transform: childTx,
+              pointValue: { value: 60, quality: "Good" },
+              vesselInteriorPath: _vesselInteriorPath,
+              parentOffset: _parentOffset,
+              designerMode: true,
+              previewMode: true,
+            };
             return (
               <g
                 key={child.id}
                 style={{ filter: childFilter, opacity: childOpacity }}
               >
-                <RenderNode
-                  node={child}
-                  getShapeSvg={getShapeSvg}
-                  selectedIds={selectedIds}
-                />
+                {renderDisplayElementSvg(child, deCtx)}
               </g>
             );
-          })}
-        </g>
-      );
+          }
+
+          // Exterior sidecars: _overrideTransform is a pre-computed counter-rotation string
+          // that keeps the element at its canvas position regardless of parent rotation.
+          if (_overrideTransform) {
+            return (
+              <g
+                key={child.id}
+                style={{ filter: childFilter, opacity: childOpacity }}
+              >
+                <DisplayElementRenderer node={child} tx={_overrideTransform} />
+              </g>
+            );
+          }
+
+          return (
+            <g
+              key={child.id}
+              style={{ filter: childFilter, opacity: childOpacity }}
+            >
+              <RenderNode
+                node={child}
+                getShapeSvg={getShapeSvg}
+                selectedIds={selectedIds}
+              />
+            </g>
+          );
+        },
+      };
+      return renderSymbolInstanceSvg(si, siCtx);
     }
 
     case "display_element": {
       const de = node as DisplayElement;
-      return (
-        <>
-          <DisplayElementRenderer key={de.id} node={de} tx={tx} />
-          {de.freeform && !testMode && !isInsideFillSidecar(de) && (
-            <circle
-              transform={tx}
-              cx={0}
-              cy={0}
-              r={3}
-              stroke="#4A9EFF"
-              fill="none"
-              strokeWidth={1}
-              style={{ pointerEvents: "none" }}
-            />
-          )}
-        </>
-      );
+      return <DisplayElementRenderer key={de.id} node={de} tx={tx} />;
     }
 
     case "image": {
-      const img = node as ImageNode;
-      // Support both server-side hashes and embedded data URLs
-      const url = img.assetRef.hash.startsWith("data:")
-        ? img.assetRef.hash
-        : `/api/v1/image-assets/${img.assetRef.hash}`;
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          <image
-            href={url}
-            x={0}
-            y={0}
-            width={img.displayWidth}
-            height={img.displayHeight}
-            preserveAspectRatio={
-              img.preserveAspectRatio ? "xMidYMid meet" : "none"
-            }
-            imageRendering={
-              img.imageRendering === "auto" ? undefined : img.imageRendering
-            }
-          />
-        </g>
-      );
+      const imgCtx: RenderContext = { transform: tx };
+      return renderImageSvg(node as ImageNode, imgCtx);
     }
 
     case "group": {
-      const grp = node as Group;
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          {grp.children.map((child) => (
-            <RenderNode
-              key={child.id}
-              node={child}
-              getShapeSvg={getShapeSvg}
-              selectedIds={selectedIds}
-            />
-          ))}
-        </g>
-      );
+      const grpCtx: GroupRenderContext = {
+        transform: tx,
+        renderChild: (child: SceneNode) => (
+          <RenderNode
+            key={child.id}
+            node={child}
+            getShapeSvg={getShapeSvg}
+            selectedIds={selectedIds}
+          />
+        ),
+      };
+      return renderGroupSvg(node as Group, grpCtx);
     }
 
     case "embedded_svg": {
-      const esn = node as EmbeddedSvgNode;
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-          dangerouslySetInnerHTML={{ __html: esn.svgContent }}
-        />
-      );
+      const esvgCtx: RenderContext = { transform: tx };
+      return renderEmbeddedSvgSvg(node as EmbeddedSvgNode, esvgCtx);
     }
 
     case "widget": {
@@ -2089,627 +1279,30 @@ function RenderNode({
     }
 
     case "annotation": {
-      const an = node as import("../../shared/types/graphics").Annotation;
-      const cfg = an.config as unknown as Record<string, unknown>;
-      const aw = (cfg.width as number) ?? 200;
-      const ah = (cfg.height as number) ?? 20;
-      switch (an.annotationType) {
-        case "section_break": {
-          const sbCfg =
-            an.config as import("../../shared/types/graphics").SectionBreakConfig;
-          const thickness = sbCfg.thickness ?? 1.5;
-          const color = sbCfg.color ?? "var(--io-accent)";
-          const dasharray =
-            sbCfg.style === "dotted"
-              ? "2 4"
-              : sbCfg.style === "space"
-                ? undefined
-                : undefined;
-          const isSpace = sbCfg.style === "space";
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              {isSpace ? (
-                <rect x={0} y={0} width={aw} height={thickness} fill="none" />
-              ) : (
-                <line
-                  x1={0}
-                  y1={thickness / 2}
-                  x2={aw}
-                  y2={thickness / 2}
-                  stroke={color}
-                  strokeWidth={thickness}
-                  strokeLinecap="round"
-                  strokeDasharray={dasharray}
-                />
-              )}
-            </g>
-          );
-        }
-        case "page_break":
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <line
-                x1={0}
-                y1={10}
-                x2={aw}
-                y2={10}
-                stroke="#EF4444"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeDasharray="6 4"
-              />
-              <rect
-                x={aw / 2 - 28}
-                y={2}
-                width={56}
-                height={14}
-                rx={2}
-                fill="rgba(239,68,68,0.15)"
-              />
-              <text
-                x={aw / 2}
-                y={12}
-                textAnchor="middle"
-                fontSize={8}
-                fill="#EF4444"
-                fontWeight={600}
-                fontFamily="Inter"
-              >
-                PAGE BREAK
-              </text>
-            </g>
-          );
-        case "header": {
-          const hCfg =
-            an.config as import("../../shared/types/graphics").HeaderConfig;
-          const hH = hCfg.height ?? 40;
-          const hFs = hCfg.fontSize ?? 11;
-          const hContent = hCfg.content ?? "Header";
-          const hAnchor =
-            hCfg.textAlign === "center"
-              ? "middle"
-              : hCfg.textAlign === "right"
-                ? "end"
-                : "start";
-          const hTx =
-            hCfg.textAlign === "center"
-              ? aw / 2
-              : hCfg.textAlign === "right"
-                ? aw - 8
-                : 8;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <rect
-                x={0}
-                y={0}
-                width={aw}
-                height={hH}
-                rx={2}
-                fill="rgba(59,130,246,0.1)"
-                stroke="#3b82f6"
-                strokeWidth={1}
-              />
-              <text
-                x={hTx}
-                y={hH / 2 + hFs * 0.35}
-                textAnchor={hAnchor}
-                fontSize={hFs}
-                fill="#93c5fd"
-                fontWeight={500}
-                fontFamily="Inter"
-              >
-                {hContent}
-              </text>
-              <line
-                x1={0}
-                y1={hH}
-                x2={aw}
-                y2={hH}
-                stroke="#3b82f6"
-                strokeWidth={1}
-                strokeDasharray="4 3"
-              />
-            </g>
-          );
-        }
-        case "footer": {
-          const fCfg =
-            an.config as import("../../shared/types/graphics").FooterConfig;
-          const fH = fCfg.height ?? 40;
-          const fFs = fCfg.fontSize ?? 11;
-          const fContent = fCfg.content ?? "Footer";
-          const fAnchor =
-            fCfg.textAlign === "center"
-              ? "middle"
-              : fCfg.textAlign === "right"
-                ? "end"
-                : "start";
-          const fTx =
-            fCfg.textAlign === "center"
-              ? aw / 2
-              : fCfg.textAlign === "right"
-                ? aw - 8
-                : 8;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <line
-                x1={0}
-                y1={0}
-                x2={aw}
-                y2={0}
-                stroke="#3b82f6"
-                strokeWidth={1}
-                strokeDasharray="4 3"
-              />
-              <rect
-                x={0}
-                y={0}
-                width={aw}
-                height={fH}
-                rx={2}
-                fill="rgba(59,130,246,0.1)"
-                stroke="#3b82f6"
-                strokeWidth={1}
-              />
-              <text
-                x={fTx}
-                y={fH / 2 + fFs * 0.35}
-                textAnchor={fAnchor}
-                fontSize={fFs}
-                fill="#93c5fd"
-                fontWeight={500}
-                fontFamily="Inter"
-              >
-                {fContent}
-              </text>
-            </g>
-          );
-        }
-        case "callout": {
-          const cCfg =
-            an.config as import("../../shared/types/graphics").CalloutConfig;
-          const cFs = cCfg.fontSize ?? 11;
-          const cPad = cCfg.padding ?? 6;
-          // annotationStyle drives default colors: note=gray, warning=amber, info=blue
-          const annotStyle = an.annotationStyle ?? "note";
-          const styleDefaults =
-            annotStyle === "warning"
-              ? {
-                  bg: "rgba(217,119,6,0.15)",
-                  border: "var(--io-status-warning)",
-                  fill: "#FDE68A",
-                }
-              : annotStyle === "info"
-                ? {
-                    bg: "rgba(59,130,246,0.15)",
-                    border: "var(--io-accent)",
-                    fill: "#93C5FD",
-                  }
-                : { bg: "#27272A", border: "#3F3F46", fill: "#F4F4F5" };
-          const cBg = cCfg.backgroundColor ?? styleDefaults.bg;
-          const cBorder = cCfg.borderColor ?? styleDefaults.border;
-          const cFill = cCfg.fill ?? styleDefaults.fill;
-          const cRx = cCfg.borderRadius ?? 4;
-          const cText = cCfg.text ?? "";
-          const cW = Math.max(60, cText.length * cFs * 0.6 + cPad * 2);
-          const cH = cFs + cPad * 2;
-          const tp = cCfg.targetPoint ?? { x: cW / 2, y: cH + 20 };
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              {/* Leader line */}
-              <line
-                x1={cW / 2}
-                y1={cH}
-                x2={tp.x}
-                y2={tp.y}
-                stroke={cBorder}
-                strokeWidth={1.5}
-                strokeLinecap="round"
-              />
-              <circle cx={tp.x} cy={tp.y} r={3} fill={cBorder} />
-              {/* Callout box */}
-              <rect
-                x={0}
-                y={0}
-                width={cW}
-                height={cH}
-                rx={cRx}
-                fill={cBg}
-                stroke={cBorder}
-                strokeWidth={1}
-              />
-              <text
-                x={cPad}
-                y={cPad + cFs * 0.8}
-                fontSize={cFs}
-                fill={cFill}
-                fontFamily="Inter"
-              >
-                {cText}
-              </text>
-            </g>
-          );
-        }
-        case "dimension_line": {
-          const dCfg =
-            an.config as import("../../shared/types/graphics").DimensionLineConfig;
-          const dColor = dCfg.color ?? "#A1A1AA";
-          const dFs = dCfg.fontSize ?? 9;
-          const sp = dCfg.startPoint ?? { x: 0, y: 0 };
-          const ep = dCfg.endPoint ?? { x: 100, y: 0 };
-          const offset = dCfg.offset ?? 16;
-          const dist = Math.round(Math.hypot(ep.x - sp.x, ep.y - sp.y));
-          const label = dCfg.label ?? `${dist}`;
-          const mx = (sp.x + ep.x) / 2;
-          const my = (sp.y + ep.y) / 2 - offset - 4;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              {/* Extension lines */}
-              <line
-                x1={sp.x}
-                y1={sp.y}
-                x2={sp.x}
-                y2={sp.y - offset}
-                stroke={dColor}
-                strokeWidth={1}
-                strokeDasharray="3 2"
-              />
-              <line
-                x1={ep.x}
-                y1={ep.y}
-                x2={ep.x}
-                y2={ep.y - offset}
-                stroke={dColor}
-                strokeWidth={1}
-                strokeDasharray="3 2"
-              />
-              {/* Dimension line with arrows */}
-              <line
-                x1={sp.x}
-                y1={sp.y - offset}
-                x2={ep.x}
-                y2={ep.y - offset}
-                stroke={dColor}
-                strokeWidth={1}
-                markerStart="url(#arrow-start)"
-                markerEnd="url(#arrow-end)"
-              />
-              {/* Label */}
-              <rect
-                x={mx - label.length * dFs * 0.3 - 2}
-                y={my - dFs}
-                width={label.length * dFs * 0.6 + 4}
-                height={dFs + 2}
-                fill="var(--io-surface)"
-                rx={2}
-              />
-              <text
-                x={mx}
-                y={my}
-                textAnchor="middle"
-                fontSize={dFs}
-                fill={dColor}
-                fontFamily="Inter"
-              >
-                {label}
-              </text>
-            </g>
-          );
-        }
-        case "north_arrow": {
-          const nCfg =
-            an.config as import("../../shared/types/graphics").NorthArrowConfig;
-          const nSize = nCfg.size ?? 40;
-          const nColor = nCfg.color ?? "#A1A1AA";
-          const r = nSize / 2;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              {nCfg.style === "compass" ? (
-                <>
-                  <circle
-                    cx={r}
-                    cy={r}
-                    r={r - 1}
-                    fill="none"
-                    stroke={nColor}
-                    strokeWidth={1}
-                  />
-                  <polygon
-                    points={`${r},2 ${r - 5},${r} ${r},${r - 4} ${r + 5},${r}`}
-                    fill={nColor}
-                  />
-                  <polygon
-                    points={`${r},${nSize - 2} ${r - 5},${r} ${r},${r + 4} ${r + 5},${r}`}
-                    fill="none"
-                    stroke={nColor}
-                    strokeWidth={1}
-                  />
-                  <text
-                    x={r}
-                    y={nSize + 10}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill={nColor}
-                    fontFamily="Inter"
-                    fontWeight={600}
-                  >
-                    N
-                  </text>
-                </>
-              ) : (
-                <>
-                  <polygon
-                    points={`${r},0 ${r - 5},${nSize - 8} ${r},${nSize - 4} ${r + 5},${nSize - 8}`}
-                    fill={nColor}
-                  />
-                  <text
-                    x={r}
-                    y={nSize + 10}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill={nColor}
-                    fontFamily="Inter"
-                    fontWeight={600}
-                  >
-                    N
-                  </text>
-                </>
-              )}
-            </g>
-          );
-        }
-        case "legend": {
-          const lCfg =
-            an.config as import("../../shared/types/graphics").LegendConfig;
-          const lFs = lCfg.fontSize ?? 10;
-          const lBg = lCfg.backgroundColor ?? "var(--io-surface-primary)";
-          const lBorder = lCfg.borderColor ?? "#3F3F46";
-          const entries = lCfg.entries ?? [];
-          const rowH = lFs + 8;
-          const lW = 140;
-          const lH = entries.length * rowH + 16;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <rect
-                x={0}
-                y={0}
-                width={lW}
-                height={Math.max(lH, 24)}
-                rx={3}
-                fill={lBg}
-                stroke={lBorder}
-                strokeWidth={1}
-              />
-              {entries.map((entry, i) => {
-                const y = 8 + i * rowH;
-                return (
-                  <g key={i}>
-                    {entry.symbol === "line" ? (
-                      <line
-                        x1={8}
-                        y1={y + rowH / 2}
-                        x2={24}
-                        y2={y + rowH / 2}
-                        stroke={entry.color}
-                        strokeWidth={2}
-                      />
-                    ) : entry.symbol === "circle" ? (
-                      <circle
-                        cx={16}
-                        cy={y + rowH / 2}
-                        r={5}
-                        fill={entry.color}
-                      />
-                    ) : (
-                      <rect
-                        x={8}
-                        y={y + 2}
-                        width={16}
-                        height={rowH - 4}
-                        fill={entry.color}
-                        rx={1}
-                      />
-                    )}
-                    <text
-                      x={30}
-                      y={y + lFs}
-                      fontSize={lFs}
-                      fill="#D4D4D8"
-                      fontFamily="Inter"
-                    >
-                      {entry.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </g>
-          );
-        }
-        case "border": {
-          const bCfg =
-            an.config as import("../../shared/types/graphics").BorderConfig;
-          const bW = bCfg.width ?? 200;
-          const bH = bCfg.height ?? 150;
-          const bStroke = bCfg.strokeColor ?? "#3F3F46";
-          const bSW = bCfg.strokeWidth ?? 1;
-          const bRx =
-            bCfg.cornerStyle === "rounded" ? (bCfg.cornerRadius ?? 4) : 0;
-          const bDash = bCfg.strokeDasharray;
-          const tb = bCfg.titleBlock;
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <rect
-                x={0}
-                y={0}
-                width={bW}
-                height={bH}
-                rx={bRx}
-                fill="none"
-                stroke={bStroke}
-                strokeWidth={bSW}
-                strokeDasharray={bDash}
-              />
-              {tb && (
-                <>
-                  <line
-                    x1={0}
-                    y1={bH - 24}
-                    x2={bW}
-                    y2={bH - 24}
-                    stroke={bStroke}
-                    strokeWidth={bSW}
-                  />
-                  <text
-                    x={8}
-                    y={bH - 14}
-                    fontSize={9}
-                    fill="#A1A1AA"
-                    fontFamily="Inter"
-                    fontWeight={600}
-                  >
-                    {tb.title}
-                  </text>
-                  <text
-                    x={bW - 8}
-                    y={bH - 14}
-                    textAnchor="end"
-                    fontSize={8}
-                    fill="#71717A"
-                    fontFamily="Inter"
-                  >
-                    {tb.drawingNumber} Rev {tb.revision}
-                  </text>
-                  <text
-                    x={8}
-                    y={bH - 4}
-                    fontSize={7}
-                    fill="#71717A"
-                    fontFamily="Inter"
-                  >
-                    By: {tb.drawnBy} {tb.date}
-                  </text>
-                </>
-              )}
-            </g>
-          );
-        }
-        default:
-          return (
-            <g
-              key={node.id}
-              transform={tx}
-              data-node-id={node.id}
-              data-canvas-x={String(Math.round(node.transform.position.x))}
-              data-canvas-y={String(Math.round(node.transform.position.y))}
-              opacity={node.opacity}
-            >
-              <rect
-                x={0}
-                y={0}
-                width={Math.max(aw, 60)}
-                height={Math.max(ah, 20)}
-                fill="none"
-                stroke="var(--io-border)"
-                strokeDasharray="3 2"
-                rx={2}
-              />
-              <text x={6} y={14} fontSize={8} fill="var(--io-text-muted)">
-                {an.annotationType}
-              </text>
-            </g>
-          );
-      }
+      const anCtx: RenderContext = { transform: tx };
+      return renderAnnotationSvg(
+        node as import("../../shared/types/graphics").Annotation,
+        anCtx,
+      );
     }
 
-    case "stencil":
+    case "stencil": {
+      const st = node as Stencil;
+      const stencilSvg = useLibraryStore.getState().getStencil(st.stencilRef.stencilId);
+      if (!stencilSvg) {
+        void useLibraryStore.getState().loadStencil(st.stencilRef.stencilId);
+      }
+      const stCtx: StencilRenderContext = {
+        transform: tx,
+        svgContent: stencilSvg,
+        size: { width: st.size?.width ?? 48, height: st.size?.height ?? 48 },
+        displayName: st.name ?? "Stencil",
+      };
+      return renderStencilSvg(st, stCtx);
+    }
+
     default:
-      // Placeholder for unimplemented types
-      return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          data-canvas-x={String(Math.round(node.transform.position.x))}
-          data-canvas-y={String(Math.round(node.transform.position.y))}
-          opacity={node.opacity}
-        >
-          <rect
-            x={0}
-            y={0}
-            width={48}
-            height={24}
-            fill="none"
-            stroke="var(--io-border)"
-            strokeDasharray="3 2"
-          />
-          <text x={4} y={16} fontSize={8} fill="var(--io-text-muted)">
-            {node.type}
-          </text>
-        </g>
-      );
+      return null;
   }
 }
 
@@ -2862,7 +1455,7 @@ function SelectionOverlay({
   // Handles are rendered at the preview position (pointer-events off — resize is committed on mouseup).
   if (resizePreview) {
     const { x: px, y: py, w: pw, h: ph, rotation: prot } = resizePreview;
-    const pad = 1 / zoom;
+    const pad = Math.max(1.5, 3 / zoom);
     const pcx = px + pw / 2;
     const pcy = py + ph / 2;
     const rotAttr = prot !== 0 ? `rotate(${prot},${pcx},${pcy})` : undefined;
@@ -2951,13 +1544,30 @@ function SelectionOverlay({
         const node = nodeMap.get(id);
         if (!node) return null;
 
-        const bounds = getNodeAbsoluteBounds(node, doc.children);
-        const x = bounds.x + ddx;
-        const y = bounds.y + ddy;
-        const { w, h } = bounds;
-        const cx = x + w / 2;
-        const cy = y + h / 2;
-        const pad = 1 / zoom;
+        // vessel_overlay fill gauges have no independent selection box — they are
+        // visually contained within the vessel and move/resize with the parent SI.
+        if (
+          node.type === "display_element" &&
+          (node as DisplayElement).config.displayType === "fill_gauge" &&
+          ((node as DisplayElement).config as FillGaugeConfig).mode === "vessel_overlay"
+        ) return null;
+
+        // Full bounds drive the rotation center so it always matches the shape's
+        // actual stored rotation pivot (center of the full viewBox × scale).
+        const fullBounds = getNodeAbsoluteBounds(node, doc.children);
+        // Visual bounds use selectionBounds from the sidecar when available,
+        // giving a tighter rect that hugs the shape body instead of the viewBox.
+        const visualBounds = getNodeVisualBounds(node, doc.children);
+        const vx = visualBounds.x + ddx;
+        const vy = visualBounds.y + ddy;
+        const { w: vw, h: vh } = visualBounds;
+        const cx = fullBounds.x + fullBounds.w / 2 + ddx;
+        const cy = fullBounds.y + fullBounds.h / 2 + ddy;
+        // Minimum 1.5 canvas units — always covers the 0.75px stroke half-width
+        // for shapes whose paths reach the viewBox edge (valves, etc.).
+        // At low zoom we get ~3 screen-px breathing room; at high zoom the fixed
+        // canvas-unit floor keeps the box visually outside the stroke.
+        const pad = Math.max(1.5, 3 / zoom);
         const rot =
           previewRotation?.nodeId === id
             ? previewRotation.angle
@@ -2966,12 +1576,13 @@ function SelectionOverlay({
 
         return (
           <g key={id} transform={rotAttr}>
-            {/* Selection rect */}
+            {/* Selection rect — uses visual bounds so shapes with padding in their
+                viewBox (reactors, tanks) show a tight outline around the body. */}
             <rect
-              x={x - pad}
-              y={y - pad}
-              width={w + pad * 2}
-              height={h + pad * 2}
+              x={vx - pad}
+              y={vy - pad}
+              width={vw + pad * 2}
+              height={vh + pad * 2}
               fill="none"
               stroke="var(--io-accent)"
               strokeWidth={1 / zoom}
@@ -2993,12 +1604,12 @@ function SelectionOverlay({
                 const sinR = Math.sin(rotRad);
                 const pivot = getNodeRotationPivot(node);
                 return [
-                  { lx: x - pad - zoneOutset, ly: y - pad - zoneOutset },
-                  { lx: x + w + pad + zoneOutset, ly: y - pad - zoneOutset },
-                  { lx: x - pad - zoneOutset, ly: y + h + pad + zoneOutset },
+                  { lx: vx - pad - zoneOutset, ly: vy - pad - zoneOutset },
+                  { lx: vx + vw + pad + zoneOutset, ly: vy - pad - zoneOutset },
+                  { lx: vx - pad - zoneOutset, ly: vy + vh + pad + zoneOutset },
                   {
-                    lx: x + w + pad + zoneOutset,
-                    ly: y + h + pad + zoneOutset,
+                    lx: vx + vw + pad + zoneOutset,
+                    ly: vy + vh + pad + zoneOutset,
                   },
                 ].map(({ lx, ly }, i) => {
                   // World position of this corner for startRotate angle seed
@@ -3067,7 +1678,9 @@ function SelectionOverlay({
             const isNonResizableDE =
               isSymbolChildDE &&
               ((node as DisplayElement).displayType === "text_readout" ||
-                (node as DisplayElement).displayType === "point_name_label");
+                (node as DisplayElement).displayType === "point_name_label" ||
+                ((node as DisplayElement).displayType === "fill_gauge" &&
+                  ((node as DisplayElement).config as FillGaugeConfig).mode === "vessel_overlay"));
             if (isDimensionLine || isNonResizableDE) return null;
             // DE children store positions parent-relative; use absolute bounds for handles
             const bounds = isSymbolChildDE
@@ -3552,6 +2165,7 @@ function ConnectionPointsOverlay({
     if (!entry) continue;
 
     const geo = entry.sidecar.geometry;
+    if (!geo) continue;
     const bw = geo.baseSize?.[0] ?? geo.width ?? 64;
     const bh = geo.baseSize?.[1] ?? geo.height ?? 64;
 
@@ -3689,6 +2303,7 @@ export default function DesignerCanvas({
   const pipeDrawState = useUiStore((s) => s.pipeDrawState);
   const drawPreview = useUiStore((s) => s.drawPreview);
   const testMode = useUiStore((s) => s.testMode);
+  const testModePaused = useUiStore((s) => s.testModePaused);
   const startDrag = useUiStore((s) => s.startDrag);
   const endDrag = useUiStore((s) => s.endDrag);
   const setGrid = useUiStore((s) => s.setGrid);
@@ -3704,6 +2319,13 @@ export default function DesignerCanvas({
   // Subscribed here so DesignerCanvas re-renders when the value changes,
   // causing all RenderNode instances to re-read it via getState() in the symbol_instance case.
   useUiStore((s) => s.highlightedPointId);
+  // Subscribed here so DesignerCanvas re-renders on every selection change — ensures
+  // SelectionOverlay receives the updated selectedIdsRef.current after Ctrl+A, marquee
+  // completion, and blank-canvas deselect (all paths that don't otherwise trigger a re-render).
+  useUiStore((s) => s.selectedNodeIds);
+  // Subscribed here so DesignerCanvas re-renders when any shape (including composable
+  // part shapes) finishes loading — cache is a new Map reference on every update.
+  useLibraryStore((s) => s.cache);
 
   // Slot popover — opened when a + circle is clicked; holds the target slot + screen coords
   const [slotPopover, setSlotPopover] = useState<{
@@ -3713,11 +2335,10 @@ export default function DesignerCanvas({
     siId: NodeId;
   } | null>(null);
 
-  // Slot snap state — drives ghost circle rendering during display_element drag
-  const [sidecarSnapInfo, setSidecarSnapInfo] = useState<{
-    ghostTargets: SlotTarget[];
-    snapTarget: SlotTarget | null;
-  } | null>(null);
+  // Test mode: no frozen-doc state needed — overlay is simply not rendered when
+  // paused, so the editable canvas is fully visible. Resuming re-mounts the
+  // SceneRenderer fresh with liveSubscribe=true against the current doc.
+
 
   // Tracks active sidecar drag for dragMoveFn/dragUpFn commit logic.
   // Stored in a ref so closures created in handleMouseDown always see current state.
@@ -3793,14 +2414,6 @@ export default function DesignerCanvas({
   const historyRedo = useHistoryStore((s) => s.redo);
 
   const getShapeSvg = useLibraryStore((s) => s.getShapeSvg);
-
-  // Test mode: subscribe to all bound point IDs via WebSocket
-  const pointIdsForTest = useMemo(
-    () => (testMode && doc ? extractPointIds(doc) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [testMode, doc, version],
-  );
-  const testModeValues = usePointValues(pointIdsForTest);
 
   // Local selection state
   const selectedIdsRef = useRef<Set<NodeId>>(new Set());
@@ -3878,10 +2491,10 @@ export default function DesignerCanvas({
   const canvasDragMoveFnRef = useRef<((e: MouseEvent) => void) | null>(null);
   const canvasDragUpFnRef = useRef<((e: MouseEvent) => void) | null>(null);
 
-  // Point context menu (test mode only) — tracks trigger position + point identity
-  const [pointCtxMenu, setPointCtxMenu] = useState<PointCtxMenuTrigger | null>(
-    null,
-  );
+  // Refs to document-level marquee listeners — same pattern as drag, ensures the marquee
+  // rect updates and commits even when the mouse moves outside the canvas container div.
+  const canvasMarqueeMoveFnRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const canvasMarqueeUpFnRef = useRef<((e: MouseEvent) => void) | null>(null);
 
   // Bind Point dialog — holds the nodeId to bind when PointPickerModal confirms
   const [bindingNodeId, setBindingNodeId] = useState<NodeId | null>(null);
@@ -3912,6 +2525,8 @@ export default function DesignerCanvas({
     config: PlacedShapeConfig;
     shapeId: string;
     categoryId: string;
+    symW: number;
+    symH: number;
   } | null>(null);
   const ghostPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const ghostImgRef = useRef<HTMLImageElement>(null);
@@ -3920,6 +2535,7 @@ export default function DesignerCanvas({
   const [shapeConfigNodeId, setShapeConfigNodeId] = useState<NodeId | null>(
     null,
   );
+  const [shapeConfigJumpToPoint, setShapeConfigJumpToPoint] = useState(false);
 
   // Save-as-stencil dialog — holds the selected nodes to save
   const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null);
@@ -4198,6 +2814,7 @@ export default function DesignerCanvas({
       if (!entry) continue;
 
       const geo = entry.sidecar.geometry;
+      if (!geo) continue;
       const bw = geo.baseSize?.[0] ?? geo.width ?? 64;
       const bh = geo.baseSize?.[1] ?? geo.height ?? 64;
       const vbParts = geo.viewBox.split(/[\s,]+/).map(Number);
@@ -4256,6 +2873,7 @@ export default function DesignerCanvas({
       nodes: SceneNode[],
       parentOffset?: { x: number; y: number },
       parentSymbolId?: NodeId,
+      parentScale?: { x: number; y: number },
     ): {
       nodeId: NodeId;
       nodeType: SceneNodeType;
@@ -4268,14 +2886,30 @@ export default function DesignerCanvas({
         if (n.type === "symbol_instance") {
           const si = n as SymbolInstance;
           const siPos = si.transform.position;
-          // Check display_element children FIRST (with parent offset) so a sidecar
+          const siScale = {
+            x: si.transform.scale?.x ?? 1,
+            y: si.transform.scale?.y ?? 1,
+          };
+          // Check display_element children FIRST (with parent offset+scale) so a sidecar
           // element is selectable even when it overlaps the shape body.
+          // vessel_overlay fill gauges are excluded — they behave like composable parts:
+          // not independently selectable, move and resize with the parent SI.
           if (si.children?.length > 0) {
-            const childHit = search(si.children as SceneNode[], siPos, si.id);
+            const hittableChildren = (si.children as SceneNode[]).filter((c) => {
+              if (c.type !== "display_element") return true;
+              const de = c as DisplayElement;
+              return !(
+                de.config.displayType === "fill_gauge" &&
+                (de.config as FillGaugeConfig).mode === "vessel_overlay"
+              );
+            });
+            const childHit = search(hittableChildren, siPos, si.id, siScale);
             if (childHit) return childHit;
           }
-          // Then check the SI body itself
-          const b = getNodeBounds(si);
+          // Then check the SI body itself — use visual bounds (sidecar selectionBounds when
+          // available) so clicking in the empty padding of a large viewBox (tanks, reactors,
+          // columns) does not register as a hit and incorrectly starts a drag instead of a marquee.
+          const b = getNodeVisualBounds(si, d!.children);
           if (
             canvasX >= b.x &&
             canvasX <= b.x + b.w &&
@@ -4288,13 +2922,19 @@ export default function DesignerCanvas({
         }
 
         const b = getNodeBounds(n);
-        const bx = parentOffset ? b.x + parentOffset.x : b.x;
-        const by = parentOffset ? b.y + parentOffset.y : b.y;
+        // Display elements store positions as parent-relative unscaled offsets;
+        // canvas position = parentOffset + child * parentScale.
+        const psx = parentScale?.x ?? 1;
+        const psy = parentScale?.y ?? 1;
+        const bx = parentOffset ? b.x * psx + parentOffset.x : b.x;
+        const by = parentOffset ? b.y * psy + parentOffset.y : b.y;
+        const bw = b.w;
+        const bh = b.h;
         if (
           canvasX >= bx &&
-          canvasX <= bx + b.w &&
+          canvasX <= bx + bw &&
           canvasY >= by &&
-          canvasY <= by + b.h
+          canvasY <= by + bh
         ) {
           return { nodeId: n.id, nodeType: n.type, parentSymbolId };
         }
@@ -4408,6 +3048,16 @@ export default function DesignerCanvas({
       }
       if (e.button !== 0) return;
 
+      const inter = interactionRef.current;
+
+      // Guard: ignore spurious left mousedown events that arrive during an active
+      // interaction (marquee, drag, rotate, etc.). Touchpads can fire a second
+      // mousedown mid-drag from palm contact or secondary gestures, which stacks
+      // a second marqueeUpFn listener — the first upFn then resets inter.type to
+      // "none" before the second fires, causing the second to return early and skip
+      // the selection commit. Rejecting mid-interaction mousedowns closes this gap.
+      if (inter.type !== "none") return;
+
       // Clear point association highlight on any canvas left-click
       if (useUiStore.getState().highlightedPointId) {
         useUiStore.getState().setHighlightedPoint(null);
@@ -4420,7 +3070,6 @@ export default function DesignerCanvas({
       const cx = (e.clientX - rect.left - vp.panX) / vp.zoom;
       const cy = (e.clientY - rect.top - vp.panY) / vp.zoom;
       const tool = toolRef.current;
-      const inter = interactionRef.current;
 
       inter.startCanvasX = cx;
       inter.startCanvasY = cy;
@@ -4453,7 +3102,107 @@ export default function DesignerCanvas({
           }
         }
 
-        const hit = hitTest(cx, cy);
+        let hit = hitTest(cx, cy);
+        // For symbol_instances: verify click lands on actual painted SVG content, not the
+        // transparent interior of the bounding box. Shapes like valve-ball use fill="none"
+        // on all paths — elementFromPoint returns null for clicks in those empty areas.
+        if (hit?.nodeType === "symbol_instance") {
+          const domElem = document.elementFromPoint(e.clientX, e.clientY);
+          // Inner <svg> elements (the injected shape SVG) catch pointer events across
+          // their entire viewport rectangle even when all interior content is fill="none".
+          // If elementFromPoint returns an <svg> element, the click landed in the shape
+          // viewport but not on any actual painted path/stroke — treat as empty canvas.
+          if (domElem?.tagName?.toLowerCase() === "svg") {
+            hit = null;
+          } else {
+            const nodeAncestor = domElem?.closest?.("[data-node-id]");
+            if (!nodeAncestor || nodeAncestor.getAttribute("data-node-id") !== hit.nodeId) {
+              hit = null;
+            }
+            // Guard against composable part SVGs (FO/FC/FL indicators, actuators)
+            // whose parent <svg> has pointer-events:none. Even though elementFromPoint
+            // should skip them, some browsers/conditions return children of
+            // pointer-events:none containers. Walk from domElem up to nodeAncestor
+            // and reject the hit if any intermediate element disables pointer events.
+            if (hit && domElem && nodeAncestor) {
+              let walk: Element | null = domElem;
+              while (walk && walk !== nodeAncestor) {
+                // Check both computed style and inline style — Chrome may not
+                // reflect pointer-events:none via getComputedStyle for nested SVGs.
+                const computedPe = getComputedStyle(walk).pointerEvents;
+                const inlinePe = (walk as HTMLElement).style?.pointerEvents;
+                if (computedPe === "none" || inlinePe === "none") {
+                  hit = null;
+                  break;
+                }
+                walk = walk.parentElement;
+              }
+            }
+          }
+        }
+        // Guard: reject hit when the click lands inside a composable part's rendered
+        // bounding box. Gate valve strokes (fill="none") pass through the area visually
+        // occupied by FO/FC/FL indicators — the user clicks near the indicator thinking
+        // it's empty canvas, but the valve stroke is there and triggers a drag.
+        //
+        // Bounding box is computed from: attachment point - bodyBase (placement formula
+        // used by renderNodeSvg) + part width/height, scaled to canvas space.
+        // Uses the same partId/part_id dual-lookup as renderNodeSvg.tsx.
+        if (hit?.nodeType === "symbol_instance") {
+          const siDoc = docRef.current;
+          if (siDoc) {
+            function findSiForBoundsCheck(nodes: SceneNode[]): SymbolInstance | null {
+              for (const n of nodes) {
+                if (n.id === hit!.nodeId && n.type === "symbol_instance")
+                  return n as SymbolInstance;
+                if ("children" in n && Array.isArray(n.children)) {
+                  const f = findSiForBoundsCheck(n.children as SceneNode[]);
+                  if (f) return f;
+                }
+              }
+              return null;
+            }
+            const siNode = findSiForBoundsCheck(siDoc.children);
+            if (siNode && (siNode.composableParts?.length ?? 0) > 0) {
+              const sData = useLibraryStore.getState().getShape(siNode.shapeRef.shapeId);
+              const ssx = siNode.transform.scale?.x ?? 1;
+              const ssy = siNode.transform.scale?.y ?? 1;
+              const sp = siNode.transform.position;
+              const margin = 6;
+              for (const cp of siNode.composableParts) {
+                // Dual-lookup: DB may store as part_id (older schema) or partId
+                const pid =
+                  cp.partId ??
+                  (cp as unknown as Record<string, string>)["part_id"];
+                if (!pid) continue;
+                const att = (sData?.sidecar?.compositeAttachments ?? []).find(
+                  (a: { forPart: string }) => a.forPart === pid,
+                );
+                if (!att) continue;
+                // Part geometry comes from the part shape's own sidecar.
+                // Shape ID convention: "part-" + forPart value (e.g. "part-fail-open").
+                const partShape = useLibraryStore
+                  .getState()
+                  .getShape("part-" + pid);
+                const pGeo = partShape?.sidecar?.geometry;
+                if (!pGeo?.bodyBase) continue;
+                const pw = (pGeo.width ?? 32) * ssx;
+                const ph = (pGeo.height ?? 32) * ssy;
+                const partX = sp.x + (att.x - pGeo.bodyBase.x) * ssx;
+                const partY = sp.y + (att.y - pGeo.bodyBase.y) * ssy;
+                if (
+                  cx >= partX - margin &&
+                  cx <= partX + pw + margin &&
+                  cy >= partY - margin &&
+                  cy <= partY + ph + margin
+                ) {
+                  hit = null;
+                  break;
+                }
+              }
+            }
+          }
+        }
         if (hit) {
           const { nodeId: hitId, nodeType: hitType, parentSymbolId } = hit;
           // When a display_element is selected, highlight its parent shape in the canvas
@@ -4475,10 +3224,12 @@ export default function DesignerCanvas({
             return;
           }
 
-          // Select node (Shift or Ctrl adds to selection)
+          // Select node (Shift or Ctrl toggles in multi-select; plain click replaces)
           const newSelection =
             e.shiftKey || e.ctrlKey
-              ? new Set([...selectedIdsRef.current, hitId])
+              ? selectedIdsRef.current.has(hitId)
+                ? new Set([...selectedIdsRef.current].filter((id) => id !== hitId))
+                : new Set([...selectedIdsRef.current, hitId])
               : new Set([hitId]);
           selectedIdsRef.current = newSelection;
           useUiStore.getState().setSelectedNodes(Array.from(newSelection));
@@ -4602,14 +3353,24 @@ export default function DesignerCanvas({
                 const sorig =
                   interactionRef.current.originalPositions.get(sNodeId);
                 if (sorig) {
-                  let newPos = { x: sorig.x + ddx, y: sorig.y + ddy };
+                  // DE positions are in parent-relative unscaled space; divide
+                  // canvas delta by parent scale to stay in that coordinate space.
+                  const dForSnap = docRef.current;
+                  const siForScale = dForSnap?.children.find(
+                    (n) => n.id === sParentId,
+                  ) as SymbolInstance | undefined;
+                  const psx = siForScale?.transform.scale?.x ?? 1;
+                  const psy = siForScale?.transform.scale?.y ?? 1;
+                  let newPos = {
+                    x: sorig.x + ddx / psx,
+                    y: sorig.y + ddy / psy,
+                  };
                   let snapRes = {
                     snapped: false,
                     slotId: null as string | null,
                     position: { x: dcx, y: dcy },
                     ghostTargets: [] as SlotTarget[],
                   };
-                  const dForSnap = docRef.current;
                   if (dForSnap && sParentId) {
                     const si = dForSnap.children.find(
                       (n) => n.id === sParentId,
@@ -4624,10 +3385,12 @@ export default function DesignerCanvas({
                         shapeEntry,
                       );
                       if (snapRes.snapped) {
-                        // Convert canvas-absolute snap pos to parent-relative for SVG
+                        // Convert canvas-absolute snap pos to parent-relative unscaled space
                         newPos = {
-                          x: snapRes.position.x - si.transform.position.x,
-                          y: snapRes.position.y - si.transform.position.y,
+                          x: (snapRes.position.x - si.transform.position.x) /
+                            (si.transform.scale?.x ?? 1),
+                          y: (snapRes.position.y - si.transform.position.y) /
+                            (si.transform.scale?.y ?? 1),
                         };
                       }
                     }
@@ -4639,37 +3402,37 @@ export default function DesignerCanvas({
                   };
                   const sxform =
                     interactionRef.current.originalTransforms.get(sNodeId);
-                  const spivot = interactionRef.current.originalPivots.get(
-                    sNodeId,
-                  ) ?? { x: 0, y: 0 };
                   const sgEl = svgEl.querySelector(
                     `[data-node-id="${sNodeId}"]`,
                   );
-                  if (sgEl) {
+                  if (sgEl && siForScale) {
+                    // Exterior sidecar drag: apply counter-rotation so the element
+                    // keeps its canvas-space orientation regardless of parent rotation.
+                    const siEntry = useLibraryStore
+                      .getState()
+                      .getShape(siForScale.shapeRef.shapeId);
+                    const siGeo = siEntry?.sidecar?.geometry;
+                    const siNatW = siGeo?.baseSize?.[0] ?? siGeo?.width ?? 64;
+                    const siNatH = siGeo?.baseSize?.[1] ?? siGeo?.height ?? 64;
+                    const siPivX =
+                      (siNatW * (siForScale.transform.scale?.x ?? 1)) / 2;
+                    const siPivY =
+                      (siNatH * (siForScale.transform.scale?.y ?? 1)) / 2;
                     sgEl.setAttribute(
                       "transform",
-                      buildTransform(
-                        newPos.x,
-                        newPos.y,
+                      buildExteriorSidecarTransform(
+                        newPos,
                         sxform?.rotation ?? 0,
-                        sxform?.scale?.x ?? 1,
-                        sxform?.scale?.y ?? 1,
+                        sxform?.scale ?? { x: 1, y: 1 },
                         sxform?.mirror ?? "none",
-                        spivot.x,
-                        spivot.y,
+                        siForScale.transform.rotation,
+                        siForScale.transform.scale,
+                        siForScale.transform.mirror,
+                        siPivX,
+                        siPivY,
                       ),
                     );
                   }
-                  setSidecarSnapInfo({
-                    ghostTargets: snapRes.ghostTargets,
-                    snapTarget: snapRes.snapped
-                      ? {
-                          slotId: snapRes.slotId!,
-                          x: snapRes.position.x,
-                          y: snapRes.position.y,
-                        }
-                      : null,
-                  });
                 }
               } else {
                 // SHAPE GROUP DRAG: move all selected nodes by delta (existing behavior)
@@ -4830,15 +3593,18 @@ export default function DesignerCanvas({
                 prevFreeform,
                 snapResult,
               } = sidecarDragRef.current;
+              // DE positions are parent-relative unscaled — look up parent scale once.
+              const commitPsi = ud.children.find((n) => n.id === sParentId) as
+                | SymbolInstance
+                | undefined;
+              const commitPsx = commitPsi?.transform.scale?.x ?? 1;
+              const commitPsy = commitPsi?.transform.scale?.y ?? 1;
               if (snapResult?.snapped && snapResult.slotId) {
-                // Snap to slot: position passed is parent-relative
-                const si = ud.children.find((n) => n.id === sParentId) as
-                  | SymbolInstance
-                  | undefined;
-                const parentPos = si?.transform.position ?? { x: 0, y: 0 };
+                // Snap to slot: convert canvas-absolute pos to parent-relative unscaled
+                const parentPos = commitPsi?.transform.position ?? { x: 0, y: 0 };
                 const parentRelPos = {
-                  x: snapResult.position.x - parentPos.x,
-                  y: snapResult.position.y - parentPos.y,
+                  x: (snapResult.position.x - parentPos.x) / commitPsx,
+                  y: (snapResult.position.y - parentPos.y) / commitPsy,
                 };
                 executeCmd(
                   new SnapSidecarToSlotCommand(
@@ -4848,7 +3614,8 @@ export default function DesignerCanvas({
                   ),
                 );
               } else if (Math.abs(udx) > 0.5 || Math.abs(udy) > 0.5) {
-                // Freeform: move + mark as freeform
+                // Freeform: delta is canvas-space; divide by parent scale to get
+                // parent-relative unscaled delta that MoveNodesCommand stores.
                 const ut = ufindT(ud.children, sNodeId);
                 const uprevTransforms = new Map<NodeId, Transform>();
                 if (ut) uprevTransforms.set(sNodeId, ut);
@@ -4856,7 +3623,7 @@ export default function DesignerCanvas({
                   new CompoundCommand("Move Sidecar", [
                     new MoveNodesCommand(
                       [sNodeId],
-                      { x: snap(udx), y: snap(udy) },
+                      { x: snap(udx / commitPsx), y: snap(udy / commitPsy) },
                       uprevTransforms,
                     ),
                     new ChangePropertyCommand(
@@ -4869,7 +3636,6 @@ export default function DesignerCanvas({
                 );
               }
               sidecarDragRef.current.active = false;
-              setSidecarSnapInfo(null);
             } else {
               // NORMAL DRAG commit (shape group, primitives, etc.)
               if (Math.abs(udx) > 0.5 || Math.abs(udy) > 0.5) {
@@ -4908,14 +3674,86 @@ export default function DesignerCanvas({
           document.addEventListener("mousemove", dragMoveFn);
           document.addEventListener("mouseup", dragUpFn, true);
         } else {
-          // Start marquee selection
-          if (!e.shiftKey) {
+          // Start marquee. Shift/Ctrl = additive, Alt = subtractive — all preserve existing selection.
+          if (!e.shiftKey && !e.ctrlKey && !e.altKey) {
             selectedIdsRef.current = new Set();
             useUiStore.getState().setSelectedNodes([]);
             useUiStore.getState().setHighlightedShape(null);
           }
           inter.type = "marquee";
           setMarquee({ startX: cx, startY: cy, endX: cx, endY: cy });
+
+          // Document-level listeners — mirrors the drag path so the marquee rect updates
+          // and commits correctly even when the mouse moves outside the canvas container.
+          const marqueeMoveFn = (me: MouseEvent) => {
+            if (interactionRef.current.type !== "marquee") return;
+            const r = containerRef.current?.getBoundingClientRect();
+            if (!r) return;
+            const vp = viewportRef.current;
+            const mcx = (me.clientX - r.left - vp.panX) / vp.zoom;
+            const mcy = (me.clientY - r.top - vp.panY) / vp.zoom;
+            setMarquee({
+              startX: interactionRef.current.startCanvasX,
+              startY: interactionRef.current.startCanvasY,
+              endX: snap(mcx),
+              endY: snap(mcy),
+            });
+          };
+
+          const marqueeUpFn = (me: MouseEvent) => {
+            document.removeEventListener("mousemove", marqueeMoveFn);
+            document.removeEventListener("mouseup", marqueeUpFn, true);
+            canvasMarqueeMoveFnRef.current = null;
+            canvasMarqueeUpFnRef.current = null;
+
+            if (interactionRef.current.type !== "marquee") return;
+            interactionRef.current.type = "none";
+
+            const r = containerRef.current?.getBoundingClientRect();
+            const vp = viewportRef.current;
+            const ucx = r ? (me.clientX - r.left - vp.panX) / vp.zoom : interactionRef.current.startCanvasX;
+            const ucy = r ? (me.clientY - r.top - vp.panY) / vp.zoom : interactionRef.current.startCanvasY;
+            const rx = Math.min(interactionRef.current.startCanvasX, ucx);
+            const ry = Math.min(interactionRef.current.startCanvasY, ucy);
+            const rw = Math.abs(ucx - interactionRef.current.startCanvasX);
+            const rh = Math.abs(ucy - interactionRef.current.startCanvasY);
+
+            const ud = docRef.current;
+            if (ud && rw > 2 && rh > 2) {
+              const scopeGroupId = useUiStore.getState().activeGroupId;
+              const scopeNodes = scopeGroupId
+                ? (() => {
+                    const gn = ud.children.find((n) => n.id === scopeGroupId);
+                    return gn && "children" in gn && Array.isArray(gn.children)
+                      ? (gn.children as SceneNode[])
+                      : ud.children;
+                  })()
+                : ud.children;
+              const hit: NodeId[] = [];
+              for (const node of scopeNodes) {
+                if (!node.visible || node.locked) continue;
+                const nb = getNodeVisualBounds(node, ud.children);
+                const fits = boundsContains(nb, rx, ry, rw, rh);
+                if (fits) hit.push(node.id);
+              }
+              if (hit.length > 0) {
+                const hitSet = new Set(hit);
+                const newSel = me.altKey
+                  ? new Set([...selectedIdsRef.current].filter((id) => !hitSet.has(id)))
+                  : me.shiftKey || me.ctrlKey
+                    ? new Set([...selectedIdsRef.current, ...hit])
+                    : new Set(hit);
+                selectedIdsRef.current = newSel;
+                useUiStore.getState().setSelectedNodes(Array.from(newSel));
+              }
+            }
+            setMarquee(null);
+          };
+
+          canvasMarqueeMoveFnRef.current = marqueeMoveFn;
+          canvasMarqueeUpFnRef.current = marqueeUpFn;
+          document.addEventListener("mousemove", marqueeMoveFn);
+          document.addEventListener("mouseup", marqueeUpFn, true);
         }
         return;
       }
@@ -5181,12 +4019,20 @@ export default function DesignerCanvas({
         const currentAngle =
           (Math.atan2(cy - center.y, cx - center.x) * 180) / Math.PI;
         let delta = currentAngle - inter.rotateStartAngle;
-        if (e.shiftKey) delta = Math.round(delta / 15) * 15;
+        if (e.shiftKey) {
+          delta = Math.round(delta / 15) * 15;
+        }
         const nodeId = Array.from(inter.rotateInitialTransforms.keys())[0];
         const initialT = nodeId
           ? inter.rotateInitialTransforms.get(nodeId)
           : undefined;
         if (nodeId && initialT) {
+          // Stickiness at right angles: snap to nearest 90° multiple within ±5°
+          if (!e.shiftKey) {
+            const rawRot = initialT.rotation + delta;
+            const nearest90 = Math.round(rawRot / 90) * 90;
+            if (Math.abs(rawRot - nearest90) <= 5) delta = nearest90 - initialT.rotation;
+          }
           const newRot = initialT.rotation + delta;
           // DOM preview: rotate the SVG element directly for 60fps feedback
           const svgEl = containerRef.current?.querySelector("svg");
@@ -5207,6 +4053,45 @@ export default function DesignerCanvas({
                   rp.y,
                 ),
               );
+              // Also update counter-rotation transforms on exterior sidecar children
+              // so they keep their canvas position as the parent rotates.
+              const rotNode = docRef.current?.children.find(
+                (n) => n.id === nodeId,
+              ) as SymbolInstance | undefined;
+              if (rotNode?.type === "symbol_instance") {
+                const rotEntry = useLibraryStore
+                  .getState()
+                  .getShape(rotNode.shapeRef.shapeId);
+                const rotGeo = rotEntry?.sidecar?.geometry;
+                const rotNatW = rotGeo?.baseSize?.[0] ?? rotGeo?.width ?? 64;
+                const rotNatH = rotGeo?.baseSize?.[1] ?? rotGeo?.height ?? 64;
+                const rotPivX =
+                  (rotNatW * (initialT.scale?.x ?? 1)) / 2;
+                const rotPivY =
+                  (rotNatH * (initialT.scale?.y ?? 1)) / 2;
+                for (const child of rotNode.children) {
+                  if (isInsideFillSidecar(child)) continue;
+                  const cEl = svgEl.querySelector(
+                    `[data-node-id="${child.id}"]`,
+                  );
+                  if (cEl) {
+                    cEl.setAttribute(
+                      "transform",
+                      buildExteriorSidecarTransform(
+                        child.transform.position,
+                        child.transform.rotation,
+                        child.transform.scale,
+                        child.transform.mirror,
+                        newRot,
+                        initialT.scale ?? { x: 1, y: 1 },
+                        initialT.mirror ?? "none",
+                        rotPivX,
+                        rotPivY,
+                      ),
+                    );
+                  }
+                }
+              }
             }
           }
           setRotationPreview({ nodeId, angle: newRot });
@@ -5237,6 +4122,11 @@ export default function DesignerCanvas({
         if (handle.includes("e")) nw = Math.max(4, ob.w + dxL);
         if (handle.includes("n")) nh = Math.max(4, ob.h - dyL);
         if (handle.includes("s")) nh = Math.max(4, ob.h + dyL);
+
+        // Stickiness at original dimensions: snap within ±5px dead zone
+        const RESIZE_STICKY = 5;
+        if (Math.abs(nw - ob.w) <= RESIZE_STICKY) nw = ob.w;
+        if (Math.abs(nh - ob.h) <= RESIZE_STICKY) nh = ob.h;
 
         // Shift = aspect-ratio lock on corner handles (2-char handle id: nw/ne/se/sw)
         if (e.shiftKey && ob.w > 0 && ob.h > 0 && handle.length === 2) {
@@ -5329,11 +4219,8 @@ export default function DesignerCanvas({
         return;
       }
 
-      if (inter.type === "draw" && drawPreview) {
-        setDrawPreview({ ...drawPreview, endX: snap(cx), endY: snap(cy) });
-        return;
-      }
-
+      // Marquee fallback — document-level listeners are primary but may not fire
+      // reliably on second+ attempts. React handler provides in-canvas coverage.
       if (inter.type === "marquee") {
         setMarquee({
           startX: inter.startCanvasX,
@@ -5341,6 +4228,11 @@ export default function DesignerCanvas({
           endX: snap(cx),
           endY: snap(cy),
         });
+        return;
+      }
+
+      if (inter.type === "draw" && drawPreview) {
+        setDrawPreview({ ...drawPreview, endX: snap(cx), endY: snap(cy) });
         return;
       }
 
@@ -5527,6 +4419,11 @@ export default function DesignerCanvas({
           if (handle.includes("e")) nw = Math.max(4, ob.w + dxL);
           if (handle.includes("n")) nh = Math.max(4, ob.h - dyL);
           if (handle.includes("s")) nh = Math.max(4, ob.h + dyL);
+
+          // Stickiness at original dimensions: snap within ±5px dead zone
+          const RESIZE_STICKY = 5;
+          if (Math.abs(nw - ob.w) <= RESIZE_STICKY) nw = ob.w;
+          if (Math.abs(nh - ob.h) <= RESIZE_STICKY) nh = ob.h;
 
           // Shift = aspect-ratio lock on corner handles (2-char handle ids: nw/ne/se/sw)
           if (e.shiftKey && ob.w > 0 && ob.h > 0 && handle.length === 2) {
@@ -6188,49 +5085,24 @@ export default function DesignerCanvas({
         setTool("select");
       }
 
-      if (inter.type === "marquee") {
-        const d = docRef.current;
-        if (d) {
-          const rx = Math.min(inter.startCanvasX, cx);
-          const ry = Math.min(inter.startCanvasY, cy);
-          const rw = Math.abs(cx - inter.startCanvasX);
-          const rh = Math.abs(cy - inter.startCanvasY);
-          if (rw > 2 && rh > 2) {
-            // When inside a group scope, select only from that group's children
-            const scopeGroupId = useUiStore.getState().activeGroupId;
-            const scopeNodes = scopeGroupId
-              ? (() => {
-                  const gn = d.children.find((n) => n.id === scopeGroupId);
-                  return gn && "children" in gn && Array.isArray(gn.children)
-                    ? (gn.children as SceneNode[])
-                    : d.children;
-                })()
-              : d.children;
-            const hit: NodeId[] = [];
-            for (const node of scopeNodes) {
-              if (!node.visible || node.locked) continue;
-              if (boundsOverlap(getNodeBounds(node), rx, ry, rw, rh))
-                hit.push(node.id);
-            }
-            if (hit.length > 0) {
-              const newSel = e.shiftKey
-                ? new Set([...selectedIdsRef.current, ...hit])
-                : new Set(hit);
-              selectedIdsRef.current = newSel;
-              useUiStore.getState().setSelectedNodes(Array.from(newSel));
-            }
-          }
-        }
-        setMarquee(null);
-      }
-
       if (inter.type === "rotate") {
         const angle =
           (Math.atan2(cy - inter.rotateCenter.y, cx - inter.rotateCenter.x) *
             180) /
           Math.PI;
         let delta = angle - inter.rotateStartAngle;
-        if (e.shiftKey) delta = Math.round(delta / 15) * 15;
+        if (e.shiftKey) {
+          delta = Math.round(delta / 15) * 15;
+        } else {
+          // Stickiness at right angles: snap to nearest 90° multiple within ±5°
+          const firstKey = Array.from(inter.rotateInitialTransforms.keys())[0];
+          const firstT = firstKey ? inter.rotateInitialTransforms.get(firstKey) : undefined;
+          if (firstT) {
+            const rawRot = firstT.rotation + delta;
+            const nearest90 = Math.round(rawRot / 90) * 90;
+            if (Math.abs(rawRot - nearest90) <= 5) delta = nearest90 - firstT.rotation;
+          }
+        }
 
         const newTransforms = new Map<NodeId, Transform>();
         const prevTransforms = new Map<NodeId, Transform>();
@@ -6331,6 +5203,44 @@ export default function DesignerCanvas({
         inter.type = "none";
         setTool("select");
         return;
+      }
+
+      // Marquee fallback — fires only if document-level marqueeUpFn (capture phase) didn't
+      // already commit the selection (which sets inter.type = "none" before this runs).
+      if (inter.type === "marquee") {
+        inter.type = "none";
+        const rx = Math.min(inter.startCanvasX, cx);
+        const ry = Math.min(inter.startCanvasY, cy);
+        const rw = Math.abs(cx - inter.startCanvasX);
+        const rh = Math.abs(cy - inter.startCanvasY);
+        if (d && rw > 2 && rh > 2) {
+          const scopeGroupId = useUiStore.getState().activeGroupId;
+          const scopeNodes = scopeGroupId
+            ? (() => {
+                const gn = d.children.find((n) => n.id === scopeGroupId);
+                return gn && "children" in gn && Array.isArray(gn.children)
+                  ? (gn.children as SceneNode[])
+                  : d.children;
+              })()
+            : d.children;
+          const hit: NodeId[] = [];
+          for (const node of scopeNodes) {
+            if (!node.visible || node.locked) continue;
+            if (boundsContains(getNodeVisualBounds(node, d.children), rx, ry, rw, rh))
+              hit.push(node.id);
+          }
+          if (hit.length > 0) {
+            const hitSet = new Set(hit);
+            const newSel = e.altKey
+              ? new Set([...selectedIdsRef.current].filter((id) => !hitSet.has(id)))
+              : e.shiftKey || e.ctrlKey
+                ? new Set([...selectedIdsRef.current, ...hit])
+                : new Set(hit);
+            selectedIdsRef.current = newSel;
+            useUiStore.getState().setSelectedNodes(Array.from(newSel));
+          }
+        }
+        setMarquee(null);
       }
 
       inter.type = "none";
@@ -6796,6 +5706,20 @@ export default function DesignerCanvas({
           setDragDelta(null);
           return;
         }
+        // Cancel active marquee — remove document-level listeners and hide the overlay.
+        if (inter.type === "marquee") {
+          if (canvasMarqueeMoveFnRef.current) {
+            document.removeEventListener("mousemove", canvasMarqueeMoveFnRef.current);
+            canvasMarqueeMoveFnRef.current = null;
+          }
+          if (canvasMarqueeUpFnRef.current) {
+            document.removeEventListener("mouseup", canvasMarqueeUpFnRef.current, true);
+            canvasMarqueeUpFnRef.current = null;
+          }
+          inter.type = "none";
+          setMarquee(null);
+          return;
+        }
         // Cancel active rotate — restore DOM transform to original.
         if (inter.type === "rotate") {
           const svgEl = containerRef.current?.querySelector("svg");
@@ -7180,40 +6104,6 @@ export default function DesignerCanvas({
       const hitResult = hitTest(cx, cy);
       const hitId = hitResult?.nodeId ?? null;
 
-      // ── Test mode: suppress edit-mode menu; show PointContextMenu for display elements ──
-      if (testMode) {
-        e.preventDefault();
-        if (hitId && docRef.current) {
-          // Recursively search the scene graph for the hit node (may be nested)
-          function findNode(nodes: SceneNode[], id: NodeId): SceneNode | null {
-            for (const n of nodes) {
-              if (n.id === id) return n;
-              if ("children" in n && Array.isArray((n as Group).children)) {
-                const found = findNode(
-                  (n as Group).children as SceneNode[],
-                  id,
-                );
-                if (found) return found;
-              }
-            }
-            return null;
-          }
-          const hitNode = findNode(docRef.current.children, hitId);
-          if (hitNode?.type === "display_element") {
-            const de = hitNode as DisplayElement;
-            const pointId = de.binding.pointId || "";
-            setPointCtxMenu({
-              pointId,
-              tagName: pointId,
-              x: e.clientX,
-              y: e.clientY,
-            });
-          }
-        }
-        // Do not set ctxNodeId — keeps the Radix edit-mode context menu from opening
-        return;
-      }
-
       if (hitId && !selectedIdsRef.current.has(hitId)) {
         selectedIdsRef.current = new Set([hitId]);
         useUiStore.getState().setSelectedNodes([hitId]);
@@ -7221,7 +6111,7 @@ export default function DesignerCanvas({
       ctxNodeIdRef.current = hitId;
       setCtxNodeId(hitId);
     },
-    [testMode, setPointCtxMenu],
+    [],
   );
 
   // -------------------------------------------------------------------------
@@ -7490,7 +6380,7 @@ export default function DesignerCanvas({
               showLabel: false,
               showUnits: true,
               valueFormat: "%.2f",
-              minWidth: 60,
+              minWidth: 40,
             };
           case "analog_bar":
             return {
@@ -7893,7 +6783,7 @@ export default function DesignerCanvas({
           labelText: "",
           showUnits: !!pointData.unit,
           valueFormat: "%.2f",
-          minWidth: 60,
+          minWidth: 40,
         },
         binding,
       };
@@ -7954,6 +6844,7 @@ export default function DesignerCanvas({
           onDoubleClick={handleDoubleClick}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
+          onDragStart={(e) => e.preventDefault()}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           style={{
@@ -7963,6 +6854,7 @@ export default function DesignerCanvas({
             background: "var(--io-surface-sunken)",
             outline: "none",
             cursor: cursorMap[activeTool] ?? "default",
+            userSelect: "none",
             ...style,
           }}
         >
@@ -7971,6 +6863,7 @@ export default function DesignerCanvas({
             data-testid="designer-canvas-svg"
             width="100%"
             height="100%"
+            onDragStart={(e) => e.preventDefault()}
             style={{
               display: "block",
               overflow: "visible",
@@ -8172,75 +7065,69 @@ export default function DesignerCanvas({
                     />
                   );
                 })()}
-              <PointCtxMenuSetterContext.Provider
-                value={testMode ? setPointCtxMenu : null}
-              >
-                <TestModeContext.Provider value={testModeValues}>
-                  {groupSubTabNodeId
-                    ? (() => {
-                        // Group sub-tab mode: only render children of the target group node
-                        const groupNode = doc?.children.find(
-                          (n) => n.id === groupSubTabNodeId,
-                        );
-                        const children =
-                          groupNode && "children" in groupNode
-                            ? (
-                                groupNode as import("../../shared/types/graphics").Group
-                              ).children
-                            : [];
-                        return children.map((node) => (
-                          <g key={node.id}>
-                            <RenderNode
-                              node={node}
-                              getShapeSvg={getShapeSvgMemo}
-                              selectedIds={selectedIdsRef.current}
-                            />
-                          </g>
-                        ));
-                      })()
-                    : (() => {
-                        if (!doc) return null;
-                        // Sort nodes by layer z-order; respect folder visibility
-                        const layerZOrder = buildLayerOrder(doc);
-                        const visibleLayerIds = buildVisibleLayers(doc);
-                        const sorted = [...doc.children].sort((a, b) => {
-                          const za = a.layerId
-                            ? (layerZOrder.get(a.layerId) ?? 0)
-                            : 0;
-                          const zb = b.layerId
-                            ? (layerZOrder.get(b.layerId) ?? 0)
-                            : 0;
-                          return za - zb;
-                        });
-                        return sorted.map((node) => {
-                          // Hide nodes whose layer (or containing folder) is invisible
-                          if (
-                            node.layerId &&
-                            !visibleLayerIds.has(node.layerId)
-                          )
-                            return null;
-                          // In group edit mode: dim nodes that are NOT the active group
-                          const isDimmed =
-                            activeGroupId !== null && node.id !== activeGroupId;
-                          return (
-                            <g
-                              key={node.id}
-                              opacity={isDimmed ? 0.3 : 1}
-                              style={
-                                isDimmed ? { pointerEvents: "none" } : undefined
-                              }
-                            >
-                              <RenderNode
-                                node={node}
-                                getShapeSvg={getShapeSvgMemo}
-                                selectedIds={selectedIdsRef.current}
-                              />
-                            </g>
-                          );
-                        });
-                      })()}
-                </TestModeContext.Provider>
-              </PointCtxMenuSetterContext.Provider>
+              {groupSubTabNodeId
+                ? (() => {
+                    // Group sub-tab mode: only render children of the target group node
+                    const groupNode = doc?.children.find(
+                      (n) => n.id === groupSubTabNodeId,
+                    );
+                    const children =
+                      groupNode && "children" in groupNode
+                        ? (
+                            groupNode as import("../../shared/types/graphics").Group
+                          ).children
+                        : [];
+                    return children.map((node) => (
+                      <g key={node.id}>
+                        <RenderNode
+                          node={node}
+                          getShapeSvg={getShapeSvgMemo}
+                          selectedIds={selectedIdsRef.current}
+                        />
+                      </g>
+                    ));
+                  })()
+                : (() => {
+                    if (!doc) return null;
+                    // Sort nodes by layer z-order; respect folder visibility
+                    const layerZOrder = buildLayerOrder(doc);
+                    const visibleLayerIds = buildVisibleLayers(doc);
+                    const sorted = [...doc.children].sort((a, b) => {
+                      const za = a.layerId
+                        ? (layerZOrder.get(a.layerId) ?? 0)
+                        : 0;
+                      const zb = b.layerId
+                        ? (layerZOrder.get(b.layerId) ?? 0)
+                        : 0;
+                      return za - zb;
+                    });
+                    return sorted.map((node) => {
+                      // Hide nodes whose layer (or containing folder) is invisible
+                      if (
+                        node.layerId &&
+                        !visibleLayerIds.has(node.layerId)
+                      )
+                        return null;
+                      // In group edit mode: dim nodes that are NOT the active group
+                      const isDimmed =
+                        activeGroupId !== null && node.id !== activeGroupId;
+                      return (
+                        <g
+                          key={node.id}
+                          opacity={isDimmed ? 0.3 : 1}
+                          style={
+                            isDimmed ? { pointerEvents: "none" } : undefined
+                          }
+                        >
+                          <RenderNode
+                            node={node}
+                            getShapeSvg={getShapeSvgMemo}
+                            selectedIds={selectedIdsRef.current}
+                          />
+                        </g>
+                      );
+                    });
+                  })()}
 
               {/* Group edit mode: teal dashed border around active group bounding box */}
               {activeGroupId &&
@@ -8293,26 +7180,6 @@ export default function DesignerCanvas({
                     />
                   );
                 })()}
-
-              {/* Slot snap circles — shown during display_element drag to indicate snap targets */}
-              {sidecarSnapInfo &&
-                sidecarSnapInfo.ghostTargets.map((gt) => {
-                  const isActive =
-                    sidecarSnapInfo.snapTarget?.slotId === gt.slotId;
-                  return (
-                    <circle
-                      key={gt.slotId}
-                      cx={gt.x}
-                      cy={gt.y}
-                      r={6 / zoom}
-                      fill={isActive ? "#4A9EFF" : "none"}
-                      stroke="#4A9EFF"
-                      strokeWidth={1 / zoom}
-                      opacity={isActive ? 0.9 : 0.6}
-                      style={{ pointerEvents: "none" }}
-                    />
-                  );
-                })}
 
               {/* Selection overlay */}
               {doc && (
@@ -8380,6 +7247,105 @@ export default function DesignerCanvas({
               )}
             </g>
           </svg>
+
+          {/* Test mode overlay — only rendered while PLAYING (not paused).
+              When paused the overlay is gone entirely so the canvas is fully
+              visible and editable. Resuming re-mounts a fresh SceneRenderer
+              with liveSubscribe=true against the current (edited) doc. */}
+          {testMode && !testModePaused && doc && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+                zIndex: 10,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseMove={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+            >
+              <ContextMenuPrimitive.Root>
+                <ContextMenuPrimitive.Trigger asChild>
+                  <div style={{ position: "absolute", inset: 0 }}>
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        width: doc.canvas.width,
+                        height: doc.canvas.height,
+                        transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                        transformOrigin: "0 0",
+                      }}
+                    >
+                      <SceneRenderer
+                        document={doc}
+                        liveSubscribe={true}
+                        preserveAspectRatio="none"
+                        style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+                      />
+                    </div>
+                  </div>
+                </ContextMenuPrimitive.Trigger>
+                <ContextMenuPrimitive.Portal>
+                  <ContextMenuPrimitive.Content
+                    style={{
+                      background: "var(--io-surface)",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: "var(--io-radius)",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                      minWidth: 160,
+                      overflow: "hidden",
+                      fontSize: 12,
+                      zIndex: 1000,
+                    }}
+                  >
+                    <ContextMenuPrimitive.Item
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "6px 14px",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        userSelect: "none",
+                        outline: "none",
+                        color: "var(--io-text-primary)",
+                        background: "transparent",
+                      }}
+                      onSelect={() =>
+                        useUiStore.getState().setTestModePaused(true)
+                      }
+                    >
+                      ⏸ Pause
+                    </ContextMenuPrimitive.Item>
+                    <ContextMenuPrimitive.Separator
+                      style={{
+                        height: 1,
+                        background: "var(--io-border)",
+                        margin: "2px 0",
+                      }}
+                    />
+                    <ContextMenuPrimitive.Item
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "6px 14px",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        userSelect: "none",
+                        outline: "none",
+                        color: "var(--io-error, #ef4444)",
+                        background: "transparent",
+                      }}
+                      onSelect={() => useUiStore.getState().setTestMode(false)}
+                    >
+                      Exit Test Mode
+                    </ContextMenuPrimitive.Item>
+                  </ContextMenuPrimitive.Content>
+                </ContextMenuPrimitive.Portal>
+              </ContextMenuPrimitive.Root>
+            </div>
+          )}
 
           {/* Hidden image file input */}
           <input
@@ -8496,28 +7462,6 @@ export default function DesignerCanvas({
                   Phone preview — 375px
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Test mode banner */}
-          {testMode && (
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "rgba(99,102,241,0.9)",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "3px 12px",
-                borderRadius: 12,
-                pointerEvents: "none",
-                letterSpacing: "0.05em",
-              }}
-            >
-              TEST MODE
             </div>
           )}
 
@@ -8820,32 +7764,6 @@ export default function DesignerCanvas({
             />
           )}
 
-          {/* Point context menu — test mode only: right-clicking a point-bound display element */}
-          {testMode && pointCtxMenu && (
-            <PointContextMenu
-              pointId={pointCtxMenu.pointId}
-              tagName={pointCtxMenu.tagName}
-              isAlarm={false}
-              isAlarmElement={false}
-              open={true}
-              onOpenChange={(open) => {
-                if (!open) setPointCtxMenu(null);
-              }}
-            >
-              {/* Invisible anchor positioned at the cursor so the dropdown appears near the click */}
-              <div
-                style={{
-                  position: "fixed",
-                  left: pointCtxMenu.x,
-                  top: pointCtxMenu.y,
-                  width: 1,
-                  height: 1,
-                  pointerEvents: "none",
-                }}
-              />
-            </PointContextMenu>
-          )}
-
           {/* Bind Point modal */}
           <PointPickerModal
             open={bindingNodeId !== null}
@@ -9076,7 +7994,7 @@ export default function DesignerCanvas({
                   TextReadout: "bottom",
                   AlarmIndicator: "top-right",
                   AnalogBar: "right",
-                  FillGauge: "right",
+                  FillGauge: "left",
                   Sparkline: "right-top",
                   DigitalStatus: "bottom",
                   PointNameLabel: "top",
@@ -9090,11 +8008,15 @@ export default function DesignerCanvas({
                     dropDefaultSlots[key] ??
                     DE_DEFAULT_SLOTS[key] ??
                     "bottom";
-                  const pos = resolveSlotWithSidecar(
+                  const pos = applyDeSlotOffset(
+                    dt,
                     slotName,
-                    key,
-                    dropSidecar,
-                    dropRelBbox,
+                    resolveSlotWithSidecar(
+                      slotName,
+                      key,
+                      dropSidecar,
+                      dropRelBbox,
+                    ),
                   );
                   return {
                     id: crypto.randomUUID(),
@@ -9107,15 +8029,28 @@ export default function DesignerCanvas({
                       mirror: "none" as const,
                     },
                     binding: config.pointBindings[0]?.pointId
-                      ? { pointId: config.pointBindings[0].pointId }
+                      ? {
+                          pointId: config.pointBindings[0].pointId,
+                          ...(config.pointBindings[0].pointTag ? { pointTag: config.pointBindings[0].pointTag } : {}),
+                          ...(config.pointBindings[0].displayName ? { displayName: config.pointBindings[0].displayName } : {}),
+                          ...(config.pointBindings[0].unit ? { unit: config.pointBindings[0].unit } : {}),
+                        }
                       : {},
-                    config: makeDefaultDisplayConfig(dt),
+                    config: makeDefaultDisplayConfig(dt, {
+                      vesselOverlay:
+                        slotName === "vessel-interior" &&
+                        !!dropSidecar?.vesselInteriorPath,
+                    }),
                     opacity: 1,
                     visible: true,
                     locked: false,
                     name: dt,
                   };
                 });
+                const dropPtId = config.pointBindings[0]?.pointId;
+                const dropPtTag = config.pointBindings[0]?.pointTag;
+                const dropPtDisplay = config.pointBindings[0]?.displayName;
+                const dropPtUnit = config.pointBindings[0]?.unit;
                 const si: SymbolInstance = {
                   id: crypto.randomUUID(),
                   type: "symbol_instance",
@@ -9123,7 +8058,7 @@ export default function DesignerCanvas({
                   transform: {
                     position: { x: cx, y: cy },
                     rotation: 0,
-                    scale: { x: 1, y: 1 },
+                    scale: { x: 1.5, y: 1.5 },
                     mirror: "none",
                   },
                   visible: true,
@@ -9137,8 +8072,13 @@ export default function DesignerCanvas({
                   textZoneOverrides: {},
                   children,
                   propertyOverrides: {},
-                  stateBinding: config.pointBindings[0]?.pointId
-                    ? { pointId: config.pointBindings[0].pointId }
+                  stateBinding: dropPtId
+                    ? {
+                        pointId: dropPtId,
+                        ...(dropPtTag ? { pointTag: dropPtTag } : {}),
+                        ...(dropPtDisplay ? { displayName: dropPtDisplay } : {}),
+                        ...(dropPtUnit ? { unit: dropPtUnit } : {}),
+                      }
                     : undefined,
                 };
                 const dropParentId = useUiStore.getState().activeGroupId;
@@ -9160,17 +8100,27 @@ export default function DesignerCanvas({
               onPlace={(config: PlacedShapeConfig) => {
                 const catId = categoryDropPending.categoryId;
                 setCategoryDropPending(null);
+                const libEntry = useLibraryStore.getState().cache.get(config.shapeId);
+                const geo = libEntry?.sidecar?.geometry;
                 setGhostPlacement({
                   config,
                   shapeId: config.shapeId,
                   categoryId: catId,
+                  symW: geo?.baseSize?.[0] ?? geo?.width ?? 64,
+                  symH: geo?.baseSize?.[1] ?? geo?.height ?? 64,
                 });
               }}
             />
           )}
 
           {/* Ghost placement overlay — shape follows cursor after wizard Place */}
-          {ghostPlacement && (
+          {ghostPlacement && (() => {
+            const SI_SCALE = 1.5;
+            const ghostPxW = Math.round(ghostPlacement.symW * SI_SCALE * viewportRef.current.zoom);
+            const ghostPxH = Math.round(ghostPlacement.symH * SI_SCALE * viewportRef.current.zoom);
+            const halfW = Math.round(ghostPxW / 2);
+            const halfH = Math.round(ghostPxH / 2);
+            return (
             <div
               style={{
                 position: "fixed",
@@ -9181,8 +8131,13 @@ export default function DesignerCanvas({
               onMouseMove={(e) => {
                 ghostPosRef.current = { x: e.clientX, y: e.clientY };
                 if (ghostImgRef.current) {
-                  ghostImgRef.current.style.left = `${e.clientX - 32}px`;
-                  ghostImgRef.current.style.top = `${e.clientY - 32}px`;
+                  const z = viewportRef.current.zoom;
+                  const pw = Math.round(ghostPlacement.symW * SI_SCALE * z);
+                  const ph = Math.round(ghostPlacement.symH * SI_SCALE * z);
+                  ghostImgRef.current.style.width = `${pw}px`;
+                  ghostImgRef.current.style.height = `${ph}px`;
+                  ghostImgRef.current.style.left = `${e.clientX - Math.round(pw / 2)}px`;
+                  ghostImgRef.current.style.top = `${e.clientY - Math.round(ph / 2)}px`;
                 }
               }}
               onClick={(e) => {
@@ -9200,15 +8155,11 @@ export default function DesignerCanvas({
                   .getState()
                   .cache.get(config.shapeId);
                 const ghostSidecar = ghostLibEntry?.sidecar;
-                const ghostGeo = ghostSidecar?.geometry;
-                const ghostW = ghostGeo?.baseSize?.[0] ?? ghostGeo?.width ?? 64;
-                const ghostH =
-                  ghostGeo?.baseSize?.[1] ?? ghostGeo?.height ?? 64;
                 const ghostRelBbox = {
                   x: 0,
                   y: 0,
-                  width: ghostW,
-                  height: ghostH,
+                  width: ghostPlacement.symW,
+                  height: ghostPlacement.symH,
                 };
                 const ghostDefaultSlots =
                   (ghostSidecar?.defaultSlots as Record<string, string>) ?? {};
@@ -9226,7 +8177,7 @@ export default function DesignerCanvas({
                   TextReadout: "bottom",
                   AlarmIndicator: "top-right",
                   AnalogBar: "right",
-                  FillGauge: "right",
+                  FillGauge: "left",
                   Sparkline: "right-top",
                   DigitalStatus: "bottom",
                   PointNameLabel: "top",
@@ -9241,11 +8192,15 @@ export default function DesignerCanvas({
                     ghostDefaultSlots[key] ??
                     GHOST_DE_SLOTS[key] ??
                     "bottom";
-                  const pos = resolveSlotWithSidecar(
+                  const pos = applyDeSlotOffset(
+                    dt,
                     slotName,
-                    key,
-                    ghostSidecar,
-                    ghostRelBbox,
+                    resolveSlotWithSidecar(
+                      slotName,
+                      key,
+                      ghostSidecar,
+                      ghostRelBbox,
+                    ),
                   );
                   return {
                     id: crypto.randomUUID(),
@@ -9258,9 +8213,20 @@ export default function DesignerCanvas({
                       mirror: "none" as const,
                     },
                     binding: config.pointBindings[0]?.pointId
-                      ? { pointId: config.pointBindings[0].pointId }
+                      ? {
+                          pointId: config.pointBindings[0].pointId,
+                          ...(config.pointBindings[0].pointTag ? { pointTag: config.pointBindings[0].pointTag } : {}),
+                          ...(config.pointBindings[0].displayName ? { displayName: config.pointBindings[0].displayName } : {}),
+                          ...(config.pointBindings[0].unit ? { unit: config.pointBindings[0].unit } : {}),
+                        }
                       : {},
-                    config: makeDefaultDisplayConfig(dt),
+                    config: (() => {
+                      const uc = config.displayElementConfigs?.[dt];
+                      const vo = slotName === "vessel-interior" && !!ghostSidecar?.vesselInteriorPath;
+                      return uc
+                        ? userConfigToDisplayConfig(dt, uc, { vesselOverlay: vo })
+                        : makeDefaultDisplayConfig(dt, { vesselOverlay: vo });
+                    })(),
                     opacity: 1,
                     visible: true,
                     locked: false,
@@ -9268,6 +8234,10 @@ export default function DesignerCanvas({
                   };
                 });
 
+                const ghostPtId = config.pointBindings[0]?.pointId;
+                const ghostPtTag = config.pointBindings[0]?.pointTag;
+                const ghostPtDisplay = config.pointBindings[0]?.displayName;
+                const ghostPtUnit = config.pointBindings[0]?.unit;
                 const si: SymbolInstance = {
                   id: crypto.randomUUID(),
                   type: "symbol_instance",
@@ -9275,7 +8245,7 @@ export default function DesignerCanvas({
                   transform: {
                     position: { x: cx, y: cy },
                     rotation: 0,
-                    scale: { x: 1, y: 1 },
+                    scale: { x: 1.5, y: 1.5 },
                     mirror: "none",
                   },
                   visible: true,
@@ -9289,8 +8259,13 @@ export default function DesignerCanvas({
                   textZoneOverrides: {},
                   children,
                   propertyOverrides: {},
-                  stateBinding: config.pointBindings[0]?.pointId
-                    ? { pointId: config.pointBindings[0].pointId }
+                  stateBinding: ghostPtId
+                    ? {
+                        pointId: ghostPtId,
+                        ...(ghostPtTag ? { pointTag: ghostPtTag } : {}),
+                        ...(ghostPtDisplay ? { displayName: ghostPtDisplay } : {}),
+                        ...(ghostPtUnit ? { unit: ghostPtUnit } : {}),
+                      }
                     : undefined,
                 };
                 const ghostParentId = useUiStore.getState().activeGroupId;
@@ -9306,17 +8281,18 @@ export default function DesignerCanvas({
                 alt=""
                 style={{
                   position: "fixed",
-                  width: 64,
-                  height: 64,
+                  width: ghostPxW,
+                  height: ghostPxH,
                   opacity: 0.6,
                   pointerEvents: "none",
-                  left: ghostPosRef.current.x - 32,
-                  top: ghostPosRef.current.y - 32,
+                  left: ghostPosRef.current.x - halfW,
+                  top: ghostPosRef.current.y - halfH,
                   objectFit: "contain",
                 }}
               />
             </div>
-          )}
+            );
+          })()}
 
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
@@ -9324,17 +8300,47 @@ export default function DesignerCanvas({
               const configNode = docRef.current?.children.find(
                 (n) => n.id === shapeConfigNodeId,
               ) as SymbolInstance | undefined;
+              const configShapeId = configNode?.shapeRef.shapeId ?? "";
+              const configCategoryId =
+                useLibraryStore.getState().index.find(
+                  (i) => i.id === configShapeId,
+                )?.category ?? "equipment";
+
+              // Pre-populate wizard from existing node state.
+              // Never fall back to pointId for the tag — pointId is a UUID and must never be shown to users.
+              const editInitialConfig = configNode ? {
+                bindings: [{
+                  partKey: "body",
+                  tag: configNode.stateBinding?.pointTag ?? "",
+                  pointId: configNode.stateBinding?.pointId ?? "",
+                  displayName: configNode.stateBinding?.displayName,
+                  unit: configNode.stateBinding?.unit,
+                }],
+                selectedElements: configNode.children.map((c) => c.displayType as string),
+                elementConfigs: Object.fromEntries(
+                  configNode.children.map((c) => [
+                    c.displayType,
+                    displayConfigToUserConfig(c.config),
+                  ]),
+                ),
+              } : undefined;
+
               return (
-                <ShapeDropDialog
-                  open={true}
+                <CategoryShapeWizard
                   editMode
-                  shapeId={configNode?.shapeRef.shapeId ?? ""}
+                  categoryId={configCategoryId}
+                  defaultShapeId={configShapeId}
                   shapeDisplayName={configNode?.name ?? "Shape"}
-                  initialVariant={configNode?.shapeRef.variant}
-                  onCancel={() => setShapeConfigNodeId(null)}
+                  initialConfig={editInitialConfig}
+                  jumpToPointBindings={shapeConfigJumpToPoint}
+                  onCancel={() => {
+                    setShapeConfigNodeId(null);
+                    setShapeConfigJumpToPoint(false);
+                  }}
                   onPlace={(config: PlacedShapeConfig) => {
                     if (!shapeConfigNodeId || !docRef.current) {
                       setShapeConfigNodeId(null);
+                      setShapeConfigJumpToPoint(false);
                       return;
                     }
                     const node = docRef.current.children.find(
@@ -9342,19 +8348,10 @@ export default function DesignerCanvas({
                     ) as SymbolInstance | undefined;
                     if (!node) {
                       setShapeConfigNodeId(null);
+                      setShapeConfigJumpToPoint(false);
                       return;
                     }
-                    const cmds: SceneCommand[] = [
-                      new ChangePropertyCommand(
-                        shapeConfigNodeId,
-                        "composableParts",
-                        config.composableParts,
-                        node.composableParts,
-                      ),
-                    ];
-                    const existingTypes = new Set(
-                      node.children.map((c) => c.displayType),
-                    );
+
                     const editLibEntry = useLibraryStore
                       .getState()
                       .cache.get(config.shapeId);
@@ -9386,53 +8383,99 @@ export default function DesignerCanvas({
                       TextReadout: "bottom",
                       AlarmIndicator: "top-right",
                       AnalogBar: "right",
-                      FillGauge: "right",
+                      FillGauge: "left",
                       Sparkline: "right-top",
                       DigitalStatus: "bottom",
                       PointNameLabel: "top",
                     };
-                    config.displayElements.forEach((dt) => {
-                      if (existingTypes.has(dt as DisplayElementType)) return;
+
+                    const newPointId = config.pointBindings[0]?.pointId;
+                    const newPointTag = config.pointBindings[0]?.pointTag;
+                    const newPointDisplay = config.pointBindings[0]?.displayName;
+                    const newPointUnit = config.pointBindings[0]?.unit;
+                    const newBinding = newPointId
+                      ? {
+                          pointId: newPointId,
+                          ...(newPointTag ? { pointTag: newPointTag } : {}),
+                          ...(newPointDisplay ? { displayName: newPointDisplay } : {}),
+                          ...(newPointUnit ? { unit: newPointUnit } : {}),
+                        }
+                      : undefined;
+
+                    const cmds: SceneCommand[] = [
+                      // Update composable parts
+                      new ChangePropertyCommand(
+                        shapeConfigNodeId,
+                        "composableParts",
+                        config.composableParts,
+                        node.composableParts,
+                      ),
+                      // Update body point binding
+                      new ChangePropertyCommand(
+                        shapeConfigNodeId,
+                        "stateBinding",
+                        newBinding,
+                        node.stateBinding,
+                      ),
+                      // Remove all existing display elements
+                      ...node.children.map((c) => new RemoveDisplayElementCommand(c.id)),
+                    ];
+
+                    // Re-add all selected display elements with user config applied
+                    for (const dt of config.displayElements) {
+                      const dtype = dt as DisplayElementType;
                       const editKey = EDIT_SIDECAR_KEY[dt] ?? dt;
                       const slotName =
+                        config.displayElementSlots?.[dt] ??
                         editDefaultSlots[editKey] ??
                         EDIT_DE_SLOTS[editKey] ??
                         "bottom";
-                      const pos = resolveSlotWithSidecar(
+                      const pos = applyDeSlotOffset(
+                        dtype,
                         slotName,
-                        editKey,
-                        editSidecar,
-                        editRelBbox,
+                        resolveSlotWithSidecar(
+                          slotName,
+                          editKey,
+                          editSidecar,
+                          editRelBbox,
+                        ),
                       );
+                      const userCfg = config.displayElementConfigs?.[dt];
                       const el: DisplayElement = {
                         id: crypto.randomUUID(),
                         type: "display_element",
-                        displayType: dt as DisplayElementType,
+                        displayType: dtype,
                         transform: {
                           position: pos,
                           rotation: 0,
                           scale: { x: 1, y: 1 },
                           mirror: "none",
                         },
-                        binding: {},
-                        config: makeDefaultDisplayConfig(
-                          dt as DisplayElementType,
-                        ),
+                        binding: newPointId
+                          ? {
+                              pointId: newPointId,
+                              ...(newPointTag ? { pointTag: newPointTag } : {}),
+                              ...(newPointDisplay ? { displayName: newPointDisplay } : {}),
+                              ...(newPointUnit ? { unit: newPointUnit } : {}),
+                            }
+                          : {},
+                        config: (() => {
+                          const vo = slotName === "vessel-interior" && !!editSidecar?.vesselInteriorPath;
+                          return userCfg
+                            ? userConfigToDisplayConfig(dtype, userCfg, { vesselOverlay: vo })
+                            : makeDefaultDisplayConfig(dtype, { vesselOverlay: vo });
+                        })(),
                         opacity: 1,
                         visible: true,
                         locked: false,
                         name: dt,
                       };
-                      cmds.push(
-                        new AddDisplayElementCommand(shapeConfigNodeId, el),
-                      );
-                    });
-                    executeCmd(
-                      cmds.length === 1
-                        ? cmds[0]
-                        : new CompoundCommand("Configure Shape", cmds),
-                    );
+                      cmds.push(new AddDisplayElementCommand(shapeConfigNodeId, el));
+                    }
+
+                    executeCmd(new CompoundCommand("Configure Shape", cmds));
                     setShapeConfigNodeId(null);
+                    setShapeConfigJumpToPoint(false);
                   }}
                 />
               );
@@ -9527,11 +8570,15 @@ export default function DesignerCanvas({
                       onClick={() => {
                         const slotName =
                           editDefaultSlots[key] ?? slotPopover.slotId;
-                        const pos = resolveSlotWithSidecar(
+                        const pos = applyDeSlotOffset(
+                          deType,
                           slotName,
-                          key,
-                          shapeEntry?.sidecar,
-                          relBbox,
+                          resolveSlotWithSidecar(
+                            slotName,
+                            key,
+                            shapeEntry?.sidecar,
+                            relBbox,
+                          ),
                         );
                         const el: DisplayElement = {
                           id: crypto.randomUUID() as NodeId,
@@ -9621,6 +8668,7 @@ export default function DesignerCanvas({
         setPromoteSourceNodeId={setPromoteSourceNodeId}
         setBindingNodeId={setBindingNodeId}
         setShapeConfigNodeId={setShapeConfigNodeId}
+        setShapeConfigJumpToPoint={setShapeConfigJumpToPoint}
         setActiveGroup={setActiveGroup}
         containerRef={containerRef}
         fitToCanvas={fitToCanvas}
@@ -9949,11 +8997,97 @@ function RulersOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Helper: adjust raw slot position so each DE type is visually well-placed
+//
+// resolveSlotWithSidecar returns the raw anchor coordinate (e.g. nx=0.5,ny=1.15
+// → shape center-bottom).  Each element type has a different rendering origin:
+//   - alarm_indicator  : renders *centered* at (x,y)  → no offset needed
+//   - analog_bar       : getNodeBounds = {x: x-15, y, w:40, h:80}
+//                        zone-labels extend 15 units left of position; we push
+//                        x right so labels start at the clearance line, and
+//                        center vertically.
+//   - everything else  : top-left origin → center on the slot axis direction.
+// ---------------------------------------------------------------------------
+function applyDeSlotOffset(
+  dt: DisplayElementType,
+  slotName: string,
+  pos: { x: number; y: number },
+): { x: number; y: number } {
+  let { x, y } = pos;
+  const isTop    = slotName === "top";
+  const isBottom = slotName === "bottom";
+  const isHoriz  = isTop || isBottom;
+  const isRight  = slotName.startsWith("right");
+  const isLeft   = slotName.startsWith("left");
+  const isVert   = isRight || isLeft;
+
+  switch (dt) {
+    case "text_readout": {
+      const w = 40; // matches default minWidth; typical 4-6 char values fit within this
+      const h = 24;
+      if (isHoriz) x -= w / 2;
+      if (isTop)   y -= h;     // label bottom at slot line
+      if (isVert)  y -= h / 2;
+      if (isLeft)  x -= w;
+      break;
+    }
+    case "alarm_indicator":
+      // center-based rendering — no adjustment needed
+      break;
+    case "analog_bar": {
+      const h = 80; // default barHeight
+      // zone labels sit at x−15; push right so they clear the shape boundary
+      if (isRight) x += 15;
+      if (isLeft)  x -= 25; // right extent (x+25) at slot edge
+      y -= h / 2;            // always center vertically
+      break;
+    }
+    case "fill_gauge": {
+      const w = 22; // default barWidth
+      const h = 90; // default barHeight
+      if (isHoriz) x -= w / 2;
+      if (isTop)   y -= h;
+      if (isVert)  y -= h / 2;
+      if (isLeft)  x -= w;
+      break;
+    }
+    case "sparkline": {
+      const h = 18; // default sparkHeight
+      if (isHoriz) x -= 55;  // half of 110 default sparkWidth
+      if (isTop)   y -= h;
+      if (isVert)  y -= h / 2;
+      if (isLeft)  x -= 110;
+      break;
+    }
+    case "digital_status": {
+      const w = 30; // conservative estimate (unbound "—" ≈18px, bound ≈36px)
+      const h = 20;
+      if (isHoriz) x -= w / 2;
+      if (isTop)   y -= h;
+      if (isVert)  y -= h / 2;
+      if (isLeft)  x -= w;
+      break;
+    }
+    case "point_name_label": {
+      const w = 80; // getNodeBounds default
+      const h = 12; // fontSize:10 + 2
+      if (isHoriz) x -= w / 2;
+      if (isTop)   y -= h;   // label bottom at slot line (sits above shape)
+      if (isVert)  y -= h / 2;
+      if (isLeft)  x -= w;
+      break;
+    }
+  }
+  return { x, y };
+}
+
+// ---------------------------------------------------------------------------
 // Helper: default config for each display element type
 // ---------------------------------------------------------------------------
 
 function makeDefaultDisplayConfig(
   dtype: DisplayElementType,
+  opts?: { vesselOverlay?: boolean },
 ): import("../../shared/types/graphics").DisplayElementConfig {
   switch (dtype) {
     case "text_readout":
@@ -9964,7 +9098,7 @@ function makeDefaultDisplayConfig(
         showLabel: false,
         labelText: "",
         showUnits: true,
-        minWidth: 60,
+        minWidth: 40,
       };
     case "analog_bar":
       return {
@@ -9983,7 +9117,7 @@ function makeDefaultDisplayConfig(
     case "fill_gauge":
       return {
         displayType: "fill_gauge",
-        mode: "standalone",
+        mode: opts?.vesselOverlay ? "vessel_overlay" : "standalone",
         fillDirection: "up",
         rangeLo: 0,
         rangeHi: 100,
@@ -10037,6 +9171,7 @@ interface DesignerContextMenuContentProps {
   setPromoteSourceNodeId: (id: string | undefined) => void;
   setBindingNodeId: (id: NodeId | null) => void;
   setShapeConfigNodeId: (id: NodeId | null) => void;
+  setShapeConfigJumpToPoint: (v: boolean) => void;
   setActiveGroup: (id: NodeId | null) => void;
   containerRef: React.RefObject<HTMLDivElement>;
   fitToCanvas: (w: number, h: number, vw: number, vh: number) => void;
@@ -10072,6 +9207,7 @@ function DesignerContextMenuContent({
   setPromoteSourceNodeId,
   setBindingNodeId,
   setShapeConfigNodeId,
+  setShapeConfigJumpToPoint,
   setActiveGroup,
   containerRef,
   fitToCanvas,
@@ -10084,6 +9220,7 @@ function DesignerContextMenuContent({
   const canForensics = usePermission("forensics:read");
   const canReports = usePermission("reports:read");
   const testMode = useUiStore((s) => s.testMode);
+  const testModePaused = useUiStore((s) => s.testModePaused);
 
   // ctxNodeId is React state (not just a ref) so this component re-renders
   // with the correct value every time the context menu is triggered.
@@ -10246,6 +9383,26 @@ function DesignerContextMenuContent({
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content style={contentStyle}>
+        {/* Test mode controls — shown at the top whenever the canvas is in test mode */}
+        {testMode && (
+          <>
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              onSelect={() =>
+                useUiStore.getState().setTestModePaused(!testModePaused)
+              }
+            >
+              {testModePaused ? "▶ Resume" : "⏸ Pause"}
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item
+              style={{ ...itemStyle, color: "var(--io-error, #ef4444)" }}
+              onSelect={() => useUiStore.getState().setTestMode(false)}
+            >
+              Exit Test Mode
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+          </>
+        )}
         {nodeId === null ? (
           // ----------------------------------------------------------------
           // RC-DES-1: Empty-canvas context menu
@@ -10943,7 +10100,10 @@ function DesignerContextMenuContent({
                   style={itemStyle}
                   disabled={!nodeId}
                   onSelect={() => {
-                    if (nodeId) setShapeConfigNodeId(nodeId);
+                    if (nodeId) {
+                      setShapeConfigNodeId(nodeId);
+                      setShapeConfigJumpToPoint(false);
+                    }
                   }}
                 >
                   Shape Configuration…
@@ -10973,7 +10133,10 @@ function DesignerContextMenuContent({
                   style={itemStyle}
                   disabled={!nodeId}
                   onSelect={() => {
-                    if (nodeId) setBindingNodeId(nodeId);
+                    if (nodeId) {
+                      setShapeConfigNodeId(nodeId);
+                      setShapeConfigJumpToPoint(true);
+                    }
                   }}
                 >
                   Bind Point…
