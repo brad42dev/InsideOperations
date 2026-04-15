@@ -2050,7 +2050,9 @@ pub async fn acquire_design_object_lock(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Design object {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Design object {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "acquire_design_object_lock fetch failed");
             return IoError::Database(e).into_response();
