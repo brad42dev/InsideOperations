@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent native browser text/element drag from hijacking pointer events.
+   Without this, clicking SVG text elements and dragging fires dragstart,
+   which cancels pointerdown capture and leaves marquee/selection state broken.
+   user-select is still honoured inside <input>/<textarea> by browsers. */
+body {
+  user-select: none;
+}
+
 /* ============================================================
    I/O Design System — CSS Custom Properties (138 tokens)
    Defaults: Dark theme. JS (tokens.ts) overrides on load.

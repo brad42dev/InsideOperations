@@ -438,7 +438,7 @@ export function renderTextReadoutSvg(
   }
 
   const parentOffset = ctx.parentOffset;
-  const hOff = Math.round(20 - w / 2);
+  const hOff = Math.round(-w / 2);
   return (
     <g
       key={node.id}
@@ -1404,6 +1404,7 @@ export function renderPointNameLabelSvg(
         fontFamily="Inter"
         fontSize={9}
         fill={cfg.style === "uniform" ? UNIT_COLOR : undefined}
+        fontWeight={cfg.fontWeight ?? "normal"}
         dominantBaseline="hanging"
         style={{ pointerEvents: "none" }}
       >

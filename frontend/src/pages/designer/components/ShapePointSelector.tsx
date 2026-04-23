@@ -256,6 +256,7 @@ export function ShapePointSelector({
 
       {/* ── Left col list ──────────────────────────────────────────────────── */}
       <div
+        onDragStart={(e) => e.stopPropagation()}
         style={{
           gridColumn: 1,
           gridRow: 3,

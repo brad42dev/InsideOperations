@@ -36,6 +36,9 @@ import { exportsApi, type ExportFormat } from "../../api/exports";
 import { showToast } from "../../shared/components/Toast";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
 import { useConsolePanelResize } from "../../shared/hooks/useConsolePanelResize";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget } from "../../shared/clipboard";
+import { createConsoleWorkspaceTarget } from "./clipboard/consolePasteTarget";
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
@@ -555,6 +558,14 @@ export default function ConsolePage() {
     clearSelection,
     setSwapModeSourceId,
   } = useSelectionStore();
+
+  useSelectionZone({
+    zoneId: "console",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: false,
+  });
+  const workspacePasteTarget = useMemo(() => createConsoleWorkspaceTarget(), []);
+  usePasteTarget(workspacePasteTarget);
 
   // ---- API-backed state (when authenticated) --------------------------------
 
@@ -1371,6 +1382,13 @@ export default function ConsolePage() {
       selectPane(paneId, addToSelection);
     },
     [selectPane],
+  );
+
+  const handlePaneSelectMany = useCallback(
+    (paneIds: string[]) => {
+      selectAll(paneIds);
+    },
+    [selectAll],
   );
 
   const handleConfigurePane = useCallback((paneId: string) => {
@@ -2884,6 +2902,7 @@ export default function ConsolePage() {
               onConfigurePane={handleConfigurePane}
               onRemovePane={handleRemovePane}
               onSelectPane={handlePaneSelect}
+              onSelectManyPanes={handlePaneSelectMany}
               onPaletteDrop={handlePaletteDrop}
               onGridBackgroundDrop={handleDropAdd}
               onGridLayoutChange={handleGridLayoutChange}

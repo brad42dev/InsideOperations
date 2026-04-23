@@ -482,9 +482,7 @@ export default function TimeSeriesChart({
             });
 
             // Click-to-highlight: find the series whose Y value is closest to click pos.
-            // stopPropagation prevents the pane selection handler from firing on chart clicks.
             u.over.addEventListener("click", (e) => {
-              e.stopPropagation();
               if (!onSeriesClickRef.current) return;
 
               // Use posToVal to find the data index nearest to the click X position.

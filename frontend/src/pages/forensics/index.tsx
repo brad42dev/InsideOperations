@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { forensicsApi, type Investigation } from "../../api/forensics";
@@ -10,6 +10,10 @@ import AlarmSearch from "./AlarmSearch";
 import { ExpressionBuilderModal } from "../../shared/components/expression/ExpressionBuilderModal";
 import { expressionsApi } from "../../api/expressions";
 import type { ExpressionAst } from "../../shared/types/expression";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget, useSelectableItem } from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { forensicsPasteTarget } from "./clipboard/forensicsPasteTarget";
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -243,6 +247,18 @@ function InvestigationCard({
   const { menuState, handleContextMenu, closeMenu } =
     useContextMenu<Investigation>();
 
+  const { onMouseDown: onSelectMouseDown, isSelected } = useSelectableItem({
+    zoneId: "forensics",
+    entity: {
+      id: inv.id,
+      zoneId: "forensics",
+      kind: "forensics-hit",
+      payload: { tagname: inv.anchor_point_id ?? "", severity: undefined },
+    },
+    interactive: true,
+    onInteractiveClick: onClick,
+  });
+
   const createdDate = new Date(inv.created_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -252,11 +268,13 @@ function InvestigationCard({
   return (
     <>
       <div
-        onClick={onClick}
+        onMouseDown={onSelectMouseDown}
         onContextMenu={(e) => handleContextMenu(e, inv)}
         style={{
-          background: "var(--io-surface)",
-          border: "1px solid var(--io-border)",
+          background: isSelected
+            ? "var(--io-accent-subtle, rgba(74,158,255,0.12))"
+            : "var(--io-surface)",
+          border: `1px solid ${isSelected ? "var(--io-accent, #4A9EFF)" : "var(--io-border)"}`,
           borderRadius: "6px",
           padding: "14px 16px",
           cursor: "pointer",
@@ -266,11 +284,13 @@ function InvestigationCard({
           transition: "border-color 0.15s, background 0.15s",
         }}
         onMouseEnter={(e) => {
+          if (isSelected) return;
           const el = e.currentTarget as HTMLDivElement;
           el.style.borderColor = "var(--io-accent, #4A9EFF)";
           el.style.background = "var(--io-surface-elevated)";
         }}
         onMouseLeave={(e) => {
+          if (isSelected) return;
           const el = e.currentTarget as HTMLDivElement;
           el.style.borderColor = "var(--io-border)";
           el.style.background = "var(--io-surface)";
@@ -714,6 +734,35 @@ export default function ForensicsPage() {
   const [tab, setTab] = useState<Tab>("investigations");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showNewModal, setShowNewModal] = useState(false);
+  const [alarmsInitialPointId, setAlarmsInitialPointId] = useState<
+    string | undefined
+  >();
+
+  useSelectionZone({
+    zoneId: "forensics",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(forensicsPasteTarget);
+
+  const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+
+  useEffect(() => {
+    function handleForensicsNavigate(e: Event) {
+      const detail = (e as CustomEvent<{ tagnames: string[]; mode: string }>)
+        .detail;
+      if (detail.tagnames?.length) {
+        setAlarmsInitialPointId(detail.tagnames[0]);
+      }
+      setTab("alarm");
+    }
+    window.addEventListener("io-navigate:forensics", handleForensicsNavigate);
+    return () =>
+      window.removeEventListener(
+        "io-navigate:forensics",
+        handleForensicsNavigate,
+      );
+  }, []);
 
   const listQuery = useQuery({
     queryKey: ["investigations", statusFilter],
@@ -804,6 +853,7 @@ export default function ForensicsPage() {
 
   return (
     <div
+      onClick={() => setActiveZone("forensics")}
       style={{
         height: "100%",
         display: "flex",
@@ -890,7 +940,7 @@ export default function ForensicsPage() {
       {tab === "threshold" ? (
         <ThresholdSearch />
       ) : tab === "alarm" ? (
-        <AlarmSearch />
+        <AlarmSearch initialPointId={alarmsInitialPointId} />
       ) : tab === "calculated" ? (
         <CalculatedSeries />
       ) : (

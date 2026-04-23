@@ -348,11 +348,12 @@ function deSlotToPosition(
     case "alarm_indicator":
       break; // center-based — no adjustment
     case "text_readout": {
-      const { w, h } = dePixelSize(dt, cfg);
-      if (isHoriz) x -= w / 2;
+      // renderTextReadoutSvg applies translate(-w/2, 0), so pos.x is the horizontal
+      // center anchor. Only adjust y and left-slot x (mirrors new applyDeSlotOffset).
+      const { h } = dePixelSize(dt, cfg);
       if (isTop) y -= h;
       if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
+      if (isLeft) x -= 40;
       break;
     }
     case "analog_bar": {
@@ -484,7 +485,10 @@ function buildPreviewDocument(
     const pos = deSlotToPosition(dt, slotName, center, userCfg);
 
     // vessel_overlay fill gauges are contained within the vessel — no bbox extension.
-    // alarm_indicator is center-anchored; all other DEs are top-left anchored.
+    // alarm_indicator is center-anchored (x and y).
+    // text_readout: renderTextReadoutSvg applies translate(-w/2,0), so pos.x is the
+    //   horizontal center — treat like alarm_indicator for x, top-anchored for y.
+    // All other DEs are top-left anchored.
     const isVesselOverlay =
       dt === "fill_gauge" &&
       slotName === "vessel-interior" &&
@@ -495,6 +499,11 @@ function buildPreviewDocument(
         minY = Math.min(minY, pos.y - dh / 2 - 4);
         maxX = Math.max(maxX, pos.x + dw / 2 + 4);
         maxY = Math.max(maxY, pos.y + dh / 2 + 4);
+      } else if (dt === "text_readout") {
+        minX = Math.min(minX, pos.x - dw / 2 - 4);
+        minY = Math.min(minY, pos.y - 4);
+        maxX = Math.max(maxX, pos.x + dw / 2 + 4);
+        maxY = Math.max(maxY, pos.y + dh + 4);
       } else {
         minX = Math.min(minX, pos.x - 4);
         minY = Math.min(minY, pos.y - 4);

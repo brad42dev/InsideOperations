@@ -30,6 +30,13 @@ import { useWorkspaceStore } from "../../../store/workspaceStore";
 import { useSavedChartsStore } from "../../../store/savedChartsStore";
 import { usePermission } from "../../../shared/hooks/usePermission";
 import SaveChartModal from "../../../shared/components/charts/SaveChartModal";
+import { useSelectionZone } from "../../../store/useSelectionZone";
+import {
+  useSelectableItem,
+  usePasteTarget,
+} from "../../../shared/clipboard";
+import { useMemo } from "react";
+import { createConsolePaneTarget } from "../clipboard/consolePasteTarget";
 
 const ChartConfigPanel = lazy(
   () => import("../../../shared/components/charts/ChartConfigPanel"),
@@ -146,6 +153,92 @@ function usePointMeta(pointIds: string[]) {
 // ---------------------------------------------------------------------------
 // TrendPane
 // ---------------------------------------------------------------------------
+// LegendItem — selectable series row in the chart legend
+// ---------------------------------------------------------------------------
+
+interface LegendItemProps {
+  pointId: string;
+  paneId: string;
+  label: string;
+  color: string;
+  isActive: boolean;
+  isHighlighted: boolean;
+  meta: PointMeta | undefined;
+  onToggleHighlight: (label: string, multi: boolean) => void;
+  onHoverEnter: (e: React.MouseEvent, meta: PointMeta) => void;
+  onHoverLeave: () => void;
+}
+
+function LegendItem({
+  pointId,
+  paneId,
+  label,
+  color,
+  isActive,
+  isHighlighted,
+  meta,
+  onToggleHighlight,
+  onHoverEnter,
+  onHoverLeave,
+}: LegendItemProps) {
+  const zoneId = `console/pane/${paneId}` as const;
+  const entity = useMemo(
+    () => ({
+      id: pointId,
+      zoneId,
+      kind: "chart-series-row" as const,
+      payload: { tagname: pointId, displayName: meta?.name, unit: meta?.unit ?? undefined },
+    }),
+    [pointId, zoneId, meta],
+  );
+  const { onMouseDown, isSelected } = useSelectableItem({
+    zoneId,
+    entity,
+    interactive: true,
+    onInteractiveClick: (e) => onToggleHighlight(label, e.ctrlKey || e.metaKey),
+  });
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      onMouseEnter={(e) => { if (meta) onHoverEnter(e, meta); }}
+      onMouseLeave={onHoverLeave}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 11,
+        cursor: "pointer",
+        userSelect: "none",
+        opacity: isActive ? 1 : 0.35,
+        transition: "opacity 0.15s",
+        outline: isSelected ? "2px solid var(--io-accent)" : undefined,
+        outlineOffset: isSelected ? "2px" : undefined,
+        borderRadius: 3,
+      }}
+    >
+      <span
+        style={{
+          display: "inline-block",
+          width: 10,
+          height: 3,
+          borderRadius: 2,
+          background: color,
+        }}
+      />
+      <span
+        style={{
+          color: "var(--io-text-muted)",
+          fontWeight: isHighlighted ? 700 : 400,
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 export default function TrendPane({
   config,
@@ -158,6 +251,18 @@ export default function TrendPane({
   const { updatePane, activeId } = useWorkspaceStore();
   const { saveChart, publishChart } = useSavedChartsStore();
   const canPublish = usePermission("console:publish");
+
+  const paneZoneId = `console/pane/${config.id}` as const;
+  useSelectionZone({
+    zoneId: paneZoneId,
+    indicatorStyle: "soft-glow",
+    supportsSelectAll: true,
+  });
+  const pasteTarget = useMemo(
+    () => createConsolePaneTarget(config.id),
+    [config.id],
+  );
+  usePasteTarget(pasteTarget);
 
   // Auto-open Configure Chart when pane was placed from the Charts palette item.
   useEffect(() => {
@@ -799,54 +904,29 @@ export default function TrendPane({
           const label = meta?.name ?? id;
           const isActive = highlighted.size === 0 || highlighted.has(label);
           return (
-            <div
+            <LegendItem
               key={id}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleHighlight(label, e.ctrlKey || e.metaKey);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 11,
-                cursor: "pointer",
-                userSelect: "none",
-                opacity: isActive ? 1 : 0.35,
-                transition: "opacity 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                if (!meta) return;
+              pointId={id}
+              paneId={config.id}
+              label={label}
+              color={SERIES_COLORS[idx % SERIES_COLORS.length]}
+              isActive={isActive}
+              isHighlighted={highlighted.has(label)}
+              meta={meta}
+              onToggleHighlight={toggleHighlight}
+              onHoverEnter={(e, m) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 const parent = e.currentTarget
                   .closest("[data-trend-pane]")
                   ?.getBoundingClientRect();
                 setLegendTip({
-                  meta,
+                  meta: m,
                   x: r.left - (parent?.left ?? 0),
                   y: r.bottom - (parent?.top ?? 0) + 4,
                 });
               }}
-              onMouseLeave={() => setLegendTip(null)}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 10,
-                  height: 3,
-                  borderRadius: 2,
-                  background: SERIES_COLORS[idx % SERIES_COLORS.length],
-                }}
-              />
-              <span
-                style={{
-                  color: "var(--io-text-muted)",
-                  fontWeight: highlighted.has(label) ? 700 : 400,
-                }}
-              >
-                {label}
-              </span>
-            </div>
+              onHoverLeave={() => setLegendTip(null)}
+            />
           );
         })}
       </div>

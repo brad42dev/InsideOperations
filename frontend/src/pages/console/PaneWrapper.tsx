@@ -5,6 +5,7 @@ import TrendPane from "./panes/TrendPane";
 import PointTablePane from "./panes/PointTablePane";
 import AlarmListPane from "./panes/AlarmListPane";
 import GraphicPane from "./panes/GraphicPane";
+import TemporaryGraphicPane from "./clipboard/TemporaryGraphicPane";
 import { PaneErrorBoundary } from "./PaneErrorBoundary";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from "./ConsolePalette";
@@ -259,6 +260,9 @@ export default function PaneWrapper({
     }
     // Ignore clicks on buttons / context menus
     if ((e.target as HTMLElement).closest('button, [role="menu"]')) return;
+    // Only select from the title bar / drag-handle area so that interactions
+    // with pane content (graphics, charts, etc.) are not intercepted.
+    if (!(e.target as HTMLElement).closest(".io-pane-drag-handle")) return;
     onSelect?.(config.id, e.ctrlKey || e.metaKey || e.shiftKey);
   }
 
@@ -720,12 +724,19 @@ export default function PaneWrapper({
             />
           )}
           {config.type === "alarm_list" && <AlarmListPane config={config} />}
-          {config.type === "graphic" && config.graphicId && (
-            <GraphicPane
-              graphicId={config.graphicId}
-              preserveAspectRatio={preserveAspectRatio}
-            />
-          )}
+          {config.type === "graphic" &&
+            config.graphicId === "__temporary__" && (
+              <TemporaryGraphicPane paneId={config.id} />
+            )}
+          {config.type === "graphic" &&
+            config.graphicId &&
+            config.graphicId !== "__temporary__" && (
+              <GraphicPane
+                graphicId={config.graphicId}
+                paneId={config.id}
+                preserveAspectRatio={preserveAspectRatio}
+              />
+            )}
           {config.type === "graphic" && !config.graphicId && (
             <BlankPane
               locked={locked}

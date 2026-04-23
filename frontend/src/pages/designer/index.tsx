@@ -1053,8 +1053,28 @@ export default function DesignerPage() {
       return;
     }
     if (!graphicId) return;
-    // Already loaded
-    if (graphicIdInStore === graphicId && doc) return;
+    // Already loaded — skip re-fetching but re-acquire the lock if this component
+    // instance doesn't hold it yet (happens when returning to an already-loaded graphic).
+    if (graphicIdInStore === graphicId && doc) {
+      if (!lockHeldRef.current) {
+        const lockResp = await graphicsApi.acquireLock(graphicId).catch(() => null);
+        if (lockResp?.success) {
+          if (lockResp.data.data.acquired) {
+            lockHeldRef.current = true;
+            setLockState(null);
+          } else {
+            lockHeldRef.current = false;
+            setLockState({
+              lockedByName: lockResp.data.data.locked_by_name ?? "another user",
+              lockedAt: lockResp.data.data.locked_at ?? new Date().toISOString(),
+            });
+          }
+        } else {
+          lockHeldRef.current = true;
+        }
+      }
+      return;
+    }
 
     const gid: string = graphicId;
 

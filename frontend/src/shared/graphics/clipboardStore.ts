@@ -1,5 +1,15 @@
+/**
+ * @deprecated Compatibility shim. New code must use
+ * `@/shared/clipboard` (useIOClipboardStore).
+ *
+ * Preserves the v1 designer-only API used by existing callers
+ * (DesignerCanvas, commands) until Phase 6 migrates them.
+ */
 import { create } from "zustand";
 import type { ClipboardData, SceneNode } from "../types/graphics";
+import { useIOClipboardStore } from "../clipboard";
+import { buildIOClipboardPayload } from "../clipboard";
+import { computeTextRepresentation, extractPointsFromNodes } from "../clipboard";
 
 interface ClipboardState {
   data: ClipboardData | null;
@@ -7,12 +17,7 @@ interface ClipboardState {
   clear: () => void;
 }
 
-function computeBounds(nodes: SceneNode[]): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
+function computeBounds(nodes: SceneNode[]) {
   if (nodes.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
   let minX = Infinity,
     minY = Infinity,
@@ -32,24 +37,29 @@ export const useClipboardStore = create<ClipboardState>((set) => ({
   data: null,
 
   copy(nodes, sourceGraphicId) {
-    const data: ClipboardData = {
+    const bounds = computeBounds(nodes);
+    const legacy: ClipboardData = {
       source: "io-designer",
       version: "1.0",
       sourceGraphicId,
       nodes: JSON.parse(JSON.stringify(nodes)),
       expressions: {},
-      originalBounds: computeBounds(nodes),
+      originalBounds: bounds,
     };
-    set({ data });
+    set({ data: legacy });
 
-    // Also write to system clipboard as JSON (best effort)
-    try {
-      navigator.clipboard.writeText(JSON.stringify(data)).catch(() => {
-        /* ignore */
-      });
-    } catch {
-      /* ignore */
-    }
+    const payload = buildIOClipboardPayload({
+      originContext: "designer",
+      originGraphicId: sourceGraphicId,
+      contents: {
+        nodes: legacy.nodes,
+        expressions: legacy.expressions,
+        originalBounds: bounds,
+        textRepresentation: computeTextRepresentation({ nodes: legacy.nodes }),
+        points: extractPointsFromNodes(legacy.nodes),
+      },
+    });
+    void useIOClipboardStore.getState().writeToClipboard(payload);
   },
 
   clear() {
@@ -57,24 +67,24 @@ export const useClipboardStore = create<ClipboardState>((set) => ({
   },
 }));
 
-/**
- * Read clipboard data — try system clipboard first, fall back to Zustand store.
- */
 export async function readClipboard(
   fallback: ClipboardData | null,
 ): Promise<ClipboardData | null> {
-  try {
-    const text = await navigator.clipboard.readText();
-    const parsed = JSON.parse(text) as ClipboardData;
-    if (
-      parsed.source === "io-designer" &&
-      parsed.version === "1.0" &&
-      Array.isArray(parsed.nodes)
-    ) {
-      return parsed;
-    }
-  } catch {
-    /* ignore */
+  const payload = await useIOClipboardStore.getState().readFromSystemClipboard();
+  if (payload?.contents.nodes?.length) {
+    return {
+      source: "io-designer",
+      version: "1.0",
+      sourceGraphicId: payload.originGraphicId ?? "",
+      nodes: payload.contents.nodes,
+      expressions: payload.contents.expressions ?? {},
+      originalBounds: payload.contents.originalBounds ?? {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+      },
+    };
   }
   return fallback;
 }

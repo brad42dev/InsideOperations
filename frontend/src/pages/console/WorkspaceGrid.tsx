@@ -61,6 +61,8 @@ export interface WorkspaceGridProps {
   onConfigurePane: (paneId: string) => void;
   onRemovePane: (paneId: string) => void;
   onSelectPane?: (paneId: string, addToSelection: boolean) => void;
+  /** Atomically replace the selection with a set of pane IDs (used by marquee). */
+  onSelectManyPanes?: (paneIds: string[]) => void;
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void;
   onGridLayoutChange?: (items: GridItem[]) => void;
   /** Called when user right-clicks the workspace background (not on a pane) */
@@ -96,6 +98,7 @@ export default function WorkspaceGrid({
   onWorkspaceContextMenu,
   onRemovePane,
   onSelectPane,
+  onSelectManyPanes,
   onPaletteDrop,
   onGridLayoutChange,
   swapModeSourceId,
@@ -521,69 +524,128 @@ export default function WorkspaceGrid({
 
   // ── Box selection ──────────────────────────────────────────────────────────
 
+  // boxRect state drives the visual marquee overlay only.
+  // All handler logic reads boxRectRef so it never has a stale React closure.
   const [boxRect, setBoxRect] = useState<{
     x1: number;
     y1: number;
     x2: number;
     y2: number;
   } | null>(null);
+  const boxRectRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const boxStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Tracks physical button state: true between pointerdown and pointerup.
+  // Rejects a second pointerdown while the button is already held — mirrors
+  // DesignerCanvas.tsx:3088 (inter.type !== "none" guard).
+  const isPointerDownRef = useRef(false);
+  // Tracks whether pointer capture has been set for the current drag.
+  // Capture is deferred until actual movement so that single clicks do NOT
+  // redirect the browser's synthesised click event to the container (which has
+  // no onClick handler), which was preventing PaneWrapper.handlePaneClick from
+  // firing on simple clicks.
+  const hasCaptureRef = useRef(false);
+  // True when the current pointer-down originated inside pane content (not on a
+  // drag handle). In that case, a marquee gesture is an in-pane interaction and
+  // must NOT trigger pane-level selection on pointerup.
+  const startedInPaneContentRef = useRef(false);
 
   const handleGridPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (locked || !onSelectPane) return;
+      if (!e.isPrimary || e.button !== 0) return;
+      // Ignore any pointerdown that arrives while the button is already held.
+      if (isPointerDownRef.current) return;
+      if (boxStartRef.current) return;
       const target = e.target as HTMLElement;
-      // Only start box-select when clicking on empty grid background (not on a pane)
-      if (target.closest("[data-pane-id]")) return;
-      // React portals propagate events through the React tree, not the DOM tree.
-      // A click inside a portal (e.g. ChartConfigPanel) will bubble here even though
-      // the DOM target is outside the grid container. Check the actual DOM containment
-      // to avoid capturing pointer events meant for modals and overlays.
+      if (target.closest(".io-pane-drag-handle")) return;
       if (!containerRef.current?.contains(target)) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
+      // Do NOT setPointerCapture here — defer it to first real pointermove so
+      // that single-click still fires on the pane element, not the container.
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
+      isPointerDownRef.current = true;
+      hasCaptureRef.current = false;
+      startedInPaneContentRef.current = !!target.closest("[data-pane-id]");
       boxStartRef.current = { x, y };
-      setBoxRect({ x1: x, y1: y, x2: x, y2: y });
+      const r = { x1: x, y1: y, x2: x, y2: y };
+      boxRectRef.current = r;
     },
     [locked, onSelectPane],
   );
 
   const handleGridPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!boxStartRef.current) return;
+      if (!boxStartRef.current || !e.isPrimary) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      setBoxRect({
+      // Acquire pointer capture on first real move (>= 3px) so the marquee
+      // continues to receive events if the cursor leaves the container, while
+      // still allowing click events to land on pane elements for single-clicks.
+      if (!hasCaptureRef.current) {
+        const dx = x - boxStartRef.current.x;
+        const dy = y - boxStartRef.current.y;
+        if (Math.abs(dx) >= 3 || Math.abs(dy) >= 3) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          hasCaptureRef.current = true;
+          setBoxRect(boxRectRef.current); // now show the marquee
+        } else {
+          return; // not enough movement yet
+        }
+      }
+      const r = {
         x1: boxStartRef.current.x,
         y1: boxStartRef.current.y,
         x2: x,
         y2: y,
-      });
+      };
+      boxRectRef.current = r;
+      setBoxRect(r);
+    },
+    [],
+  );
+
+  const handleGridPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.isPrimary) return;
+      isPointerDownRef.current = false;
+      hasCaptureRef.current = false;
+      startedInPaneContentRef.current = false;
+      boxStartRef.current = null;
+      boxRectRef.current = null;
+      setBoxRect(null);
     },
     [],
   );
 
   const handleGridPointerUp = useCallback(
-    (_e: React.PointerEvent<HTMLDivElement>) => {
-      if (!boxStartRef.current || !boxRect || !onSelectPane) {
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.isPrimary) return;
+      // Always clear button-state at the top, before any early returns.
+      isPointerDownRef.current = false;
+      hasCaptureRef.current = false;
+      const startedInContent = startedInPaneContentRef.current;
+      startedInPaneContentRef.current = false;
+      // Read from ref — never from the React state closure which may be stale
+      // if React deferred the commit of the last setBoxRect call.
+      const br = boxRectRef.current;
+      if (!boxStartRef.current || !br || !onSelectPane) {
         boxStartRef.current = null;
+        boxRectRef.current = null;
         setBoxRect(null);
         return;
       }
       boxStartRef.current = null;
+      boxRectRef.current = null;
 
-      // Normalize the selection rect to min/max
-      const selLeft = Math.min(boxRect.x1, boxRect.x2);
-      const selTop = Math.min(boxRect.y1, boxRect.y2);
-      const selRight = Math.max(boxRect.x1, boxRect.x2);
-      const selBottom = Math.max(boxRect.y1, boxRect.y2);
+      const selLeft = Math.min(br.x1, br.x2);
+      const selTop = Math.min(br.y1, br.y2);
+      const selRight = Math.max(br.x1, br.x2);
+      const selBottom = Math.max(br.y1, br.y2);
 
-      // Only select if dragged at least 6px
       if (selRight - selLeft < 6 && selBottom - selTop < 6) {
         setBoxRect(null);
         return;
@@ -595,7 +657,14 @@ export default function WorkspaceGrid({
         return;
       }
 
-      // Collect all pane elements and check overlap
+      // If the drag started inside pane content (not a drag handle), the user
+      // is interacting with pane content — do not select panes.
+      if (startedInContent) {
+        setBoxRect(null);
+        return;
+      }
+
+      const hits: string[] = [];
       const paneEls =
         containerRef.current?.querySelectorAll<HTMLElement>("[data-pane-id]");
       paneEls?.forEach((el) => {
@@ -606,20 +675,27 @@ export default function WorkspaceGrid({
         const paneTop = r.top - containerRect.top;
         const paneRight = paneLeft + r.width;
         const paneBottom = paneTop + r.height;
-        // AABB overlap
-        const overlaps =
+        if (
           paneLeft < selRight &&
           paneRight > selLeft &&
           paneTop < selBottom &&
-          paneBottom > selTop;
-        if (overlaps) {
-          onSelectPane(paneId, true);
+          paneBottom > selTop
+        ) {
+          hits.push(paneId);
         }
       });
 
+      if (hits.length > 0) {
+        if (onSelectManyPanes) {
+          onSelectManyPanes(hits);
+        } else {
+          hits.forEach((id, i) => onSelectPane(id, i > 0));
+        }
+      }
+
       setBoxRect(null);
     },
-    [boxRect, onSelectPane],
+    [onSelectPane, onSelectManyPanes],
   );
 
   const handleGridContextMenu = useCallback(
@@ -674,11 +750,14 @@ export default function WorkspaceGrid({
         overflow: "hidden",
         position: "relative",
         height: "100%",
+        userSelect: "none",
       }}
       onPointerDown={handleGridPointerDown}
       onPointerMove={handleGridPointerMove}
       onPointerUp={handleGridPointerUp}
+      onPointerCancel={handleGridPointerCancel}
       onContextMenu={handleGridContextMenu}
+      onDragStart={(e) => e.preventDefault()}
       onDragOver={handleGridDragOver}
       onDrop={handleGridDrop}
     >

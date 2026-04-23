@@ -295,6 +295,7 @@ export interface PointNameLabelConfig {
   fontFamily?: DisplayElementFontFamily;
   fontSize?: number;
   color?: string;
+  fontWeight?: "normal" | "bold";
 }
 
 export type DisplayElementConfig =
@@ -844,3 +845,8 @@ export interface GraphicSummary {
   updatedAt: string;
   version: number;
 }
+
+// @deprecated Use IOClipboardPayload from shared/clipboard/types.
+// Retained for read-compatibility with v1 clipboards already written to the
+// system clipboard by earlier builds.
+export interface ClipboardDataV1 extends ClipboardData {}

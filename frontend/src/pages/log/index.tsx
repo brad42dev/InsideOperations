@@ -12,6 +12,10 @@ import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { ExportButton } from "../../shared/components/ExportDialog";
 import { SkeletonBlock } from "../../shared/components/Skeleton";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget } from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { logPasteTarget } from "./clipboard/logPasteTarget";
 
 // ---------------------------------------------------------------------------
 // Skeleton loading states (CX-LOADING)
@@ -682,6 +686,15 @@ export default function LogPage() {
   const isAdmin =
     user?.permissions.includes("log:admin") || user?.permissions.includes("*");
 
+  useSelectionZone({
+    zoneId: "logbook",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(logPasteTarget);
+
+  const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+
   const [tab, setTab] = useState<Tab>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
@@ -782,6 +795,7 @@ export default function LogPage() {
 
   return (
     <div
+      onClick={() => setActiveZone("logbook")}
       style={{
         height: "100%",
         display: "flex",

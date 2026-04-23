@@ -1,8 +1,9 @@
 /**
  * DesignerRightPanel.tsx
  *
- * Context-sensitive property panel.
- * Shows different fields depending on what is selected in the scene.
+ * Context-sensitive property inspector panel.
+ * Uses concern-based tabs (Layout / Style / Data / Shape / Content / Doc)
+ * that appear conditionally based on the selected node type.
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -23,7 +24,6 @@ import type {
   LayerDefinition,
   GraphicDocument,
   NavigationLink,
-  ComposablePart,
   WidgetNode,
   WidgetConfig,
   DisplayElementType,
@@ -40,6 +40,7 @@ import type {
   Group,
   Annotation,
   Stencil,
+  Transform,
 } from "../../shared/types/graphics";
 import {
   ChangePropertyCommand,
@@ -50,9 +51,11 @@ import {
   ChangeNavigationLinkCommand,
   ChangeShapeVariantCommand,
   ChangeShapeConfigurationCommand,
-  AddComposablePartCommand,
-  RemoveComposablePartCommand,
   ChangeDisplayElementConfigCommand,
+  ChangeDisplayElementTypeCommand,
+  AddDisplayElementCommand,
+  RemoveDisplayElementCommand,
+  HideDisplayElementCommand,
   ChangeWidgetConfigCommand,
   AlignNodesCommand,
   DistributeNodesCommand,
@@ -64,6 +67,7 @@ import type {
   SceneCommand,
   AlignmentType,
 } from "../../shared/graphics/commands";
+import type { ShapeEntry, ValueAnchor } from "../../store/designer";
 import { PIPE_SERVICE_COLORS } from "../../shared/types/graphics";
 import { pointsApi } from "../../api/points";
 
@@ -244,6 +248,19 @@ function NumberInput({
   );
 }
 
+// ISA-101 / ISA-18.2 reserved colors — never use for decorative fills.
+// These map directly to alarm priority, operational state, and connection indicators.
+const RESERVED_COLOR_SET = new Set([
+  "#ef4444", "#b91c1c", // P1 Urgent
+  "#f97316", "#ea580c", // P2 High
+  "#eab308", "#c8a800", "#facc15", // P3 Low + yellow adjacents
+  "#d946ef", "#c026d3", // Shelved / Fault
+  "#60a5fa", "#2563eb", // Custom alarm
+  "#2dd4bf", "#0d9488", "#14b8a6", // Teal — connection points only
+  "#059669", "#047857", // Running/Open operational state
+  "#f87171", // near-alarm red
+]);
+
 function ColorInput({
   value,
   onChange,
@@ -251,29 +268,103 @@ function ColorInput({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const isHex = /^#[0-9a-fA-F]{3,8}$/.test(value);
+  const isReserved = isHex && RESERVED_COLOR_SET.has(value.toLowerCase());
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <label style={{ position: "relative", flexShrink: 0, cursor: "pointer", display: "block", width: 28, height: 28 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              background: value,
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+            }}
+          />
+          <input
+            type="color"
+            value={isHex ? value : "#ffffff"}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+          />
+        </label>
+        {isHex ? (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ ...inputStyle, flex: 1 }}
+          />
+        ) : (
+          <span style={{ flex: 1, fontSize: 10, color: "var(--io-text-muted)", fontFamily: "monospace", padding: "0 4px" }}>
+            Theme default
+          </span>
+        )}
+      </div>
+      {isReserved && (
+        <span style={{ fontSize: 9, color: "#f97316" }}>
+          Reserved for alarm/status — choose another color
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ISA-101 compliant text color presets — only tokens from the display element spec.
+// Teal, yellow, red, and orange are excluded: reserved for alarm priority indicators.
+const TEXT_COLOR_PRESETS = [
+  { label: "White", value: "var(--io-text-primary)" },
+  { label: "Gray", value: "var(--io-text-secondary)" },
+  { label: "Muted", value: "var(--io-text-muted)" },
+];
+
+/**
+ * Dropdown color selector for text/label colors.
+ * Only exposes the three ISA-101 compliant text tokens — no custom hex picker.
+ * Alarm-adjacent colors (red, orange, yellow, teal) are intentionally excluded.
+ */
+function ThemedColorSelect({
+  value,
+  defaultValue,
+  onChange,
+}: {
+  value: string | undefined;
+  defaultValue: string;
+  onChange: (v: string) => void;
+}) {
+  const isPreset = TEXT_COLOR_PRESETS.some((p) => p.value === value);
+  const selectValue = isPreset ? value! : "__default__";
+  const swatchColor = isPreset ? value! : defaultValue;
+
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <input
-        type="color"
-        value={value.startsWith("#") ? value : "#6366f1"}
-        onChange={(e) => onChange(e.target.value)}
+      <div
         style={{
-          width: 28,
-          height: 28,
-          padding: 2,
-          background: "var(--io-surface)",
+          width: 20,
+          height: 20,
+          background: swatchColor,
           border: "1px solid var(--io-border)",
-          borderRadius: "var(--io-radius)",
-          cursor: "pointer",
+          borderRadius: 3,
           flexShrink: 0,
         }}
       />
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+      <select
+        value={selectValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "__default__" ? defaultValue : v);
+        }}
         style={{ ...inputStyle, flex: 1 }}
-      />
+      >
+        <option value="__default__">Default</option>
+        {TEXT_COLOR_PRESETS.map((p) => (
+          <option key={p.value} value={p.value}>
+            {p.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -530,89 +621,178 @@ function DocPropertiesPanel({ doc }: { doc: GraphicDocument }) {
 }
 
 // ---------------------------------------------------------------------------
-// SymbolInstance panels — split across three tabs:
-//   SymbolInstancePanel     → Properties tab (transform, opacity, layer, nav link)
-//   SymbolInstanceShapeTab  → Shape tab (variant, config, composable parts)
-//   SymbolInstanceSidecarTab→ Sidecar tab (binding, text zones, display elements)
+// TransformSection — universal layout tab for all nodes
 // ---------------------------------------------------------------------------
 
-// Properties tab: transform, opacity, layer assignment, navigation link only
-function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
-  const executeCmd = useExecuteCmd();
-  const doc = useSceneStore((s) => s.doc);
+function TransformSection({
+  node,
+  doc,
+  executeCmd,
+  showRotation = true,
+}: {
+  node: SceneNode;
+  doc: GraphicDocument | null;
+  executeCmd: (cmd: SceneCommand) => void;
+  showRotation?: boolean;
+}) {
+  const t = node.transform;
+  const pos = t.position;
+  const scale = t.scale ?? { x: 1, y: 1 };
+  const mirror = t.mirror ?? "none";
+
+  function setTransform(patch: Partial<Transform>) {
+    executeCmd(
+      new ChangePropertyCommand(node.id, "transform", { ...t, ...patch }, t),
+    );
+  }
 
   return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="X">
-        <NumberInput
-          value={Math.round(node.transform.position.x)}
+    <>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          marginBottom: 6,
+        }}
+      >
+        <Field label="X">
+          <NumberInput
+            value={Math.round(pos.x)}
+            onChange={(v) =>
+              setTransform({ position: { ...pos, x: v } })
+            }
+          />
+        </Field>
+        <Field label="Y">
+          <NumberInput
+            value={Math.round(pos.y)}
+            onChange={(v) =>
+              setTransform({ position: { ...pos, y: v } })
+            }
+          />
+        </Field>
+        {showRotation && (
+          <Field label="Rotation °">
+            <NumberInput
+              value={Math.round(t.rotation)}
+              min={-360}
+              max={360}
+              onChange={(v) => setTransform({ rotation: v })}
+            />
+          </Field>
+        )}
+        <Field label="Opacity %">
+          <NumberInput
+            value={Math.round(node.opacity * 100)}
+            min={0}
+            max={100}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "opacity",
+                  v / 100,
+                  node.opacity,
+                ),
+              )
+            }
+          />
+        </Field>
+        <Field label="Scale X %">
+          <NumberInput
+            value={Math.round(scale.x * 100)}
+            min={1}
+            max={2000}
+            onChange={(v) =>
+              setTransform({ scale: { ...scale, x: v / 100 } })
+            }
+          />
+        </Field>
+        <Field label="Scale Y %">
+          <NumberInput
+            value={Math.round(scale.y * 100)}
+            min={1}
+            max={2000}
+            onChange={(v) =>
+              setTransform({ scale: { ...scale, y: v / 100 } })
+            }
+          />
+        </Field>
+      </div>
+
+      <Field label="Mirror">
+        <SelectInput
+          value={mirror}
           onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, x: v },
-                },
-                node.transform,
-              ),
-            )
+            setTransform({ mirror: v as Transform["mirror"] })
           }
+          options={[
+            { value: "none", label: "None" },
+            { value: "horizontal", label: "Horizontal" },
+            { value: "vertical", label: "Vertical" },
+            { value: "both", label: "Both" },
+          ]}
         />
       </Field>
-      <Field label="Y">
-        <NumberInput
-          value={Math.round(node.transform.position.y)}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, y: v },
-                },
-                node.transform,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Rotation">
-        <NumberInput
-          value={Math.round(node.transform.rotation)}
-          min={-360}
-          max={360}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "transform",
-                { ...node.transform, rotation: v },
-                node.transform,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.visible}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "visible",
+                  e.target.checked,
+                  node.visible,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Visible
+        </label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.locked}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "locked",
+                  e.target.checked,
+                  node.locked,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Locked
+        </label>
+      </div>
+
       {doc && (
         <Field label="Layer">
           <SelectInput
@@ -634,325 +814,301 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
           />
         </Field>
       )}
+
       <NavigationLinkEditor
         nodeId={node.id}
         link={node.navigationLink}
         prevLink={node.navigationLink}
         executeCmd={executeCmd}
       />
-    </div>
+    </>
   );
 }
 
-// Shape tab: variant, physical configuration, composable parts
-function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
-  const executeCmd = useExecuteCmd();
-  const getShape = useLibraryStore((s) => s.getShape);
-  const shapeEntry = getShape(node.shapeRef.shapeId);
-  const variants = shapeEntry?.sidecar.options ?? [];
+// ---------------------------------------------------------------------------
+// Primitive geometry size fields (rect/circle/ellipse)
+// ---------------------------------------------------------------------------
 
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Shape ID">
-        <input
-          readOnly
-          value={node.shapeRef.shapeId}
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-
-      {variants.length > 0 && (
-        <Field label="Variant">
-          <SelectInput
-            value={node.shapeRef.variant ?? "default"}
+function PrimitiveGeometrySection({
+  node,
+  executeCmd,
+}: {
+  node: Primitive;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const geo = node.geometry;
+  if (geo.type === "rect") {
+    return (
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
+      >
+        <Field label="Width">
+          <NumberInput
+            value={geo.width}
+            min={1}
             onChange={(v) =>
-              executeCmd(
-                new ChangeShapeVariantCommand(
-                  node.id,
-                  v,
-                  node.shapeRef.variant ?? "default",
-                ),
-              )
-            }
-            options={[
-              { value: "default", label: "Default" },
-              ...variants.map((opt) => ({ value: opt.id, label: opt.label })),
-            ]}
-          />
-        </Field>
-      )}
-
-      {shapeEntry?.sidecar.configurations &&
-        shapeEntry.sidecar.configurations.length > 0 && (
-          <Field label="Configuration">
-            <SelectInput
-              value={node.shapeRef.configuration ?? "default"}
-              onChange={(v) =>
-                executeCmd(
-                  new ChangeShapeConfigurationCommand(
-                    node.id,
-                    v === "default" ? undefined : v,
-                    node.shapeRef.configuration,
-                  ),
-                )
-              }
-              options={[
-                { value: "default", label: "Default" },
-                ...shapeEntry.sidecar.configurations.map((cfg) => ({
-                  value: cfg.id,
-                  label: cfg.label,
-                })),
-              ]}
-            />
-          </Field>
-        )}
-
-      {shapeEntry?.sidecar.options && shapeEntry.sidecar.options.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <FieldLabel>Composable Parts</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {node.composableParts.map((part: ComposablePart) => (
-              <div
-                key={part.partId}
-                style={{ display: "flex", alignItems: "center", gap: 6 }}
-              >
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--io-text-secondary)",
-                    flex: 1,
-                  }}
-                >
-                  {part.partId}
-                </span>
-                <button
-                  onClick={() =>
-                    executeCmd(
-                      new RemoveComposablePartCommand(node.id, part.partId),
-                    )
-                  }
-                  style={{
-                    fontSize: 10,
-                    color: "var(--io-text-muted)",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                  title="Remove part"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={() =>
-                executeCmd(
-                  new AddComposablePartCommand(node.id, {
-                    partId: crypto.randomUUID(),
-                    attachment: "default",
-                  }),
-                )
-              }
-              style={{
-                fontSize: 11,
-                color: "var(--io-accent)",
-                background: "transparent",
-                border: "1px dashed var(--io-border)",
-                borderRadius: "var(--io-radius)",
-                padding: "3px 8px",
-                cursor: "pointer",
-              }}
-            >
-              + Add Part
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Sidecar tab: point binding, text zone overrides, display element children
-function SymbolInstanceSidecarTab({ node }: { node: SymbolInstance }) {
-  const executeCmd = useExecuteCmd();
-  const getShape = useLibraryStore((s) => s.getShape);
-  const shapeEntry = getShape(node.shapeRef.shapeId);
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Point Binding (Tag)">
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="text"
-            key={node.id}
-            defaultValue={
-              node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""
-            }
-            onBlur={(e) => {
-              const val = e.target.value.trim();
-              const newBinding = val ? { pointTag: val } : undefined;
               executeCmd(
                 new ChangePropertyCommand(
                   node.id,
-                  "stateBinding",
-                  newBinding,
-                  node.stateBinding,
+                  "geometry",
+                  { ...geo, width: v },
+                  geo,
                 ),
-              );
-            }}
-            style={{ ...inputStyle, flex: 1 }}
-            placeholder="e.g. 25-AI-1401"
+              )
+            }
           />
-          <PointResolutionIndicator
-            pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId}
+        </Field>
+        <Field label="Height">
+          <NumberInput
+            value={geo.height}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "geometry",
+                  { ...geo, height: v },
+                  geo,
+                ),
+              )
+            }
           />
-        </div>
-      </Field>
-
-      {shapeEntry && (shapeEntry.sidecar.textZones ?? []).length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <FieldLabel>Text Zones</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {(shapeEntry.sidecar.textZones ?? []).map((zone) => {
-              const overrideVal =
-                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ??
-                "";
-              return (
-                <div
-                  key={zone.id}
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "var(--io-text-muted)",
-                      minWidth: 52,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={zone.id}
-                  >
-                    {zone.id}
-                  </span>
-                  <input
-                    type="text"
-                    defaultValue={overrideVal}
-                    placeholder="(live data)"
-                    onBlur={(e) => {
-                      const v = e.target.value;
-                      const overrides = {
-                        ...((node.textZoneOverrides as Record<
-                          string,
-                          string
-                        >) ?? {}),
-                      };
-                      if (v) overrides[zone.id] = v;
-                      else delete overrides[zone.id];
-                      executeCmd(
-                        new ChangePropertyCommand(
-                          node.id,
-                          "textZoneOverrides",
-                          overrides,
-                          node.textZoneOverrides,
-                        ),
-                      );
-                    }}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginBottom: 8 }}>
-        <FieldLabel>Display Elements</FieldLabel>
-        {node.children && node.children.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              marginBottom: 4,
-            }}
-          >
-            {node.children.map((child) => {
-              const de = child as DisplayElement;
-              return (
-                <div
-                  key={child.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 11,
-                    color: "var(--io-text-secondary)",
-                  }}
-                >
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {de.config?.displayType ?? child.type} —{" "}
-                    {de.binding?.pointId ?? "Unbound"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              marginBottom: 4,
-            }}
-          >
-            No display elements
-          </div>
-        )}
+        </Field>
+        <Field label="Corner Radius">
+          <NumberInput
+            value={geo.rx ?? 0}
+            min={0}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "geometry",
+                  { ...geo, rx: v, ry: v },
+                  geo,
+                ),
+              )
+            }
+          />
+        </Field>
       </div>
-    </div>
+    );
+  }
+  if (geo.type === "circle") {
+    return (
+      <Field label="Radius">
+        <NumberInput
+          value={geo.r}
+          min={1}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "geometry",
+                { ...geo, r: v },
+                geo,
+              ),
+            )
+          }
+        />
+      </Field>
+    );
+  }
+  if (geo.type === "ellipse") {
+    return (
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
+      >
+        <Field label="Radius X">
+          <NumberInput
+            value={geo.rx}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "geometry",
+                  { ...geo, rx: v },
+                  geo,
+                ),
+              )
+            }
+          />
+        </Field>
+        <Field label="Radius Y">
+          <NumberInput
+            value={geo.ry}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "geometry",
+                  { ...geo, ry: v },
+                  geo,
+                ),
+              )
+            }
+          />
+        </Field>
+      </div>
+    );
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Primitive style section (fill + stroke)
+// ---------------------------------------------------------------------------
+
+function PrimitiveStyleSection({
+  node,
+  executeCmd,
+}: {
+  node: Primitive;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const style = node.style;
+
+  return (
+    <>
+      <Field label="Fill">
+        <ColorInput
+          value={style.fill === "none" ? "#000000" : style.fill}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(node.id, { ...style, fill: v }, style),
+            )
+          }
+        />
+      </Field>
+      <Field label="Fill Opacity %">
+        <NumberInput
+          value={Math.round(style.fillOpacity * 100)}
+          min={0}
+          max={100}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(
+                node.id,
+                { ...style, fillOpacity: v / 100 },
+                style,
+              ),
+            )
+          }
+        />
+      </Field>
+      <Field label="Stroke">
+        <ColorInput
+          value={style.stroke === "none" ? "#000000" : style.stroke}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(node.id, { ...style, stroke: v }, style),
+            )
+          }
+        />
+      </Field>
+      <Field label="Stroke Width">
+        <NumberInput
+          value={style.strokeWidth}
+          min={0}
+          step={0.5}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(
+                node.id,
+                { ...style, strokeWidth: v },
+                style,
+              ),
+            )
+          }
+        />
+      </Field>
+      <Field label="Stroke Dash">
+        <SelectInput
+          value={style.strokeDasharray ?? ""}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(
+                node.id,
+                { ...style, strokeDasharray: v || undefined },
+                style,
+              ),
+            )
+          }
+          options={[
+            { value: "", label: "Solid" },
+            { value: "4 2", label: "Dashed" },
+            { value: "2 2", label: "Dotted" },
+            { value: "8 4 2 4", label: "Dash-Dot" },
+          ]}
+        />
+      </Field>
+      <Field label="Line Cap">
+        <SelectInput
+          value={style.strokeLinecap ?? "butt"}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(
+                node.id,
+                {
+                  ...style,
+                  strokeLinecap: v as "butt" | "round" | "square",
+                },
+                style,
+              ),
+            )
+          }
+          options={[
+            { value: "butt", label: "Butt" },
+            { value: "round", label: "Round" },
+            { value: "square", label: "Square" },
+          ]}
+        />
+      </Field>
+      <Field label="Line Join">
+        <SelectInput
+          value={style.strokeLinejoin ?? "miter"}
+          onChange={(v) =>
+            executeCmd(
+              new ChangeStyleCommand(
+                node.id,
+                {
+                  ...style,
+                  strokeLinejoin: v as "miter" | "round" | "bevel",
+                },
+                style,
+              ),
+            )
+          }
+          options={[
+            { value: "miter", label: "Miter" },
+            { value: "round", label: "Round" },
+            { value: "bevel", label: "Bevel" },
+          ]}
+        />
+      </Field>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// TextBlock panel
+// TextBlock style section (font + color + background)
 // ---------------------------------------------------------------------------
 
-function TextBlockPanel({ node }: { node: TextBlock }) {
-  const executeCmd = useExecuteCmd();
-  const doc = useSceneStore((s) => s.doc);
+function TextBlockStyleSection({
+  node,
+  executeCmd,
+}: {
+  node: TextBlock;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
   const bg = node.background;
   const [showBg, setShowBg] = useState(!!bg);
 
   return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Content">
-        <textarea
-          defaultValue={node.content}
-          onBlur={(e) => {
-            const v = e.target.value;
-            if (v !== node.content)
-              executeCmd(new ChangeTextCommand(node.id, v, node.content));
-          }}
-          rows={3}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
-        />
-      </Field>
+    <>
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 6,
-          marginBottom: 6,
-        }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
       >
         <Field label="Font Family">
           <SelectInput
@@ -970,6 +1126,7 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
             options={[
               { value: "Inter", label: "Inter" },
               { value: "JetBrains Mono", label: "JetBrains Mono" },
+              { value: "IBM Plex Sans", label: "IBM Plex Sans" },
             ]}
           />
         </Field>
@@ -1012,6 +1169,25 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
             ]}
           />
         </Field>
+        <Field label="Style">
+          <SelectInput
+            value={node.fontStyle}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "fontStyle",
+                  v,
+                  node.fontStyle,
+                ),
+              )
+            }
+            options={[
+              { value: "normal", label: "Normal" },
+              { value: "italic", label: "Italic" },
+            ]}
+          />
+        </Field>
         <Field label="Align">
           <SelectInput
             value={node.textAnchor}
@@ -1033,14 +1209,19 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
           />
         </Field>
       </div>
+
       <Field label="Color">
-        <ColorInput
+        <ThemedColorSelect
           value={node.fill}
+          defaultValue="var(--io-text-primary)"
           onChange={(v) =>
-            executeCmd(new ChangePropertyCommand(node.id, "fill", v, node.fill))
+            executeCmd(
+              new ChangePropertyCommand(node.id, "fill", v, node.fill),
+            )
           }
         />
       </Field>
+
       <Field label="Max Width (0=none)">
         <NumberInput
           value={node.maxWidth ?? 0}
@@ -1059,14 +1240,8 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
         />
       </Field>
 
-      {/* Background toggle */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 8,
-        }}
+        style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}
       >
         <input
           type="checkbox"
@@ -1110,9 +1285,10 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
             cursor: "pointer",
           }}
         >
-          Background
+          Background Box
         </label>
       </div>
+
       {showBg && bg && (
         <div
           style={{
@@ -1191,279 +1367,23 @@ function TextBlockPanel({ node }: { node: TextBlock }) {
           </div>
         </div>
       )}
-
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-      {doc && (
-        <Field label="Layer">
-          <SelectInput
-            value={node.layerId ?? ""}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "layerId",
-                  v || undefined,
-                  node.layerId,
-                ),
-              )
-            }
-            options={[
-              { value: "", label: "— None —" },
-              ...doc.layers.map((l) => ({ value: l.id, label: l.name })),
-            ]}
-          />
-        </Field>
-      )}
-    </div>
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Primitive panel
+// Pipe style section (stroke + dash + insulated)
 // ---------------------------------------------------------------------------
 
-function PrimitivePanel({ node }: { node: Primitive }) {
-  const executeCmd = useExecuteCmd();
-
-  const style = node.style;
-  const pos = node.transform.position;
-
+function PipeStyleSection({
+  node,
+  executeCmd,
+}: {
+  node: Pipe;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
   return (
-    <div style={{ padding: "0 12px" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 6,
-          marginBottom: 10,
-        }}
-      >
-        <Field label="X">
-          <NumberInput
-            value={Math.round(pos.x)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, x: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Y">
-          <NumberInput
-            value={Math.round(pos.y)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, y: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Rotation">
-          <NumberInput
-            value={Math.round(node.transform.rotation)}
-            min={-360}
-            max={360}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, rotation: v },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Opacity %">
-          <NumberInput
-            value={Math.round(node.opacity * 100)}
-            min={0}
-            max={100}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "opacity",
-                  v / 100,
-                  node.opacity,
-                ),
-              )
-            }
-          />
-        </Field>
-      </div>
-      <Field label="Fill">
-        <ColorInput
-          value={style.fill === "none" ? "#000000" : style.fill}
-          onChange={(v) =>
-            executeCmd(
-              new ChangeStyleCommand(node.id, { ...style, fill: v }, style),
-            )
-          }
-        />
-      </Field>
-      <Field label="Fill Opacity %">
-        <NumberInput
-          value={Math.round(style.fillOpacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangeStyleCommand(
-                node.id,
-                { ...style, fillOpacity: v / 100 },
-                style,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Stroke">
-        <ColorInput
-          value={style.stroke === "none" ? "#000000" : style.stroke}
-          onChange={(v) =>
-            executeCmd(
-              new ChangeStyleCommand(node.id, { ...style, stroke: v }, style),
-            )
-          }
-        />
-      </Field>
-      <Field label="Stroke Width">
-        <NumberInput
-          value={style.strokeWidth}
-          min={0}
-          step={0.5}
-          onChange={(v) =>
-            executeCmd(
-              new ChangeStyleCommand(
-                node.id,
-                { ...style, strokeWidth: v },
-                style,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Stroke Dash">
-        <SelectInput
-          value={style.strokeDasharray ?? ""}
-          onChange={(v) =>
-            executeCmd(
-              new ChangeStyleCommand(
-                node.id,
-                { ...style, strokeDasharray: v || undefined },
-                style,
-              ),
-            )
-          }
-          options={[
-            { value: "", label: "Solid" },
-            { value: "4 2", label: "Dashed" },
-            { value: "2 2", label: "Dotted" },
-            { value: "8 4 2 4", label: "Dash-Dot" },
-          ]}
-        />
-      </Field>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Pipe panel
-// ---------------------------------------------------------------------------
-
-const PIPE_SERVICE_OPTIONS = Object.keys(PIPE_SERVICE_COLORS).map((k) => ({
-  value: k,
-  label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-}));
-
-function PipePanel({ node }: { node: Pipe }) {
-  const executeCmd = useExecuteCmd();
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Service Type">
-        <SelectInput
-          value={node.serviceType}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "serviceType",
-                v,
-                node.serviceType,
-              ),
-            )
-          }
-          options={PIPE_SERVICE_OPTIONS}
-        />
-      </Field>
-      <Field label="Routing">
-        <SelectInput
-          value={node.routingMode}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "routingMode",
-                v,
-                node.routingMode,
-              ),
-            )
-          }
-          options={[
-            { value: "manual", label: "Manual" },
-            { value: "auto", label: "Auto (Orthogonal)" },
-          ]}
-        />
-      </Field>
-      {node.label !== undefined || true ? (
-        <Field label="Label">
-          <input
-            type="text"
-            defaultValue={node.label ?? ""}
-            onBlur={(e) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "label",
-                  e.target.value || undefined,
-                  node.label,
-                ),
-              )
-            }
-            style={inputStyle}
-            placeholder="Optional label…"
-          />
-        </Field>
-      ) : null}
+    <>
       <Field label="Stroke Width">
         <NumberInput
           value={node.strokeWidth}
@@ -1476,23 +1396,6 @@ function PipePanel({ node }: { node: Pipe }) {
                 "strokeWidth",
                 v,
                 node.strokeWidth,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
               ),
             )
           }
@@ -1548,12 +1451,1628 @@ function PipePanel({ node }: { node: Pipe }) {
           </span>
         </label>
       </Field>
+      <div
+        style={{
+          marginTop: 4,
+          padding: "6px 8px",
+          background: "var(--io-surface-elevated)",
+          borderRadius: "var(--io-radius)",
+          fontSize: 10,
+          color: "var(--io-text-muted)",
+        }}
+      >
+        Pipe color is fixed by ISA 18.2 service type — change service in the
+        Data tab.
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pipe data section (service type + routing + label)
+// ---------------------------------------------------------------------------
+
+const PIPE_SERVICE_OPTIONS = Object.entries(PIPE_SERVICE_COLORS).map(
+  ([k, color]) => ({ value: k, label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), color }),
+);
+
+function PipeDataSection({
+  node,
+  executeCmd,
+}: {
+  node: Pipe;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const currentColor =
+    PIPE_SERVICE_COLORS[node.serviceType as keyof typeof PIPE_SERVICE_COLORS] ??
+    "#6B8CAE";
+
+  return (
+    <>
+      <Field label="Service Type">
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 3,
+              background: currentColor,
+              border: "1px solid var(--io-border)",
+              flexShrink: 0,
+            }}
+            title={`ISA 18.2 service color: ${currentColor}`}
+          />
+          <div style={{ flex: 1 }}>
+            <SelectInput
+              value={node.serviceType}
+              onChange={(v) =>
+                executeCmd(
+                  new ChangePropertyCommand(
+                    node.id,
+                    "serviceType",
+                    v,
+                    node.serviceType,
+                  ),
+                )
+              }
+              options={PIPE_SERVICE_OPTIONS}
+            />
+          </div>
+        </div>
+      </Field>
+      <Field label="Routing">
+        <SelectInput
+          value={node.routingMode}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "routingMode",
+                v,
+                node.routingMode,
+              ),
+            )
+          }
+          options={[
+            { value: "manual", label: "Manual" },
+            { value: "auto", label: "Auto (Orthogonal)" },
+          ]}
+        />
+      </Field>
+      <Field label="Label">
+        <input
+          type="text"
+          key={node.id}
+          defaultValue={node.label ?? ""}
+          onBlur={(e) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "label",
+                e.target.value || undefined,
+                node.label,
+              ),
+            )
+          }
+          style={inputStyle}
+          placeholder="Optional label…"
+        />
+      </Field>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SymbolInstance — Shape tab (variant + configuration, no composable parts)
+// ---------------------------------------------------------------------------
+
+function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
+  const executeCmd = useExecuteCmd();
+  const getShape = useLibraryStore((s) => s.getShape);
+  const shapeEntry = getShape(node.shapeRef.shapeId);
+  const variants = shapeEntry?.sidecar.options ?? [];
+  const configurations = shapeEntry?.sidecar.configurations ?? [];
+  const connections = shapeEntry?.sidecar.connections ?? [];
+  const textZones = shapeEntry?.sidecar.textZones ?? [];
+  const valueAnchors = shapeEntry?.sidecar.valueAnchors ?? [];
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Shape ID">
+        <input
+          readOnly
+          value={node.shapeRef.shapeId}
+          style={{ ...inputStyle, color: "var(--io-text-muted)", fontFamily: "monospace", fontSize: 10 }}
+        />
+      </Field>
+
+      {variants.length > 0 && (
+        <Field label="Variant">
+          <SelectInput
+            value={node.shapeRef.variant ?? "default"}
+            onChange={(v) =>
+              executeCmd(
+                new ChangeShapeVariantCommand(
+                  node.id,
+                  v,
+                  node.shapeRef.variant ?? "default",
+                ),
+              )
+            }
+            options={[
+              { value: "default", label: "Default" },
+              ...variants.map((opt) => ({ value: opt.id, label: opt.label })),
+            ]}
+          />
+        </Field>
+      )}
+
+      {configurations.length > 0 && (
+        <Field label="Configuration">
+          <SelectInput
+            value={node.shapeRef.configuration ?? "default"}
+            onChange={(v) =>
+              executeCmd(
+                new ChangeShapeConfigurationCommand(
+                  node.id,
+                  v === "default" ? undefined : v,
+                  node.shapeRef.configuration,
+                ),
+              )
+            }
+            options={[
+              { value: "default", label: "Default" },
+              ...configurations.map((cfg) => ({
+                value: cfg.id,
+                label: cfg.label,
+              })),
+            ]}
+          />
+        </Field>
+      )}
+
+      {shapeEntry && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            background: "var(--io-surface-elevated)",
+            borderRadius: "var(--io-radius)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              color: "var(--io-text-muted)",
+              marginBottom: 2,
+            }}
+          >
+            Shape Info
+          </div>
+          {[
+            { label: "Connections", count: connections.length },
+            { label: "Text Zones", count: textZones.length },
+            { label: "Data Anchors", count: valueAnchors.length },
+          ].map(({ label, count }) => (
+            <div
+              key={label}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 11,
+              }}
+            >
+              <span style={{ color: "var(--io-text-secondary)" }}>{label}</span>
+              <span
+                style={{
+                  color: count > 0 ? "var(--io-accent)" : "var(--io-text-muted)",
+                  fontWeight: 600,
+                }}
+              >
+                {count}
+              </span>
+            </div>
+          ))}
+          {shapeEntry.sidecar.category && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 11,
+              }}
+            >
+              <span style={{ color: "var(--io-text-secondary)" }}>Category</span>
+              <span style={{ color: "var(--io-text-muted)" }}>
+                {shapeEntry.sidecar.category}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: 8,
+          padding: "6px 8px",
+          background: "var(--io-surface-elevated)",
+          borderRadius: "var(--io-radius)",
+          fontSize: 10,
+          color: "var(--io-text-muted)",
+        }}
+      >
+        Colors follow the ISA 18.2 operational state and alarm priority model
+        — not individually configurable. Use variants to change appearance.
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// DisplayElement panel
+// SymbolInstance — Data tab (primary binding + child DE bindings)
+// ---------------------------------------------------------------------------
+
+function SymbolInstanceDataTab({ node }: { node: SymbolInstance }) {
+  const executeCmd = useExecuteCmd();
+  const children = node.children ?? [];
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Primary Point (State)">
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="text"
+            key={node.id}
+            defaultValue={
+              node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ""
+            }
+            onBlur={(e) => {
+              const val = e.target.value.trim();
+              const isUuid =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  val,
+                );
+              const newBinding = val
+                ? isUuid
+                  ? { pointId: val }
+                  : { pointTag: val }
+                : undefined;
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "stateBinding",
+                  newBinding,
+                  node.stateBinding,
+                ),
+              );
+            }}
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="e.g. 25-AI-1401"
+          />
+          <PointResolutionIndicator
+            pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId}
+          />
+        </div>
+        <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginTop: 3 }}>
+          Drives alarm state, operational status, and shape animation
+        </div>
+      </Field>
+
+      {children.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <FieldLabel>Display Element Bindings</FieldLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+            {children.map((child) => {
+              const de = child as DisplayElement;
+              const boundTag = de.binding?.pointTag ?? de.binding?.pointId ?? "";
+              return (
+                <div key={de.id}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginBottom: 3,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        color: "var(--io-accent)",
+                        background: "var(--io-surface-elevated)",
+                        padding: "1px 5px",
+                        borderRadius: 3,
+                      }}
+                    >
+                      {de.displayType?.replace(/_/g, " ") ?? "DE"}
+                    </span>
+                    <button
+                      onClick={() =>
+                        useUiStore.getState().setSelectedNodes([de.id])
+                      }
+                      style={{
+                        fontSize: 10,
+                        color: "var(--io-text-muted)",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        textDecoration: "underline",
+                      }}
+                      title="Select this display element"
+                    >
+                      configure →
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="text"
+                      key={de.id}
+                      defaultValue={boundTag}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        const isUuid =
+                          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                            val,
+                          );
+                        const newBinding = val
+                          ? isUuid
+                            ? { pointId: val }
+                            : { pointTag: val }
+                          : {};
+                        executeCmd(
+                          new ChangeBindingCommand(
+                            de.id,
+                            newBinding,
+                            de.binding,
+                          ),
+                        );
+                      }}
+                      style={{ ...inputStyle, flex: 1 }}
+                      placeholder="Point tag…"
+                    />
+                    <PointResolutionIndicator
+                      pointId={de.binding?.pointTag ?? de.binding?.pointId}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {children.length === 0 && (
+        <div
+          style={{
+            marginTop: 4,
+            padding: "8px 10px",
+            background: "var(--io-surface-elevated)",
+            borderRadius: "var(--io-radius)",
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+          }}
+        >
+          No display elements on this shape. Select a display element slot from
+          the canvas to configure secondary data bindings.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SymbolInstance — Sidecars tab (inline anchor slots + extras + add)
+// ---------------------------------------------------------------------------
+
+const cardStyle: React.CSSProperties = {
+  background: "var(--io-surface-elevated)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  padding: 8,
+};
+
+const chipStyle: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--io-accent)",
+};
+
+function DeBindingAndConfig({
+  de,
+  executeCmd,
+}: {
+  de: DisplayElement;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+      <Field label="Type">
+        <SelectInput
+          value={de.displayType}
+          onChange={(v) => {
+            const newType = v as DisplayElementType;
+            if (newType !== de.displayType) {
+              executeCmd(
+                new ChangeDisplayElementTypeCommand(
+                  de.id,
+                  newType,
+                  defaultConfig(newType),
+                  de.displayType,
+                  de.config,
+                ),
+              );
+            }
+          }}
+          options={DISPLAY_ELEMENT_TYPE_OPTIONS}
+        />
+      </Field>
+      <Field label="Binding (Point Tag)">
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="text"
+            key={de.id + "-binding"}
+            defaultValue={de.binding?.pointTag ?? de.binding?.pointId ?? ""}
+            onBlur={(e) => {
+              const val = e.target.value.trim();
+              const isUuid =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              const newBinding = val
+                ? isUuid
+                  ? { pointId: val }
+                  : { pointTag: val }
+                : {};
+              executeCmd(new ChangeBindingCommand(de.id, newBinding, de.binding));
+            }}
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="e.g. 25-AI-1401"
+          />
+          <PointResolutionIndicator
+            pointId={de.binding?.pointTag ?? de.binding?.pointId}
+          />
+        </div>
+      </Field>
+      <DisplayElementTypeFields node={de} executeCmd={executeCmd} />
+    </div>
+  );
+}
+
+function AnchorSlotCard({
+  index,
+  anchor,
+  slotId,
+  activeDe,
+  symbolId,
+  executeCmd,
+}: {
+  index: number;
+  anchor: ValueAnchor;
+  slotId: string;
+  activeDe: DisplayElement | undefined;
+  symbolId: NodeId;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const active = !!activeDe && !activeDe.hidden;
+
+  function handleToggle() {
+    if (activeDe) {
+      executeCmd(new HideDisplayElementCommand(activeDe.id));
+    } else {
+      const preferred = (anchor.preferredElement as DisplayElementType) ?? "text_readout";
+      executeCmd(
+        new AddDisplayElementCommand(symbolId, {
+          id: crypto.randomUUID() as NodeId,
+          type: "display_element",
+          displayType: preferred,
+          transform: {
+            position: { x: 0, y: 0 },
+            rotation: 0,
+            scale: { x: 1, y: 1 },
+            mirror: "none",
+          },
+          binding: {},
+          config: defaultConfig(preferred),
+          opacity: 1,
+          visible: true,
+          locked: false,
+          slotId,
+        }),
+      );
+    }
+  }
+
+  return (
+    <div style={cardStyle}>
+      {/* Header row — always full opacity so checkbox is always clickable */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="checkbox" checked={active} onChange={handleToggle} style={{ cursor: "pointer" }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--io-text-primary)", flex: 1 }}>
+          Slot {index + 1}
+        </span>
+        {anchor.preferredElement && (
+          <span style={chipStyle}>{anchor.preferredElement.replace(/_/g, " ")}</span>
+        )}
+      </div>
+      {/* Body — dimmed when inactive */}
+      {activeDe && (
+        <div style={{ opacity: active ? 1 : 0.45 }}>
+          <DeBindingAndConfig de={activeDe} executeCmd={executeCmd} />
+          <button
+            onClick={() => executeCmd(new RemoveDisplayElementCommand(activeDe.id))}
+            style={{
+              marginTop: 6,
+              background: "transparent",
+              border: "none",
+              color: "var(--io-text-muted)",
+              fontSize: 10,
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExtraSidecarCard({
+  de,
+  executeCmd,
+}: {
+  de: DisplayElement;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={chipStyle}>{de.displayType?.replace(/_/g, " ") ?? "DE"}</span>
+        <button
+          onClick={() => executeCmd(new RemoveDisplayElementCommand(de.id))}
+          style={{
+            marginLeft: "auto",
+            background: "transparent",
+            border: "none",
+            color: "var(--io-text-muted)",
+            fontSize: 14,
+            cursor: "pointer",
+            padding: "0 2px",
+            lineHeight: 1,
+          }}
+          title="Remove this sidecar"
+        >
+          ×
+        </button>
+      </div>
+      <DeBindingAndConfig de={de} executeCmd={executeCmd} />
+    </div>
+  );
+}
+
+function AddSidecarRow({
+  open,
+  setOpen,
+  onPick,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  onPick: (t: DisplayElementType) => void;
+}) {
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          width: "100%",
+          padding: "6px 8px",
+          background: "transparent",
+          border: "1px dashed var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          color: "var(--io-text-secondary)",
+          fontSize: 11,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        + Add Sidecar
+      </button>
+    );
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 4,
+        padding: 6,
+        background: "var(--io-surface-elevated)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+      }}
+    >
+      {DISPLAY_ELEMENT_TYPE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onPick(opt.value)}
+          style={{
+            padding: "4px 8px",
+            fontSize: 11,
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            color: "var(--io-text-primary)",
+            cursor: "pointer",
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+      <button
+        onClick={() => setOpen(false)}
+        style={{
+          marginLeft: "auto",
+          padding: "4px 8px",
+          fontSize: 11,
+          background: "transparent",
+          border: "none",
+          color: "var(--io-text-muted)",
+          cursor: "pointer",
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
+  const executeCmd = useExecuteCmd();
+  const getShape = useLibraryStore((s) => s.getShape);
+  const shapeEntry = getShape(node.shapeRef.shapeId);
+  const anchors: ValueAnchor[] = shapeEntry?.sidecar.valueAnchors ?? [];
+  const textZones = shapeEntry?.sidecar.textZones ?? [];
+  const children = (node.children ?? []) as DisplayElement[];
+  const [addPickerOpen, setAddPickerOpen] = useState(false);
+
+  const slotIdFor = (i: number) => `anchor-${i}`;
+  const anchorSlotIds = new Set(anchors.map((_, i) => slotIdFor(i)));
+  const findSlotDe = (sid: string) => children.find((c) => c.slotId === sid);
+  const extras = children.filter((c) => !c.slotId || !anchorSlotIds.has(c.slotId));
+
+  const isEmpty = anchors.length === 0 && extras.length === 0 && textZones.length === 0;
+
+  return (
+    <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Anchor slots */}
+      {anchors.length > 0 && (
+        <div>
+          <FieldLabel>Anchor Slots</FieldLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+            {anchors.map((anchor, i) => (
+              <AnchorSlotCard
+                key={i}
+                index={i}
+                anchor={anchor}
+                slotId={slotIdFor(i)}
+                activeDe={findSlotDe(slotIdFor(i))}
+                symbolId={node.id}
+                executeCmd={executeCmd}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Text zone overrides */}
+      {textZones.length > 0 && (
+        <div>
+          <FieldLabel>Text Zone Overrides</FieldLabel>
+          <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginBottom: 6, marginTop: 2 }}>
+            Override static text zones. Leave blank to show live data.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {textZones.map((zone) => {
+              const overrideVal =
+                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ?? "";
+              return (
+                <div key={zone.id}>
+                  <div
+                    style={{ fontSize: 10, color: "var(--io-text-secondary)", marginBottom: 2, fontWeight: 600 }}
+                    title={zone.id}
+                  >
+                    {zone.id}
+                  </div>
+                  <input
+                    type="text"
+                    key={`${node.id}-${zone.id}`}
+                    defaultValue={overrideVal}
+                    placeholder="(live data)"
+                    onBlur={(e) => {
+                      const v = e.target.value;
+                      const overrides = {
+                        ...((node.textZoneOverrides as Record<string, string>) ?? {}),
+                      };
+                      if (v) overrides[zone.id] = v;
+                      else delete overrides[zone.id];
+                      executeCmd(
+                        new ChangePropertyCommand(node.id, "textZoneOverrides", overrides, node.textZoneOverrides),
+                      );
+                    }}
+                    style={inputStyle}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Extra sidecars (no matching anchor slot) */}
+      {extras.length > 0 && (
+        <div>
+          <FieldLabel>Extra Sidecars</FieldLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+            {extras.map((de) => (
+              <ExtraSidecarCard key={de.id} de={de} executeCmd={executeCmd} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {isEmpty && (
+        <div style={{ padding: "12px 0", fontSize: 11, color: "var(--io-text-muted)" }}>
+          This shape has no anchor slots. Use "Add Sidecar" below to attach a display element.
+        </div>
+      )}
+
+      {/* Add sidecar */}
+      <AddSidecarRow
+        open={addPickerOpen}
+        setOpen={setAddPickerOpen}
+        onPick={(t) => {
+          executeCmd(
+            new AddDisplayElementCommand(node.id, {
+              id: crypto.randomUUID() as NodeId,
+              type: "display_element",
+              displayType: t,
+              transform: {
+                position: { x: 0, y: 0 },
+                rotation: 0,
+                scale: { x: 1, y: 1 },
+                mirror: "none",
+              },
+              binding: {},
+              config: defaultConfig(t),
+              opacity: 1,
+              visible: true,
+              locked: false,
+              sidecarOrder: children.length,
+            }),
+          );
+          setAddPickerOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DisplayElement — Data tab (type switcher + binding)
+// ---------------------------------------------------------------------------
+
+function DisplayElementDataTab({ node }: { node: DisplayElement }) {
+  const executeCmd = useExecuteCmd();
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Type">
+        <SelectInput
+          value={node.displayType}
+          onChange={(v) => {
+            const newType = v as DisplayElementType;
+            if (newType !== node.displayType) {
+              executeCmd(
+                new ChangeDisplayElementConfigCommand(
+                  node.id,
+                  defaultConfig(newType),
+                  node.config,
+                ),
+              );
+            }
+          }}
+          options={DISPLAY_ELEMENT_TYPE_OPTIONS}
+        />
+      </Field>
+      <Field label="Binding (Point Tag)">
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="text"
+            key={node.id}
+            defaultValue={node.binding.pointTag ?? node.binding.pointId ?? ""}
+            onBlur={(e) => {
+              const val = e.target.value.trim();
+              const isUuid =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  val,
+                );
+              const newBinding = val
+                ? isUuid
+                  ? { pointId: val }
+                  : { pointTag: val }
+                : {};
+              executeCmd(
+                new ChangeBindingCommand(node.id, newBinding, node.binding),
+              );
+            }}
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="e.g. 25-AI-1401"
+          />
+          <PointResolutionIndicator
+            pointId={node.binding.pointTag ?? node.binding.pointId}
+          />
+        </div>
+      </Field>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DisplayElement — Content tab (type-specific config fields)
+// ---------------------------------------------------------------------------
+
+function DisplayElementContentTab({ node }: { node: DisplayElement }) {
+  const executeCmd = useExecuteCmd();
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <DisplayElementTypeFields node={node} executeCmd={executeCmd} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DisplayElement — Layout tab (opacity + nav link)
+// ---------------------------------------------------------------------------
+
+function DisplayElementLayoutTab({ node }: { node: DisplayElement }) {
+  const executeCmd = useExecuteCmd();
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Opacity %">
+        <NumberInput
+          value={Math.round(node.opacity * 100)}
+          min={0}
+          max={100}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "opacity",
+                v / 100,
+                node.opacity,
+              ),
+            )
+          }
+        />
+      </Field>
+      <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.visible}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "visible",
+                  e.target.checked,
+                  node.visible,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Visible
+        </label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.locked}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "locked",
+                  e.target.checked,
+                  node.locked,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Locked
+        </label>
+      </div>
+      <NavigationLinkEditor
+        nodeId={node.id}
+        link={node.navigationLink}
+        prevLink={node.navigationLink}
+        executeCmd={executeCmd}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Group — special name field with sync
+// ---------------------------------------------------------------------------
+
+function GroupNameField({
+  node,
+  executeCmd,
+}: {
+  node: Group;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const [nameValue, setNameValue] = useState(node.name ?? "");
+  React.useEffect(() => {
+    setNameValue(node.name ?? "");
+  }, [node.name]);
+
+  return (
+    <>
+      <Field label="Name">
+        <input
+          value={nameValue}
+          onChange={(e) => setNameValue(e.target.value)}
+          onBlur={() => {
+            const trimmed = nameValue.trim();
+            if (trimmed !== (node.name ?? "")) {
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "name",
+                  trimmed || undefined,
+                  node.name,
+                ),
+              );
+            } else {
+              setNameValue(node.name ?? "");
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") {
+              setNameValue(node.name ?? "");
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          style={inputStyle}
+          placeholder="Group name"
+        />
+      </Field>
+      <Field label="Children">
+        <input
+          readOnly
+          value={`${node.children.length} elements`}
+          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+        />
+      </Field>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image node layout extras
+// ---------------------------------------------------------------------------
+
+function ImageLayoutExtras({
+  node,
+  executeCmd,
+}: {
+  node: ImageNode;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <>
+      <Field label="Source">
+        <input
+          readOnly
+          value={
+            node.assetRef.originalFilename ??
+            node.assetRef.hash.slice(0, 12) + "…"
+          }
+          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+        />
+      </Field>
+      <Field label="Original Size">
+        <input
+          readOnly
+          value={`${node.assetRef.originalWidth} × ${node.assetRef.originalHeight} px`}
+          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+        />
+      </Field>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+      >
+        <Field label="Display W">
+          <NumberInput
+            value={node.displayWidth}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "displayWidth",
+                  v,
+                  node.displayWidth,
+                ),
+              )
+            }
+          />
+        </Field>
+        <Field label="Display H">
+          <NumberInput
+            value={node.displayHeight}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "displayHeight",
+                  v,
+                  node.displayHeight,
+                ),
+              )
+            }
+          />
+        </Field>
+      </div>
+      <Field label="Preserve Aspect Ratio">
+        <input
+          type="checkbox"
+          checked={node.preserveAspectRatio}
+          onChange={(e) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "preserveAspectRatio",
+                e.target.checked,
+                node.preserveAspectRatio,
+              ),
+            )
+          }
+          style={{ cursor: "pointer" }}
+        />
+      </Field>
+      <Field label="Image Rendering">
+        <SelectInput
+          value={node.imageRendering}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "imageRendering",
+                v,
+                node.imageRendering,
+              ),
+            )
+          }
+          options={[
+            { value: "auto", label: "Auto (Smooth)" },
+            { value: "pixelated", label: "Pixelated" },
+            { value: "crisp-edges", label: "Crisp Edges" },
+          ]}
+        />
+      </Field>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EmbeddedSvg layout extras
+// ---------------------------------------------------------------------------
+
+function EmbeddedSvgLayoutExtras({
+  node,
+  executeCmd,
+}: {
+  node: EmbeddedSvgNode;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <>
+      {node.source && (
+        <Field label="Source">
+          <input
+            readOnly
+            value={node.source.importedFrom}
+            style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+          />
+        </Field>
+      )}
+      <Field label="ViewBox">
+        <input
+          readOnly
+          value={node.viewBox}
+          style={{
+            ...inputStyle,
+            color: "var(--io-text-muted)",
+            fontFamily: "monospace",
+            fontSize: 11,
+          }}
+        />
+      </Field>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+      >
+        <Field label="Width">
+          <NumberInput
+            value={node.width}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(node.id, "width", v, node.width),
+              )
+            }
+          />
+        </Field>
+        <Field label="Height">
+          <NumberInput
+            value={node.height}
+            min={1}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(node.id, "height", v, node.height),
+              )
+            }
+          />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stencil layout extras
+// ---------------------------------------------------------------------------
+
+function StencilLayoutExtras({
+  node,
+  executeCmd,
+}: {
+  node: Stencil;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <>
+      <Field label="Stencil ID">
+        <input
+          readOnly
+          value={node.stencilRef.stencilId}
+          style={{ ...inputStyle, color: "var(--io-text-muted)", fontFamily: "monospace", fontSize: 10 }}
+        />
+      </Field>
+      {node.stencilRef.version && (
+        <Field label="Version">
+          <input
+            readOnly
+            value={node.stencilRef.version}
+            style={{ ...inputStyle, color: "var(--io-text-muted)" }}
+          />
+        </Field>
+      )}
+      {node.size && (
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+        >
+          <Field label="Width">
+            <NumberInput
+              value={node.size.width}
+              min={1}
+              onChange={(v) =>
+                executeCmd(
+                  new ChangePropertyCommand(
+                    node.id,
+                    "size",
+                    { ...node.size, width: v },
+                    node.size,
+                  ),
+                )
+              }
+            />
+          </Field>
+          <Field label="Height">
+            <NumberInput
+              value={node.size.height}
+              min={1}
+              onChange={(v) =>
+                executeCmd(
+                  new ChangePropertyCommand(
+                    node.id,
+                    "size",
+                    { ...node.size, height: v },
+                    node.size,
+                  ),
+                )
+              }
+            />
+          </Field>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Widget layout extras + content
+// ---------------------------------------------------------------------------
+
+function WidgetLayoutExtras({
+  node,
+  executeCmd,
+}: {
+  node: WidgetNode;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <div
+      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+    >
+      <Field label="Width">
+        <NumberInput
+          value={node.width}
+          min={80}
+          max={2000}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(node.id, "width", v, node.width),
+            )
+          }
+        />
+      </Field>
+      <Field label="Height">
+        <NumberInput
+          value={node.height}
+          min={60}
+          max={1200}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(node.id, "height", v, node.height),
+            )
+          }
+        />
+      </Field>
+    </div>
+  );
+}
+
+const WIDGET_TYPE_OPTIONS = [
+  { value: "trend", label: "Trend" },
+  { value: "table", label: "Table" },
+  { value: "gauge", label: "Gauge" },
+  { value: "kpi_card", label: "KPI Card" },
+  { value: "bar_chart", label: "Bar Chart" },
+  { value: "pie_chart", label: "Pie Chart" },
+  { value: "alarm_list", label: "Alarm List" },
+  { value: "muster_point", label: "Muster Point" },
+];
+
+function WidgetContentTab({ node }: { node: WidgetNode }) {
+  const executeCmd = useExecuteCmd();
+  function patchConfig(patch: Partial<WidgetConfig>) {
+    const newConfig = { ...node.config, ...patch } as WidgetConfig;
+    executeCmd(new ChangeWidgetConfigCommand(node.id, newConfig, node.config));
+  }
+  const title = (node.config as { title?: string }).title ?? "";
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Widget Type">
+        <SelectInput
+          value={node.widgetType}
+          onChange={() => {
+            /* type change not supported here — drag new widget */
+          }}
+          options={WIDGET_TYPE_OPTIONS}
+        />
+      </Field>
+      <Field label="Title">
+        <input
+          type="text"
+          key={node.id}
+          defaultValue={title}
+          onBlur={(e) =>
+            patchConfig({ title: e.target.value } as Partial<WidgetConfig>)
+          }
+          style={inputStyle}
+          placeholder="Widget title…"
+        />
+      </Field>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Annotation content tab
+// ---------------------------------------------------------------------------
+
+function AnnotationContentTab({ node }: { node: Annotation }) {
+  const executeCmd = useExecuteCmd();
+  const cfg = node.config as unknown as Record<string, unknown>;
+
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Type">
+        <input
+          readOnly
+          value={node.annotationType.replace(/_/g, " ")}
+          style={{
+            ...inputStyle,
+            color: "var(--io-text-muted)",
+            textTransform: "capitalize",
+          }}
+        />
+      </Field>
+      {"color" in cfg && (
+        <Field label="Color">
+          <ThemedColorSelect
+            value={cfg.color as string | undefined}
+            defaultValue="var(--io-text-secondary)"
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "config",
+                  { ...cfg, color: v },
+                  cfg,
+                ),
+              )
+            }
+          />
+        </Field>
+      )}
+      {"content" in cfg && (
+        <Field label="Content">
+          <input
+            type="text"
+            key={node.id + "-content"}
+            defaultValue={(cfg.content as string) ?? ""}
+            onBlur={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "config",
+                  { ...cfg, content: e.target.value },
+                  cfg,
+                ),
+              )
+            }
+            style={inputStyle}
+          />
+        </Field>
+      )}
+      {"text" in cfg && (
+        <Field label="Text">
+          <input
+            type="text"
+            key={node.id + "-text"}
+            defaultValue={(cfg.text as string) ?? ""}
+            onBlur={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "config",
+                  { ...cfg, text: e.target.value },
+                  cfg,
+                ),
+              )
+            }
+            style={inputStyle}
+          />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Annotation layout extras (width/height from node, not config)
+// ---------------------------------------------------------------------------
+
+function AnnotationLayoutExtras({
+  node,
+  executeCmd,
+}: {
+  node: Annotation;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <div
+      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+    >
+      <Field label="Width">
+        <NumberInput
+          value={node.width}
+          min={1}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(node.id, "width", v, node.width),
+            )
+          }
+        />
+      </Field>
+      <Field label="Height">
+        <NumberInput
+          value={node.height}
+          min={1}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(node.id, "height", v, node.height),
+            )
+          }
+        />
+      </Field>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pipe opacity field (pipes have no positional transform fields in the panel)
+// ---------------------------------------------------------------------------
+
+function PipeLayoutTab({
+  node,
+  doc,
+  executeCmd,
+}: {
+  node: Pipe;
+  doc: GraphicDocument | null;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  return (
+    <div style={{ padding: "0 12px" }}>
+      <Field label="Opacity %">
+        <NumberInput
+          value={Math.round(node.opacity * 100)}
+          min={0}
+          max={100}
+          onChange={(v) =>
+            executeCmd(
+              new ChangePropertyCommand(
+                node.id,
+                "opacity",
+                v / 100,
+                node.opacity,
+              ),
+            )
+          }
+        />
+      </Field>
+      <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.visible}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "visible",
+                  e.target.checked,
+                  node.visible,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Visible
+        </label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={node.locked}
+            onChange={(e) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "locked",
+                  e.target.checked,
+                  node.locked,
+                ),
+              )
+            }
+            style={{ cursor: "pointer" }}
+          />
+          Locked
+        </label>
+      </div>
+      {doc && (
+        <Field label="Layer">
+          <SelectInput
+            value={node.layerId ?? ""}
+            onChange={(v) =>
+              executeCmd(
+                new ChangePropertyCommand(
+                  node.id,
+                  "layerId",
+                  v || undefined,
+                  node.layerId,
+                ),
+              )
+            }
+            options={[
+              { value: "", label: "— None —" },
+              ...doc.layers.map((l) => ({ value: l.id, label: l.name })),
+            ]}
+          />
+        </Field>
+      )}
+      <div
+        style={{
+          padding: "6px 8px",
+          background: "var(--io-surface-elevated)",
+          borderRadius: "var(--io-radius)",
+          fontSize: 10,
+          color: "var(--io-text-muted)",
+          marginTop: 4,
+        }}
+      >
+        Pipe routing is defined by connection endpoints on the canvas.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DisplayElement type options + default config
 // ---------------------------------------------------------------------------
 
 const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{
@@ -1566,6 +3085,7 @@ const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{
   { value: "sparkline", label: "Sparkline" },
   { value: "alarm_indicator", label: "Alarm Indicator" },
   { value: "digital_status", label: "Digital Status" },
+  { value: "point_name_label", label: "Point Name Label" },
 ];
 
 /** Build a minimal valid default config for a given display element type */
@@ -1814,9 +3334,25 @@ function TextReadoutFields({
           />
         </Field>
         <Field label="Color">
-          <ColorInput
+          <ThemedColorSelect
             value={pnRow.color}
+            defaultValue="var(--io-text-primary)"
             onChange={(v) => patch({ pointNameRow: { ...pnRow, color: v } })}
+          />
+        </Field>
+        <Field label="Bold">
+          <input
+            type="checkbox"
+            checked={pnRow.fontWeight === "bold"}
+            onChange={(e) =>
+              patch({
+                pointNameRow: {
+                  ...pnRow,
+                  fontWeight: e.target.checked ? "bold" : "normal",
+                },
+              })
+            }
+            style={{ cursor: "pointer" }}
           />
         </Field>
         <Field label="Background">
@@ -1875,9 +3411,25 @@ function TextReadoutFields({
           />
         </Field>
         <Field label="Color">
-          <ColorInput
+          <ThemedColorSelect
             value={dnRow.color}
+            defaultValue="var(--io-text-secondary)"
             onChange={(v) => patch({ displayNameRow: { ...dnRow, color: v } })}
+          />
+        </Field>
+        <Field label="Bold">
+          <input
+            type="checkbox"
+            checked={dnRow.fontWeight === "bold"}
+            onChange={(e) =>
+              patch({
+                displayNameRow: {
+                  ...dnRow,
+                  fontWeight: e.target.checked ? "bold" : "normal",
+                },
+              })
+            }
+            style={{ cursor: "pointer" }}
           />
         </Field>
         <Field label="Background">
@@ -2014,9 +3566,20 @@ function PointNameLabelFields({
         />
       </Field>
       <Field label="Color">
-        <ColorInput
-          value={cfg.color ?? "var(--io-text-secondary)"}
+        <ThemedColorSelect
+          value={cfg.color}
+          defaultValue="var(--io-text-secondary)"
           onChange={(v) => patch({ color: v })}
+        />
+      </Field>
+      <Field label="Bold">
+        <input
+          type="checkbox"
+          checked={cfg.fontWeight === "bold"}
+          onChange={(e) =>
+            patch({ fontWeight: e.target.checked ? "bold" : "normal" })
+          }
+          style={{ cursor: "pointer" }}
         />
       </Field>
     </>
@@ -2244,6 +3807,18 @@ function DisplayElementTypeFields({
               }
             />
           </Field>
+          <Field label="Show Level Line">
+            <input
+              type="checkbox"
+              checked={cfg.showLevelLine}
+              onChange={(e) =>
+                patchConfig({
+                  showLevelLine: e.target.checked,
+                } as Partial<FillGaugeConfig>)
+              }
+              style={{ cursor: "pointer" }}
+            />
+          </Field>
           <Field label="Show Value">
             <input
               type="checkbox"
@@ -2257,32 +3832,51 @@ function DisplayElementTypeFields({
             />
           </Field>
           {cfg.showValue && (
-            <Field label="Value Position">
-              <SelectInput
-                value={cfg.valuePosition ?? "in-fill"}
-                onChange={(v) =>
-                  patchConfig({
-                    valuePosition: v as FillGaugeConfig["valuePosition"],
-                  } as Partial<FillGaugeConfig>)
-                }
-                options={[
-                  { value: "in-fill", label: "In fill" },
-                  { value: "center", label: "Center" },
-                ]}
-              />
-            </Field>
+            <>
+              <Field label="Value Format">
+                <input
+                  type="text"
+                  defaultValue={cfg.valueFormat ?? "0.#"}
+                  onBlur={(e) =>
+                    patchConfig({
+                      valueFormat: e.target.value,
+                    } as Partial<FillGaugeConfig>)
+                  }
+                  style={inputStyle}
+                  placeholder="0.#"
+                />
+              </Field>
+              <Field label="Value Position">
+                <SelectInput
+                  value={
+                    (cfg as FillGaugeConfig & { valuePosition?: string })
+                      .valuePosition ?? "in-fill"
+                  }
+                  onChange={(v) =>
+                    patchConfig({
+                      valuePosition: v,
+                    } as Partial<FillGaugeConfig>)
+                  }
+                  options={[
+                    { value: "in-fill", label: "In Fill" },
+                    { value: "center", label: "Center" },
+                  ]}
+                />
+              </Field>
+            </>
           )}
-          <Field label="Value Format">
-            <input
-              type="text"
-              defaultValue={cfg.valueFormat ?? "0.#"}
-              onBlur={(e) =>
+          <Field label="Mode">
+            <SelectInput
+              value={cfg.mode}
+              onChange={(v) =>
                 patchConfig({
-                  valueFormat: e.target.value,
+                  mode: v as FillGaugeConfig["mode"],
                 } as Partial<FillGaugeConfig>)
               }
-              style={inputStyle}
-              placeholder="0.#"
+              options={[
+                { value: "standalone", label: "Standalone" },
+                { value: "vessel_overlay", label: "Vessel Overlay" },
+              ]}
             />
           </Field>
         </>
@@ -2319,7 +3913,7 @@ function DisplayElementTypeFields({
               value={cfg.scaleMode}
               onChange={(v) =>
                 patchConfig({
-                  scaleMode: v as "auto" | "fixed",
+                  scaleMode: v as SparklineConfig["scaleMode"],
                 } as Partial<SparklineConfig>)
               }
               options={[
@@ -2328,158 +3922,178 @@ function DisplayElementTypeFields({
               ]}
             />
           </Field>
+          {cfg.scaleMode === "fixed" && (
+            <>
+              <Field label="Scale Low">
+                <NumberInput
+                  value={cfg.fixedRangeLo}
+                  step={0.1}
+                  onChange={(v) =>
+                    patchConfig({ fixedRangeLo: v } as Partial<SparklineConfig>)
+                  }
+                />
+              </Field>
+              <Field label="Scale High">
+                <NumberInput
+                  value={cfg.fixedRangeHi}
+                  step={0.1}
+                  onChange={(v) =>
+                    patchConfig({ fixedRangeHi: v } as Partial<SparklineConfig>)
+                  }
+                />
+              </Field>
+            </>
+          )}
         </>
       );
     }
     case "digital_status": {
       const cfg = node.config as DigitalStatusConfig;
-      const stateEntries = Object.entries(cfg.stateLabels ?? {});
+
+      function patchDs(p: Partial<DigitalStatusConfig>) {
+        patchConfig(p as Partial<DisplayElementConfig>);
+      }
+
       return (
         <>
           <Field label="Abnormal Priority">
-            <SelectInput
-              value={String(cfg.abnormalPriority)}
-              onChange={(v) =>
-                patchConfig({
-                  abnormalPriority: parseInt(v) as 1 | 2 | 3 | 4 | 5,
-                } as Partial<DigitalStatusConfig>)
-              }
-              options={[
-                { value: "1", label: "P1 — Critical" },
-                { value: "2", label: "P2 — High" },
-                { value: "3", label: "P3 — Medium" },
-                { value: "4", label: "P4 — Low" },
-                { value: "5", label: "P5 — Diagnostic" },
-              ]}
+            <NumberInput
+              value={cfg.abnormalPriority}
+              min={1}
+              max={5}
+              onChange={(v) => patchDs({ abnormalPriority: v as 1 | 2 | 3 | 4 | 5 })}
             />
           </Field>
-          <div
-            style={{
-              marginTop: 8,
-              marginBottom: 4,
-              fontSize: 10,
-              fontWeight: 600,
-              color: "var(--io-text-secondary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            State Labels
-          </div>
-          {stateEntries.map(([stateVal, stateLabel]) => (
-            <div
-              key={stateVal}
-              style={{
-                display: "flex",
-                gap: 4,
-                alignItems: "center",
-                marginBottom: 4,
-              }}
-            >
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel>Normal States</FieldLabel>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {(cfg.normalStates ?? []).map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    background: "var(--io-surface-elevated)",
+                    borderRadius: 3,
+                    padding: "1px 4px",
+                  }}
+                >
+                  <span style={{ fontSize: 11 }}>{s}</span>
+                  <button
+                    onClick={() =>
+                      patchDs({
+                        normalStates: cfg.normalStates.filter(
+                          (_, j) => j !== i,
+                        ),
+                      })
+                    }
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--io-text-muted)",
+                      fontSize: 12,
+                      padding: "0 2px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
               <input
-                defaultValue={stateVal}
-                placeholder="Value"
+                type="text"
+                placeholder="+ add"
                 style={{ ...inputStyle, width: 60 }}
-                onBlur={(e) => {
-                  const newVal = e.target.value.trim();
-                  if (!newVal || newVal === stateVal) return;
-                  const labels = { ...cfg.stateLabels };
-                  const normals = [...(cfg.normalStates ?? [])];
-                  const label = labels[stateVal];
-                  delete labels[stateVal];
-                  labels[newVal] = label;
-                  const normIdx = normals.indexOf(stateVal);
-                  if (normIdx >= 0) {
-                    normals.splice(normIdx, 1);
-                    normals.push(newVal);
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    patchDs({
+                      normalStates: [
+                        ...(cfg.normalStates ?? []),
+                        e.currentTarget.value.trim(),
+                      ],
+                    });
+                    e.currentTarget.value = "";
                   }
-                  patchConfig({
-                    stateLabels: labels,
-                    normalStates: normals,
-                  } as Partial<DigitalStatusConfig>);
                 }}
               />
-              <input
-                defaultValue={stateLabel}
-                placeholder="Label"
-                style={{ ...inputStyle, flex: 1 }}
-                onBlur={(e) => {
-                  const labels = {
-                    ...cfg.stateLabels,
-                    [stateVal]: e.target.value,
-                  };
-                  patchConfig({
-                    stateLabels: labels,
-                  } as Partial<DigitalStatusConfig>);
-                }}
-              />
-              <input
-                type="checkbox"
-                title="Normal state"
-                checked={(cfg.normalStates ?? []).includes(stateVal)}
-                onChange={(e) => {
-                  const normals = [...(cfg.normalStates ?? [])];
-                  if (e.target.checked) {
-                    if (!normals.includes(stateVal)) normals.push(stateVal);
-                  } else {
-                    const i = normals.indexOf(stateVal);
-                    if (i >= 0) normals.splice(i, 1);
-                  }
-                  patchConfig({
-                    normalStates: normals,
-                  } as Partial<DigitalStatusConfig>);
-                }}
-                style={{ cursor: "pointer", flexShrink: 0 }}
-              />
-              <button
-                title="Remove state"
-                onClick={() => {
-                  const labels = { ...cfg.stateLabels };
-                  delete labels[stateVal];
-                  const normals = (cfg.normalStates ?? []).filter(
-                    (s) => s !== stateVal,
-                  );
-                  patchConfig({
-                    stateLabels: labels,
-                    normalStates: normals,
-                  } as Partial<DigitalStatusConfig>);
-                }}
+            </div>
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <FieldLabel>State Labels</FieldLabel>
+            {Object.entries(cfg.stateLabels).map(([k, v]) => (
+              <div
+                key={k}
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--io-text-secondary)",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  padding: "0 2px",
-                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginBottom: 3,
                 }}
               >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={() => {
-              const labels = { ...cfg.stateLabels };
-              const newKey = `state${Object.keys(labels).length}`;
-              labels[newKey] = newKey;
-              patchConfig({
-                stateLabels: labels,
-              } as Partial<DigitalStatusConfig>);
-            }}
-            style={{
-              marginTop: 4,
-              fontSize: 11,
-              padding: "3px 8px",
-              background: "var(--io-surface-raised)",
-              border: "1px solid var(--io-border)",
-              borderRadius: 3,
-              cursor: "pointer",
-              color: "var(--io-text-primary)",
-            }}
-          >
-            + Add State
-          </button>
+                <input
+                  type="text"
+                  defaultValue={k}
+                  style={{ ...inputStyle, flex: 1 }}
+                  readOnly
+                />
+                <span style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
+                  →
+                </span>
+                <input
+                  type="text"
+                  defaultValue={v}
+                  onBlur={(e) => {
+                    const labels = { ...cfg.stateLabels };
+                    labels[k] = e.target.value;
+                    patchDs({ stateLabels: labels });
+                  }}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={() => {
+                    const labels = { ...cfg.stateLabels };
+                    delete labels[k];
+                    patchDs({ stateLabels: labels });
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--io-text-secondary)",
+                    fontSize: 14,
+                    padding: "0 2px",
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => {
+                const labels = { ...cfg.stateLabels };
+                const newKey = `state${Object.keys(labels).length}`;
+                labels[newKey] = newKey;
+                patchDs({
+                  stateLabels: labels,
+                } as Partial<DigitalStatusConfig>);
+              }}
+              style={{
+                marginTop: 4,
+                fontSize: 11,
+                padding: "3px 8px",
+                background: "var(--io-surface-raised)",
+                border: "1px solid var(--io-border)",
+                borderRadius: 3,
+                cursor: "pointer",
+                color: "var(--io-text-primary)",
+              }}
+            >
+              + Add State
+            </button>
+          </div>
         </>
       );
     }
@@ -2487,843 +4101,6 @@ function DisplayElementTypeFields({
     default:
       return null;
   }
-}
-
-function DisplayElementPanel({ node }: { node: DisplayElement }) {
-  const executeCmd = useExecuteCmd();
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Type">
-        <SelectInput
-          value={node.displayType}
-          onChange={(v) => {
-            const newType = v as DisplayElementType;
-            if (newType !== node.displayType) {
-              executeCmd(
-                new ChangeDisplayElementConfigCommand(
-                  node.id,
-                  defaultConfig(newType),
-                  node.config,
-                ),
-              );
-            }
-          }}
-          options={DISPLAY_ELEMENT_TYPE_OPTIONS}
-        />
-      </Field>
-      <Field label="Binding (Point Tag)">
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="text"
-            defaultValue={node.binding.pointTag ?? node.binding.pointId ?? ""}
-            onBlur={(e) => {
-              const val = e.target.value.trim();
-              const isUuid =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                  val,
-                );
-              const newBinding = val
-                ? isUuid
-                  ? { pointId: val }
-                  : { pointTag: val }
-                : {};
-              executeCmd(
-                new ChangeBindingCommand(node.id, newBinding, node.binding),
-              );
-            }}
-            style={{ ...inputStyle, flex: 1 }}
-            placeholder="e.g. 25-AI-1401"
-          />
-          <PointResolutionIndicator
-            pointId={node.binding.pointTag ?? node.binding.pointId}
-          />
-        </div>
-      </Field>
-      <DisplayElementTypeFields node={node} executeCmd={executeCmd} />
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-      <NavigationLinkEditor
-        nodeId={node.id}
-        link={node.navigationLink}
-        prevLink={node.navigationLink}
-        executeCmd={executeCmd}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Widget panel
-// ---------------------------------------------------------------------------
-
-const WIDGET_TYPE_OPTIONS = [
-  { value: "trend", label: "Trend" },
-  { value: "table", label: "Table" },
-  { value: "gauge", label: "Gauge" },
-  { value: "kpi_card", label: "KPI Card" },
-  { value: "bar_chart", label: "Bar Chart" },
-  { value: "pie_chart", label: "Pie Chart" },
-  { value: "alarm_list", label: "Alarm List" },
-  { value: "muster_point", label: "Muster Point" },
-];
-
-function WidgetPanel({ node }: { node: WidgetNode }) {
-  const executeCmd = useExecuteCmd();
-
-  function patchConfig(patch: Partial<WidgetConfig>) {
-    const newConfig = { ...node.config, ...patch } as WidgetConfig;
-    executeCmd(new ChangeWidgetConfigCommand(node.id, newConfig, node.config));
-  }
-
-  const title = (node.config as { title?: string }).title ?? "";
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Widget Type">
-        <SelectInput
-          value={node.widgetType}
-          onChange={() => {
-            /* type change not supported here — drag new widget */
-          }}
-          options={WIDGET_TYPE_OPTIONS}
-        />
-      </Field>
-      <Field label="Title">
-        <input
-          type="text"
-          defaultValue={title}
-          onBlur={(e) =>
-            patchConfig({ title: e.target.value } as Partial<WidgetConfig>)
-          }
-          style={inputStyle}
-          placeholder="Widget title…"
-        />
-      </Field>
-      <Field label="Width">
-        <NumberInput
-          value={node.width}
-          min={80}
-          max={2000}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(node.id, "width", v, node.width),
-            )
-          }
-        />
-      </Field>
-      <Field label="Height">
-        <NumberInput
-          value={node.height}
-          min={60}
-          max={1200}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(node.id, "height", v, node.height),
-            )
-          }
-        />
-      </Field>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ImageNode panel
-// ---------------------------------------------------------------------------
-
-function ImageNodePanel({ node }: { node: ImageNode }) {
-  const executeCmd = useExecuteCmd();
-  const pos = node.transform.position;
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Source">
-        <input
-          readOnly
-          value={
-            node.assetRef.originalFilename ??
-            node.assetRef.hash.slice(0, 12) + "…"
-          }
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-      <Field label="Original Size">
-        <input
-          readOnly
-          value={`${node.assetRef.originalWidth} × ${node.assetRef.originalHeight} px`}
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 6,
-          marginBottom: 6,
-        }}
-      >
-        <Field label="X">
-          <NumberInput
-            value={Math.round(pos.x)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, x: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Y">
-          <NumberInput
-            value={Math.round(pos.y)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, y: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Display W">
-          <NumberInput
-            value={node.displayWidth}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "displayWidth",
-                  v,
-                  node.displayWidth,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Display H">
-          <NumberInput
-            value={node.displayHeight}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "displayHeight",
-                  v,
-                  node.displayHeight,
-                ),
-              )
-            }
-          />
-        </Field>
-      </div>
-      <Field label="Preserve Aspect Ratio">
-        <input
-          type="checkbox"
-          checked={node.preserveAspectRatio}
-          onChange={(e) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "preserveAspectRatio",
-                e.target.checked,
-                node.preserveAspectRatio,
-              ),
-            )
-          }
-          style={{ cursor: "pointer" }}
-        />
-      </Field>
-      <Field label="Image Rendering">
-        <SelectInput
-          value={node.imageRendering}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "imageRendering",
-                v,
-                node.imageRendering,
-              ),
-            )
-          }
-          options={[
-            { value: "auto", label: "Auto (Smooth)" },
-            { value: "pixelated", label: "Pixelated" },
-            { value: "crisp-edges", label: "Crisp Edges" },
-          ]}
-        />
-      </Field>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-      <NavigationLinkEditor
-        nodeId={node.id}
-        link={node.navigationLink}
-        prevLink={node.navigationLink}
-        executeCmd={executeCmd}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// EmbeddedSvg panel
-// ---------------------------------------------------------------------------
-
-function EmbeddedSvgPanel({ node }: { node: EmbeddedSvgNode }) {
-  const executeCmd = useExecuteCmd();
-  const pos = node.transform.position;
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      {node.source && (
-        <Field label="Source">
-          <input
-            readOnly
-            value={node.source.importedFrom}
-            style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-          />
-        </Field>
-      )}
-      <Field label="ViewBox">
-        <input
-          readOnly
-          value={node.viewBox}
-          style={{
-            ...inputStyle,
-            color: "var(--io-text-muted)",
-            fontFamily: "monospace",
-            fontSize: 11,
-          }}
-        />
-      </Field>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 6,
-          marginBottom: 6,
-        }}
-      >
-        <Field label="X">
-          <NumberInput
-            value={Math.round(pos.x)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, x: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Y">
-          <NumberInput
-            value={Math.round(pos.y)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, y: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Width">
-          <NumberInput
-            value={node.width}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(node.id, "width", v, node.width),
-              )
-            }
-          />
-        </Field>
-        <Field label="Height">
-          <NumberInput
-            value={node.height}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(node.id, "height", v, node.height),
-              )
-            }
-          />
-        </Field>
-      </div>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Group panel
-// ---------------------------------------------------------------------------
-
-function GroupPanel({ node }: { node: Group }) {
-  const executeCmd = useExecuteCmd();
-  const doc = useSceneStore((s) => s.doc);
-  const pos = node.transform.position;
-  const [nameValue, setNameValue] = useState(node.name ?? "");
-
-  // Keep local name in sync if node changes externally (e.g. undo)
-  React.useEffect(() => {
-    setNameValue(node.name ?? "");
-  }, [node.name]);
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Name">
-        <input
-          value={nameValue}
-          onChange={(e) => setNameValue(e.target.value)}
-          onBlur={() => {
-            const trimmed = nameValue.trim();
-            if (trimmed && trimmed !== (node.name ?? "")) {
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "name",
-                  trimmed,
-                  node.name ?? "",
-                ),
-              );
-            } else {
-              setNameValue(node.name ?? "");
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            if (e.key === "Escape") {
-              setNameValue(node.name ?? "");
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          style={inputStyle}
-          placeholder="Group name"
-        />
-      </Field>
-      <Field label="Children">
-        <input
-          readOnly
-          value={`${node.children.length} elements`}
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 6,
-          marginBottom: 6,
-        }}
-      >
-        <Field label="X">
-          <NumberInput
-            value={Math.round(pos.x)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, x: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-        <Field label="Y">
-          <NumberInput
-            value={Math.round(pos.y)}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "transform",
-                  { ...node.transform, position: { ...pos, y: v } },
-                  node.transform,
-                ),
-              )
-            }
-          />
-        </Field>
-      </div>
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-      {doc && (
-        <Field label="Layer">
-          <SelectInput
-            value={node.layerId ?? ""}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "layerId",
-                  v || undefined,
-                  node.layerId,
-                ),
-              )
-            }
-            options={[
-              { value: "", label: "— None —" },
-              ...doc.layers.map((l) => ({ value: l.id, label: l.name })),
-            ]}
-          />
-        </Field>
-      )}
-      <NavigationLinkEditor
-        nodeId={node.id}
-        link={node.navigationLink}
-        prevLink={node.navigationLink}
-        executeCmd={executeCmd}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Annotation panel
-// ---------------------------------------------------------------------------
-
-function AnnotationPanel({ node }: { node: Annotation }) {
-  const executeCmd = useExecuteCmd();
-  const cfg = node.config as unknown as Record<string, unknown>;
-
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Type">
-        <input
-          readOnly
-          value={node.annotationType.replace(/_/g, " ")}
-          style={{
-            ...inputStyle,
-            color: "var(--io-text-muted)",
-            textTransform: "capitalize",
-          }}
-        />
-      </Field>
-      {"width" in cfg && (
-        <Field label="Width">
-          <NumberInput
-            value={cfg.width as number}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "config",
-                  { ...cfg, width: v },
-                  cfg,
-                ),
-              )
-            }
-          />
-        </Field>
-      )}
-      {"height" in cfg && (
-        <Field label="Height">
-          <NumberInput
-            value={cfg.height as number}
-            min={1}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "config",
-                  { ...cfg, height: v },
-                  cfg,
-                ),
-              )
-            }
-          />
-        </Field>
-      )}
-      {"color" in cfg && (
-        <Field label="Color">
-          <ColorInput
-            value={cfg.color as string}
-            onChange={(v) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "config",
-                  { ...cfg, color: v },
-                  cfg,
-                ),
-              )
-            }
-          />
-        </Field>
-      )}
-      {"content" in cfg && (
-        <Field label="Content">
-          <input
-            type="text"
-            defaultValue={(cfg.content as string) ?? ""}
-            onBlur={(e) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "config",
-                  { ...cfg, content: e.target.value },
-                  cfg,
-                ),
-              )
-            }
-            style={inputStyle}
-          />
-        </Field>
-      )}
-      {"text" in cfg && (
-        <Field label="Text">
-          <input
-            type="text"
-            defaultValue={(cfg.text as string) ?? ""}
-            onBlur={(e) =>
-              executeCmd(
-                new ChangePropertyCommand(
-                  node.id,
-                  "config",
-                  { ...cfg, text: e.target.value },
-                  cfg,
-                ),
-              )
-            }
-            style={inputStyle}
-          />
-        </Field>
-      )}
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Stencil panel (§5.11)
-// ---------------------------------------------------------------------------
-
-function StencilPanel({ node }: { node: Stencil }) {
-  const executeCmd = useExecuteCmd();
-  return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Stencil ID">
-        <input
-          readOnly
-          value={node.stencilRef.stencilId}
-          style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-        />
-      </Field>
-      {node.stencilRef.version && (
-        <Field label="Version">
-          <input
-            readOnly
-            value={node.stencilRef.version}
-            style={{ ...inputStyle, color: "var(--io-text-muted)" }}
-          />
-        </Field>
-      )}
-      <Field label="X">
-        <NumberInput
-          value={Math.round(node.transform.position.x)}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, x: v },
-                },
-                node.transform,
-              ),
-            )
-          }
-        />
-      </Field>
-      <Field label="Y">
-        <NumberInput
-          value={Math.round(node.transform.position.y)}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "transform",
-                {
-                  ...node.transform,
-                  position: { ...node.transform.position, y: v },
-                },
-                node.transform,
-              ),
-            )
-          }
-        />
-      </Field>
-      {node.size && (
-        <>
-          <Field label="Width">
-            <NumberInput
-              value={node.size.width}
-              min={1}
-              onChange={(v) =>
-                executeCmd(
-                  new ChangePropertyCommand(
-                    node.id,
-                    "size",
-                    { ...node.size, width: v },
-                    node.size,
-                  ),
-                )
-              }
-            />
-          </Field>
-          <Field label="Height">
-            <NumberInput
-              value={node.size.height}
-              min={1}
-              onChange={(v) =>
-                executeCmd(
-                  new ChangePropertyCommand(
-                    node.id,
-                    "size",
-                    { ...node.size, height: v },
-                    node.size,
-                  ),
-                )
-              }
-            />
-          </Field>
-        </>
-      )}
-      <Field label="Opacity">
-        <NumberInput
-          value={Math.round(node.opacity * 100)}
-          min={0}
-          max={100}
-          onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(
-                node.id,
-                "opacity",
-                v / 100,
-                node.opacity,
-              ),
-            )
-          }
-        />
-      </Field>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -3439,7 +4216,7 @@ function MultiSelectionPanel({ ids }: { ids: NodeId[] }) {
         </div>
       </div>
 
-      <Field label="Opacity (all)">
+<Field label="Opacity (all)">
         <NumberInput
           value={100}
           min={0}
@@ -3546,28 +4323,30 @@ function MultiSelectionPanel({ ids }: { ids: NodeId[] }) {
                 />
               </Field>
             )}
-            <Field label="Show label (all)">
-              <input
-                type="checkbox"
-                defaultChecked={false}
-                onChange={(e) => {
-                  for (const de of des) {
-                    const newCfg = {
-                      ...de.config,
-                      showLabel: e.target.checked,
-                    };
-                    executeCmd(
-                      new ChangeDisplayElementConfigCommand(
-                        de.id,
-                        newCfg as typeof de.config,
-                        de.config,
-                      ),
-                    );
-                  }
-                }}
-                style={{ cursor: "pointer" }}
-              />
-            </Field>
+            {allTextReadout && (
+              <Field label="Show label (all)">
+                <input
+                  type="checkbox"
+                  defaultChecked={false}
+                  onChange={(e) => {
+                    for (const de of des) {
+                      const newCfg = {
+                        ...de.config,
+                        showLabel: e.target.checked,
+                      };
+                      executeCmd(
+                        new ChangeDisplayElementConfigCommand(
+                          de.id,
+                          newCfg as typeof de.config,
+                          de.config,
+                        ),
+                      );
+                    }
+                  }}
+                  style={{ cursor: "pointer" }}
+                />
+              </Field>
+            )}
           </div>
         );
       })()}
@@ -3665,7 +4444,7 @@ function LayerPropertiesPanel({ layer }: { layer: LayerDefinition }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab bar
+// TabBar
 // ---------------------------------------------------------------------------
 
 interface TabDef {
@@ -3728,10 +4507,7 @@ function TabBar({
 }
 
 // ---------------------------------------------------------------------------
-// Canvas Layers Panel — replaces SceneTreePanel + LayersPanel.
-// Shows all canvas objects in z-order (front = top) with eye/lock toggles,
-// type labels, point binding badges, and move up/down arrows.
-// Groups and symbol_instances expand to reveal children as sub-rows.
+// Canvas Layers Panel — shows all canvas objects in z-order with controls.
 // ---------------------------------------------------------------------------
 
 function getNodeTypeShort(type: string): string {
@@ -3870,27 +4646,73 @@ function CanvasLayerRow({
           color: node.visible
             ? "var(--io-text-primary)"
             : "var(--io-text-muted)",
-          userSelect: "none",
         }}
       >
         {/* Expand toggle */}
-        <button
-          style={{
-            ...LAYER_ICON_BTN,
-            visibility: hasChildren ? "visible" : "hidden",
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onExpand(node.id);
-          }}
-          title={isExpanded ? "Collapse" : "Expand"}
-        >
-          {isExpanded ? "▾" : "▸"}
-        </button>
+        {hasChildren ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand(node.id);
+            }}
+            style={{ ...LAYER_ICON_BTN, fontSize: 8 }}
+          >
+            {isExpanded ? "▼" : "▶"}
+          </button>
+        ) : (
+          <span style={{ width: 16, flexShrink: 0 }} />
+        )}
 
-        {/* Visibility */}
+        {/* Type badge */}
+        <span
+          style={{
+            fontSize: 8,
+            fontWeight: 700,
+            color: "var(--io-text-muted)",
+            minWidth: 24,
+            letterSpacing: "0.04em",
+          }}
+        >
+          {getNodeTypeShort(node.type)}
+        </span>
+
+        {/* Name */}
+        <span
+          style={{
+            flex: 1,
+            fontSize: 11,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: isSelected
+              ? "var(--io-accent)"
+              : node.locked
+                ? "var(--io-text-muted)"
+                : "inherit",
+          }}
+        >
+          {getNodeDisplayName(node)}
+        </span>
+
+        {/* Binding badge */}
+        {binding && (
+          <span
+            style={{
+              fontSize: 9,
+              color: "var(--io-text-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: 56,
+            }}
+            title={binding}
+          >
+            {binding}
+          </span>
+        )}
+
+        {/* Visibility toggle */}
         <button
-          style={LAYER_ICON_BTN}
           onClick={(e) => {
             e.stopPropagation();
             executeCmd(
@@ -3902,14 +4724,17 @@ function CanvasLayerRow({
               ),
             );
           }}
+          style={{
+            ...LAYER_ICON_BTN,
+            opacity: node.visible ? 1 : 0.4,
+          }}
           title={node.visible ? "Hide" : "Show"}
         >
-          {node.visible ? "◉" : "○"}
+          {node.visible ? "👁" : "○"}
         </button>
 
-        {/* Lock */}
+        {/* Lock toggle */}
         <button
-          style={LAYER_ICON_BTN}
           onClick={(e) => {
             e.stopPropagation();
             executeCmd(
@@ -3921,88 +4746,40 @@ function CanvasLayerRow({
               ),
             );
           }}
+          style={{
+            ...LAYER_ICON_BTN,
+            opacity: node.locked ? 1 : 0.3,
+          }}
           title={node.locked ? "Unlock" : "Lock"}
         >
-          {node.locked ? "⊠" : "⊡"}
+          {node.locked ? "🔒" : "○"}
         </button>
 
-        {/* Type pill */}
-        <span
-          style={{
-            fontSize: 8,
-            padding: "1px 3px",
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: 2,
-            color: "var(--io-text-muted)",
-            flexShrink: 0,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {getNodeTypeShort(node.type)}
-        </span>
-
-        {/* Name */}
-        <span
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: 11,
-            paddingLeft: 3,
-          }}
-        >
-          {getNodeDisplayName(node)}
-        </span>
-
-        {/* Binding badge */}
-        {binding && (
-          <span
-            style={{
-              fontSize: 8,
-              padding: "1px 4px",
-              background: "var(--io-accent)",
-              color: "#fff",
-              borderRadius: 2,
-              flexShrink: 0,
-              maxWidth: 60,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={binding}
-          >
-            {binding}
-          </span>
-        )}
-
-        {/* Move up / down — top-level canvas nodes only */}
+        {/* Reorder arrows */}
         {depth === 0 && (
-          <div
-            style={{ display: "flex", gap: 1, flexShrink: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <button
-              style={{ ...LAYER_ICON_BTN, opacity: canMoveUp ? 1 : 0.25 }}
+              style={{ ...LAYER_ICON_BTN, fontSize: 7 }}
               disabled={!canMoveUp}
-              onClick={() =>
+              onClick={(e) => {
+                e.stopPropagation();
                 executeCmd(
                   new ReorderNodeCommand(actualIndex + 1, actualIndex, null),
-                )
-              }
+                );
+              }}
               title="Move forward (up in stack)"
             >
               ↑
             </button>
             <button
-              style={{ ...LAYER_ICON_BTN, opacity: canMoveDown ? 1 : 0.25 }}
+              style={{ ...LAYER_ICON_BTN, fontSize: 7 }}
               disabled={!canMoveDown}
-              onClick={() =>
+              onClick={(e) => {
+                e.stopPropagation();
                 executeCmd(
                   new ReorderNodeCommand(actualIndex - 1, actualIndex, null),
-                )
-              }
+                );
+              }}
               title="Move backward (down in stack)"
             >
               ↓
@@ -4123,6 +4900,83 @@ function CanvasLayersPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Tab routing helpers
+// ---------------------------------------------------------------------------
+
+function tabIdsForNode(
+  node: SceneNode,
+  shapeEntry: ShapeEntry | null,
+): string[] {
+  const tabs: string[] = [];
+
+  switch (node.type) {
+    case "symbol_instance": {
+      const sym = node as SymbolInstance;
+      tabs.push("layout");
+      tabs.push("data");
+      tabs.push("shape");
+      const textZones = shapeEntry?.sidecar.textZones ?? [];
+      const hasChildren = (sym.children ?? []).length > 0;
+      if (textZones.length > 0 || hasChildren) {
+        tabs.push("content");
+      }
+      break;
+    }
+    case "display_element":
+      tabs.push("layout");
+      tabs.push("data");
+      tabs.push("content");
+      break;
+    case "primitive":
+      tabs.push("layout");
+      tabs.push("style");
+      break;
+    case "pipe":
+      tabs.push("layout");
+      tabs.push("style");
+      tabs.push("data");
+      break;
+    case "text_block":
+      tabs.push("layout");
+      tabs.push("style");
+      tabs.push("content");
+      break;
+    case "widget":
+      tabs.push("layout");
+      tabs.push("content");
+      break;
+    case "annotation":
+      tabs.push("layout");
+      tabs.push("content");
+      break;
+    case "image":
+    case "embedded_svg":
+    case "group":
+    case "stencil":
+    default:
+      tabs.push("layout");
+      break;
+  }
+
+  return tabs;
+}
+
+function getDefaultTabId(node: SceneNode): string {
+  switch (node.type) {
+    case "symbol_instance":
+    case "display_element":
+    case "pipe":
+      return "data";
+    case "text_block":
+    case "widget":
+    case "annotation":
+      return "content";
+    default:
+      return "layout";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -4131,6 +4985,7 @@ export default function DesignerRightPanel({
   width,
 }: DesignerRightPanelProps) {
   const doc = useSceneStore((s) => s.doc);
+  const executeCmd = useExecuteCmd();
   const selectedNodeIds = useUiStore((s) => s.selectedNodeIds);
   const selectedIds = Array.from(selectedNodeIds);
   const getShape = useLibraryStore((s) => s.getShape);
@@ -4139,10 +4994,10 @@ export default function DesignerRightPanel({
 
   const singleId = selectedIds.length === 1 ? selectedIds[0] : null;
   const singleNode = singleId && doc ? findNodeById(doc, singleId) : null;
-  const isSymbol = singleNode?.type === "symbol_instance";
-  const shapeEntry = isSymbol
-    ? getShape((singleNode as SymbolInstance).shapeRef.shapeId)
-    : null;
+  const shapeEntry =
+    singleNode?.type === "symbol_instance"
+      ? getShape((singleNode as SymbolInstance).shapeRef.shapeId)
+      : null;
 
   // Auto-scroll to top when a display_element is selected
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -4153,7 +5008,7 @@ export default function DesignerRightPanel({
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [singleId]);
 
-  // Switch to "properties" when selection changes; fall back to "doc" when cleared
+  // Switch to default tab when selection changes; fall back to "doc" when cleared
   const prevSelKey = useRef("");
   useEffect(() => {
     const key = selectedIds.join(",");
@@ -4161,8 +5016,11 @@ export default function DesignerRightPanel({
     prevSelKey.current = key;
     if (selectedIds.length === 0) {
       setActiveTab("doc");
+    } else if (selectedIds.length === 1 && singleNode) {
+      const defaultTab = getDefaultTabId(singleNode);
+      setActiveTab(defaultTab);
     } else {
-      setActiveTab("properties");
+      setActiveTab("multi");
     }
   }, [selectedIds.join(",")]);
 
@@ -4188,7 +5046,7 @@ export default function DesignerRightPanel({
             userSelect: "none",
           }}
         >
-          PROPERTIES
+          INSPECTOR
         </div>
       </div>
     );
@@ -4198,42 +5056,29 @@ export default function DesignerRightPanel({
   const tabs: TabDef[] = [];
 
   if (!doc) {
-    // No document — just Doc tab
+    // No document
   } else if (selectedIds.length === 0) {
     // No selection — Doc tab only (pushed below)
   } else if (selectedIds.length > 1) {
-    tabs.push({ id: "properties", label: `${selectedIds.length} Items` });
+    tabs.push({ id: "multi", label: `${selectedIds.length} Items` });
   } else if (singleNode) {
-    const propertiesLabel: Record<string, string> = {
-      symbol_instance: "Properties",
-      text_block: "Text",
-      primitive: "Shape",
-      pipe: "Pipe",
-      display_element: "Display",
-      widget: "Widget",
-      image: "Image",
-      embedded_svg: "SVG",
-      group: "Group",
-      annotation: "Annotation",
-      stencil: "Stencil",
+    const nodeTabs = tabIdsForNode(singleNode, shapeEntry ?? null);
+    const tabLabels: Record<string, string> = {
+      layout: "Layout",
+      style: "Style",
+      data: "Data",
+      shape: "Shape",
+      content: "Content",
     };
-    tabs.push({
-      id: "properties",
-      label: propertiesLabel[singleNode.type] ?? "Properties",
-    });
-    if (isSymbol) {
-      tabs.push({ id: "shape", label: "Shape" });
-      if (shapeEntry) {
-        tabs.push({ id: "sidecar", label: "Sidecar" });
-      }
+    for (const tid of nodeTabs) {
+      tabs.push({ id: tid, label: tabLabels[tid] ?? tid });
     }
   } else if (singleId) {
-    // May be a layer ID
     const layer = doc.layers.find((l) => l.id === singleId);
-    if (layer) tabs.push({ id: "properties", label: "Layer" });
+    if (layer) tabs.push({ id: "layer", label: "Layer" });
   }
 
-  // Document tab is always last / rightmost
+  // Doc tab always last / rightmost
   tabs.push({ id: "doc", label: "Doc" });
 
   const validTab = tabs.find((t) => t.id === activeTab)
@@ -4256,37 +5101,16 @@ export default function DesignerRightPanel({
 
     if (!doc) return null;
 
-    if (validTab === "shape" && singleNode?.type === "symbol_instance") {
-      return (
-        <SymbolInstanceShapeTab
-          key={singleNode.id}
-          node={singleNode as SymbolInstance}
-        />
-      );
-    }
-
-    if (validTab === "sidecar" && singleNode?.type === "symbol_instance") {
-      return (
-        <SymbolInstanceSidecarTab
-          key={singleNode.id}
-          node={singleNode as SymbolInstance}
-        />
-      );
-    }
-
-    // "properties" tab
-    if (selectedIds.length === 0) return null;
-
-    if (selectedIds.length > 1) {
+    if (validTab === "multi" && selectedIds.length > 1) {
       return <MultiSelectionPanel ids={selectedIds} />;
     }
 
-    const nodeId = selectedIds[0];
-    const node = findNodeById(doc, nodeId);
-
-    if (!node) {
-      const layer = doc.layers.find((l) => l.id === nodeId);
+    if (validTab === "layer" && singleId) {
+      const layer = doc.layers.find((l) => l.id === singleId);
       if (layer) return <LayerPropertiesPanel key={layer.id} layer={layer} />;
+    }
+
+    if (!singleNode) {
       return (
         <div
           style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}
@@ -4296,49 +5120,179 @@ export default function DesignerRightPanel({
       );
     }
 
-    switch (node.type) {
-      case "symbol_instance":
-        return (
-          <SymbolInstancePanel key={node.id} node={node as SymbolInstance} />
-        );
-      case "text_block":
-        return <TextBlockPanel key={node.id} node={node as TextBlock} />;
-      case "primitive":
-        return <PrimitivePanel key={node.id} node={node as Primitive} />;
-      case "pipe":
-        return <PipePanel key={node.id} node={node as Pipe} />;
-      case "display_element":
-        return (
-          <DisplayElementPanel key={node.id} node={node as DisplayElement} />
-        );
-      case "widget":
-        return <WidgetPanel key={node.id} node={node as WidgetNode} />;
-      case "image":
-        return <ImageNodePanel key={node.id} node={node as ImageNode} />;
-      case "embedded_svg":
-        return (
-          <EmbeddedSvgPanel key={node.id} node={node as EmbeddedSvgNode} />
-        );
-      case "group":
-        return <GroupPanel key={node.id} node={node as Group} />;
-      case "annotation":
-        return <AnnotationPanel key={node.id} node={node as Annotation} />;
-      case "stencil":
-        return <StencilPanel key={node.id} node={node as Stencil} />;
-      default:
-        return (
-          <div style={{ padding: "0 12px" }}>
-            <Field label="Opacity">
-              <NumberInput
-                value={Math.round(node.opacity * 100)}
-                min={0}
-                max={100}
-                onChange={() => {}}
-              />
-            </Field>
-          </div>
-        );
+    const node = singleNode;
+
+    // --- LAYOUT TAB ---
+    if (validTab === "layout") {
+      return (
+        <div key={node.id} style={{ padding: "0 12px" }}>
+          {/* Group: name + children count first */}
+          {node.type === "group" && (
+            <GroupNameField
+              node={node as Group}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Stencil extras */}
+          {node.type === "stencil" && (
+            <StencilLayoutExtras
+              node={node as Stencil}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Image extras */}
+          {node.type === "image" && (
+            <ImageLayoutExtras
+              node={node as ImageNode}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* EmbeddedSvg extras */}
+          {node.type === "embedded_svg" && (
+            <EmbeddedSvgLayoutExtras
+              node={node as EmbeddedSvgNode}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Annotation size */}
+          {node.type === "annotation" && (
+            <AnnotationLayoutExtras
+              node={node as Annotation}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Widget size */}
+          {node.type === "widget" && (
+            <WidgetLayoutExtras
+              node={node as WidgetNode}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Primitive geometry (size fields) */}
+          {node.type === "primitive" && (
+            <PrimitiveGeometrySection
+              node={node as Primitive}
+              executeCmd={executeCmd}
+            />
+          )}
+          {/* Pipe: special layout (no X/Y, just opacity/visible/locked/layer) */}
+          {node.type === "pipe" ? (
+            <PipeLayoutTab node={node as Pipe} doc={doc} executeCmd={executeCmd} />
+          ) : node.type === "display_element" ? (
+            /* DisplayElement: no positional transform in panel */
+            <DisplayElementLayoutTab node={node as DisplayElement} />
+          ) : (
+            /* Universal TransformSection for all other nodes */
+            <TransformSection
+              node={node}
+              doc={doc}
+              executeCmd={executeCmd}
+              showRotation={node.type !== "group"}
+            />
+          )}
+        </div>
+      );
     }
+
+    // --- STYLE TAB ---
+    if (validTab === "style") {
+      return (
+        <div key={node.id} style={{ padding: "0 12px" }}>
+          {node.type === "primitive" && (
+            <PrimitiveStyleSection
+              node={node as Primitive}
+              executeCmd={executeCmd}
+            />
+          )}
+          {node.type === "text_block" && (
+            <TextBlockStyleSection
+              node={node as TextBlock}
+              executeCmd={executeCmd}
+            />
+          )}
+          {node.type === "pipe" && (
+            <PipeStyleSection node={node as Pipe} executeCmd={executeCmd} />
+          )}
+        </div>
+      );
+    }
+
+    // --- DATA TAB ---
+    if (validTab === "data") {
+      return (
+        <div key={node.id}>
+          {node.type === "symbol_instance" && (
+            <SymbolInstanceDataTab node={node as SymbolInstance} />
+          )}
+          {node.type === "display_element" && (
+            <DisplayElementDataTab node={node as DisplayElement} />
+          )}
+          {node.type === "pipe" && (
+            <div style={{ padding: "0 12px" }}>
+              <PipeDataSection node={node as Pipe} executeCmd={executeCmd} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- SHAPE TAB (symbol_instance only) ---
+    if (validTab === "shape" && node.type === "symbol_instance") {
+      return (
+        <SymbolInstanceShapeTab key={node.id} node={node as SymbolInstance} />
+      );
+    }
+
+    // --- CONTENT TAB ---
+    if (validTab === "content") {
+      return (
+        <div key={node.id}>
+          {node.type === "symbol_instance" && (
+            <SymbolInstanceSidecarsTab node={node as SymbolInstance} />
+          )}
+          {node.type === "display_element" && (
+            <DisplayElementContentTab node={node as DisplayElement} />
+          )}
+          {node.type === "text_block" && (
+            <div style={{ padding: "0 12px" }}>
+              <Field label="Content">
+                <textarea
+                  key={node.id}
+                  defaultValue={(node as TextBlock).content}
+                  onBlur={(e) => {
+                    const v = e.target.value;
+                    if (v !== (node as TextBlock).content)
+                      executeCmd(
+                        new ChangeTextCommand(
+                          node.id,
+                          v,
+                          (node as TextBlock).content,
+                        ),
+                      );
+                  }}
+                  rows={5}
+                  style={{
+                    ...inputStyle,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </Field>
+            </div>
+          )}
+          {node.type === "widget" && <WidgetContentTab node={node as WidgetNode} />}
+          {node.type === "annotation" && (
+            <AnnotationContentTab node={node as Annotation} />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding: 16, fontSize: 12, color: "var(--io-text-muted)" }}>
+        No content for this tab.
+      </div>
+    );
   }
 
   return (

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { forensicsApi, type AlarmEvent } from "../../api/forensics";
 import DataTable, { type ColumnDef } from "../../shared/components/DataTable";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,10 +26,18 @@ function formatDuration(seconds: number | undefined): string {
 // AlarmSearch
 // ---------------------------------------------------------------------------
 
-export default function AlarmSearch() {
+export default function AlarmSearch({
+  initialPointId,
+}: {
+  initialPointId?: string;
+}) {
   const navigate = useNavigate();
 
-  const [pointId, setPointId] = useState("");
+  const [pointId, setPointId] = useState(initialPointId ?? "");
+
+  useEffect(() => {
+    if (initialPointId) setPointId(initialPointId);
+  }, [initialPointId]);
   const [aggregationInterval, setAggregationInterval] =
     useState<AggregationInterval>("raw");
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmEvent | null>(null);
@@ -343,7 +352,21 @@ export default function AlarmSearch() {
               height={Math.min(400, Math.max(200, alarms.length * 36 + 40))}
               loading={searchMutation.isPending}
               emptyMessage="No alarm events found for this point"
-              onRowClick={(row) => setSelectedAlarm(row)}
+              onRowClick={(row) => {
+                setSelectedAlarm(row);
+                const store = useGlobalSelectionStore.getState();
+                store.setActiveZone("forensics");
+                store.select(
+                  "forensics",
+                  {
+                    id: row.id,
+                    zoneId: "forensics",
+                    kind: "forensics-hit",
+                    payload: { tagname: row.point_id, severity: row.severity },
+                  },
+                  "replace",
+                );
+              }}
             />
 
             {/* Selected alarm action */}

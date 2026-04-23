@@ -79,7 +79,6 @@ function LegendStrip({ items, side, highlighted, onHighlight }: StripProps) {
             onClick={
               onHighlight
                 ? (e) => {
-                    e.stopPropagation();
                     onHighlight(item.label, e.ctrlKey || e.metaKey);
                   }
                 : undefined
@@ -267,7 +266,6 @@ function FloatingLegend({ items, highlighted, onHighlight }: FloatingProps) {
             onClick={
               onHighlight
                 ? (e) => {
-                    e.stopPropagation();
                     onHighlight(item.label, e.ctrlKey || e.metaKey);
                   }
                 : undefined

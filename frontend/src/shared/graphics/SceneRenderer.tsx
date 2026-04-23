@@ -436,7 +436,7 @@ export function SceneRenderer({
       lastPvRef.current.clear();
       lastUpdateTimestampsRef.current.clear();
     };
-  }, [document.id, children, liveSubscribe, resolvedTagMap]);
+  }, [document.id, children, liveSubscribe, resolvedTagMap, shapeMap]);
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>();
@@ -1210,7 +1210,7 @@ function applyPointValue(
         if (baseTransform) {
           el.setAttribute(
             "transform",
-            `${baseTransform} translate(${Math.round(20 - newW / 2)},0)`,
+            `${baseTransform} translate(${Math.round(-newW / 2)},0)`,
           );
         }
       }

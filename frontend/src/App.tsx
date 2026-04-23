@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
+import "@/shared/clipboard/selection/selection.css";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import * as echarts from "echarts";
 import {
@@ -15,6 +16,15 @@ import { ROUTE_REGISTRY } from "./shared/routes/registry";
 import { useUiStore } from "./store/ui";
 import { useUomStore } from "./store/uomStore";
 import { subscribeToSync } from "./lib/broadcastSync";
+import { useSelectionKeybinds } from "./shared/clipboard";
+import ClipboardInspector from "./shared/clipboard/ClipboardInspector";
+import { copyDesignerSelection } from "./pages/designer/clipboard/designerCopyHandler";
+import { copyConsoleActiveZone } from "./pages/console/clipboard/consoleCopyHandler";
+import { copyExpressionSelection } from "./shared/components/expression/clipboard/expressionCopyHandler";
+import { copyAlertsSelection } from "./pages/alerts/clipboard/alertsCopyHandler";
+import { copyLogSelection } from "./pages/log/clipboard/logCopyHandler";
+import { copyForensicsSelection } from "./pages/forensics/clipboard/forensicsCopyHandler";
+import { copyReportsSelection } from "./pages/reports/clipboard/reportsCopyHandler";
 import PointDetailPanel from "./shared/components/PointDetailPanel";
 import { usePointDetailStore } from "./store/pointDetailStore";
 import ToastProvider from "./shared/components/Toast";
@@ -1442,11 +1452,36 @@ function BroadcastSyncReceiver() {
   return null;
 }
 
+function SelectionKeybindsMounter() {
+  useSelectionKeybinds(
+    {
+      designer: copyDesignerSelection,
+      console: () => copyConsoleActiveZone("console"),
+      "expression-builder": copyExpressionSelection,
+      "alarm-list": copyAlertsSelection,
+      logbook: copyLogSelection,
+      forensics: copyForensicsSelection,
+      reports: copyReportsSelection,
+    },
+    {
+      matchers: [
+        {
+          test: (z) => z.startsWith("console/pane/"),
+          handler: (z) => copyConsoleActiveZone(z),
+        },
+      ],
+    },
+  );
+  return null;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <BroadcastSyncReceiver />
       <UomCatalogInit />
+      <SelectionKeybindsMounter />
+      {import.meta.env.DEV && <ClipboardInspector />}
       <AppRoutes />
       <ToastProvider />
       {/* Pinned point detail panels — rendered outside the route outlet so they

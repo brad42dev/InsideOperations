@@ -8,6 +8,7 @@
  */
 
 import { create } from "zustand";
+import { useGlobalSelectionStore } from "./globalSelectionStore";
 
 export interface SelectionRect {
   x: number;
@@ -39,22 +40,45 @@ export const useSelectionStore = create<SelectionState>()((set) => ({
 
   selectPane: (paneId, addToSelection = false) =>
     set((s) => {
+      const gs = useGlobalSelectionStore.getState();
+      gs.setActiveZone("console");
+      const entity = { id: paneId, zoneId: "console" as const, kind: "pane" as const };
+
       if (addToSelection) {
         const next = new Set(s.selectedPaneIds);
-        if (next.has(paneId)) next.delete(paneId);
-        else next.add(paneId);
+        if (next.has(paneId)) {
+          next.delete(paneId);
+          gs.select("console", entity, "remove");
+        } else {
+          next.add(paneId);
+          gs.select("console", entity, "add");
+        }
         return { selectedPaneIds: next };
       }
       // Single-select: toggle off if already the only selected
       if (s.selectedPaneIds.size === 1 && s.selectedPaneIds.has(paneId)) {
+        gs.clearZone("console");
         return { selectedPaneIds: new Set<string>() };
       }
+      gs.select("console", entity, "replace");
       return { selectedPaneIds: new Set([paneId]) };
     }),
 
-  selectAll: (paneIds) => set({ selectedPaneIds: new Set(paneIds) }),
+  selectAll: (paneIds) => {
+    const gs = useGlobalSelectionStore.getState();
+    gs.setActiveZone("console");
+    gs.selectMany(
+      "console",
+      paneIds.map((id) => ({ id, zoneId: "console" as const, kind: "pane" as const })),
+      "replace",
+    );
+    set({ selectedPaneIds: new Set(paneIds) });
+  },
 
-  clearSelection: () => set({ selectedPaneIds: new Set<string>() }),
+  clearSelection: () => {
+    useGlobalSelectionStore.getState().clearZone("console");
+    set({ selectedPaneIds: new Set<string>() });
+  },
 
   setSelectionRect: (selectionRect) => set({ selectionRect }),
 

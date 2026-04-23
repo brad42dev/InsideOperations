@@ -11,6 +11,10 @@ import { reportsApi, type ReportTemplate } from "../../api/reports";
 import ReportConfigPanel from "./ReportConfigPanel";
 import ReportHistory from "./ReportHistory";
 import ReportSchedules from "./ReportSchedules";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget } from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { reportsPasteTarget } from "./clipboard/reportsPasteTarget";
 
 // ---------------------------------------------------------------------------
 // Category filter options
@@ -546,8 +550,18 @@ function TemplatesTab() {
 // ---------------------------------------------------------------------------
 
 export default function ReportsPage() {
+  useSelectionZone({
+    zoneId: "reports",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(reportsPasteTarget);
+
+  const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+
   return (
     <div
+      onClick={() => setActiveZone("reports")}
       style={{
         display: "flex",
         flexDirection: "column",

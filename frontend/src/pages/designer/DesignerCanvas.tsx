@@ -33,6 +33,7 @@ import type {
   SceneNode,
   SceneNodeType,
   GraphicDocument,
+  GraphicExpression,
   Primitive,
   Pipe,
   TextBlock,
@@ -133,6 +134,15 @@ import {
   type SymbolInstanceRenderContext,
   type GroupRenderContext,
 } from "../../shared/graphics/renderNodeSvg";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import {
+  usePasteTarget,
+  useIOClipboardStore,
+  usePasteEngine,
+} from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { createDesignerPasteTarget } from "./clipboard/designerPasteTarget";
+import { copyDesignerSelection } from "./clipboard/designerCopyHandler";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -178,12 +188,6 @@ const RESIZE_HANDLES: Array<{
 // ---------------------------------------------------------------------------
 
 const RULER_SIZE = 16; // px — thickness of ruler strips (also used by RulersOverlay)
-
-// ---------------------------------------------------------------------------
-// Module-level clipboard (survives across renders)
-// ---------------------------------------------------------------------------
-
-let _clipboard: SceneNode[] = [];
 
 // ---------------------------------------------------------------------------
 // Ramer-Douglas-Peucker path simplification for freehand draw
@@ -553,6 +557,28 @@ function getNodeRotationPivot(node: SceneNode): { x: number; y: number } {
   return sharedGetNodeRotationPivot(node, designerShapeSizeLookup);
 }
 
+function computeGroupBBox(nodes: SceneNode[]): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const n of nodes) {
+    const b = getNodeBounds(n);
+    if (b.x < minX) minX = b.x;
+    if (b.y < minY) minY = b.y;
+    if (b.x + b.w > maxX) maxX = b.x + b.w;
+    if (b.y + b.h > maxY) maxY = b.y + b.h;
+  }
+  if (minX === Infinity) return { x: 0, y: 0, w: 64, h: 64 };
+  return { x: minX, y: minY, w: Math.max(maxX - minX, 4), h: Math.max(maxY - minY, 4) };
+}
+
+
 function boundsContains(
   b: { x: number; y: number; w: number; h: number },
   rx: number,
@@ -719,7 +745,7 @@ function TextReadoutDE({
 
   // applyDeSlotOffset bakes x -= 20 (half of 40px assumed box) into position.x
   // for horizontal slots. Compensate with the actual measured width.
-  const hOff = Math.round(20 - boxW / 2);
+  const hOff = Math.round(-boxW / 2);
 
   const isLive = mode === "live";
   const vR = cfg.valueRow;
@@ -841,17 +867,23 @@ function TextReadoutDE({
     </text>,
   );
 
+  // Outer <g> carries the counter-rotation transform (data-node-id lets the
+  // rotation drag handler update just this attribute without touching the inner
+  // centering translate). Inner <g> holds the fixed hOff centering shift so
+  // it is never overwritten by direct DOM mutations during rotation preview.
   return (
     <g
-      transform={`${tx} translate(${hOff},0)`}
+      transform={tx}
       data-node-id={de.id}
       data-canvas-x={String(Math.round(de.transform.position.x))}
       data-canvas-y={String(Math.round(de.transform.position.y))}
       opacity={de.opacity}
       onContextMenu={onContextMenu}
     >
-      <rect x={0} y={0} width={boxW} height={totalH} rx={2} fill="none" />
-      {rows}
+      <g transform={`translate(${hOff},0)`}>
+        <rect x={0} y={0} width={boxW} height={totalH} rx={2} fill="none" />
+        {rows}
+      </g>
     </g>
   );
 }
@@ -882,126 +914,17 @@ function DisplayElementRenderer({
       );
     }
     case "analog_bar": {
-      const bW = 18,
-        bH = "barHeight" in cfg ? (cfg.barHeight as number) : 100;
-      return (
-        <g
-          transform={tx}
-          data-node-id={de.id}
-          data-canvas-x={String(Math.round(de.transform.position.x))}
-          data-canvas-y={String(Math.round(de.transform.position.y))}
-          opacity={de.opacity}
-        >
-          <rect
-            x={0}
-            y={0}
-            width={bW}
-            height={bH}
-            fill="#27272A"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={1}
-            width={bW - 2}
-            height={Math.round(bH * 0.1)}
-            fill="#5C3A3A"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={Math.round(bH * 0.1) + 1}
-            width={bW - 2}
-            height={Math.round(bH * 0.17)}
-            fill="#5C4A32"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={Math.round(bH * 0.27) + 1}
-            width={bW - 2}
-            height={Math.round(bH * 0.46)}
-            fill="#404048"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={Math.round(bH * 0.73) + 1}
-            width={bW - 2}
-            height={Math.round(bH * 0.17)}
-            fill="#32445C"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          <rect
-            x={1}
-            y={Math.round(bH * 0.9) + 1}
-            width={bW - 2}
-            height={Math.round(bH * 0.09)}
-            fill="#2E3A5C"
-            stroke="#52525B"
-            strokeWidth={0.5}
-          />
-          {/* Zone labels */}
-          <text
-            x={-3}
-            y={Math.round(bH * 0.08)}
-            textAnchor="end"
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize={7}
-            fill="#71717A"
-          >
-            HH
-          </text>
-          <text
-            x={-3}
-            y={Math.round(bH * 0.2)}
-            textAnchor="end"
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize={7}
-            fill="#71717A"
-          >
-            H
-          </text>
-          <text
-            x={-3}
-            y={Math.round(bH * 0.78)}
-            textAnchor="end"
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize={7}
-            fill="#71717A"
-          >
-            L
-          </text>
-          <text
-            x={-3}
-            y={Math.round(bH * 0.95)}
-            textAnchor="end"
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize={7}
-            fill="#71717A"
-          >
-            LL
-          </text>
-          {/* Pointer at mid-range */}
-          <polygon
-            points={`${bW},${bH / 2 - 3} ${bW + 7},${bH / 2} ${bW},${bH / 2 + 3}`}
-            fill="#A1A1AA"
-          />
-          <line
-            x1={1}
-            y1={bH / 2}
-            x2={bW - 1}
-            y2={bH / 2}
-            stroke="#A1A1AA"
-            strokeWidth={0.8}
-          />
-        </g>
-      );
+      const abCfg = cfg as AnalogBarConfig;
+      const midVal = (abCfg.rangeLo + abCfg.rangeHi) / 2;
+      const spVal = abCfg.rangeLo + (abCfg.rangeHi - abCfg.rangeLo) * 0.75;
+      const abCtx: DisplayElementRenderContext = {
+        transform: tx,
+        pointValue: { value: midVal, quality: "Good" },
+        setpointValue: spVal,
+        designerMode: true,
+        previewMode: true,
+      };
+      return renderDisplayElementSvg(de, abCtx);
     }
     case "fill_gauge": {
       const fgCtx: DisplayElementRenderContext = {
@@ -1228,8 +1151,28 @@ function RenderNode({
         }
       }
 
+      // getNodeRotationPivot without a shapeSizeLookup falls back to 64×64,
+      // giving pivot (32,32) for all symbol_instances. Most shapes are 48×48
+      // so the outer `tx` has the wrong pivot. Recompute using actual sidecar
+      // geometry so the parent <g> pivot matches what buildExteriorSidecarTransform
+      // uses — otherwise the counter-rotation can't cancel the parent's rotation
+      // and exterior sidecars drift whenever the shape is rotated.
+      const siGeo = shapeEntry?.sidecar?.geometry;
+      const siNaturalW = siGeo?.baseSize?.[0] ?? siGeo?.width ?? 64;
+      const siNaturalH = siGeo?.baseSize?.[1] ?? siGeo?.height ?? 64;
+      const siTx = buildTransform(
+        transform.position.x,
+        transform.position.y,
+        transform.rotation,
+        transform.scale.x,
+        transform.scale.y,
+        transform.mirror,
+        (siNaturalW * (transform.scale.x ?? 1)) / 2,
+        (siNaturalH * (transform.scale.y ?? 1)) / 2,
+      );
+
       const siCtx: SymbolInstanceRenderContext = {
-        transform: tx,
+        transform: siTx,
         shapeSvg: shapeEntry?.svg ?? null,
         shapeSidecar: shapeEntry?.sidecar ?? null,
         partShapes,
@@ -1275,6 +1218,7 @@ function RenderNode({
             const deCtx: DisplayElementRenderContext = {
               transform: childTx,
               pointValue: { value: 60, quality: "Good" },
+              setpointValue: 75,
               vesselInteriorPath: _vesselInteriorPath,
               parentOffset: _parentOffset,
               designerMode: true,
@@ -1488,12 +1432,12 @@ function SelectionOverlay({
   doc: GraphicDocument;
   zoom: number;
   onRotateStart?: (
-    nodeId: NodeId,
-    center: { x: number; y: number },
-    initialTransform: Transform,
+    nodeIds: NodeId[],
+    groupCenter: { x: number; y: number },
+    initialTransforms: Map<NodeId, Transform>,
+    pivots: Map<NodeId, { x: number; y: number }>,
     startHandleX: number,
     startHandleY: number,
-    pivot: { x: number; y: number },
   ) => void;
   onResizeStart?: (
     nodeId: NodeId,
@@ -1577,7 +1521,7 @@ function SelectionOverlay({
   }
 
   const isSingle = nodeIds.size === 1;
-  const showRotateHandle = isSingle && !!onRotateStart;
+  const showRotateHandle = !!onRotateStart;
   const showResizeHandles = !!onResizeStart;
 
   // Compute union bounding box for multi-selection resize handles
@@ -1670,12 +1614,11 @@ function SelectionOverlay({
               strokeDasharray={`${4 / zoom},${2 / zoom}`}
             />
 
-            {/* Corner rotation proximity zones (single selection only).
-                Invisible rects slightly outside each corner — cursor becomes a
-                rotation arrow when hovering here. The resize handle circles
-                (rendered later in the SVG, so on top) reclaim their own cursor
-                area, giving the "close = rotate, exact = resize" feel. */}
-            {showRotateHandle &&
+            {/* Corner rotation proximity zones — single selection only.
+                For multi-selection, rotate zones are rendered ONCE at the
+                union AABB corners outside the per-node map. */}
+            {isSingle &&
+              showRotateHandle &&
               (() => {
                 const zoneSize = 16 / zoom;
                 const zoneHalf = zoneSize / 2;
@@ -1723,12 +1666,12 @@ function SelectionOverlay({
                         e.stopPropagation();
                         e.preventDefault();
                         onRotateStart!(
-                          id,
+                          [id],
                           { x: cx, y: cy },
-                          node.transform,
+                          new Map([[id, node.transform]]),
+                          new Map([[id, pivot]]),
                           hwx,
                           hwy,
-                          pivot,
                         );
                       }}
                     />
@@ -1738,6 +1681,74 @@ function SelectionOverlay({
           </g>
         );
       })}
+
+      {/* Multi-selection group rotation zones — four corner proximity zones
+          at the union AABB corners. Clicking any of them starts a group
+          rotation around the union AABB center. */}
+      {!isSingle &&
+        showRotateHandle &&
+        selectionBBox.w > 0 &&
+        selectionBBox.h > 0 &&
+        (() => {
+          const pad = Math.max(1.5, 3 / zoom);
+          const zoneSize = 16 / zoom;
+          const zoneHalf = zoneSize / 2;
+          const zoneOutset = 3 / zoom;
+          const bx = selectionBBox.x;
+          const by = selectionBBox.y;
+          const bw = selectionBBox.w;
+          const bh = selectionBBox.h;
+          const gcx = bx + bw / 2;
+          const gcy = by + bh / 2;
+          return [
+            { lx: bx - pad - zoneOutset, ly: by - pad - zoneOutset },
+            { lx: bx + bw + pad + zoneOutset, ly: by - pad - zoneOutset },
+            { lx: bx - pad - zoneOutset, ly: by + bh + pad + zoneOutset },
+            {
+              lx: bx + bw + pad + zoneOutset,
+              ly: by + bh + pad + zoneOutset,
+            },
+          ].map(({ lx, ly }, i) => {
+            const dirAngle = Math.atan2(gcy - ly, gcx - lx);
+            const dirDeg = ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
+            const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
+            const rotateCursor = rotateCursors[Math.round(rDeg / 45) % 8];
+            return (
+              <rect
+                key={`group-rot-zone-${i}`}
+                x={lx - zoneHalf}
+                y={ly - zoneHalf}
+                width={zoneSize}
+                height={zoneSize}
+                fill="transparent"
+                style={{
+                  pointerEvents: dragActive ? "none" : "all",
+                  cursor: rotateCursor,
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const initialTransforms = new Map<NodeId, Transform>();
+                  const pivots = new Map<NodeId, { x: number; y: number }>();
+                  for (const nid of allNodeIdsArr) {
+                    const n = nodeMap.get(nid);
+                    if (!n) continue;
+                    initialTransforms.set(nid, n.transform);
+                    pivots.set(nid, getNodeRotationPivot(n));
+                  }
+                  onRotateStart!(
+                    allNodeIdsArr,
+                    { x: gcx, y: gcy },
+                    initialTransforms,
+                    pivots,
+                    lx,
+                    ly,
+                  );
+                }}
+              />
+            );
+          });
+        })()}
 
       {/* Resize handles — drawn once on the union bounding box (single or multi-selection) */}
       {showResizeHandles &&
@@ -2404,10 +2415,35 @@ export default function DesignerCanvas({
   // Subscribed here so DesignerCanvas re-renders on every selection change — ensures
   // SelectionOverlay receives the updated selectedIdsRef.current after Ctrl+A, marquee
   // completion, and blank-canvas deselect (all paths that don't otherwise trigger a re-render).
-  useUiStore((s) => s.selectedNodeIds);
+  // Also used by the selection-mirror effect below.
+  const selectedNodeIds = useUiStore((s) => s.selectedNodeIds);
   // Subscribed here so DesignerCanvas re-renders when any shape (including composable
   // part shapes) finishes loading — cache is a new Map reference on every update.
   useLibraryStore((s) => s.cache);
+
+  // Register designer as a universal selection zone and paste target.
+  const designerPasteTargetRef = useRef(createDesignerPasteTarget());
+  useSelectionZone({
+    zoneId: "designer",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: true,
+  });
+  usePasteTarget(designerPasteTargetRef.current);
+
+  // Mirror uiStore designer selection into the global selection store so
+  // clipboard operations (copyDesignerSelection, pasteDefault) can read it.
+  useEffect(() => {
+    const ids = Array.from(selectedNodeIds);
+    if (ids.length === 0) {
+      useGlobalSelectionStore.getState().clearZone("designer");
+      return;
+    }
+    useGlobalSelectionStore.getState().selectMany(
+      "designer",
+      ids.map((id) => ({ id, zoneId: "designer" as const, kind: "scene-node" as const })),
+      "replace",
+    );
+  }, [selectedNodeIds]);
 
   // Slot popover — opened when a + circle is clicked; holds the target slot + screen coords
   const [slotPopover, setSlotPopover] = useState<{
@@ -2612,6 +2648,29 @@ export default function DesignerCanvas({
   const ghostPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const ghostImgRef = useRef<HTMLImageElement>(null);
 
+  // ── Place mode — two-phase paste placement ─────────────────────────────────
+  // Phase 1 "floating": a bounding-box ghost follows the cursor; single click anchors it.
+  // Phase 2 "confirming": nodes are in the scene and selected; user refines with
+  //   normal drag/resize/rotate; Okay/Enter commits, Cancel/Escape undoes everything.
+  const [placeMode, setPlaceMode] = useState<
+    | {
+        phase: "floating";
+        nodes: SceneNode[];
+        expressions: Record<string, GraphicExpression>;
+        originCenter: { x: number; y: number };
+        bbox: { x: number; y: number; w: number; h: number };
+      }
+    | {
+        phase: "confirming";
+        pastedNodeIds: string[];
+        prePastePointer: number;
+      }
+    | null
+  >(null);
+  const placeModeRef = useRef(placeMode);
+  placeModeRef.current = placeMode;
+  const placeModeGhostGroupRef = useRef<SVGGElement | null>(null);
+
   // Shape Configuration dialog (edit mode) — opened from right-click context menu
   const [shapeConfigNodeId, setShapeConfigNodeId] = useState<NodeId | null>(
     null,
@@ -2699,6 +2758,31 @@ export default function DesignerCanvas({
     sceneExecute(cmd);
     historyPush(cmd, before);
   }
+
+  // ── Place mode helpers ───────────────────────────────────────────────────
+
+  const confirmPlacement = useCallback(() => {
+    setPlaceMode(null);
+    // Pasted nodes stay selected; normal canvas interactions resume.
+  }, []);
+
+  const cancelPlacement = useCallback(() => {
+    const pm = placeModeRef.current;
+    if (!pm) return;
+    if (pm.phase === "confirming") {
+      // Undo all commands back to pre-paste state (handles move/resize/rotate done in confirm mode).
+      const targetPointer = pm.prePastePointer;
+      while (
+        useHistoryStore.getState().pointer > targetPointer &&
+        useHistoryStore.getState().canUndo
+      ) {
+        useHistoryStore.getState().undo();
+      }
+      selectedIdsRef.current = new Set();
+      useUiStore.getState().setSelectedNodes([]);
+    }
+    setPlaceMode(null);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Inline text editing helpers
@@ -2830,23 +2914,35 @@ export default function DesignerCanvas({
 
   const startRotate = useCallback(
     (
-      nodeId: NodeId,
-      center: { x: number; y: number },
-      initialTransform: Transform,
+      nodeIds: NodeId[],
+      groupCenter: { x: number; y: number },
+      initialTransforms: Map<NodeId, Transform>,
+      pivots: Map<NodeId, { x: number; y: number }>,
       startHandleX: number,
       startHandleY: number,
-      pivot: { x: number; y: number },
     ) => {
       const inter = interactionRef.current;
       inter.type = "rotate";
-      inter.rotateCenter = center;
+      inter.rotateCenter = groupCenter;
       inter.rotateStartAngle =
-        (Math.atan2(startHandleY - center.y, startHandleX - center.x) * 180) /
+        (Math.atan2(
+          startHandleY - groupCenter.y,
+          startHandleX - groupCenter.x,
+        ) *
+          180) /
         Math.PI;
-      inter.rotatePivot = pivot;
-      inter.rotateInitialTransforms = new Map([
-        [nodeId, { ...initialTransform }],
-      ]);
+      const clonedTransforms = new Map<NodeId, Transform>();
+      for (const id of nodeIds) {
+        const t = initialTransforms.get(id);
+        if (t) clonedTransforms.set(id, { ...t });
+      }
+      const clonedPivots = new Map<NodeId, { x: number; y: number }>();
+      for (const id of nodeIds) {
+        const p = pivots.get(id);
+        if (p) clonedPivots.set(id, { ...p });
+      }
+      inter.rotateInitialTransforms = clonedTransforms;
+      inter.rotatePivots = clonedPivots;
     },
     [],
   );
@@ -3073,7 +3169,7 @@ export default function DesignerCanvas({
     // rotate-specific
     rotateCenter: { x: number; y: number };
     rotateStartAngle: number;
-    rotatePivot: { x: number; y: number };
+    rotatePivots: Map<NodeId, { x: number; y: number }>;
     rotateInitialTransforms: Map<NodeId, Transform>;
     // resize-specific
     resizeNodeId: NodeId;
@@ -3098,7 +3194,7 @@ export default function DesignerCanvas({
     originalPivots: new Map(),
     rotateCenter: { x: 0, y: 0 },
     rotateStartAngle: 0,
-    rotatePivot: { x: 0, y: 0 },
+    rotatePivots: new Map(),
     rotateInitialTransforms: new Map(),
     resizeNodeId: "" as NodeId,
     resizeHandle: "se",
@@ -3117,6 +3213,7 @@ export default function DesignerCanvas({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      useGlobalSelectionStore.getState().setActiveZone("designer");
       // Middle mouse button → pan
       if (e.button === 1) {
         e.preventDefault();
@@ -3130,6 +3227,47 @@ export default function DesignerCanvas({
         return;
       }
       if (e.button !== 0) return;
+
+      // ── Place mode: floating → confirming on click ───────────────────────
+      if (placeModeRef.current?.phase === "floating") {
+        const pm = placeModeRef.current;
+        const rect = getRect();
+        if (!rect) return;
+        const vp = viewportRef.current;
+        const cx = snap((e.clientX - rect.left - vp.panX) / vp.zoom);
+        const cy = snap((e.clientY - rect.top - vp.panY) / vp.zoom);
+
+        const dx = cx - pm.originCenter.x;
+        const dy = cy - pm.originCenter.y;
+        const shiftedNodes: SceneNode[] = pm.nodes.map((n) => ({
+          ...n,
+          transform: {
+            ...n.transform,
+            position: {
+              x: n.transform.position.x + dx,
+              y: n.transform.position.y + dy,
+            },
+          },
+        }));
+
+        const prePastePointer = useHistoryStore.getState().pointer;
+        const oldIds = new Set(
+          (useSceneStore.getState().doc?.children ?? []).map((n) => n.id),
+        );
+        executeCmd(new PasteNodesCommand(shiftedNodes, pm.expressions));
+        const newDoc = useSceneStore.getState().doc;
+        if (!newDoc) {
+          setPlaceMode(null);
+          return;
+        }
+        const pastedNodeIds = newDoc.children
+          .filter((n) => !oldIds.has(n.id))
+          .map((n) => n.id);
+        selectedIdsRef.current = new Set(pastedNodeIds);
+        useUiStore.getState().setSelectedNodes(pastedNodeIds);
+        setPlaceMode({ phase: "confirming", pastedNodeIds, prePastePointer });
+        return;
+      }
 
       const inter = interactionRef.current;
 
@@ -3186,113 +3324,124 @@ export default function DesignerCanvas({
         }
 
         let hit = hitTest(cx, cy);
-        // For symbol_instances: verify click lands on actual painted SVG content, not the
-        // transparent interior of the bounding box. Shapes like valve-ball use fill="none"
-        // on all paths — elementFromPoint returns null for clicks in those empty areas.
-        if (hit?.nodeType === "symbol_instance") {
-          const domElem = document.elementFromPoint(e.clientX, e.clientY);
-          // Inner <svg> elements (the injected shape SVG) catch pointer events across
-          // their entire viewport rectangle even when all interior content is fill="none".
-          // If elementFromPoint returns an <svg> element, the click landed in the shape
-          // viewport but not on any actual painted path/stroke — treat as empty canvas.
-          if (domElem?.tagName?.toLowerCase() === "svg") {
-            hit = null;
-          } else {
-            const nodeAncestor = domElem?.closest?.("[data-node-id]");
-            if (
-              !nodeAncestor ||
-              nodeAncestor.getAttribute("data-node-id") !== hit.nodeId
-            ) {
+
+        // ── Confirming mode: use bounds-only hit, skip DOM checks ───────────
+        // DOM-based checks (elementFromPoint) can null out `hit` for shapes
+        // with fill="none" paths. In confirming mode we trust the geometry hit
+        // and don't need the precision those checks provide.
+        if (placeModeRef.current?.phase === "confirming") {
+          const pastedIds = placeModeRef.current.pastedNodeIds;
+          const pastedSet = new Set(pastedIds);
+          // Redirect a display_element hit to its pasted parent SI.
+          if (
+            hit?.nodeType === "display_element" &&
+            hit.parentSymbolId &&
+            pastedSet.has(hit.parentSymbolId)
+          ) {
+            hit = { nodeId: hit.parentSymbolId, nodeType: "symbol_instance" };
+          }
+          if (!hit || !pastedSet.has(hit.nodeId)) return;
+          // Confirmed pasted-node hit — force-select ALL pasted nodes so the
+          // group drags as a locked unit. The existing multi-node drag code
+          // (which reads selectedIdsRef) handles the rest.
+          const groupSel = new Set<NodeId>(pastedIds);
+          selectedIdsRef.current = groupSel;
+          useUiStore.getState().setSelectedNodes(Array.from(groupSel));
+          // Fall through to drag setup.
+        } else {
+          // Normal mode: verify click lands on actual painted SVG content, not the
+          // transparent interior of the bounding box. Shapes like valve-ball use
+          // fill="none" on all paths — elementFromPoint returns null for those areas.
+          if (hit?.nodeType === "symbol_instance") {
+            const domElem = document.elementFromPoint(e.clientX, e.clientY);
+            // Inner <svg> elements catch pointer events across their entire viewport
+            // even when all interior content is fill="none". Treat as empty canvas.
+            if (domElem?.tagName?.toLowerCase() === "svg") {
               hit = null;
-            }
-            // Guard against composable part SVGs (FO/FC/FL indicators, actuators)
-            // whose parent <svg> has pointer-events:none. Even though elementFromPoint
-            // should skip them, some browsers/conditions return children of
-            // pointer-events:none containers. Walk from domElem up to nodeAncestor
-            // and reject the hit if any intermediate element disables pointer events.
-            if (hit && domElem && nodeAncestor) {
-              let walk: Element | null = domElem;
-              while (walk && walk !== nodeAncestor) {
-                // Check both computed style and inline style — Chrome may not
-                // reflect pointer-events:none via getComputedStyle for nested SVGs.
-                const computedPe = getComputedStyle(walk).pointerEvents;
-                const inlinePe = (walk as HTMLElement).style?.pointerEvents;
-                if (computedPe === "none" || inlinePe === "none") {
-                  hit = null;
-                  break;
+            } else {
+              const nodeAncestor = domElem?.closest?.("[data-node-id]");
+              if (
+                !nodeAncestor ||
+                nodeAncestor.getAttribute("data-node-id") !== hit.nodeId
+              ) {
+                hit = null;
+              }
+              // Guard against composable part SVGs (FO/FC/FL indicators, actuators)
+              // whose parent <svg> has pointer-events:none.
+              if (hit && domElem && nodeAncestor) {
+                let walk: Element | null = domElem;
+                while (walk && walk !== nodeAncestor) {
+                  const computedPe = getComputedStyle(walk).pointerEvents;
+                  const inlinePe = (walk as HTMLElement).style?.pointerEvents;
+                  if (computedPe === "none" || inlinePe === "none") {
+                    hit = null;
+                    break;
+                  }
+                  walk = walk.parentElement;
                 }
-                walk = walk.parentElement;
               }
             }
           }
-        }
-        // Guard: reject hit when the click lands inside a composable part's rendered
-        // bounding box. Gate valve strokes (fill="none") pass through the area visually
-        // occupied by FO/FC/FL indicators — the user clicks near the indicator thinking
-        // it's empty canvas, but the valve stroke is there and triggers a drag.
-        //
-        // Bounding box is computed from: attachment point - bodyBase (placement formula
-        // used by renderNodeSvg) + part width/height, scaled to canvas space.
-        // Uses the same partId/part_id dual-lookup as renderNodeSvg.tsx.
-        if (hit?.nodeType === "symbol_instance") {
-          const siDoc = docRef.current;
-          if (siDoc) {
-            function findSiForBoundsCheck(
-              nodes: SceneNode[],
-            ): SymbolInstance | null {
-              for (const n of nodes) {
-                if (n.id === hit!.nodeId && n.type === "symbol_instance")
-                  return n as SymbolInstance;
-                if ("children" in n && Array.isArray(n.children)) {
-                  const f = findSiForBoundsCheck(n.children as SceneNode[]);
-                  if (f) return f;
+          // Guard: reject hit when the click lands inside a composable part's
+          // bounding box (e.g. FO/FC/FL indicators on gate valves).
+          if (hit?.nodeType === "symbol_instance") {
+            const siDoc = docRef.current;
+            if (siDoc) {
+              function findSiForBoundsCheck(
+                nodes: SceneNode[],
+              ): SymbolInstance | null {
+                for (const n of nodes) {
+                  if (n.id === hit!.nodeId && n.type === "symbol_instance")
+                    return n as SymbolInstance;
+                  if ("children" in n && Array.isArray(n.children)) {
+                    const f = findSiForBoundsCheck(n.children as SceneNode[]);
+                    if (f) return f;
+                  }
                 }
+                return null;
               }
-              return null;
-            }
-            const siNode = findSiForBoundsCheck(siDoc.children);
-            if (siNode && (siNode.composableParts?.length ?? 0) > 0) {
-              const sData = useLibraryStore
-                .getState()
-                .getShape(siNode.shapeRef.shapeId);
-              const ssx = siNode.transform.scale?.x ?? 1;
-              const ssy = siNode.transform.scale?.y ?? 1;
-              const sp = siNode.transform.position;
-              const margin = 6;
-              for (const cp of siNode.composableParts) {
-                // Dual-lookup: DB may store as part_id (older schema) or partId
-                const pid =
-                  cp.partId ??
-                  (cp as unknown as Record<string, string>)["part_id"];
-                if (!pid) continue;
-                const att = (sData?.sidecar?.compositeAttachments ?? []).find(
-                  (a: { forPart: string }) => a.forPart === pid,
-                );
-                if (!att) continue;
-                // Part geometry comes from the part shape's own sidecar.
-                // Shape ID convention: "part-" + forPart value (e.g. "part-fail-open").
-                const partShape = useLibraryStore
+              const siNode = findSiForBoundsCheck(siDoc.children);
+              if (siNode && (siNode.composableParts?.length ?? 0) > 0) {
+                const sData = useLibraryStore
                   .getState()
-                  .getShape("part-" + pid);
-                const pGeo = partShape?.sidecar?.geometry;
-                if (!pGeo?.bodyBase) continue;
-                const pw = (pGeo.width ?? 32) * ssx;
-                const ph = (pGeo.height ?? 32) * ssy;
-                const partX = sp.x + (att.x - pGeo.bodyBase.x) * ssx;
-                const partY = sp.y + (att.y - pGeo.bodyBase.y) * ssy;
-                if (
-                  cx >= partX - margin &&
-                  cx <= partX + pw + margin &&
-                  cy >= partY - margin &&
-                  cy <= partY + ph + margin
-                ) {
-                  hit = null;
-                  break;
+                  .getShape(siNode.shapeRef.shapeId);
+                const ssx = siNode.transform.scale?.x ?? 1;
+                const ssy = siNode.transform.scale?.y ?? 1;
+                const sp = siNode.transform.position;
+                const margin = 6;
+                for (const cp of siNode.composableParts) {
+                  const pid =
+                    cp.partId ??
+                    (cp as unknown as Record<string, string>)["part_id"];
+                  if (!pid) continue;
+                  const att = (
+                    sData?.sidecar?.compositeAttachments ?? []
+                  ).find((a: { forPart: string }) => a.forPart === pid);
+                  if (!att) continue;
+                  const partShape = useLibraryStore
+                    .getState()
+                    .getShape("part-" + pid);
+                  const pGeo = partShape?.sidecar?.geometry;
+                  if (!pGeo?.bodyBase) continue;
+                  const pw = (pGeo.width ?? 32) * ssx;
+                  const ph = (pGeo.height ?? 32) * ssy;
+                  const partX = sp.x + (att.x - pGeo.bodyBase.x) * ssx;
+                  const partY = sp.y + (att.y - pGeo.bodyBase.y) * ssy;
+                  if (
+                    cx >= partX - margin &&
+                    cx <= partX + pw + margin &&
+                    cy >= partY - margin &&
+                    cy <= partY + ph + margin
+                  ) {
+                    hit = null;
+                    break;
+                  }
                 }
               }
             }
           }
         }
+
         if (hit) {
           const { nodeId: hitId, nodeType: hitType, parentSymbolId } = hit;
           // When a display_element is selected, highlight its parent shape in the canvas
@@ -3314,17 +3463,22 @@ export default function DesignerCanvas({
             return;
           }
 
-          // Select node (Shift or Ctrl toggles in multi-select; plain click replaces)
+          // In confirming phase the group selection was already locked in above;
+          // skip the normal single-node replacement so the drag uses all pasted nodes.
           const newSelection =
-            e.shiftKey || e.ctrlKey
-              ? selectedIdsRef.current.has(hitId)
-                ? new Set(
-                    [...selectedIdsRef.current].filter((id) => id !== hitId),
-                  )
-                : new Set([...selectedIdsRef.current, hitId])
-              : new Set([hitId]);
-          selectedIdsRef.current = newSelection;
-          useUiStore.getState().setSelectedNodes(Array.from(newSelection));
+            placeModeRef.current?.phase === "confirming"
+              ? selectedIdsRef.current
+              : e.shiftKey || e.ctrlKey
+                ? selectedIdsRef.current.has(hitId)
+                  ? new Set(
+                      [...selectedIdsRef.current].filter((id) => id !== hitId),
+                    )
+                  : new Set([...selectedIdsRef.current, hitId])
+                : new Set([hitId]);
+          if (placeModeRef.current?.phase !== "confirming") {
+            selectedIdsRef.current = newSelection;
+            useUiStore.getState().setSelectedNodes(Array.from(newSelection));
+          }
 
           // Prepare drag
           const d = docRef.current;
@@ -3974,6 +4128,20 @@ export default function DesignerCanvas({
       const vp = viewportRef.current;
       const cx = (e.clientX - rect.left - vp.panX) / vp.zoom;
       const cy = (e.clientY - rect.top - vp.panY) / vp.zoom;
+
+      // ── Floating ghost: 60fps direct DOM update, no React re-render ────────
+      if (placeModeRef.current?.phase === "floating") {
+        const pm = placeModeRef.current;
+        const dx = cx - pm.originCenter.x;
+        const dy = cy - pm.originCenter.y;
+        if (placeModeGhostGroupRef.current) {
+          placeModeGhostGroupRef.current.setAttribute(
+            "transform",
+            `translate(${dx},${dy})`,
+          );
+        }
+      }
+
       const inter = interactionRef.current;
 
       if (inter.type === "pan") {
@@ -4127,78 +4295,103 @@ export default function DesignerCanvas({
         if (e.shiftKey) {
           delta = Math.round(delta / 15) * 15;
         }
-        const nodeId = Array.from(inter.rotateInitialTransforms.keys())[0];
-        const initialT = nodeId
-          ? inter.rotateInitialTransforms.get(nodeId)
+
+        // 90° stickiness — anchor snap decision to the first node's rotation.
+        const firstKey = Array.from(inter.rotateInitialTransforms.keys())[0];
+        const firstT = firstKey
+          ? inter.rotateInitialTransforms.get(firstKey)
           : undefined;
-        if (nodeId && initialT) {
-          // Stickiness at right angles: snap to nearest 90° multiple within ±5°
-          if (!e.shiftKey) {
-            const rawRot = initialT.rotation + delta;
-            const nearest90 = Math.round(rawRot / 90) * 90;
-            if (Math.abs(rawRot - nearest90) <= 5)
-              delta = nearest90 - initialT.rotation;
-          }
+        if (!firstKey || !firstT) return;
+        if (!e.shiftKey) {
+          const rawRot = firstT.rotation + delta;
+          const nearest90 = Math.round(rawRot / 90) * 90;
+          if (Math.abs(rawRot - nearest90) <= 5)
+            delta = nearest90 - firstT.rotation;
+        }
+
+        const svgEl = containerRef.current?.querySelector("svg");
+        if (!svgEl) return;
+
+        const isMulti = inter.rotateInitialTransforms.size > 1;
+        const dRad = (delta * Math.PI) / 180;
+        const cosD = Math.cos(dRad);
+        const sinD = Math.sin(dRad);
+
+        for (const [nodeId, initialT] of inter.rotateInitialTransforms) {
           const newRot = initialT.rotation + delta;
-          // DOM preview: rotate the SVG element directly for 60fps feedback
-          const svgEl = containerRef.current?.querySelector("svg");
-          if (svgEl) {
-            const gEl = svgEl.querySelector(`[data-node-id="${nodeId}"]`);
-            if (gEl) {
-              const rp = inter.rotatePivot;
-              gEl.setAttribute(
-                "transform",
-                buildTransform(
-                  initialT.position.x,
-                  initialT.position.y,
-                  newRot,
-                  initialT.scale?.x ?? 1,
-                  initialT.scale?.y ?? 1,
-                  initialT.mirror ?? "none",
-                  rp.x,
-                  rp.y,
-                ),
-              );
-              // Also update counter-rotation transforms on exterior sidecar children
-              // so they keep their canvas position as the parent rotates.
-              const rotNode = docRef.current?.children.find(
-                (n) => n.id === nodeId,
-              ) as SymbolInstance | undefined;
-              if (rotNode?.type === "symbol_instance") {
-                const rotEntry = useLibraryStore
-                  .getState()
-                  .getShape(rotNode.shapeRef.shapeId);
-                const rotGeo = rotEntry?.sidecar?.geometry;
-                const rotNatW = rotGeo?.baseSize?.[0] ?? rotGeo?.width ?? 64;
-                const rotNatH = rotGeo?.baseSize?.[1] ?? rotGeo?.height ?? 64;
-                const rotPivX = (rotNatW * (initialT.scale?.x ?? 1)) / 2;
-                const rotPivY = (rotNatH * (initialT.scale?.y ?? 1)) / 2;
-                for (const child of rotNode.children) {
-                  if (isInsideFillSidecar(child)) continue;
-                  const cEl = svgEl.querySelector(
-                    `[data-node-id="${child.id}"]`,
-                  );
-                  if (cEl) {
-                    cEl.setAttribute(
-                      "transform",
-                      buildExteriorSidecarTransform(
-                        child.transform.position,
-                        child.transform.rotation,
-                        child.transform.scale,
-                        child.transform.mirror,
-                        newRot,
-                        initialT.scale ?? { x: 1, y: 1 },
-                        initialT.mirror ?? "none",
-                        rotPivX,
-                        rotPivY,
-                      ),
-                    );
-                  }
-                }
+          // Single-node: position untouched — local pivot handles the visual.
+          // Multi-node: each node's position orbits the group center C.
+          let newX = initialT.position.x;
+          let newY = initialT.position.y;
+          if (isMulti) {
+            const dxI = initialT.position.x - center.x;
+            const dyI = initialT.position.y - center.y;
+            newX = center.x + dxI * cosD - dyI * sinD;
+            newY = center.y + dxI * sinD + dyI * cosD;
+          }
+          const rp = inter.rotatePivots.get(nodeId) ?? { x: 0, y: 0 };
+          const gEl = svgEl.querySelector(`[data-node-id="${nodeId}"]`);
+          if (gEl) {
+            gEl.setAttribute(
+              "transform",
+              buildTransform(
+                newX,
+                newY,
+                newRot,
+                initialT.scale?.x ?? 1,
+                initialT.scale?.y ?? 1,
+                initialT.mirror ?? "none",
+                rp.x,
+                rp.y,
+              ),
+            );
+          }
+
+          // Exterior sidecar counter-rotations — keep their canvas positions
+          // visually fixed as the parent rotates.
+          const rotNode = docRef.current?.children.find(
+            (n) => n.id === nodeId,
+          ) as SymbolInstance | undefined;
+          if (rotNode?.type === "symbol_instance") {
+            const rotEntry = useLibraryStore
+              .getState()
+              .getShape(rotNode.shapeRef.shapeId);
+            const rotGeo = rotEntry?.sidecar?.geometry;
+            const rotNatW = rotGeo?.baseSize?.[0] ?? rotGeo?.width ?? 64;
+            const rotNatH = rotGeo?.baseSize?.[1] ?? rotGeo?.height ?? 64;
+            const rotPivX = (rotNatW * (initialT.scale?.x ?? 1)) / 2;
+            const rotPivY = (rotNatH * (initialT.scale?.y ?? 1)) / 2;
+            for (const child of rotNode.children) {
+              if (isInsideFillSidecar(child)) continue;
+              const cEl = svgEl.querySelector(`[data-node-id="${child.id}"]`);
+              if (cEl) {
+                cEl.setAttribute(
+                  "transform",
+                  buildExteriorSidecarTransform(
+                    child.transform.position,
+                    child.transform.rotation,
+                    child.transform.scale,
+                    child.transform.mirror,
+                    newRot,
+                    initialT.scale ?? { x: 1, y: 1 },
+                    initialT.mirror ?? "none",
+                    rotPivX,
+                    rotPivY,
+                  ),
+                );
               }
             }
           }
-          setRotationPreview({ nodeId, angle: newRot });
+        }
+
+        // Per-node rotation preview overlay is only meaningful for single-node.
+        if (!isMulti && firstKey) {
+          setRotationPreview({
+            nodeId: firstKey,
+            angle: firstT.rotation + delta,
+          });
+        } else {
+          setRotationPreview(null);
         }
         return;
       }
@@ -5198,7 +5391,7 @@ export default function DesignerCanvas({
         if (e.shiftKey) {
           delta = Math.round(delta / 15) * 15;
         } else {
-          // Stickiness at right angles: snap to nearest 90° multiple within ±5°
+          // 90° stickiness — anchor snap decision to the first node's rotation.
           const firstKey = Array.from(inter.rotateInitialTransforms.keys())[0];
           const firstT = firstKey
             ? inter.rotateInitialTransforms.get(firstKey)
@@ -5211,47 +5404,39 @@ export default function DesignerCanvas({
           }
         }
 
+        const isMulti = inter.rotateInitialTransforms.size > 1;
+        const center = inter.rotateCenter;
+        const dRad = (delta * Math.PI) / 180;
+        const cosD = Math.cos(dRad);
+        const sinD = Math.sin(dRad);
+
         const newTransforms = new Map<NodeId, Transform>();
         const prevTransforms = new Map<NodeId, Transform>();
         for (const [id, prevT] of inter.rotateInitialTransforms) {
           prevTransforms.set(id, { ...prevT });
+          const newRot = (((prevT.rotation + delta) % 360) + 360) % 360;
+          // Single-node: position untouched — local pivot handles the visual.
+          // Multi-node: each node's position orbits the group center C.
+          let newPos = { ...prevT.position };
+          if (isMulti) {
+            const dxI = prevT.position.x - center.x;
+            const dyI = prevT.position.y - center.y;
+            newPos = {
+              x: center.x + dxI * cosD - dyI * sinD,
+              y: center.y + dxI * sinD + dyI * cosD,
+            };
+          }
           newTransforms.set(id, {
             ...prevT,
-            rotation: (((prevT.rotation + delta) % 360) + 360) % 360,
+            position: newPos,
+            rotation: newRot,
           });
-
-          // Propagate rotation to display_element children of this symbol_instance.
-          if (d) {
-            const siNode = d.children.find((n) => n.id === id);
-            if (siNode?.type === "symbol_instance") {
-              const si = siNode as SymbolInstance;
-              const deltaRad = (delta * Math.PI) / 180;
-              const cosD = Math.cos(deltaRad);
-              const sinD = Math.sin(deltaRad);
-              for (const child of si.children) {
-                const deT = child.transform;
-                prevTransforms.set(child.id, { ...deT });
-                if (isInsideFillSidecar(child)) {
-                  // Inside-fill sidecar: rotate with parent shape.
-                  newTransforms.set(child.id, {
-                    ...deT,
-                    rotation: (((deT.rotation + delta) % 360) + 360) % 360,
-                  });
-                } else {
-                  // External sidecar: counter-rotate position to maintain world position.
-                  const dx = deT.position.x;
-                  const dy = deT.position.y;
-                  newTransforms.set(child.id, {
-                    ...deT,
-                    position: {
-                      x: dx * cosD + dy * sinD,
-                      y: -dx * sinD + dy * cosD,
-                    },
-                  });
-                }
-              }
-            }
-          }
+          // Interior (inside-fill) sidecars are nested inside the parent <g> in
+          // the SVG DOM and inherit the parent's rotation automatically. Their
+          // stored rotation must NOT be updated here — doing so would compose the
+          // parent's delta on top of their own delta, producing double rotation
+          // after the React re-render. Exterior sidecars are handled separately
+          // via buildExteriorSidecarTransform (counter-rotation at render time).
         }
         if (newTransforms.size > 0) {
           executeCmd(
@@ -5381,6 +5566,14 @@ export default function DesignerCanvas({
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
+      // Confirming mode: double-click commits placement (same as Enter / Okay).
+      if (placeModeRef.current?.phase === "confirming") {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmPlacement();
+        return;
+      }
+
       const d = docRef.current;
       if (!d) return;
 
@@ -5569,6 +5762,46 @@ export default function DesignerCanvas({
         (e.target as HTMLElement).isContentEditable;
       const ctrl = e.ctrlKey || e.metaKey;
 
+      // ── Place mode key handling (highest priority) ──────────────────────
+      if (placeModeRef.current) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelPlacement();
+          return;
+        }
+        if (e.key === "Enter" && placeModeRef.current.phase === "confirming") {
+          e.preventDefault();
+          confirmPlacement();
+          return;
+        }
+        // Allow Ctrl+Z in confirming phase so the user can fix mistakes.
+        // If undo goes past the paste itself, nodes disappear — auto-cancel.
+        if (
+          placeModeRef.current.phase === "confirming" &&
+          ctrl &&
+          (e.key === "z" || e.key === "Z") &&
+          !e.shiftKey
+        ) {
+          e.preventDefault();
+          historyUndo();
+          const pm2 = placeModeRef.current;
+          if (
+            pm2?.phase === "confirming" &&
+            useHistoryStore.getState().pointer <= pm2.prePastePointer
+          ) {
+            selectedIdsRef.current = new Set();
+            useUiStore.getState().setSelectedNodes([]);
+            setPlaceMode(null);
+          }
+          return;
+        }
+        // Block all other undo/redo in place mode
+        if (ctrl && (e.key === "z" || e.key === "Z" || e.key === "y" || e.key === "Y")) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Undo/Redo — always capture
       if (ctrl && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
         e.preventDefault();
@@ -5598,28 +5831,14 @@ export default function DesignerCanvas({
         return;
       }
 
-      // Ctrl+C — copy
-      if (ctrl && e.key === "c" && !isInput) {
-        e.preventDefault();
-        const d = docRef.current;
-        if (!d) return;
-        const ids = Array.from(selectedIdsRef.current);
-        _clipboard = ids
-          .map((id) => d.children.find((n) => n.id === id))
-          .filter((n): n is SceneNode => n !== undefined);
-        return;
-      }
+      // Ctrl+C — handled globally by useSelectionKeybinds → copyDesignerSelection
 
-      // Ctrl+X — cut
+      // Ctrl+X — cut: write to universal clipboard then delete
       if (ctrl && e.key === "x" && !isInput) {
         e.preventDefault();
-        const d = docRef.current;
-        if (!d) return;
         const ids = Array.from(selectedIdsRef.current);
-        _clipboard = ids
-          .map((id) => d.children.find((n) => n.id === id))
-          .filter((n): n is SceneNode => n !== undefined);
         if (ids.length > 0) {
+          void copyDesignerSelection();
           executeCmd(new DeleteNodesCommand(ids));
           selectedIdsRef.current = new Set();
           useUiStore.getState().setSelectedNodes([]);
@@ -5627,27 +5846,7 @@ export default function DesignerCanvas({
         return;
       }
 
-      // Ctrl+V — paste
-      if (ctrl && e.key === "v" && !isInput) {
-        e.preventDefault();
-        if (_clipboard.length > 0 && docRef.current) {
-          const cmd = new PasteNodesCommand(_clipboard);
-          const newDoc = cmd.execute(docRef.current);
-          // Derive new IDs from the doc diff
-          const oldIds = new Set(docRef.current.children.map((n) => n.id));
-          executeCmd(cmd);
-          const d2 = docRef.current;
-          if (d2) {
-            const pastedIds = d2.children
-              .filter((n) => !oldIds.has(n.id))
-              .map((n) => n.id);
-            selectedIdsRef.current = new Set(pastedIds);
-            useUiStore.getState().setSelectedNodes(pastedIds);
-          }
-          void newDoc;
-        }
-        return;
-      }
+      // Ctrl+V — handled globally by useSelectionKeybinds → pasteDefault (registered paste target)
 
       // Ctrl+D — duplicate
       if (ctrl && e.key === "d") {
@@ -5851,7 +6050,7 @@ export default function DesignerCanvas({
             for (const [id, initialT] of inter.rotateInitialTransforms) {
               const gEl = svgEl.querySelector(`[data-node-id="${id}"]`);
               if (gEl) {
-                const rp = inter.rotatePivot;
+                const rp = inter.rotatePivots.get(id) ?? { x: 0, y: 0 };
                 gEl.setAttribute(
                   "transform",
                   buildTransform(
@@ -6287,6 +6486,28 @@ export default function DesignerCanvas({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [ghostPlacement]);
+
+  // Enter place mode when paste target dispatches the event
+  useEffect(() => {
+    function onEnterPlaceMode(e: Event) {
+      const { nodes, expressions } = (
+        e as CustomEvent<{
+          nodes: SceneNode[];
+          expressions: Record<string, GraphicExpression>;
+        }>
+      ).detail;
+      if (!nodes?.length) return;
+      const bbox = computeGroupBBox(nodes);
+      const originCenter = { x: bbox.x + bbox.w / 2, y: bbox.y + bbox.h / 2 };
+      setPlaceMode({ phase: "floating", nodes, expressions, originCenter, bbox });
+    }
+    document.addEventListener("io-designer:enter-place-mode", onEnterPlaceMode);
+    return () =>
+      document.removeEventListener(
+        "io-designer:enter-place-mode",
+        onEnterPlaceMode,
+      );
+  }, []);
 
   // Handle stencil drops from left palette
   useEffect(() => {
@@ -6974,7 +7195,10 @@ export default function DesignerCanvas({
             position: "relative",
             background: "var(--io-surface-sunken)",
             outline: "none",
-            cursor: cursorMap[activeTool] ?? "default",
+            cursor:
+              placeMode?.phase === "floating"
+                ? "crosshair"
+                : (cursorMap[activeTool] ?? "default"),
             userSelect: "none",
             ...style,
           }}
@@ -7299,8 +7523,9 @@ export default function DesignerCanvas({
                   );
                 })()}
 
-              {/* Selection overlay */}
-              {doc && (
+              {/* Selection overlay — suppressed in confirming mode to avoid chaotic
+                  per-node rotated boxes when multiple pasted nodes are selected. */}
+              {doc && placeMode?.phase !== "confirming" && (
                 <SelectionOverlay
                   nodeIds={selectedIdsRef.current}
                   doc={doc}
@@ -7314,6 +7539,93 @@ export default function DesignerCanvas({
                   theme={theme}
                 />
               )}
+
+              {/* Confirming-phase overlay: single clean AABB around all pasted nodes. */}
+              {placeMode?.phase === "confirming" &&
+                doc &&
+                (() => {
+                  let minX = Infinity,
+                    minY = Infinity,
+                    maxX = -Infinity,
+                    maxY = -Infinity;
+                  for (const id of placeMode.pastedNodeIds) {
+                    const n = doc.children.find((c) => c.id === id);
+                    if (!n) continue;
+                    const b = getNodeBounds(n);
+                    if (b.x < minX) minX = b.x;
+                    if (b.y < minY) minY = b.y;
+                    if (b.x + b.w > maxX) maxX = b.x + b.w;
+                    if (b.y + b.h > maxY) maxY = b.y + b.h;
+                  }
+                  if (minX === Infinity) return null;
+                  const pad = Math.max(1.5, 3 / zoom);
+                  const cddx = dragDelta?.dx ?? 0;
+                  const cddy = dragDelta?.dy ?? 0;
+                  return (
+                    <g style={{ pointerEvents: "none" }}>
+                      <rect
+                        x={minX - pad + cddx}
+                        y={minY - pad + cddy}
+                        width={maxX - minX + pad * 2}
+                        height={maxY - minY + pad * 2}
+                        fill="none"
+                        stroke="var(--io-accent)"
+                        strokeWidth={1.5 / zoom}
+                        strokeDasharray={`${4 / zoom} ${2 / zoom}`}
+                      />
+                    </g>
+                  );
+                })()}
+
+              {/* Place mode floating ghost — canvas-space dashed bbox follows cursor.
+                  Inner <g> transform is updated by direct DOM mutation in handleMouseMove
+                  (60fps, no React re-render). Viewport transform is owned by parent <g>. */}
+              {placeMode?.phase === "floating" && (() => {
+                const { bbox, originCenter, nodes } = placeMode;
+                const pad = Math.max(2, 4 / zoom);
+                return (
+                  <g
+                    ref={placeModeGhostGroupRef}
+                    transform="translate(0,0)"
+                    opacity={0.75}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    {/* Render actual nodes so the user sees what they're placing. */}
+                    {nodes.map((n) => (
+                      <RenderNode
+                        key={n.id}
+                        node={n}
+                        getShapeSvg={getShapeSvgMemo}
+                        selectedIds={new Set()}
+                      />
+                    ))}
+                    {/* Dashed outline around the group */}
+                    <rect
+                      x={bbox.x - pad}
+                      y={bbox.y - pad}
+                      width={bbox.w + pad * 2}
+                      height={bbox.h + pad * 2}
+                      fill="none"
+                      stroke="var(--io-accent)"
+                      strokeWidth={1.5 / zoom}
+                      strokeDasharray={`${5 / zoom} ${3 / zoom}`}
+                      rx={2 / zoom}
+                    />
+                    <text
+                      x={originCenter.x}
+                      y={bbox.y - pad - 5 / zoom}
+                      textAnchor="middle"
+                      fill="var(--io-accent)"
+                      fontSize={10 / zoom}
+                      fontFamily="Inter, sans-serif"
+                    >
+                      {nodes.length === 1
+                        ? "1 element — click to place"
+                        : `${nodes.length} elements — click to place`}
+                    </text>
+                  </g>
+                );
+              })()}
 
               {/* Lock indicators */}
               {doc && <LockOverlay doc={doc} zoom={zoom} />}
@@ -8454,6 +8766,8 @@ export default function DesignerCanvas({
               );
             })()}
 
+{/* Place mode floating ghost — rendered INSIDE the viewport group (see below) */}
+
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
             (() => {
@@ -8531,8 +8845,8 @@ export default function DesignerCanvas({
                     const editRelBbox = {
                       x: 0,
                       y: 0,
-                      width: editW * (node.transform.scale.x ?? 1),
-                      height: editH * (node.transform.scale.y ?? 1),
+                      width: editW,
+                      height: editH,
                     };
                     const editDefaultSlots =
                       (editSidecar?.defaultSlots as Record<string, string>) ??
@@ -8858,6 +9172,62 @@ export default function DesignerCanvas({
         onPropertiesOpen={onPropertiesOpen}
         onOpenGroupInTab={onOpenGroupInTab}
       />
+
+      {/* Place mode confirmation bar — shown in "confirming" phase */}
+      {placeMode?.phase === "confirming" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+            padding: "8px 12px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+            userSelect: "none",
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <span>Position, resize, or rotate — then confirm</span>
+          <button
+            style={{
+              padding: "4px 14px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              borderRadius: "var(--io-radius)",
+              border: "none",
+              background: "var(--io-accent)",
+              color: "#09090b",
+            }}
+            onClick={confirmPlacement}
+          >
+            Okay
+          </button>
+          <button
+            style={{
+              padding: "4px 12px",
+              fontSize: 12,
+              cursor: "pointer",
+              borderRadius: "var(--io-radius)",
+              border: "1px solid var(--io-border)",
+              background: "transparent",
+              color: "var(--io-text-secondary)",
+            }}
+            onClick={cancelPlacement}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </ContextMenuPrimitive.Root>
   );
 }
@@ -9205,12 +9575,10 @@ function applyDeSlotOffset(
 
   switch (dt) {
     case "text_readout": {
-      const w = 40; // matches default minWidth; typical 4-6 char values fit within this
       const h = 24;
-      if (isHoriz) x -= w / 2;
       if (isTop) y -= h; // label bottom at slot line
       if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
+      if (isLeft) x -= 40; // pull right edge to slot line
       break;
     }
     case "alarm_indicator":
@@ -9403,6 +9771,8 @@ function DesignerContextMenuContent({
   const canReports = usePermission("reports:read");
   const testMode = useUiStore((s) => s.testMode);
   const testModePaused = useUiStore((s) => s.testModePaused);
+  const ioClipboardCurrent = useIOClipboardStore((s) => s.current);
+  const { pasteDefault } = usePasteEngine();
 
   // ctxNodeId is React state (not just a ref) so this component re-renders
   // with the correct value every time the context menu is triggered.
@@ -9590,26 +9960,11 @@ function DesignerContextMenuContent({
           // RC-DES-1: Empty-canvas context menu
           // ----------------------------------------------------------------
           <>
-            {/* Paste — disabled (not hidden) when clipboard is empty */}
+            {/* Paste — disabled when universal clipboard is empty */}
             <ContextMenuPrimitive.Item
               style={itemStyle}
-              disabled={_clipboard.length === 0}
-              onSelect={() => {
-                if (!docRef.current || _clipboard.length === 0) return;
-                const cmd = new PasteNodesCommand(_clipboard);
-                const oldIds = new Set(
-                  docRef.current.children.map((n) => n.id),
-                );
-                executeCmd(cmd);
-                const d2 = docRef.current;
-                if (d2) {
-                  const pastedIds = d2.children
-                    .filter((n) => !oldIds.has(n.id))
-                    .map((n) => n.id);
-                  selectedIdsRef.current = new Set(pastedIds);
-                  useUiStore.getState().setSelectedNodes(pastedIds);
-                }
-              }}
+              disabled={!ioClipboardCurrent}
+              onSelect={() => void pasteDefault()}
             >
               Paste
             </ContextMenuPrimitive.Item>
@@ -9748,35 +10103,14 @@ function DesignerContextMenuContent({
           // RC-DES-2+: Node context menu (existing content)
           // ----------------------------------------------------------------
           <>
-            {/* Select All */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasDoc}
-              onSelect={() => {
-                if (!doc) return;
-                const allIds = doc.children
-                  .filter((n) => n.visible && !n.locked)
-                  .map((n) => n.id);
-                selectedIdsRef.current = new Set(allIds);
-                useUiStore.getState().setSelectedNodes(allIds);
-              }}
-            >
-              Select All
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-
             {/* Edit operations */}
             <ContextMenuPrimitive.Item
               style={itemStyle}
               disabled={!hasSelection}
               onSelect={() => {
-                if (!doc) return;
                 const ids = Array.from(selectedIdsRef.current);
-                _clipboard = ids
-                  .map((id) => doc.children.find((n) => n.id === id))
-                  .filter((n): n is SceneNode => n !== undefined);
                 if (ids.length > 0) {
+                  void copyDesignerSelection();
                   executeCmd(new DeleteNodesCommand(ids));
                   selectedIdsRef.current = new Set();
                   useUiStore.getState().setSelectedNodes([]);
@@ -9789,35 +10123,15 @@ function DesignerContextMenuContent({
             <ContextMenuPrimitive.Item
               style={itemStyle}
               disabled={!hasSelection}
-              onSelect={() => {
-                if (!doc) return;
-                _clipboard = Array.from(selectedIdsRef.current)
-                  .map((id) => doc.children.find((n) => n.id === id))
-                  .filter((n): n is SceneNode => n !== undefined);
-              }}
+              onSelect={() => void copyDesignerSelection()}
             >
               Copy
             </ContextMenuPrimitive.Item>
 
             <ContextMenuPrimitive.Item
               style={itemStyle}
-              disabled={_clipboard.length === 0}
-              onSelect={() => {
-                if (!docRef.current || _clipboard.length === 0) return;
-                const cmd = new PasteNodesCommand(_clipboard);
-                const oldIds = new Set(
-                  docRef.current.children.map((n) => n.id),
-                );
-                executeCmd(cmd);
-                const d2 = docRef.current;
-                if (d2) {
-                  const pastedIds = d2.children
-                    .filter((n) => !oldIds.has(n.id))
-                    .map((n) => n.id);
-                  selectedIdsRef.current = new Set(pastedIds);
-                  useUiStore.getState().setSelectedNodes(pastedIds);
-                }
-              }}
+              disabled={!ioClipboardCurrent}
+              onSelect={() => void pasteDefault()}
             >
               Paste
             </ContextMenuPrimitive.Item>
@@ -9887,174 +10201,94 @@ function DesignerContextMenuContent({
                         }
                       }}
                     >
-                      Group Selection… (Ctrl+G)
+                      Group (Ctrl+G)
                     </ContextMenuPrimitive.Item>
                     <ContextMenuPrimitive.Separator style={sepStyle} />
                   </>
                 ) : null;
               })()}
 
-            {/* Group / Ungroup */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={selectedIds.size < 2 || !hasDoc}
-              onSelect={() => {
-                if (!doc) return;
-                const ids = Array.from(selectedIds).filter(
-                  (id) =>
-                    doc.children.find((n) => n.id === id)?.type !== "pipe",
-                );
-                if (ids.length > 1) {
-                  // Group immediately without name dialog — spec §6.2 says GroupCommand, no dialog
-                  const preIds = new Set(doc.children.map((n) => n.id));
-                  executeCmd(new GroupNodesCommand(ids, nextGroupName(doc)));
-                  const postDoc = docRef.current;
-                  if (postDoc) {
-                    const newGroup = postDoc.children.find(
-                      (n) => !preIds.has(n.id) && n.type === "group",
-                    );
-                    if (newGroup) {
-                      selectedIdsRef.current = new Set([newGroup.id]);
-                      useUiStore.getState().setSelectedNodes([newGroup.id]);
-                    }
-                  }
-                }
-              }}
-            >
-              Group
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={
-                !nodeId ||
-                !doc?.children.find(
-                  (n) => n.id === nodeId && n.type === "group",
-                )
-              }
-              onSelect={() => {
-                if (nodeId) executeCmd(new UngroupCommand(nodeId));
-              }}
-            >
-              Ungroup
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-
             {/* Transform */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                const cmd = buildRotateCmd(90);
-                if (cmd) executeCmd(cmd);
-              }}
-            >
-              Rotate 90° CW
-            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{ ...itemStyle, ...(!hasSelection || !hasDoc ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+              >
+                Transform
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => { const cmd = buildRotateCmd(90); if (cmd) executeCmd(cmd); }}
+                  >
+                    Rotate 90° CW
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => { const cmd = buildRotateCmd(-90); if (cmd) executeCmd(cmd); }}
+                  >
+                    Rotate 90° CCW
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => { const cmd = buildFlipCmd("horizontal"); if (cmd) executeCmd(cmd); }}
+                  >
+                    Flip Horizontal
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => { const cmd = buildFlipCmd("vertical"); if (cmd) executeCmd(cmd); }}
+                  >
+                    Flip Vertical
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
 
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                const cmd = buildRotateCmd(-90);
-                if (cmd) executeCmd(cmd);
-              }}
-            >
-              Rotate 90° CCW
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                const cmd = buildFlipCmd("horizontal");
-                if (cmd) executeCmd(cmd);
-              }}
-            >
-              Flip Horizontal
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                const cmd = buildFlipCmd("vertical");
-                if (cmd) executeCmd(cmd);
-              }}
-            >
-              Flip Vertical
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-
-            {/* Z-order */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!nodeId || !hasDoc || fromIdx < 0}
-              onSelect={() => {
-                if (nodeId && doc && fromIdx >= 0)
-                  executeCmd(
-                    new ReorderNodeCommand(
-                      doc.children.length - 1,
-                      fromIdx,
-                      null,
-                    ),
-                  );
-              }}
-            >
-              Bring to Front
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={
-                !nodeId ||
-                !hasDoc ||
-                fromIdx < 0 ||
-                fromIdx >= (doc?.children.length ?? 0) - 1
-              }
-              onSelect={() => {
-                if (nodeId && doc && fromIdx >= 0)
-                  executeCmd(
-                    new ReorderNodeCommand(
-                      Math.min(fromIdx + 1, doc.children.length - 1),
-                      fromIdx,
-                      null,
-                    ),
-                  );
-              }}
-            >
-              Bring Forward
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!nodeId || !hasDoc || fromIdx <= 0}
-              onSelect={() => {
-                if (nodeId && doc && fromIdx > 0)
-                  executeCmd(
-                    new ReorderNodeCommand(
-                      Math.max(fromIdx - 1, 0),
-                      fromIdx,
-                      null,
-                    ),
-                  );
-              }}
-            >
-              Send Backward
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!nodeId || !hasDoc || fromIdx < 0}
-              onSelect={() => {
-                if (nodeId && doc && fromIdx >= 0)
-                  executeCmd(new ReorderNodeCommand(0, fromIdx, null));
-              }}
-            >
-              Send to Back
-            </ContextMenuPrimitive.Item>
+            {/* Arrange */}
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{ ...itemStyle, ...(!nodeId || !hasDoc || fromIdx < 0 ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+              >
+                Arrange
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!nodeId || !hasDoc || fromIdx < 0}
+                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(doc.children.length - 1, fromIdx, null)); }}
+                  >
+                    Bring to Front
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!nodeId || !hasDoc || fromIdx < 0 || fromIdx >= (doc?.children.length ?? 0) - 1}
+                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(Math.min(fromIdx + 1, doc.children.length - 1), fromIdx, null)); }}
+                  >
+                    Bring Forward
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!nodeId || !hasDoc || fromIdx <= 0}
+                    onSelect={() => { if (nodeId && doc && fromIdx > 0) executeCmd(new ReorderNodeCommand(Math.max(fromIdx - 1, 0), fromIdx, null)); }}
+                  >
+                    Send Backward
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!nodeId || !hasDoc || fromIdx < 0}
+                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(0, fromIdx, null)); }}
+                  >
+                    Send to Back
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
 
             <ContextMenuPrimitive.Separator style={sepStyle} />
 
@@ -10125,33 +10359,6 @@ function DesignerContextMenuContent({
 
             <ContextMenuPrimitive.Separator style={sepStyle} />
 
-            {/* View */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              onSelect={() => {
-                const d = docRef.current;
-                const el = containerRef.current;
-                if (d && el) {
-                  const r = el.getBoundingClientRect();
-                  fitToCanvas(
-                    d.canvas.width,
-                    d.canvas.height,
-                    r.width,
-                    r.height,
-                  );
-                }
-              }}
-            >
-              Zoom to Fit
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              onSelect={() => setGrid(!gridVisible, gridSize)}
-            >
-              {gridVisible ? "Hide Grid" : "Show Grid"}
-            </ContextMenuPrimitive.Item>
-
             {/* Properties — RC-DES-2 base item: selects node and focuses right panel */}
             <ContextMenuPrimitive.Item
               style={itemStyle}
@@ -10167,38 +10374,62 @@ function DesignerContextMenuContent({
 
             <ContextMenuPrimitive.Separator style={sepStyle} />
 
-            {/* Stencil / Shape promotion */}
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                if (!docRef.current) return;
-                const nodes = Array.from(selectedIdsRef.current)
-                  .map((id) =>
-                    docRef.current!.children.find((n) => n.id === id),
-                  )
-                  .filter((n): n is SceneNode => n !== undefined);
-                setStencilNodes(nodes);
-              }}
-            >
-              Save as Stencil…
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item
-              style={itemStyle}
-              disabled={!hasSelection || !hasDoc}
-              onSelect={() => {
-                if (!docRef.current) return;
-                const nodes = Array.from(selectedIdsRef.current)
-                  .map((id) =>
-                    docRef.current!.children.find((n) => n.id === id),
-                  )
-                  .filter((n): n is SceneNode => n !== undefined);
-                setPromoteNodes(nodes);
-              }}
-            >
-              Promote to Shape…
-            </ContextMenuPrimitive.Item>
+            {/* Save to Library */}
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{ ...itemStyle, ...(!hasSelection || !hasDoc ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+              >
+                Save to Library
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => {
+                      if (!docRef.current) return;
+                      const nodes = Array.from(selectedIdsRef.current)
+                        .map((id) => docRef.current!.children.find((n) => n.id === id))
+                        .filter((n): n is SceneNode => n !== undefined);
+                      setStencilNodes(nodes);
+                    }}
+                  >
+                    Save as Stencil…
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!hasSelection || !hasDoc}
+                    onSelect={() => {
+                      if (!docRef.current) return;
+                      const nodes = Array.from(selectedIdsRef.current)
+                        .map((id) => docRef.current!.children.find((n) => n.id === id))
+                        .filter((n): n is SceneNode => n !== undefined);
+                      setPromoteNodes(nodes);
+                    }}
+                  >
+                    Promote to Shape…
+                  </ContextMenuPrimitive.Item>
+                  {symbolInstance && (
+                    <ContextMenuPrimitive.Item
+                      style={itemStyle}
+                      disabled={!shapeEntry?.svg}
+                      onSelect={() => {
+                        if (!shapeEntry?.svg) return;
+                        const blob = new Blob([shapeEntry.svg], { type: "image/svg+xml" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${symbolInstance.shapeRef.shapeId}.svg`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Export Shape SVG
+                    </ContextMenuPrimitive.Item>
+                  )}
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
 
             {/* Symbol-instance: Switch Variant sub-menu */}
             {symbolInstance && shapeOptions.length > 0 && (
@@ -10291,26 +10522,6 @@ function DesignerContextMenuContent({
                   Shape Configuration…
                 </ContextMenuPrimitive.Item>
 
-                <ContextMenuPrimitive.Separator style={sepStyle} />
-                <ContextMenuPrimitive.Item
-                  style={itemStyle}
-                  disabled={!shapeEntry?.svg}
-                  onSelect={() => {
-                    if (!shapeEntry?.svg) return;
-                    const blob = new Blob([shapeEntry.svg], {
-                      type: "image/svg+xml",
-                    });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${symbolInstance.shapeRef.shapeId}.svg`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  Export Shape SVG
-                </ContextMenuPrimitive.Item>
-
                 <ContextMenuPrimitive.Item
                   style={itemStyle}
                   disabled={!nodeId}
@@ -10386,116 +10597,81 @@ function DesignerContextMenuContent({
               <>
                 <ContextMenuPrimitive.Separator style={sepStyle} />
 
-                {/* CX-POINT-CONTEXT P1 items — present for all display elements,
-                    disabled when the element has no point binding.
-                    Spec: context-menu-implementation-spec.md §2 + decisions/cx-point-context.md */}
+                {/* Point Actions submenu — CX-POINT-CONTEXT P1 items */}
                 {(() => {
                   const pointId = displayElementNode.binding.pointId ?? null;
-                  // PointBinding has no tagName field — use pointId as the tag name
-                  // (same pattern used by DisplayElementRenderer for test-mode PointContextMenu)
                   const tagName = pointId ?? "";
                   const isBound = !!pointId;
                   const isAlarmType =
                     displayElementNode.displayType === "alarm_indicator";
                   return (
-                    <>
-                      <ContextMenuPrimitive.Item
-                        style={itemStyle}
-                        disabled={!isBound}
-                        onSelect={() => {
-                          if (!pointId) return;
-                          navigate(
-                            `/forensics?point=${encodeURIComponent(pointId)}&panel=detail`,
-                          );
-                        }}
+                    <ContextMenuPrimitive.Sub>
+                      <ContextMenuPrimitive.SubTrigger
+                        style={{ ...itemStyle, ...(!isBound ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
                       >
-                        Point Detail
-                      </ContextMenuPrimitive.Item>
-
-                      <ContextMenuPrimitive.Item
-                        style={itemStyle}
-                        disabled={!isBound}
-                        onSelect={() => {
-                          if (!pointId) return;
-                          navigate(
-                            `/console?trend=${encodeURIComponent(pointId)}`,
-                          );
-                        }}
-                      >
-                        Trend This Point
-                      </ContextMenuPrimitive.Item>
-
-                      <ContextMenuPrimitive.Item
-                        style={itemStyle}
-                        disabled={!isBound}
-                        onSelect={() => {
-                          if (!pointId) return;
-                          navigate(
-                            `/forensics?tab=alarm&point=${encodeURIComponent(pointId)}`,
-                          );
-                        }}
-                      >
-                        View Alerts
-                      </ContextMenuPrimitive.Item>
-
-                      {canForensics && (
-                        <ContextMenuPrimitive.Item
-                          style={itemStyle}
-                          disabled={!isBound}
-                          onSelect={() => {
-                            if (!pointId) return;
-                            navigate(
-                              `/forensics/new?point=${encodeURIComponent(pointId)}`,
-                            );
-                          }}
-                        >
-                          Investigate Point
-                        </ContextMenuPrimitive.Item>
-                      )}
-
-                      {canReports && (
-                        <ContextMenuPrimitive.Item
-                          style={itemStyle}
-                          disabled={!isBound}
-                          onSelect={() => {
-                            if (!pointId) return;
-                            navigate(
-                              `/reports/new?point=${encodeURIComponent(pointId)}`,
-                            );
-                          }}
-                        >
-                          Report on Point
-                        </ContextMenuPrimitive.Item>
-                      )}
-
-                      {isAlarmType && canForensics && (
-                        <ContextMenuPrimitive.Item
-                          style={itemStyle}
-                          disabled={!isBound}
-                          onSelect={() => {
-                            if (!pointId) return;
-                            navigate(
-                              `/forensics/new?alarm=${encodeURIComponent(pointId)}`,
-                            );
-                          }}
-                        >
-                          Investigate Alarm
-                        </ContextMenuPrimitive.Item>
-                      )}
-
-                      <ContextMenuPrimitive.Item
-                        style={itemStyle}
-                        disabled={!isBound}
-                        onSelect={() => {
-                          if (!tagName) return;
-                          void navigator.clipboard.writeText(tagName);
-                        }}
-                      >
-                        Copy Tag Name
-                      </ContextMenuPrimitive.Item>
-
-                      <ContextMenuPrimitive.Separator style={sepStyle} />
-                    </>
+                        Point Actions
+                      </ContextMenuPrimitive.SubTrigger>
+                      <ContextMenuPrimitive.Portal>
+                        <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                          <ContextMenuPrimitive.Item
+                            style={itemStyle}
+                            disabled={!isBound}
+                            onSelect={() => { if (!pointId) return; navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`); }}
+                          >
+                            Point Detail
+                          </ContextMenuPrimitive.Item>
+                          <ContextMenuPrimitive.Item
+                            style={itemStyle}
+                            disabled={!isBound}
+                            onSelect={() => { if (!pointId) return; navigate(`/console?trend=${encodeURIComponent(pointId)}`); }}
+                          >
+                            Trend This Point
+                          </ContextMenuPrimitive.Item>
+                          <ContextMenuPrimitive.Item
+                            style={itemStyle}
+                            disabled={!isBound}
+                            onSelect={() => { if (!pointId) return; navigate(`/forensics?tab=alarm&point=${encodeURIComponent(pointId)}`); }}
+                          >
+                            View Alerts
+                          </ContextMenuPrimitive.Item>
+                          {canForensics && (
+                            <ContextMenuPrimitive.Item
+                              style={itemStyle}
+                              disabled={!isBound}
+                              onSelect={() => { if (!pointId) return; navigate(`/forensics/new?point=${encodeURIComponent(pointId)}`); }}
+                            >
+                              Investigate Point
+                            </ContextMenuPrimitive.Item>
+                          )}
+                          {canReports && (
+                            <ContextMenuPrimitive.Item
+                              style={itemStyle}
+                              disabled={!isBound}
+                              onSelect={() => { if (!pointId) return; navigate(`/reports/new?point=${encodeURIComponent(pointId)}`); }}
+                            >
+                              Report on Point
+                            </ContextMenuPrimitive.Item>
+                          )}
+                          {isAlarmType && canForensics && (
+                            <ContextMenuPrimitive.Item
+                              style={itemStyle}
+                              disabled={!isBound}
+                              onSelect={() => { if (!pointId) return; navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`); }}
+                            >
+                              Investigate Alarm
+                            </ContextMenuPrimitive.Item>
+                          )}
+                          <ContextMenuPrimitive.Separator style={sepStyle} />
+                          <ContextMenuPrimitive.Item
+                            style={itemStyle}
+                            disabled={!isBound}
+                            onSelect={() => { if (!tagName) return; void navigator.clipboard.writeText(tagName); }}
+                          >
+                            Copy Tag Name
+                          </ContextMenuPrimitive.Item>
+                        </ContextMenuPrimitive.SubContent>
+                      </ContextMenuPrimitive.Portal>
+                    </ContextMenuPrimitive.Sub>
                   );
                 })()}
 

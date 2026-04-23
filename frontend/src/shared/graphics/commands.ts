@@ -496,7 +496,10 @@ export class PasteNodesCommand implements SceneCommand {
   description = "Paste";
   private pastedIds: NodeId[] = [];
 
-  constructor(private nodes: SceneNode[]) {}
+  constructor(
+    private nodes: SceneNode[],
+    private expressions?: Record<string, GraphicExpression>,
+  ) {}
 
   execute(doc: GraphicDocument): GraphicDocument {
     const d = clone(doc);
@@ -507,6 +510,9 @@ export class PasteNodesCommand implements SceneCommand {
       this.pastedIds.push(newNode.id);
       d.children.push(newNode);
     }
+    if (this.expressions) {
+      d.expressions = { ...d.expressions, ...clone(this.expressions) };
+    }
     return d;
   }
 
@@ -514,6 +520,46 @@ export class PasteNodesCommand implements SceneCommand {
     const d = clone(doc);
     const ids = new Set(this.pastedIds);
     d.children = d.children.filter((n) => !ids.has(n.id));
+    if (this.expressions) {
+      const toRemove = new Set(Object.keys(this.expressions));
+      d.expressions = Object.fromEntries(
+        Object.entries(d.expressions).filter(([k]) => !toRemove.has(k)),
+      );
+    }
+    return d;
+  }
+}
+
+export class ApplyStyleCommand implements SceneCommand {
+  description = "Apply Style";
+  private prevStyles = new Map<NodeId, unknown>();
+
+  constructor(
+    private nodeIds: NodeId[],
+    private style: Record<string, unknown>,
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    let d = clone(doc);
+    for (const id of this.nodeIds) {
+      const result = findNode(d, id);
+      if (!result) continue;
+      const existing = ((result.node as unknown as { style?: Record<string, unknown> }).style) ?? {};
+      this.prevStyles.set(id, clone(existing));
+      d = updateNode(d, id, (n) => ({
+        ...n,
+        style: { ...existing, ...this.style },
+      }));
+    }
+    return d;
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    let d = clone(doc);
+    for (const id of this.nodeIds) {
+      const prev = this.prevStyles.get(id);
+      d = updateNode(d, id, (n) => ({ ...n, style: clone(prev) }));
+    }
     return d;
   }
 }

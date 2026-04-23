@@ -4,6 +4,9 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
+  createContext,
+  useContext,
 } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -42,6 +45,19 @@ import { showToast } from "../Toast";
 import { expressionsApi } from "../../../api/expressions";
 import { useThemeName } from "../../theme/ThemeContext";
 import type { Theme } from "../../theme/tokens";
+import { useSelectionZone } from "../../../store/useSelectionZone";
+import { usePasteTarget } from "../../clipboard";
+import { useGlobalSelectionStore } from "../../../store/globalSelectionStore";
+import { createExpressionPasteTarget } from "./clipboard/expressionPasteTarget";
+import { registerExprBuilderAccessor } from "./clipboard/expressionCopyHandler";
+
+// ---------------------------------------------------------------------------
+// Hover-tile context — tracks which tile the pointer is over for paste routing
+// ---------------------------------------------------------------------------
+
+const TileHoverCtx = createContext<React.MutableRefObject<string | null> | null>(
+  null,
+);
 
 // ---------------------------------------------------------------------------
 // Palette definition
@@ -358,7 +374,19 @@ type Action =
   | { type: "COPY_SELECTION" }
   | { type: "CUT_SELECTION" }
   | { type: "PASTE" }
-  | { type: "RESET_TILES"; tiles: ExpressionTile[] };
+  | { type: "RESET_TILES"; tiles: ExpressionTile[] }
+  | { type: "ADD_POINTS_AS_LOOSE_TILES"; points: Array<{ tagname: string }> }
+  | {
+      type: "ADD_POINTS_TO_FUNCTION_TILE";
+      tileId: string;
+      points: Array<{ tagname: string }>;
+    }
+  | {
+      type: "ADD_POINTS_TO_PAREN_TILE";
+      tileId: string;
+      points: Array<{ tagname: string }>;
+    }
+  | { type: "PASTE_NATIVE_TILES"; tiles: ExpressionTile[] };
 
 const MAX_HISTORY = 50;
 
@@ -653,6 +681,83 @@ function exprReducer(
       };
     }
 
+    case "ADD_POINTS_AS_LOOSE_TILES": {
+      const newTiles = cloneTiles(state.tiles);
+      const arr = getChildArray(newTiles, state.cursorParentId);
+      if (!arr) return state;
+      const pointTiles: ExpressionTile[] = action.points.map((p) => ({
+        id: newId(),
+        type: "point_ref" as TileType,
+        pointLabel: p.tagname,
+      }));
+      arr.splice(state.cursorIndex, 0, ...pointTiles);
+      return {
+        ...state,
+        tiles: newTiles,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+        cursorIndex: state.cursorIndex + pointTiles.length,
+      };
+    }
+
+    case "ADD_POINTS_TO_FUNCTION_TILE": {
+      const newTiles = cloneTiles(state.tiles);
+      const loc = findTileLocation(newTiles, action.tileId);
+      if (!loc) return state;
+      const pointTiles: ExpressionTile[] = action.points.map((p) => ({
+        id: newId(),
+        type: "point_ref" as TileType,
+        pointLabel: p.tagname,
+      }));
+      loc.arr.splice(loc.index, 0, ...pointTiles);
+      return {
+        ...state,
+        tiles: newTiles,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+      };
+    }
+
+    case "ADD_POINTS_TO_PAREN_TILE": {
+      const newTiles = cloneTiles(state.tiles);
+      const loc = findTileLocation(newTiles, action.tileId);
+      if (!loc) return state;
+      const parenTile = loc.arr[loc.index];
+      if (!parenTile.children) parenTile.children = [];
+      const existing = parenTile.children;
+      for (let i = 0; i < action.points.length; i++) {
+        if (i > 0 || existing.length > 0) {
+          existing.push({ id: newId(), type: "add" });
+        }
+        existing.push({
+          id: newId(),
+          type: "point_ref",
+          pointLabel: action.points[i].tagname,
+        });
+      }
+      return {
+        ...state,
+        tiles: newTiles,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+      };
+    }
+
+    case "PASTE_NATIVE_TILES": {
+      const pasted = reassignIds(action.tiles);
+      const newTiles = cloneTiles(state.tiles);
+      const arr = getChildArray(newTiles, state.cursorParentId);
+      if (!arr) return state;
+      arr.splice(state.cursorIndex, 0, ...pasted);
+      return {
+        ...state,
+        tiles: newTiles,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+        cursorIndex: state.cursorIndex + pasted.length,
+      };
+    }
+
     default:
       return state;
   }
@@ -863,6 +968,7 @@ function WorkspaceTile({
     isDragging,
   } = useSortable({ id: tile.id });
 
+  const hoverRef = useContext(TileHoverCtx);
   const [showPointSearch, setShowPointSearch] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const theme = useThemeName();
@@ -963,6 +1069,12 @@ function WorkspaceTile({
       }}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onMouseEnter={() => {
+        if (hoverRef) hoverRef.current = tile.id;
+      }}
+      onMouseLeave={() => {
+        if (hoverRef && hoverRef.current === tile.id) hoverRef.current = null;
+      }}
       {...attributes}
       {...listeners}
       role={isContainer || isControlFlow ? "group" : "option"}
@@ -2049,6 +2161,35 @@ function collectPointRefs(
 }
 
 // ---------------------------------------------------------------------------
+// Tile kind classifier for paste routing
+// ---------------------------------------------------------------------------
+
+function classifyTileKind(
+  type: TileType,
+): "function" | "paren" | "operator" | "point_ref" | "literal" {
+  if (type === "group") return "paren";
+  if (type === "point_ref") return "point_ref";
+  if (type === "constant" || type === "field_ref") return "literal";
+  const operators: TileType[] = [
+    "add",
+    "subtract",
+    "multiply",
+    "divide",
+    "modulus",
+    "power",
+    "gt",
+    "lt",
+    "gte",
+    "lte",
+    "and",
+    "or",
+    "not",
+  ];
+  if (operators.includes(type)) return "operator";
+  return "function";
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -2094,6 +2235,54 @@ export function ExpressionBuilder({
     future: [],
     clipboard: null,
   });
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const hoverTileIdRef = useRef<string | null>(null);
+
+  // Register selection zone
+  useSelectionZone({
+    zoneId: "expression-builder",
+    indicatorStyle: "soft-glow",
+    supportsSelectAll: true,
+  });
+
+  // Register paste target
+  const expressionPasteTarget = useMemo(
+    () =>
+      createExpressionPasteTarget({
+        getActiveDropTargetId: () => hoverTileIdRef.current,
+        getTileById: (id) => {
+          const loc = findTileLocation(stateRef.current.tiles, id);
+          if (!loc) return null;
+          return { kind: classifyTileKind(loc.arr[loc.index].type) };
+        },
+        addPointsAsLooseTiles: (points) =>
+          dispatch({ type: "ADD_POINTS_AS_LOOSE_TILES", points }),
+        addPointsToFunctionTile: (tileId, points) =>
+          dispatch({ type: "ADD_POINTS_TO_FUNCTION_TILE", tileId, points }),
+        addPointsToParenTile: (tileId, points) =>
+          dispatch({ type: "ADD_POINTS_TO_PAREN_TILE", tileId, points }),
+        pasteNativeTiles: (tiles) =>
+          dispatch({ type: "PASTE_NATIVE_TILES", tiles }),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  usePasteTarget(expressionPasteTarget);
+
+  // Register state accessor for App-level copy handler and set active zone on mount
+  useEffect(() => {
+    useGlobalSelectionStore.getState().setActiveZone("expression-builder");
+    return registerExprBuilderAccessor(() => ({
+      tiles: stateRef.current.tiles,
+      selectedIds: stateRef.current.selectedIds,
+      dispatchCopySelection: () => dispatch({ type: "COPY_SELECTION" }),
+    }));
+    // dispatch is stable (from useReducer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [leftPanelTab, setLeftPanelTab] = useState<"palette" | "templates">(
     "palette",
@@ -2180,7 +2369,7 @@ export function ExpressionBuilder({
 
   const validation = validateExpression(state);
 
-  // Keyboard shortcut undo/redo + clipboard
+  // Keyboard shortcut undo/redo + cut (copy/paste handled by global clipboard system)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey) {
@@ -2190,16 +2379,10 @@ export function ExpressionBuilder({
         } else if (e.key === "y" || (e.key === "z" && e.shiftKey)) {
           e.preventDefault();
           dispatch({ type: "REDO" });
-        } else if (e.key === "c") {
-          e.preventDefault();
-          dispatch({ type: "COPY_SELECTION" });
         } else if (e.key === "x") {
           e.preventDefault();
           // Show confirmation before cutting (destroying tiles)
           setShowCutConfirm(true);
-        } else if (e.key === "v") {
-          e.preventDefault();
-          dispatch({ type: "PASTE" });
         }
       }
     }
@@ -3065,6 +3248,7 @@ export function ExpressionBuilder({
             outline: "none",
           }}
           onClick={() => {
+            useGlobalSelectionStore.getState().setActiveZone("expression-builder");
             dispatch({ type: "SELECT", ids: [], additive: false });
             dispatch({
               type: "SET_CURSOR",
@@ -3075,16 +3259,18 @@ export function ExpressionBuilder({
           }}
           onKeyDown={handleWorkspaceKeyDown}
         >
-          <DropZoneRow
-            tiles={state.tiles}
-            parentId={null}
-            depth={0}
-            dispatch={dispatch}
-            allSelectedIds={state.selectedIds}
-            cursorParentId={state.cursorParentId}
-            cursorIndex={state.cursorIndex}
-            isDragging={activeDragId !== null}
-          />
+          <TileHoverCtx.Provider value={hoverTileIdRef}>
+            <DropZoneRow
+              tiles={state.tiles}
+              parentId={null}
+              depth={0}
+              dispatch={dispatch}
+              allSelectedIds={state.selectedIds}
+              cursorParentId={state.cursorParentId}
+              cursorIndex={state.cursorIndex}
+              isDragging={activeDragId !== null}
+            />
+          </TileHoverCtx.Provider>
         </div>
 
         <DragOverlay>

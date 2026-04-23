@@ -46,6 +46,7 @@ import {
   SystemHealthDot,
   SystemHealthDotRow,
 } from "../components/SystemHealthDot";
+import { ClipboardStatusIndicator } from "../clipboard";
 import { authApi } from "../../api/auth";
 import { wsManager } from "../hooks/useWebSocket";
 import {
@@ -1958,6 +1959,9 @@ export default function AppShell() {
 
             {/* Alert notification bell */}
             {!isKiosk && <AlertBell />}
+
+            {/* Clipboard slot status */}
+            {!isKiosk && <ClipboardStatusIndicator />}
 
             {/* Hide top bar button */}
             {!isKiosk && (

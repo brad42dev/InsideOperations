@@ -10,8 +10,9 @@ import {
   wsManager,
   detectDeviceType,
 } from "../../../shared/hooks/useWebSocket";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import type { PointValue as WsPointValue } from "../../../shared/hooks/useWebSocket";
+import { useGlobalSelectionStore } from "../../../store/globalSelectionStore";
+import type { SelectionZoneId, SelectableEntity } from "../../../shared/clipboard";
 import { useHistoricalValues } from "../../../shared/hooks/useHistoricalValues";
 import { usePlaybackStore } from "../../../store/playback";
 import TileGraphicViewer from "../../../shared/components/TileGraphicViewer";
@@ -20,7 +21,6 @@ import PointDetailPanel from "../../../shared/components/PointDetailPanel";
 import type {
   SceneNode,
   GraphicDocument,
-  ViewportState,
 } from "../../../shared/types/graphics";
 
 // ── Tooltip state shape ──────────────────────────────────────────────────────
@@ -74,6 +74,7 @@ function findPointId(target: EventTarget | null): string | null {
 
 interface Props {
   graphicId: string;
+  paneId?: string;
   onNavigate?: (targetGraphicId: string) => void;
   preserveAspectRatio?: boolean;
 }
@@ -190,7 +191,6 @@ function extractSparklineBindings(nodes: SceneNode[]): {
 }
 
 const isPhone = detectDeviceType() === "phone";
-const isTablet = detectDeviceType() === "tablet";
 
 /** Extract point bindings with fractional positions for TileGraphicViewer overlays. */
 function extractTileBindings(doc: GraphicDocument) {
@@ -219,12 +219,10 @@ function extractTileBindings(doc: GraphicDocument) {
   return out;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 export default function GraphicPane({
   graphicId,
+  paneId,
   onNavigate,
   preserveAspectRatio = true,
 }: Props) {
@@ -474,44 +472,7 @@ export default function GraphicPane({
     setPointDetailPanels((prev) => prev.filter((p) => p.id !== id));
   }
 
-  // ── Zoom / Pan state ────────────────────────────────────────────────────────
-
-  const [zoom, setZoom] = useState(1.0);
-  const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [screenWidth, setScreenWidth] = useState(0);
-  const [screenHeight, setScreenHeight] = useState(0);
-
-  // Track whether we've auto-fit the initial load for the current graphicId
-  const hasFittedRef = useRef(false);
-  useEffect(() => {
-    hasFittedRef.current = false;
-  }, [graphicId]);
-
-  // Middle-click pan tracking
-  const panDragRef = useRef<{
-    startX: number;
-    startY: number;
-    startPanX: number;
-    startPanY: number;
-  } | null>(null);
-
-  // Measure container size
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setScreenWidth(entry.contentRect.width);
-        setScreenHeight(entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    setScreenWidth(el.clientWidth);
-    setScreenHeight(el.clientHeight);
-    return () => ro.disconnect();
-  }, []);
 
   // ── Point hover tooltip handlers ─────────────────────────────────────────────
 
@@ -643,98 +604,99 @@ export default function GraphicPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wheel zoom — must use a non-passive listener to call preventDefault().
-  // React's synthetic onWheel is passive in modern browsers, so we attach manually.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-      setZoom((prevZoom) => {
-        const newZoom = clamp(prevZoom * zoomFactor, 0.25, 4.0);
-        const canvasX = e.offsetX / prevZoom + panX;
-        const canvasY = e.offsetY / prevZoom + panY;
-        setPanX(canvasX - e.offsetX / newZoom);
-        setPanY(canvasY - e.offsetY / newZoom);
-        return newZoom;
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [panX, panY]);
 
-  const handleMouseDown = useCallback(
+  // ── Scene-node selection zone registration ──────────────────────────────────
+
+  useEffect(() => {
+    if (!paneId) return;
+    const zoneId = `console/pane/${paneId}` as SelectionZoneId;
+    const store = useGlobalSelectionStore.getState();
+    store.registerZone({
+      zoneId,
+      indicatorStyle: "soft-glow",
+      supportsSelectAll: false,
+    });
+    return () => store.unregisterZone(zoneId);
+  }, [paneId]);
+
+  // Clear store selection when graphic changes (SVG re-renders, old DOM classes gone)
+  useEffect(() => {
+    if (!paneId) return;
+    useGlobalSelectionStore
+      .getState()
+      .clearZone(`console/pane/${paneId}` as SelectionZoneId);
+  }, [graphicId, paneId]);
+
+  const handleNodeClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // Middle-click or Ctrl+left-click to pan
-      if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
-        e.preventDefault();
-        panDragRef.current = {
-          startX: e.clientX,
-          startY: e.clientY,
-          startPanX: panX,
-          startPanY: panY,
-        };
+      if (!paneId) return;
+
+      function walkToNodeId(
+        target: Element | null,
+        root: Element | null,
+      ): { nodeId: string; nodeEl: Element } | null {
+        let el = target as HTMLElement | null;
+        while (el && el !== root) {
+          const id = el.getAttribute("data-node-id");
+          if (id) return { nodeId: id, nodeEl: el };
+          el = el.parentElement;
+        }
+        return null;
       }
+
+      // Try exact target first, then search a small radius to widen the hit area
+      let found = walkToNodeId(e.target as Element, containerRef.current);
+
+      if (!found) {
+        const OFFSETS = [
+          [-4, 0], [4, 0], [0, -4], [0, 4],
+          [-3, -3], [3, -3], [-3, 3], [3, 3],
+        ] as const;
+        outer: for (const [dx, dy] of OFFSETS) {
+          for (const el of document.elementsFromPoint(
+            e.clientX + dx,
+            e.clientY + dy,
+          )) {
+            found = walkToNodeId(el, containerRef.current);
+            if (found) break outer;
+          }
+        }
+      }
+
+      const zoneId = `console/pane/${paneId}` as SelectionZoneId;
+      const store = useGlobalSelectionStore.getState();
+
+      if (!found) {
+        containerRef.current
+          ?.querySelectorAll(".io-console-selected")
+          .forEach((n) => n.classList.remove("io-console-selected"));
+        store.clearZone(zoneId);
+        return;
+      }
+
+      const { nodeId, nodeEl } = found;
+      const entity: SelectableEntity = { id: nodeId, zoneId, kind: "scene-node" };
+      const isMulti = e.ctrlKey || e.metaKey;
+
+      if (isMulti) {
+        if (store.isSelected(zoneId, nodeId)) {
+          nodeEl.classList.remove("io-console-selected");
+          store.select(zoneId, entity, "remove");
+        } else {
+          nodeEl.classList.add("io-console-selected");
+          store.select(zoneId, entity, "add");
+        }
+      } else {
+        containerRef.current
+          ?.querySelectorAll(".io-console-selected")
+          .forEach((n) => n.classList.remove("io-console-selected"));
+        nodeEl.classList.add("io-console-selected");
+        store.select(zoneId, entity, "replace");
+      }
+
+      store.setActiveZone(zoneId);
     },
-    [panX, panY],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!panDragRef.current) return;
-      const dx = (e.clientX - panDragRef.current.startX) / zoom;
-      const dy = (e.clientY - panDragRef.current.startY) / zoom;
-      setPanX(panDragRef.current.startPanX - dx);
-      setPanY(panDragRef.current.startPanY - dy);
-    },
-    [zoom],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    panDragRef.current = null;
-  }, []);
-
-  const zoomToFit = useCallback(() => {
-    if (!data) return;
-    const cw = data.scene_data?.canvas?.width ?? 0;
-    const ch = data.scene_data?.canvas?.height ?? 0;
-    if (cw === 0 || ch === 0 || screenWidth === 0 || screenHeight === 0) return;
-    const newZoom = clamp(
-      Math.min(screenWidth / cw, screenHeight / ch),
-      0.25,
-      4.0,
-    );
-    setZoom(newZoom);
-    setPanX(0);
-    setPanY(0);
-  }, [data, screenWidth, screenHeight]);
-
-  // Auto-fit once when the graphic first loads and screen dimensions are known
-  useEffect(() => {
-    if (hasFittedRef.current) return;
-    if (!data || screenWidth === 0 || screenHeight === 0) return;
-    hasFittedRef.current = true;
-    zoomToFit();
-  }, [data, screenWidth, screenHeight, zoomToFit]);
-
-  const resetZoom = useCallback(() => {
-    setZoom(1);
-    setPanX(0);
-    setPanY(0);
-  }, []);
-
-  const viewport: ViewportState = useMemo(
-    () => ({
-      panX,
-      panY,
-      zoom,
-      canvasWidth: data?.scene_data?.canvas?.width ?? 0,
-      canvasHeight: data?.scene_data?.canvas?.height ?? 0,
-      screenWidth,
-      screenHeight,
-    }),
-    [panX, panY, zoom, data, screenWidth, screenHeight],
+    [paneId],
   );
 
   if (isLoading) {
@@ -844,8 +806,6 @@ export default function GraphicPane({
     );
   }
 
-  const zoomPct = Math.round(zoom * 100);
-
   return (
     <div
       ref={containerRef}
@@ -854,108 +814,25 @@ export default function GraphicPane({
         height: "100%",
         overflow: "hidden",
         position: "relative",
-        cursor: panDragRef.current ? "grabbing" : "default",
       }}
-      onMouseDown={handleMouseDown}
+      onClick={handleNodeClick}
       onMouseMove={(e) => {
-        handleMouseMove(e);
         handleSvgMouseMove(e);
-        // Track last hovered point for Ctrl+I shortcut
-        const hovered = findPointId(e.target);
-        lastHoveredPointRef.current = hovered;
+        lastHoveredPointRef.current = findPointId(e.target);
       }}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={() => {
-        handleMouseUp();
-        handleContainerMouseLeave();
-      }}
+      onMouseLeave={handleContainerMouseLeave}
       onContextMenu={handleSvgContextMenu}
       onDoubleClick={handleSvgDoubleClick}
     >
-      {isTablet ? (
-        <TransformWrapper
-          minScale={0.5}
-          maxScale={5}
-          velocityAnimation={{ sensitivity: 1, animationTime: 200 }}
-          panning={{ velocityDisabled: false }}
-        >
-          <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-            <SceneRenderer
-              document={data.scene_data}
-              pointValues={isHistorical ? pointValues : undefined}
-              liveSubscribe={!isHistorical}
-              sparklineHistories={sparklineHistories ?? undefined}
-              onNavigate={onNavigate}
-              viewport={viewport}
-              preserveAspectRatio={
-                preserveAspectRatio ? "xMidYMid meet" : "none"
-              }
-              style={{ width: "100%", height: "100%" }}
-            />
-          </TransformComponent>
-        </TransformWrapper>
-      ) : (
-        <SceneRenderer
-          document={data.scene_data}
-          // Historical mode: pass REST-fetched point values for React rendering
-          // Live mode: SceneRenderer subscribes to wsManager directly (liveSubscribe=true)
-          pointValues={isHistorical ? pointValues : undefined}
-          liveSubscribe={!isHistorical}
-          sparklineHistories={sparklineHistories ?? undefined}
-          onNavigate={onNavigate}
-          viewport={viewport}
-          preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
-          style={{ width: "100%", height: "100%" }}
-        />
-      )}
-
-      {/* Zoom overlay — bottom-right */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 4,
-          right: 4,
-          fontSize: 10,
-          color: "var(--io-text-muted)",
-          background: "rgba(0,0,0,0.4)",
-          padding: "2px 5px",
-          borderRadius: 3,
-          userSelect: "none",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        <span>{zoomPct}%</span>
-        <button
-          onClick={zoomToFit}
-          title="Zoom to fit"
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--io-text-muted)",
-            fontSize: 9,
-            cursor: "pointer",
-            padding: "0 2px",
-          }}
-        >
-          Fit
-        </button>
-        <button
-          onClick={resetZoom}
-          title="Reset zoom"
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--io-text-muted)",
-            fontSize: 9,
-            cursor: "pointer",
-            padding: "0 2px",
-          }}
-        >
-          1:1
-        </button>
-      </div>
+      <SceneRenderer
+        document={data.scene_data}
+        pointValues={isHistorical ? pointValues : undefined}
+        liveSubscribe={!isHistorical}
+        sparklineHistories={sparklineHistories ?? undefined}
+        onNavigate={onNavigate}
+        preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
+        style={{ width: "100%", height: "100%" }}
+      />
 
       {/* Point hover tooltip */}
       {tooltip && (

@@ -20,6 +20,10 @@ import {
   type UpdateGroupPayload,
   type TemplateVariable,
 } from "../../api/notifications";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget } from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { alertsPasteTarget } from "./clipboard/alertsPasteTarget";
 
 // ---------------------------------------------------------------------------
 // Severity colours
@@ -2945,6 +2949,15 @@ type AlertsTab = "send" | "active" | "history" | "management";
 export default function AlertsPage() {
   const [activeTab, setActiveTab] = useState<AlertsTab>("send");
 
+  useSelectionZone({
+    zoneId: "alarm-list",
+    indicatorStyle: "selection-box",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(alertsPasteTarget);
+
+  const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 20px",
     border: "none",
@@ -2967,7 +2980,10 @@ export default function AlertsPage() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
+    <div
+      onClick={() => setActiveZone("alarm-list")}
+      style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}
+    >
       {/* Page header */}
       <div style={{ marginBottom: 20 }}>
         <h1
