@@ -564,7 +564,10 @@ export default function ConsolePage() {
     indicatorStyle: "selection-box",
     supportsSelectAll: false,
   });
-  const workspacePasteTarget = useMemo(() => createConsoleWorkspaceTarget(), []);
+  const workspacePasteTarget = useMemo(
+    () => createConsoleWorkspaceTarget(),
+    [],
+  );
   usePasteTarget(workspacePasteTarget);
 
   // ---- API-backed state (when authenticated) --------------------------------

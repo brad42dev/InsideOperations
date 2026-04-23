@@ -11,9 +11,7 @@ import {
   GRID_ROWS,
 } from "../layout-utils";
 import type { SelectionZoneId } from "@/shared/clipboard";
-import {
-  registerTemporaryContents,
-} from "./temporaryGraphicStore";
+import { registerTemporaryContents } from "./temporaryGraphicStore";
 
 export function createConsolePaneTarget(paneId: string): PasteTarget {
   return {
@@ -88,7 +86,11 @@ export function createConsolePaneTarget(paneId: string): PasteTarget {
             mode === "most-recent-alarms" ? "most-recent-alarms" : "points",
           );
         } else {
-          showToast({ title: "Nothing to paste", description: "Clipboard has no point references", variant: "warning" });
+          showToast({
+            title: "Nothing to paste",
+            description: "Clipboard has no point references",
+            variant: "warning",
+          });
         }
         return;
       }
@@ -99,8 +101,10 @@ export function createConsolePaneTarget(paneId: string): PasteTarget {
       const state = useWorkspaceStore.getState();
       const activeWs = state.workspaces.find((w) => w.id === state.activeId);
       const pane = activeWs?.panes.find((p) => p.id === paneId);
-      if (pane?.type === "trend") return "Chart only accepts point references or a chart config";
-      if (pane?.type === "point_table") return "Table only accepts points or table rows";
+      if (pane?.type === "trend")
+        return "Chart only accepts point references or a chart config";
+      if (pane?.type === "point_table")
+        return "Table only accepts points or table rows";
       if (pane?.type === "alarm_list") return "Alarm list only accepts points";
       return "This pane accepts no data from the clipboard";
     },

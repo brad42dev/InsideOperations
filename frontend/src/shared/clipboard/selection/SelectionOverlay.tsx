@@ -17,8 +17,8 @@ interface Props {
 }
 
 export function SelectionOverlay({ zoneId, rectOf, className, style }: Props) {
-  const entities = useGlobalSelectionStore(
-    (s) => Array.from(s.zones.get(zoneId)?.selected.keys() ?? []),
+  const entities = useGlobalSelectionStore((s) =>
+    Array.from(s.zones.get(zoneId)?.selected.keys() ?? []),
   );
   const indicatorStyle = useGlobalSelectionStore(
     (s) => s.zones.get(zoneId)?.config.indicatorStyle ?? "selection-box",
@@ -27,7 +27,12 @@ export function SelectionOverlay({ zoneId, rectOf, className, style }: Props) {
   return (
     <div
       className={["io-selection-overlay", className].filter(Boolean).join(" ")}
-      style={{ position: "absolute", inset: 0, pointerEvents: "none", ...style }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        ...style,
+      }}
       data-zone={zoneId}
     >
       {entities.map((id) => {

@@ -24,8 +24,14 @@ const PASTE_AS_ORDER: { mode: PasteMode; label: string }[] = [
   { mode: "most-recent-alarms", label: "Most Recent Alarm(s)" },
 ];
 
-export function ClipboardContextMenu({ zoneId, onCopy, onCut, children }: Props) {
-  const [currentPayload, setCurrentPayload] = useState<IOClipboardPayload | null>(null);
+export function ClipboardContextMenu({
+  zoneId,
+  onCopy,
+  onCut,
+  children,
+}: Props) {
+  const [currentPayload, setCurrentPayload] =
+    useState<IOClipboardPayload | null>(null);
   const previous = useIOClipboardStore((s) => s.previous);
   const { pasteDefault, pastePrevious, pasteAs } = usePasteEngine();
 
@@ -37,7 +43,8 @@ export function ClipboardContextMenu({ zoneId, onCopy, onCut, children }: Props)
   }, []);
 
   const target = findTargetForZone(zoneId);
-  const currentModes = target && currentPayload ? target.accepts(currentPayload) : [];
+  const currentModes =
+    target && currentPayload ? target.accepts(currentPayload) : [];
   const previousModes = target && previous ? target.accepts(previous) : [];
 
   const pasteDisabled = !target || !currentPayload || currentModes.length === 0;
@@ -54,7 +61,9 @@ export function ClipboardContextMenu({ zoneId, onCopy, onCut, children }: Props)
       <ContextMenu.Item
         onSelect={() => void pasteDefault()}
         disabled={pasteDisabled}
-        title={pasteDisabled ? rejectionText(target, currentPayload) : undefined}
+        title={
+          pasteDisabled ? rejectionText(target, currentPayload) : undefined
+        }
       >
         Paste <span className="shortcut">Ctrl+V</span>
       </ContextMenu.Item>

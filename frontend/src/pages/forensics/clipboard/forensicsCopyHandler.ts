@@ -5,9 +5,7 @@ import {
 import { useGlobalSelectionStore } from "@/store/globalSelectionStore";
 
 export async function copyForensicsSelection(): Promise<void> {
-  const selected = useGlobalSelectionStore
-    .getState()
-    .getSelection("forensics");
+  const selected = useGlobalSelectionStore.getState().getSelection("forensics");
   if (selected.length === 0) return;
 
   const hits = selected

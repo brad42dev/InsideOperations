@@ -9,7 +9,8 @@ export const forensicsPasteTarget: PasteTarget = {
   accepts(payload) {
     if (!payload) return [];
     const modes: PasteMode[] = [];
-    if (extractPoints(payload).length) modes.push("points", "most-recent-alarms");
+    if (extractPoints(payload).length)
+      modes.push("points", "most-recent-alarms");
     return modes;
   },
 
@@ -20,7 +21,8 @@ export const forensicsPasteTarget: PasteTarget = {
         new CustomEvent("io-navigate:forensics", {
           detail: {
             tagnames: points.map((p) => p.tagname),
-            mode: mode === "most-recent-alarms" ? "most-recent-alarms" : "points",
+            mode:
+              mode === "most-recent-alarms" ? "most-recent-alarms" : "points",
           },
         }),
       );

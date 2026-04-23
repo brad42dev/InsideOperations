@@ -30,7 +30,11 @@ export async function copyConsoleActiveZone(zoneId: string): Promise<void> {
     // paste actual shapes instead of falling back to the text representation.
     let nodes: SceneNode[] | undefined;
     let expressions: Record<string, GraphicExpression> | undefined;
-    if (panes.length === 1 && panes[0].type === "graphic" && panes[0].graphicId) {
+    if (
+      panes.length === 1 &&
+      panes[0].type === "graphic" &&
+      panes[0].graphicId
+    ) {
       try {
         const res = await graphicsApi.get(panes[0].graphicId);
         if (res.success) {

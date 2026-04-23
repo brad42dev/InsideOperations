@@ -31,10 +31,7 @@ import { useSavedChartsStore } from "../../../store/savedChartsStore";
 import { usePermission } from "../../../shared/hooks/usePermission";
 import SaveChartModal from "../../../shared/components/charts/SaveChartModal";
 import { useSelectionZone } from "../../../store/useSelectionZone";
-import {
-  useSelectableItem,
-  usePasteTarget,
-} from "../../../shared/clipboard";
+import { useSelectableItem, usePasteTarget } from "../../../shared/clipboard";
 import { useMemo } from "react";
 import { createConsolePaneTarget } from "../clipboard/consolePasteTarget";
 
@@ -187,7 +184,11 @@ function LegendItem({
       id: pointId,
       zoneId,
       kind: "chart-series-row" as const,
-      payload: { tagname: pointId, displayName: meta?.name, unit: meta?.unit ?? undefined },
+      payload: {
+        tagname: pointId,
+        displayName: meta?.name,
+        unit: meta?.unit ?? undefined,
+      },
     }),
     [pointId, zoneId, meta],
   );
@@ -201,7 +202,9 @@ function LegendItem({
   return (
     <div
       onMouseDown={onMouseDown}
-      onMouseEnter={(e) => { if (meta) onHoverEnter(e, meta); }}
+      onMouseEnter={(e) => {
+        if (meta) onHoverEnter(e, meta);
+      }}
       onMouseLeave={onHoverLeave}
       style={{
         display: "flex",

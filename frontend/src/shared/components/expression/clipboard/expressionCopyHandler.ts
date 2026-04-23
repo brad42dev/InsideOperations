@@ -1,4 +1,7 @@
-import { buildIOClipboardPayload, useIOClipboardStore } from "@/shared/clipboard";
+import {
+  buildIOClipboardPayload,
+  useIOClipboardStore,
+} from "@/shared/clipboard";
 import type { ExpressionTile } from "@/shared/types/expression";
 import { expressionToString } from "../preview";
 

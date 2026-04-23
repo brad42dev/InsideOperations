@@ -1057,7 +1057,9 @@ export default function DesignerPage() {
     // instance doesn't hold it yet (happens when returning to an already-loaded graphic).
     if (graphicIdInStore === graphicId && doc) {
       if (!lockHeldRef.current) {
-        const lockResp = await graphicsApi.acquireLock(graphicId).catch(() => null);
+        const lockResp = await graphicsApi
+          .acquireLock(graphicId)
+          .catch(() => null);
         if (lockResp?.success) {
           if (lockResp.data.data.acquired) {
             lockHeldRef.current = true;
@@ -1066,7 +1068,8 @@ export default function DesignerPage() {
             lockHeldRef.current = false;
             setLockState({
               lockedByName: lockResp.data.data.locked_by_name ?? "another user",
-              lockedAt: lockResp.data.data.locked_at ?? new Date().toISOString(),
+              lockedAt:
+                lockResp.data.data.locked_at ?? new Date().toISOString(),
             });
           }
         } else {

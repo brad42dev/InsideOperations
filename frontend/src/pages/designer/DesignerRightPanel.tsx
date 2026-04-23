@@ -251,13 +251,22 @@ function NumberInput({
 // ISA-101 / ISA-18.2 reserved colors — never use for decorative fills.
 // These map directly to alarm priority, operational state, and connection indicators.
 const RESERVED_COLOR_SET = new Set([
-  "#ef4444", "#b91c1c", // P1 Urgent
-  "#f97316", "#ea580c", // P2 High
-  "#eab308", "#c8a800", "#facc15", // P3 Low + yellow adjacents
-  "#d946ef", "#c026d3", // Shelved / Fault
-  "#60a5fa", "#2563eb", // Custom alarm
-  "#2dd4bf", "#0d9488", "#14b8a6", // Teal — connection points only
-  "#059669", "#047857", // Running/Open operational state
+  "#ef4444",
+  "#b91c1c", // P1 Urgent
+  "#f97316",
+  "#ea580c", // P2 High
+  "#eab308",
+  "#c8a800",
+  "#facc15", // P3 Low + yellow adjacents
+  "#d946ef",
+  "#c026d3", // Shelved / Fault
+  "#60a5fa",
+  "#2563eb", // Custom alarm
+  "#2dd4bf",
+  "#0d9488",
+  "#14b8a6", // Teal — connection points only
+  "#059669",
+  "#047857", // Running/Open operational state
   "#f87171", // near-alarm red
 ]);
 
@@ -273,7 +282,16 @@ function ColorInput({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <label style={{ position: "relative", flexShrink: 0, cursor: "pointer", display: "block", width: 28, height: 28 }}>
+        <label
+          style={{
+            position: "relative",
+            flexShrink: 0,
+            cursor: "pointer",
+            display: "block",
+            width: 28,
+            height: 28,
+          }}
+        >
           <div
             style={{
               width: 28,
@@ -287,7 +305,14 @@ function ColorInput({
             type="color"
             value={isHex ? value : "#ffffff"}
             onChange={(e) => onChange(e.target.value)}
-            style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: 0,
+              cursor: "pointer",
+              width: "100%",
+              height: "100%",
+            }}
           />
         </label>
         {isHex ? (
@@ -298,7 +323,15 @@ function ColorInput({
             style={{ ...inputStyle, flex: 1 }}
           />
         ) : (
-          <span style={{ flex: 1, fontSize: 10, color: "var(--io-text-muted)", fontFamily: "monospace", padding: "0 4px" }}>
+          <span
+            style={{
+              flex: 1,
+              fontSize: 10,
+              color: "var(--io-text-muted)",
+              fontFamily: "monospace",
+              padding: "0 4px",
+            }}
+          >
             Theme default
           </span>
         )}
@@ -659,17 +692,13 @@ function TransformSection({
         <Field label="X">
           <NumberInput
             value={Math.round(pos.x)}
-            onChange={(v) =>
-              setTransform({ position: { ...pos, x: v } })
-            }
+            onChange={(v) => setTransform({ position: { ...pos, x: v } })}
           />
         </Field>
         <Field label="Y">
           <NumberInput
             value={Math.round(pos.y)}
-            onChange={(v) =>
-              setTransform({ position: { ...pos, y: v } })
-            }
+            onChange={(v) => setTransform({ position: { ...pos, y: v } })}
           />
         </Field>
         {showRotation && (
@@ -704,9 +733,7 @@ function TransformSection({
             value={Math.round(scale.x * 100)}
             min={1}
             max={2000}
-            onChange={(v) =>
-              setTransform({ scale: { ...scale, x: v / 100 } })
-            }
+            onChange={(v) => setTransform({ scale: { ...scale, x: v / 100 } })}
           />
         </Field>
         <Field label="Scale Y %">
@@ -714,9 +741,7 @@ function TransformSection({
             value={Math.round(scale.y * 100)}
             min={1}
             max={2000}
-            onChange={(v) =>
-              setTransform({ scale: { ...scale, y: v / 100 } })
-            }
+            onChange={(v) => setTransform({ scale: { ...scale, y: v / 100 } })}
           />
         </Field>
       </div>
@@ -724,9 +749,7 @@ function TransformSection({
       <Field label="Mirror">
         <SelectInput
           value={mirror}
-          onChange={(v) =>
-            setTransform({ mirror: v as Transform["mirror"] })
-          }
+          onChange={(v) => setTransform({ mirror: v as Transform["mirror"] })}
           options={[
             { value: "none", label: "None" },
             { value: "horizontal", label: "Horizontal" },
@@ -839,9 +862,7 @@ function PrimitiveGeometrySection({
   const geo = node.geometry;
   if (geo.type === "rect") {
     return (
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         <Field label="Width">
           <NumberInput
             value={geo.width}
@@ -915,9 +936,7 @@ function PrimitiveGeometrySection({
   }
   if (geo.type === "ellipse") {
     return (
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         <Field label="Radius X">
           <NumberInput
             value={geo.rx}
@@ -1108,7 +1127,12 @@ function TextBlockStyleSection({
   return (
     <>
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          marginBottom: 6,
+        }}
       >
         <Field label="Font Family">
           <SelectInput
@@ -1215,9 +1239,7 @@ function TextBlockStyleSection({
           value={node.fill}
           defaultValue="var(--io-text-primary)"
           onChange={(v) =>
-            executeCmd(
-              new ChangePropertyCommand(node.id, "fill", v, node.fill),
-            )
+            executeCmd(new ChangePropertyCommand(node.id, "fill", v, node.fill))
           }
         />
       </Field>
@@ -1241,7 +1263,12 @@ function TextBlockStyleSection({
       </Field>
 
       <div
-        style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 8,
+        }}
       >
         <input
           type="checkbox"
@@ -1473,7 +1500,11 @@ function PipeStyleSection({
 // ---------------------------------------------------------------------------
 
 const PIPE_SERVICE_OPTIONS = Object.entries(PIPE_SERVICE_COLORS).map(
-  ([k, color]) => ({ value: k, label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), color }),
+  ([k, color]) => ({
+    value: k,
+    label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    color,
+  }),
 );
 
 function PipeDataSection({
@@ -1582,7 +1613,12 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
         <input
           readOnly
           value={node.shapeRef.shapeId}
-          style={{ ...inputStyle, color: "var(--io-text-muted)", fontFamily: "monospace", fontSize: 10 }}
+          style={{
+            ...inputStyle,
+            color: "var(--io-text-muted)",
+            fontFamily: "monospace",
+            fontSize: 10,
+          }}
         />
       </Field>
 
@@ -1671,7 +1707,8 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
               <span style={{ color: "var(--io-text-secondary)" }}>{label}</span>
               <span
                 style={{
-                  color: count > 0 ? "var(--io-accent)" : "var(--io-text-muted)",
+                  color:
+                    count > 0 ? "var(--io-accent)" : "var(--io-text-muted)",
                   fontWeight: 600,
                 }}
               >
@@ -1687,7 +1724,9 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
                 fontSize: 11,
               }}
             >
-              <span style={{ color: "var(--io-text-secondary)" }}>Category</span>
+              <span style={{ color: "var(--io-text-secondary)" }}>
+                Category
+              </span>
               <span style={{ color: "var(--io-text-muted)" }}>
                 {shapeEntry.sidecar.category}
               </span>
@@ -1706,8 +1745,8 @@ function SymbolInstanceShapeTab({ node }: { node: SymbolInstance }) {
           color: "var(--io-text-muted)",
         }}
       >
-        Colors follow the ISA 18.2 operational state and alarm priority model
-        — not individually configurable. Use variants to change appearance.
+        Colors follow the ISA 18.2 operational state and alarm priority model —
+        not individually configurable. Use variants to change appearance.
       </div>
     </div>
   );
@@ -1758,7 +1797,9 @@ function SymbolInstanceDataTab({ node }: { node: SymbolInstance }) {
             pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId}
           />
         </div>
-        <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginTop: 3 }}>
+        <div
+          style={{ fontSize: 10, color: "var(--io-text-muted)", marginTop: 3 }}
+        >
           Drives alarm state, operational status, and shape animation
         </div>
       </Field>
@@ -1766,10 +1807,18 @@ function SymbolInstanceDataTab({ node }: { node: SymbolInstance }) {
       {children.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <FieldLabel>Display Element Bindings</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             {children.map((child) => {
               const de = child as DisplayElement;
-              const boundTag = de.binding?.pointTag ?? de.binding?.pointId ?? "";
+              const boundTag =
+                de.binding?.pointTag ?? de.binding?.pointId ?? "";
               return (
                 <div key={de.id}>
                   <div
@@ -1812,7 +1861,9 @@ function SymbolInstanceDataTab({ node }: { node: SymbolInstance }) {
                       configure →
                     </button>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 4 }}
+                  >
                     <input
                       type="text"
                       key={de.id}
@@ -1896,7 +1947,9 @@ function DeBindingAndConfig({
   executeCmd: (cmd: SceneCommand) => void;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}
+    >
       <Field label="Type">
         <SelectInput
           value={de.displayType}
@@ -1926,13 +1979,17 @@ function DeBindingAndConfig({
             onBlur={(e) => {
               const val = e.target.value.trim();
               const isUuid =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  val,
+                );
               const newBinding = val
                 ? isUuid
                   ? { pointId: val }
                   : { pointTag: val }
                 : {};
-              executeCmd(new ChangeBindingCommand(de.id, newBinding, de.binding));
+              executeCmd(
+                new ChangeBindingCommand(de.id, newBinding, de.binding),
+              );
             }}
             style={{ ...inputStyle, flex: 1 }}
             placeholder="e.g. 25-AI-1401"
@@ -1968,7 +2025,8 @@ function AnchorSlotCard({
     if (activeDe) {
       executeCmd(new HideDisplayElementCommand(activeDe.id));
     } else {
-      const preferred = (anchor.preferredElement as DisplayElementType) ?? "text_readout";
+      const preferred =
+        (anchor.preferredElement as DisplayElementType) ?? "text_readout";
       executeCmd(
         new AddDisplayElementCommand(symbolId, {
           id: crypto.randomUUID() as NodeId,
@@ -1995,12 +2053,26 @@ function AnchorSlotCard({
     <div style={cardStyle}>
       {/* Header row — always full opacity so checkbox is always clickable */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <input type="checkbox" checked={active} onChange={handleToggle} style={{ cursor: "pointer" }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--io-text-primary)", flex: 1 }}>
+        <input
+          type="checkbox"
+          checked={active}
+          onChange={handleToggle}
+          style={{ cursor: "pointer" }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--io-text-primary)",
+            flex: 1,
+          }}
+        >
           Slot {index + 1}
         </span>
         {anchor.preferredElement && (
-          <span style={chipStyle}>{anchor.preferredElement.replace(/_/g, " ")}</span>
+          <span style={chipStyle}>
+            {anchor.preferredElement.replace(/_/g, " ")}
+          </span>
         )}
       </div>
       {/* Body — dimmed when inactive */}
@@ -2008,7 +2080,9 @@ function AnchorSlotCard({
         <div style={{ opacity: active ? 1 : 0.45 }}>
           <DeBindingAndConfig de={activeDe} executeCmd={executeCmd} />
           <button
-            onClick={() => executeCmd(new RemoveDisplayElementCommand(activeDe.id))}
+            onClick={() =>
+              executeCmd(new RemoveDisplayElementCommand(activeDe.id))
+            }
             style={{
               marginTop: 6,
               background: "transparent",
@@ -2037,7 +2111,9 @@ function ExtraSidecarCard({
   return (
     <div style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={chipStyle}>{de.displayType?.replace(/_/g, " ") ?? "DE"}</span>
+        <span style={chipStyle}>
+          {de.displayType?.replace(/_/g, " ") ?? "DE"}
+        </span>
         <button
           onClick={() => executeCmd(new RemoveDisplayElementCommand(de.id))}
           style={{
@@ -2148,17 +2224,34 @@ function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
   const slotIdFor = (i: number) => `anchor-${i}`;
   const anchorSlotIds = new Set(anchors.map((_, i) => slotIdFor(i)));
   const findSlotDe = (sid: string) => children.find((c) => c.slotId === sid);
-  const extras = children.filter((c) => !c.slotId || !anchorSlotIds.has(c.slotId));
+  const extras = children.filter(
+    (c) => !c.slotId || !anchorSlotIds.has(c.slotId),
+  );
 
-  const isEmpty = anchors.length === 0 && extras.length === 0 && textZones.length === 0;
+  const isEmpty =
+    anchors.length === 0 && extras.length === 0 && textZones.length === 0;
 
   return (
-    <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{
+        padding: "0 12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
       {/* Anchor slots */}
       {anchors.length > 0 && (
         <div>
           <FieldLabel>Anchor Slots</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             {anchors.map((anchor, i) => (
               <AnchorSlotCard
                 key={i}
@@ -2178,17 +2271,30 @@ function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
       {textZones.length > 0 && (
         <div>
           <FieldLabel>Text Zone Overrides</FieldLabel>
-          <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginBottom: 6, marginTop: 2 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--io-text-muted)",
+              marginBottom: 6,
+              marginTop: 2,
+            }}
+          >
             Override static text zones. Leave blank to show live data.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {textZones.map((zone) => {
               const overrideVal =
-                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ?? "";
+                (node.textZoneOverrides as Record<string, string>)?.[zone.id] ??
+                "";
               return (
                 <div key={zone.id}>
                   <div
-                    style={{ fontSize: 10, color: "var(--io-text-secondary)", marginBottom: 2, fontWeight: 600 }}
+                    style={{
+                      fontSize: 10,
+                      color: "var(--io-text-secondary)",
+                      marginBottom: 2,
+                      fontWeight: 600,
+                    }}
                     title={zone.id}
                   >
                     {zone.id}
@@ -2201,12 +2307,20 @@ function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
                     onBlur={(e) => {
                       const v = e.target.value;
                       const overrides = {
-                        ...((node.textZoneOverrides as Record<string, string>) ?? {}),
+                        ...((node.textZoneOverrides as Record<
+                          string,
+                          string
+                        >) ?? {}),
                       };
                       if (v) overrides[zone.id] = v;
                       else delete overrides[zone.id];
                       executeCmd(
-                        new ChangePropertyCommand(node.id, "textZoneOverrides", overrides, node.textZoneOverrides),
+                        new ChangePropertyCommand(
+                          node.id,
+                          "textZoneOverrides",
+                          overrides,
+                          node.textZoneOverrides,
+                        ),
                       );
                     }}
                     style={inputStyle}
@@ -2222,7 +2336,14 @@ function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
       {extras.length > 0 && (
         <div>
           <FieldLabel>Extra Sidecars</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             {extras.map((de) => (
               <ExtraSidecarCard key={de.id} de={de} executeCmd={executeCmd} />
             ))}
@@ -2232,8 +2353,15 @@ function SymbolInstanceSidecarsTab({ node }: { node: SymbolInstance }) {
 
       {/* Empty state */}
       {isEmpty && (
-        <div style={{ padding: "12px 0", fontSize: 11, color: "var(--io-text-muted)" }}>
-          This shape has no anchor slots. Use "Add Sidecar" below to attach a display element.
+        <div
+          style={{
+            padding: "12px 0",
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+          }}
+        >
+          This shape has no anchor slots. Use "Add Sidecar" below to attach a
+          display element.
         </div>
       )}
 
@@ -2522,7 +2650,12 @@ function ImageLayoutExtras({
         />
       </Field>
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          marginBottom: 6,
+        }}
       >
         <Field label="Display W">
           <NumberInput
@@ -2633,7 +2766,12 @@ function EmbeddedSvgLayoutExtras({
         />
       </Field>
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          marginBottom: 6,
+        }}
       >
         <Field label="Width">
           <NumberInput
@@ -2679,7 +2817,12 @@ function StencilLayoutExtras({
         <input
           readOnly
           value={node.stencilRef.stencilId}
-          style={{ ...inputStyle, color: "var(--io-text-muted)", fontFamily: "monospace", fontSize: 10 }}
+          style={{
+            ...inputStyle,
+            color: "var(--io-text-muted)",
+            fontFamily: "monospace",
+            fontSize: 10,
+          }}
         />
       </Field>
       {node.stencilRef.version && (
@@ -2693,7 +2836,12 @@ function StencilLayoutExtras({
       )}
       {node.size && (
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 6,
+            marginBottom: 6,
+          }}
         >
           <Field label="Width">
             <NumberInput
@@ -2746,7 +2894,12 @@ function WidgetLayoutExtras({
 }) {
   return (
     <div
-      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 6,
+        marginBottom: 6,
+      }}
     >
       <Field label="Width">
         <NumberInput
@@ -2918,7 +3071,12 @@ function AnnotationLayoutExtras({
 }) {
   return (
     <div
-      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 6,
+        marginBottom: 6,
+      }}
     >
       <Field label="Width">
         <NumberInput
@@ -3961,7 +4119,9 @@ function DisplayElementTypeFields({
               value={cfg.abnormalPriority}
               min={1}
               max={5}
-              onChange={(v) => patchDs({ abnormalPriority: v as 1 | 2 | 3 | 4 | 5 })}
+              onChange={(v) =>
+                patchDs({ abnormalPriority: v as 1 | 2 | 3 | 4 | 5 })
+              }
             />
           </Field>
           <div style={{ marginBottom: 6 }}>
@@ -4216,7 +4376,7 @@ function MultiSelectionPanel({ ids }: { ids: NodeId[] }) {
         </div>
       </div>
 
-<Field label="Opacity (all)">
+      <Field label="Opacity (all)">
         <NumberInput
           value={100}
           min={0}
@@ -5128,10 +5288,7 @@ export default function DesignerRightPanel({
         <div key={node.id} style={{ padding: "0 12px" }}>
           {/* Group: name + children count first */}
           {node.type === "group" && (
-            <GroupNameField
-              node={node as Group}
-              executeCmd={executeCmd}
-            />
+            <GroupNameField node={node as Group} executeCmd={executeCmd} />
           )}
           {/* Stencil extras */}
           {node.type === "stencil" && (
@@ -5177,7 +5334,11 @@ export default function DesignerRightPanel({
           )}
           {/* Pipe: special layout (no X/Y, just opacity/visible/locked/layer) */}
           {node.type === "pipe" ? (
-            <PipeLayoutTab node={node as Pipe} doc={doc} executeCmd={executeCmd} />
+            <PipeLayoutTab
+              node={node as Pipe}
+              doc={doc}
+              executeCmd={executeCmd}
+            />
           ) : node.type === "display_element" ? (
             /* DisplayElement: no positional transform in panel */
             <DisplayElementLayoutTab node={node as DisplayElement} />
@@ -5280,7 +5441,9 @@ export default function DesignerRightPanel({
               </Field>
             </div>
           )}
-          {node.type === "widget" && <WidgetContentTab node={node as WidgetNode} />}
+          {node.type === "widget" && (
+            <WidgetContentTab node={node as WidgetNode} />
+          )}
           {node.type === "annotation" && (
             <AnnotationContentTab node={node as Annotation} />
           )}

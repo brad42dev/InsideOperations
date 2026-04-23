@@ -1,4 +1,8 @@
-import type { IOClipboardPayload, IOClipboardContents, OriginContext } from "./types";
+import type {
+  IOClipboardPayload,
+  IOClipboardContents,
+  OriginContext,
+} from "./types";
 
 export interface BuildPayloadInput {
   originContext: OriginContext;
@@ -9,7 +13,9 @@ export interface BuildPayloadInput {
   };
 }
 
-export function buildIOClipboardPayload(input: BuildPayloadInput): IOClipboardPayload {
+export function buildIOClipboardPayload(
+  input: BuildPayloadInput,
+): IOClipboardPayload {
   const textRepresentation = input.contents.textRepresentation ?? "";
   return {
     source: "io-clipboard",

@@ -8,12 +8,17 @@ import type {
 } from "./types";
 import type { SceneNode } from "../types/graphics";
 
-export function hasKind(payload: IOClipboardPayload | null, mode: PasteMode): boolean {
+export function hasKind(
+  payload: IOClipboardPayload | null,
+  mode: PasteMode,
+): boolean {
   if (!payload) return false;
   const c = payload.contents;
   switch (mode) {
     case "points":
-      return !!c.points?.length || !!extractPointsFromNodes(c.nodes ?? []).length;
+      return (
+        !!c.points?.length || !!extractPointsFromNodes(c.nodes ?? []).length
+      );
     case "shapes":
       return !!c.nodes?.length;
     case "style":
@@ -63,7 +68,9 @@ export function extractPointsFromNodes(nodes: SceneNode[]): PortablePointRef[] {
   return out;
 }
 
-export function extractStyleFromNodes(nodes: SceneNode[]): StyleSnapshot | undefined {
+export function extractStyleFromNodes(
+  nodes: SceneNode[],
+): StyleSnapshot | undefined {
   for (const n of nodes) {
     const s = (n as unknown as { style?: StyleSnapshot }).style;
     if (s && Object.keys(s).length) return s;
@@ -79,7 +86,9 @@ export function stripBindings<T extends SceneNode>(nodes: T[]): T[] {
   });
 }
 
-export function synthesizeTableFromPoints(points: PortablePointRef[]): TableRowSnapshot[] {
+export function synthesizeTableFromPoints(
+  points: PortablePointRef[],
+): TableRowSnapshot[] {
   return points.map((p) => ({
     columns: ["Tagname", "Display Name", "Unit"],
     values: [p.tagname, p.displayName ?? "", p.unit ?? ""],
@@ -87,7 +96,9 @@ export function synthesizeTableFromPoints(points: PortablePointRef[]): TableRowS
   }));
 }
 
-export function computeTextRepresentation(contents: Partial<IOClipboardContents>): string {
+export function computeTextRepresentation(
+  contents: Partial<IOClipboardContents>,
+): string {
   const parts: string[] = [];
   const firstPoint =
     contents.points?.[0] ?? extractPointsFromNodes(contents.nodes ?? [])[0];

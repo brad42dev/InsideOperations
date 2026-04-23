@@ -46,11 +46,20 @@ if (
 // are also blocked. Browser UI zoom (address bar %) cannot be intercepted.
 document.addEventListener(
   "wheel",
-  (e) => { if (e.ctrlKey) e.preventDefault(); },
+  (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  },
   { passive: false },
 );
 document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && (e.key === "+" || e.key === "=" || e.key === "-" || e.key === "_" || e.key === "0")) {
+  if (
+    e.ctrlKey &&
+    (e.key === "+" ||
+      e.key === "=" ||
+      e.key === "-" ||
+      e.key === "_" ||
+      e.key === "0")
+  ) {
     e.preventDefault();
   }
 });

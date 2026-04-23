@@ -532,7 +532,12 @@ export default function WorkspaceGrid({
     x2: number;
     y2: number;
   } | null>(null);
-  const boxRectRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const boxRectRef = useRef<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null>(null);
   const boxStartRef = useRef<{ x: number; y: number } | null>(null);
   // Tracks physical button state: true between pointerdown and pointerup.
   // Rejects a second pointerdown while the button is already held — mirrors

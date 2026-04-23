@@ -55,9 +55,9 @@ import { registerExprBuilderAccessor } from "./clipboard/expressionCopyHandler";
 // Hover-tile context — tracks which tile the pointer is over for paste routing
 // ---------------------------------------------------------------------------
 
-const TileHoverCtx = createContext<React.MutableRefObject<string | null> | null>(
-  null,
-);
+const TileHoverCtx = createContext<React.MutableRefObject<
+  string | null
+> | null>(null);
 
 // ---------------------------------------------------------------------------
 // Palette definition
@@ -3248,7 +3248,9 @@ export function ExpressionBuilder({
             outline: "none",
           }}
           onClick={() => {
-            useGlobalSelectionStore.getState().setActiveZone("expression-builder");
+            useGlobalSelectionStore
+              .getState()
+              .setActiveZone("expression-builder");
             dispatch({ type: "SELECT", ids: [], additive: false });
             dispatch({
               type: "SET_CURSOR",

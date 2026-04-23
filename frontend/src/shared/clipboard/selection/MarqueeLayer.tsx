@@ -27,13 +27,21 @@ export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
       if (e.button !== 0) return;
       if (e.target !== containerRef.current) return;
       const bounds = containerRef.current!.getBoundingClientRect();
-      startRef.current = { x: e.clientX - bounds.left, y: e.clientY - bounds.top };
+      startRef.current = {
+        x: e.clientX - bounds.left,
+        y: e.clientY - bounds.top,
+      };
       modeRef.current = e.altKey
         ? "remove"
         : e.ctrlKey || e.metaKey
           ? "add"
           : "replace";
-      setRect({ top: startRef.current.y, left: startRef.current.x, width: 0, height: 0 });
+      setRect({
+        top: startRef.current.y,
+        left: startRef.current.x,
+        width: 0,
+        height: 0,
+      });
     },
     [containerRef],
   );

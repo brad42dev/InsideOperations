@@ -575,9 +575,13 @@ function computeGroupBBox(nodes: SceneNode[]): {
     if (b.y + b.h > maxY) maxY = b.y + b.h;
   }
   if (minX === Infinity) return { x: 0, y: 0, w: 64, h: 64 };
-  return { x: minX, y: minY, w: Math.max(maxX - minX, 4), h: Math.max(maxY - minY, 4) };
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(maxX - minX, 4),
+    h: Math.max(maxY - minY, 4),
+  };
 }
-
 
 function boundsContains(
   b: { x: number; y: number; w: number; h: number },
@@ -2440,7 +2444,11 @@ export default function DesignerCanvas({
     }
     useGlobalSelectionStore.getState().selectMany(
       "designer",
-      ids.map((id) => ({ id, zoneId: "designer" as const, kind: "scene-node" as const })),
+      ids.map((id) => ({
+        id,
+        zoneId: "designer" as const,
+        kind: "scene-node" as const,
+      })),
       "replace",
     );
   }, [selectedNodeIds]);
@@ -3414,9 +3422,9 @@ export default function DesignerCanvas({
                     cp.partId ??
                     (cp as unknown as Record<string, string>)["part_id"];
                   if (!pid) continue;
-                  const att = (
-                    sData?.sidecar?.compositeAttachments ?? []
-                  ).find((a: { forPart: string }) => a.forPart === pid);
+                  const att = (sData?.sidecar?.compositeAttachments ?? []).find(
+                    (a: { forPart: string }) => a.forPart === pid,
+                  );
                   if (!att) continue;
                   const partShape = useLibraryStore
                     .getState()
@@ -5796,7 +5804,10 @@ export default function DesignerCanvas({
           return;
         }
         // Block all other undo/redo in place mode
-        if (ctrl && (e.key === "z" || e.key === "Z" || e.key === "y" || e.key === "Y")) {
+        if (
+          ctrl &&
+          (e.key === "z" || e.key === "Z" || e.key === "y" || e.key === "Y")
+        ) {
           e.preventDefault();
           return;
         }
@@ -6499,7 +6510,13 @@ export default function DesignerCanvas({
       if (!nodes?.length) return;
       const bbox = computeGroupBBox(nodes);
       const originCenter = { x: bbox.x + bbox.w / 2, y: bbox.y + bbox.h / 2 };
-      setPlaceMode({ phase: "floating", nodes, expressions, originCenter, bbox });
+      setPlaceMode({
+        phase: "floating",
+        nodes,
+        expressions,
+        originCenter,
+        bbox,
+      });
     }
     document.addEventListener("io-designer:enter-place-mode", onEnterPlaceMode);
     return () =>
@@ -7580,52 +7597,53 @@ export default function DesignerCanvas({
               {/* Place mode floating ghost — canvas-space dashed bbox follows cursor.
                   Inner <g> transform is updated by direct DOM mutation in handleMouseMove
                   (60fps, no React re-render). Viewport transform is owned by parent <g>. */}
-              {placeMode?.phase === "floating" && (() => {
-                const { bbox, originCenter, nodes } = placeMode;
-                const pad = Math.max(2, 4 / zoom);
-                return (
-                  <g
-                    ref={placeModeGhostGroupRef}
-                    transform="translate(0,0)"
-                    opacity={0.75}
-                    style={{ pointerEvents: "none" }}
-                  >
-                    {/* Render actual nodes so the user sees what they're placing. */}
-                    {nodes.map((n) => (
-                      <RenderNode
-                        key={n.id}
-                        node={n}
-                        getShapeSvg={getShapeSvgMemo}
-                        selectedIds={new Set()}
-                      />
-                    ))}
-                    {/* Dashed outline around the group */}
-                    <rect
-                      x={bbox.x - pad}
-                      y={bbox.y - pad}
-                      width={bbox.w + pad * 2}
-                      height={bbox.h + pad * 2}
-                      fill="none"
-                      stroke="var(--io-accent)"
-                      strokeWidth={1.5 / zoom}
-                      strokeDasharray={`${5 / zoom} ${3 / zoom}`}
-                      rx={2 / zoom}
-                    />
-                    <text
-                      x={originCenter.x}
-                      y={bbox.y - pad - 5 / zoom}
-                      textAnchor="middle"
-                      fill="var(--io-accent)"
-                      fontSize={10 / zoom}
-                      fontFamily="Inter, sans-serif"
+              {placeMode?.phase === "floating" &&
+                (() => {
+                  const { bbox, originCenter, nodes } = placeMode;
+                  const pad = Math.max(2, 4 / zoom);
+                  return (
+                    <g
+                      ref={placeModeGhostGroupRef}
+                      transform="translate(0,0)"
+                      opacity={0.75}
+                      style={{ pointerEvents: "none" }}
                     >
-                      {nodes.length === 1
-                        ? "1 element — click to place"
-                        : `${nodes.length} elements — click to place`}
-                    </text>
-                  </g>
-                );
-              })()}
+                      {/* Render actual nodes so the user sees what they're placing. */}
+                      {nodes.map((n) => (
+                        <RenderNode
+                          key={n.id}
+                          node={n}
+                          getShapeSvg={getShapeSvgMemo}
+                          selectedIds={new Set()}
+                        />
+                      ))}
+                      {/* Dashed outline around the group */}
+                      <rect
+                        x={bbox.x - pad}
+                        y={bbox.y - pad}
+                        width={bbox.w + pad * 2}
+                        height={bbox.h + pad * 2}
+                        fill="none"
+                        stroke="var(--io-accent)"
+                        strokeWidth={1.5 / zoom}
+                        strokeDasharray={`${5 / zoom} ${3 / zoom}`}
+                        rx={2 / zoom}
+                      />
+                      <text
+                        x={originCenter.x}
+                        y={bbox.y - pad - 5 / zoom}
+                        textAnchor="middle"
+                        fill="var(--io-accent)"
+                        fontSize={10 / zoom}
+                        fontFamily="Inter, sans-serif"
+                      >
+                        {nodes.length === 1
+                          ? "1 element — click to place"
+                          : `${nodes.length} elements — click to place`}
+                      </text>
+                    </g>
+                  );
+                })()}
 
               {/* Lock indicators */}
               {doc && <LockOverlay doc={doc} zoom={zoom} />}
@@ -8766,7 +8784,7 @@ export default function DesignerCanvas({
               );
             })()}
 
-{/* Place mode floating ghost — rendered INSIDE the viewport group (see below) */}
+          {/* Place mode floating ghost — rendered INSIDE the viewport group (see below) */}
 
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
@@ -10211,7 +10229,12 @@ function DesignerContextMenuContent({
             {/* Transform */}
             <ContextMenuPrimitive.Sub>
               <ContextMenuPrimitive.SubTrigger
-                style={{ ...itemStyle, ...(!hasSelection || !hasDoc ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+                style={{
+                  ...itemStyle,
+                  ...(!hasSelection || !hasDoc
+                    ? { opacity: 0.4, pointerEvents: "none" as const }
+                    : {}),
+                }}
               >
                 Transform
               </ContextMenuPrimitive.SubTrigger>
@@ -10220,28 +10243,40 @@ function DesignerContextMenuContent({
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!hasSelection || !hasDoc}
-                    onSelect={() => { const cmd = buildRotateCmd(90); if (cmd) executeCmd(cmd); }}
+                    onSelect={() => {
+                      const cmd = buildRotateCmd(90);
+                      if (cmd) executeCmd(cmd);
+                    }}
                   >
                     Rotate 90° CW
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!hasSelection || !hasDoc}
-                    onSelect={() => { const cmd = buildRotateCmd(-90); if (cmd) executeCmd(cmd); }}
+                    onSelect={() => {
+                      const cmd = buildRotateCmd(-90);
+                      if (cmd) executeCmd(cmd);
+                    }}
                   >
                     Rotate 90° CCW
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!hasSelection || !hasDoc}
-                    onSelect={() => { const cmd = buildFlipCmd("horizontal"); if (cmd) executeCmd(cmd); }}
+                    onSelect={() => {
+                      const cmd = buildFlipCmd("horizontal");
+                      if (cmd) executeCmd(cmd);
+                    }}
                   >
                     Flip Horizontal
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!hasSelection || !hasDoc}
-                    onSelect={() => { const cmd = buildFlipCmd("vertical"); if (cmd) executeCmd(cmd); }}
+                    onSelect={() => {
+                      const cmd = buildFlipCmd("vertical");
+                      if (cmd) executeCmd(cmd);
+                    }}
                   >
                     Flip Vertical
                   </ContextMenuPrimitive.Item>
@@ -10252,7 +10287,12 @@ function DesignerContextMenuContent({
             {/* Arrange */}
             <ContextMenuPrimitive.Sub>
               <ContextMenuPrimitive.SubTrigger
-                style={{ ...itemStyle, ...(!nodeId || !hasDoc || fromIdx < 0 ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+                style={{
+                  ...itemStyle,
+                  ...(!nodeId || !hasDoc || fromIdx < 0
+                    ? { opacity: 0.4, pointerEvents: "none" as const }
+                    : {}),
+                }}
               >
                 Arrange
               </ContextMenuPrimitive.SubTrigger>
@@ -10261,28 +10301,63 @@ function DesignerContextMenuContent({
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!nodeId || !hasDoc || fromIdx < 0}
-                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(doc.children.length - 1, fromIdx, null)); }}
+                    onSelect={() => {
+                      if (nodeId && doc && fromIdx >= 0)
+                        executeCmd(
+                          new ReorderNodeCommand(
+                            doc.children.length - 1,
+                            fromIdx,
+                            null,
+                          ),
+                        );
+                    }}
                   >
                     Bring to Front
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
-                    disabled={!nodeId || !hasDoc || fromIdx < 0 || fromIdx >= (doc?.children.length ?? 0) - 1}
-                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(Math.min(fromIdx + 1, doc.children.length - 1), fromIdx, null)); }}
+                    disabled={
+                      !nodeId ||
+                      !hasDoc ||
+                      fromIdx < 0 ||
+                      fromIdx >= (doc?.children.length ?? 0) - 1
+                    }
+                    onSelect={() => {
+                      if (nodeId && doc && fromIdx >= 0)
+                        executeCmd(
+                          new ReorderNodeCommand(
+                            Math.min(fromIdx + 1, doc.children.length - 1),
+                            fromIdx,
+                            null,
+                          ),
+                        );
+                    }}
                   >
                     Bring Forward
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!nodeId || !hasDoc || fromIdx <= 0}
-                    onSelect={() => { if (nodeId && doc && fromIdx > 0) executeCmd(new ReorderNodeCommand(Math.max(fromIdx - 1, 0), fromIdx, null)); }}
+                    onSelect={() => {
+                      if (nodeId && doc && fromIdx > 0)
+                        executeCmd(
+                          new ReorderNodeCommand(
+                            Math.max(fromIdx - 1, 0),
+                            fromIdx,
+                            null,
+                          ),
+                        );
+                    }}
                   >
                     Send Backward
                   </ContextMenuPrimitive.Item>
                   <ContextMenuPrimitive.Item
                     style={itemStyle}
                     disabled={!nodeId || !hasDoc || fromIdx < 0}
-                    onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(0, fromIdx, null)); }}
+                    onSelect={() => {
+                      if (nodeId && doc && fromIdx >= 0)
+                        executeCmd(new ReorderNodeCommand(0, fromIdx, null));
+                    }}
                   >
                     Send to Back
                   </ContextMenuPrimitive.Item>
@@ -10377,7 +10452,12 @@ function DesignerContextMenuContent({
             {/* Save to Library */}
             <ContextMenuPrimitive.Sub>
               <ContextMenuPrimitive.SubTrigger
-                style={{ ...itemStyle, ...(!hasSelection || !hasDoc ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+                style={{
+                  ...itemStyle,
+                  ...(!hasSelection || !hasDoc
+                    ? { opacity: 0.4, pointerEvents: "none" as const }
+                    : {}),
+                }}
               >
                 Save to Library
               </ContextMenuPrimitive.SubTrigger>
@@ -10389,7 +10469,9 @@ function DesignerContextMenuContent({
                     onSelect={() => {
                       if (!docRef.current) return;
                       const nodes = Array.from(selectedIdsRef.current)
-                        .map((id) => docRef.current!.children.find((n) => n.id === id))
+                        .map((id) =>
+                          docRef.current!.children.find((n) => n.id === id),
+                        )
                         .filter((n): n is SceneNode => n !== undefined);
                       setStencilNodes(nodes);
                     }}
@@ -10402,7 +10484,9 @@ function DesignerContextMenuContent({
                     onSelect={() => {
                       if (!docRef.current) return;
                       const nodes = Array.from(selectedIdsRef.current)
-                        .map((id) => docRef.current!.children.find((n) => n.id === id))
+                        .map((id) =>
+                          docRef.current!.children.find((n) => n.id === id),
+                        )
                         .filter((n): n is SceneNode => n !== undefined);
                       setPromoteNodes(nodes);
                     }}
@@ -10415,7 +10499,9 @@ function DesignerContextMenuContent({
                       disabled={!shapeEntry?.svg}
                       onSelect={() => {
                         if (!shapeEntry?.svg) return;
-                        const blob = new Blob([shapeEntry.svg], { type: "image/svg+xml" });
+                        const blob = new Blob([shapeEntry.svg], {
+                          type: "image/svg+xml",
+                        });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
@@ -10607,30 +10693,52 @@ function DesignerContextMenuContent({
                   return (
                     <ContextMenuPrimitive.Sub>
                       <ContextMenuPrimitive.SubTrigger
-                        style={{ ...itemStyle, ...(!isBound ? { opacity: 0.4, pointerEvents: "none" as const } : {}) }}
+                        style={{
+                          ...itemStyle,
+                          ...(!isBound
+                            ? { opacity: 0.4, pointerEvents: "none" as const }
+                            : {}),
+                        }}
                       >
                         Point Actions
                       </ContextMenuPrimitive.SubTrigger>
                       <ContextMenuPrimitive.Portal>
-                        <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                        <ContextMenuPrimitive.SubContent
+                          style={subContentStyle}
+                        >
                           <ContextMenuPrimitive.Item
                             style={itemStyle}
                             disabled={!isBound}
-                            onSelect={() => { if (!pointId) return; navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`); }}
+                            onSelect={() => {
+                              if (!pointId) return;
+                              navigate(
+                                `/forensics?point=${encodeURIComponent(pointId)}&panel=detail`,
+                              );
+                            }}
                           >
                             Point Detail
                           </ContextMenuPrimitive.Item>
                           <ContextMenuPrimitive.Item
                             style={itemStyle}
                             disabled={!isBound}
-                            onSelect={() => { if (!pointId) return; navigate(`/console?trend=${encodeURIComponent(pointId)}`); }}
+                            onSelect={() => {
+                              if (!pointId) return;
+                              navigate(
+                                `/console?trend=${encodeURIComponent(pointId)}`,
+                              );
+                            }}
                           >
                             Trend This Point
                           </ContextMenuPrimitive.Item>
                           <ContextMenuPrimitive.Item
                             style={itemStyle}
                             disabled={!isBound}
-                            onSelect={() => { if (!pointId) return; navigate(`/forensics?tab=alarm&point=${encodeURIComponent(pointId)}`); }}
+                            onSelect={() => {
+                              if (!pointId) return;
+                              navigate(
+                                `/forensics?tab=alarm&point=${encodeURIComponent(pointId)}`,
+                              );
+                            }}
                           >
                             View Alerts
                           </ContextMenuPrimitive.Item>
@@ -10638,7 +10746,12 @@ function DesignerContextMenuContent({
                             <ContextMenuPrimitive.Item
                               style={itemStyle}
                               disabled={!isBound}
-                              onSelect={() => { if (!pointId) return; navigate(`/forensics/new?point=${encodeURIComponent(pointId)}`); }}
+                              onSelect={() => {
+                                if (!pointId) return;
+                                navigate(
+                                  `/forensics/new?point=${encodeURIComponent(pointId)}`,
+                                );
+                              }}
                             >
                               Investigate Point
                             </ContextMenuPrimitive.Item>
@@ -10647,7 +10760,12 @@ function DesignerContextMenuContent({
                             <ContextMenuPrimitive.Item
                               style={itemStyle}
                               disabled={!isBound}
-                              onSelect={() => { if (!pointId) return; navigate(`/reports/new?point=${encodeURIComponent(pointId)}`); }}
+                              onSelect={() => {
+                                if (!pointId) return;
+                                navigate(
+                                  `/reports/new?point=${encodeURIComponent(pointId)}`,
+                                );
+                              }}
                             >
                               Report on Point
                             </ContextMenuPrimitive.Item>
@@ -10656,7 +10774,12 @@ function DesignerContextMenuContent({
                             <ContextMenuPrimitive.Item
                               style={itemStyle}
                               disabled={!isBound}
-                              onSelect={() => { if (!pointId) return; navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`); }}
+                              onSelect={() => {
+                                if (!pointId) return;
+                                navigate(
+                                  `/forensics/new?alarm=${encodeURIComponent(pointId)}`,
+                                );
+                              }}
                             >
                               Investigate Alarm
                             </ContextMenuPrimitive.Item>
@@ -10665,7 +10788,10 @@ function DesignerContextMenuContent({
                           <ContextMenuPrimitive.Item
                             style={itemStyle}
                             disabled={!isBound}
-                            onSelect={() => { if (!tagName) return; void navigator.clipboard.writeText(tagName); }}
+                            onSelect={() => {
+                              if (!tagName) return;
+                              void navigator.clipboard.writeText(tagName);
+                            }}
                           >
                             Copy Tag Name
                           </ContextMenuPrimitive.Item>

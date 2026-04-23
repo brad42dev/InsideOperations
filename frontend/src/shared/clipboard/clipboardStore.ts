@@ -38,7 +38,8 @@ export const useIOClipboardStore = create<ClipboardStoreState>((set, get) => ({
         return null;
       }
       if (isIOClipboardPayload(parsed)) return parsed;
-      if (isLegacyDesignerClipboard(parsed)) return migrateLegacyClipboard(parsed);
+      if (isLegacyDesignerClipboard(parsed))
+        return migrateLegacyClipboard(parsed);
       return null;
     } catch {
       return get().current;

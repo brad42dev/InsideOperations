@@ -12,7 +12,10 @@ import {
 } from "../../../shared/hooks/useWebSocket";
 import type { PointValue as WsPointValue } from "../../../shared/hooks/useWebSocket";
 import { useGlobalSelectionStore } from "../../../store/globalSelectionStore";
-import type { SelectionZoneId, SelectableEntity } from "../../../shared/clipboard";
+import type {
+  SelectionZoneId,
+  SelectableEntity,
+} from "../../../shared/clipboard";
 import { useHistoricalValues } from "../../../shared/hooks/useHistoricalValues";
 import { usePlaybackStore } from "../../../store/playback";
 import TileGraphicViewer from "../../../shared/components/TileGraphicViewer";
@@ -218,7 +221,6 @@ function extractTileBindings(doc: GraphicDocument) {
   for (const n of doc.children) walk(n);
   return out;
 }
-
 
 export default function GraphicPane({
   graphicId,
@@ -604,7 +606,6 @@ export default function GraphicPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   // ── Scene-node selection zone registration ──────────────────────────────────
 
   useEffect(() => {
@@ -649,8 +650,14 @@ export default function GraphicPane({
 
       if (!found) {
         const OFFSETS = [
-          [-4, 0], [4, 0], [0, -4], [0, 4],
-          [-3, -3], [3, -3], [-3, 3], [3, 3],
+          [-4, 0],
+          [4, 0],
+          [0, -4],
+          [0, 4],
+          [-3, -3],
+          [3, -3],
+          [-3, 3],
+          [3, 3],
         ] as const;
         outer: for (const [dx, dy] of OFFSETS) {
           for (const el of document.elementsFromPoint(
@@ -675,7 +682,11 @@ export default function GraphicPane({
       }
 
       const { nodeId, nodeEl } = found;
-      const entity: SelectableEntity = { id: nodeId, zoneId, kind: "scene-node" };
+      const entity: SelectableEntity = {
+        id: nodeId,
+        zoneId,
+        kind: "scene-node",
+      };
       const isMulti = e.ctrlKey || e.metaKey;
 
       if (isMulti) {

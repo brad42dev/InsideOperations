@@ -67,7 +67,14 @@ export default function ClipboardInspector() {
           ×
         </button>
       </div>
-      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div
+        style={{
+          padding: 12,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
         <Slot label="Current" payload={current} />
         <Slot label="Previous" payload={previous} />
       </div>

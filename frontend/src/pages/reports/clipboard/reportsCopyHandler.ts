@@ -5,9 +5,7 @@ import {
 import { useGlobalSelectionStore } from "@/store/globalSelectionStore";
 
 export async function copyReportsSelection(): Promise<void> {
-  const selected = useGlobalSelectionStore
-    .getState()
-    .getSelection("reports");
+  const selected = useGlobalSelectionStore.getState().getSelection("reports");
   if (selected.length === 0) return;
 
   const items = selected.map(

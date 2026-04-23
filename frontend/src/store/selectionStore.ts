@@ -42,7 +42,11 @@ export const useSelectionStore = create<SelectionState>()((set) => ({
     set((s) => {
       const gs = useGlobalSelectionStore.getState();
       gs.setActiveZone("console");
-      const entity = { id: paneId, zoneId: "console" as const, kind: "pane" as const };
+      const entity = {
+        id: paneId,
+        zoneId: "console" as const,
+        kind: "pane" as const,
+      };
 
       if (addToSelection) {
         const next = new Set(s.selectedPaneIds);
@@ -69,7 +73,11 @@ export const useSelectionStore = create<SelectionState>()((set) => ({
     gs.setActiveZone("console");
     gs.selectMany(
       "console",
-      paneIds.map((id) => ({ id, zoneId: "console" as const, kind: "pane" as const })),
+      paneIds.map((id) => ({
+        id,
+        zoneId: "console" as const,
+        kind: "pane" as const,
+      })),
       "replace",
     );
     set({ selectedPaneIds: new Set(paneIds) });

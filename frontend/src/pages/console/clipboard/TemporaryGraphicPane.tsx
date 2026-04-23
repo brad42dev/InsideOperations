@@ -3,8 +3,15 @@ import { useMutation } from "@tanstack/react-query";
 import { graphicsApi } from "@/api/graphics";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { usePasteTarget, extractPoints } from "@/shared/clipboard";
-import type { PasteTarget, PasteMode, SelectionZoneId } from "@/shared/clipboard";
-import { getTemporaryContents, clearTemporaryContents } from "./temporaryGraphicStore";
+import type {
+  PasteTarget,
+  PasteMode,
+  SelectionZoneId,
+} from "@/shared/clipboard";
+import {
+  getTemporaryContents,
+  clearTemporaryContents,
+} from "./temporaryGraphicStore";
 import type { IOClipboardPayload } from "@/shared/clipboard";
 
 interface Props {
@@ -28,15 +35,18 @@ function buildSaveTarget(paneId: string): PasteTarget {
       if (!existing) return;
       const merged = {
         ...existing,
-        nodes: mode === "shapes"
-          ? [...(existing.nodes ?? []), ...(payload.contents.nodes ?? [])]
-          : existing.nodes,
-        points: mode === "points"
-          ? [...(existing.points ?? []), ...extractPoints(payload)]
-          : existing.points,
+        nodes:
+          mode === "shapes"
+            ? [...(existing.nodes ?? []), ...(payload.contents.nodes ?? [])]
+            : existing.nodes,
+        points:
+          mode === "points"
+            ? [...(existing.points ?? []), ...extractPoints(payload)]
+            : existing.points,
         textRepresentation: existing.textRepresentation,
       };
-      const { registerTemporaryContents } = await import("./temporaryGraphicStore");
+      const { registerTemporaryContents } =
+        await import("./temporaryGraphicStore");
       registerTemporaryContents(paneId, merged);
     },
     describeRejection(payload: IOClipboardPayload | null) {
@@ -55,7 +65,8 @@ export default function TemporaryGraphicPane({ paneId }: Props) {
   usePasteTarget(pasteTarget);
 
   const nodeCount = contents?.nodes?.length ?? 0;
-  const pointCount = (contents?.points?.length ?? 0) +
+  const pointCount =
+    (contents?.points?.length ?? 0) +
     (contents?.nodes
       ? contents.nodes.filter((n: any) => n.binding?.pointTag).length
       : 0);
@@ -88,7 +99,15 @@ export default function TemporaryGraphicPane({ paneId }: Props) {
             gridVisible: false,
             snapToGrid: false,
           },
-          layers: [{ id: "default", name: "Layer 1", visible: true, locked: false, order: 0 }],
+          layers: [
+            {
+              id: "default",
+              name: "Layer 1",
+              visible: true,
+              locked: false,
+              order: 0,
+            },
+          ],
         },
       });
       if (!result.success) throw new Error("Failed to save graphic");
@@ -97,9 +116,7 @@ export default function TemporaryGraphicPane({ paneId }: Props) {
         state.updateWorkspace(state.activeId, (w) => ({
           ...w,
           panes: w.panes.map((p) =>
-            p.id === paneId
-              ? { ...p, graphicId, title: name }
-              : p,
+            p.id === paneId ? { ...p, graphicId, title: name } : p,
           ),
         }));
       }
@@ -227,7 +244,9 @@ export default function TemporaryGraphicPane({ paneId }: Props) {
           <>
             <span>
               {nodeCount} shape{nodeCount !== 1 ? "s" : ""}
-              {pointCount > 0 ? `, ${pointCount} point${pointCount !== 1 ? "s" : ""}` : ""}
+              {pointCount > 0
+                ? `, ${pointCount} point${pointCount !== 1 ? "s" : ""}`
+                : ""}
             </span>
             <span style={{ fontSize: 11 }}>
               Right-click to paste more · Save as graphic to persist

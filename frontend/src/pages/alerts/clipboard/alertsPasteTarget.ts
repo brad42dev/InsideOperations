@@ -11,7 +11,8 @@ export const alertsPasteTarget: PasteTarget = {
   accepts(payload) {
     if (!payload) return [];
     const modes: PasteMode[] = [];
-    if (extractPoints(payload).length) modes.push("points", "most-recent-alarms");
+    if (extractPoints(payload).length)
+      modes.push("points", "most-recent-alarms");
     return modes;
   },
 
@@ -23,7 +24,11 @@ export const alertsPasteTarget: PasteTarget = {
         mode === "most-recent-alarms" ? "most-recent-alarms" : "points",
       );
     } else {
-      showToast({ title: "Nothing to paste", description: "Clipboard has no point references", variant: "warning" });
+      showToast({
+        title: "Nothing to paste",
+        description: "Clipboard has no point references",
+        variant: "warning",
+      });
     }
   },
 

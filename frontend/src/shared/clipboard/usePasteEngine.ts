@@ -10,7 +10,9 @@ function isEditableElement(el: Element | null): boolean {
   if (!el) return false;
   const tag = el.tagName.toLowerCase();
   return (
-    tag === "input" || tag === "textarea" || (el as HTMLElement).isContentEditable
+    tag === "input" ||
+    tag === "textarea" ||
+    (el as HTMLElement).isContentEditable
   );
 }
 
@@ -47,7 +49,11 @@ export function usePasteEngine() {
     const payload = getPrevious();
     const zoneId = useGlobalSelectionStore.getState().activeZone;
     if (!payload) {
-      showToast({ title: "Nothing to paste", description: "No previous clipboard contents", variant: "warning" });
+      showToast({
+        title: "Nothing to paste",
+        description: "No previous clipboard contents",
+        variant: "warning",
+      });
       return false;
     }
     if (zoneId) {

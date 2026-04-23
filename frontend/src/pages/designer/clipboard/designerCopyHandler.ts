@@ -39,7 +39,8 @@ export async function copyDesignerSelection(): Promise<void> {
   const usedExpressionIds = new Set<string>();
   const walkForExprs = (ns: SceneNode[]) => {
     for (const n of ns) {
-      const b = (n as unknown as { binding?: { expressionId?: string } }).binding;
+      const b = (n as unknown as { binding?: { expressionId?: string } })
+        .binding;
       if (b?.expressionId) usedExpressionIds.add(b.expressionId);
       const children = (n as unknown as { children?: SceneNode[] }).children;
       if (Array.isArray(children)) walkForExprs(children);

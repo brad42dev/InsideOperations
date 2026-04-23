@@ -1,4 +1,8 @@
-import type { SceneNode, GraphicExpression, ClipboardData } from "../types/graphics";
+import type {
+  SceneNode,
+  GraphicExpression,
+  ClipboardData,
+} from "../types/graphics";
 import type { ChartConfig } from "../components/charts/chart-config-types";
 import type { PaneConfig } from "../../pages/console/types";
 import type { ExpressionTile } from "../types/expression";
@@ -79,7 +83,10 @@ export interface StyleSnapshot {
 }
 
 export interface LayoutSnapshot {
-  sidecarPositions?: Record<string, { x: number; y: number; rotation?: number }>;
+  sidecarPositions?: Record<
+    string,
+    { x: number; y: number; rotation?: number }
+  >;
   displayElementConfigs?: Record<string, unknown>;
 }
 
@@ -154,14 +161,19 @@ export interface PasteTarget {
   zoneId: SelectionZoneId;
   priority: number;
   accepts(payload: IOClipboardPayload | null): PasteMode[];
-  applyPaste(payload: IOClipboardPayload, mode: PasteMode): Promise<void> | void;
+  applyPaste(
+    payload: IOClipboardPayload,
+    mode: PasteMode,
+  ): Promise<void> | void;
   describeRejection?(payload: IOClipboardPayload | null): string;
 }
 
 // ----- Legacy compatibility helpers -----
 
 /** Detect v1 designer clipboard shape. */
-export function isLegacyDesignerClipboard(value: unknown): value is ClipboardData {
+export function isLegacyDesignerClipboard(
+  value: unknown,
+): value is ClipboardData {
   const v = value as Record<string, unknown> | null | undefined;
   return (
     !!v &&
@@ -173,7 +185,9 @@ export function isLegacyDesignerClipboard(value: unknown): value is ClipboardDat
 }
 
 /** Narrow unknown → IOClipboardPayload v2. */
-export function isIOClipboardPayload(value: unknown): value is IOClipboardPayload {
+export function isIOClipboardPayload(
+  value: unknown,
+): value is IOClipboardPayload {
   const v = value as IOClipboardPayload | null | undefined;
   return (
     !!v &&

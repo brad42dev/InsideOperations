@@ -31,7 +31,9 @@
 /* North resize handles: override RGL defaults with higher specificity (0,4,0 > RGL's 0,3,0).
    Widen the N handle to span the full top edge and give all north handles z-index so they
    sit above the drag-handle title bar inside the pane content. */
-.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+.io-workspace-grid
+  .react-grid-item
+  > .react-resizable-handle.react-resizable-handle-n {
   top: 0;
   left: 20px;
   right: 20px;
@@ -43,7 +45,9 @@
   transform: none; /* override react-resizable's rotate(225deg) — distorts bounding rect */
 }
 
-.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+.io-workspace-grid
+  .react-grid-item
+  > .react-resizable-handle.react-resizable-handle-nw {
   top: 0;
   left: 0;
   cursor: nw-resize;
@@ -51,7 +55,9 @@
   transform: none;
 }
 
-.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+.io-workspace-grid
+  .react-grid-item
+  > .react-resizable-handle.react-resizable-handle-ne {
   top: 0;
   right: 0;
   left: auto;
@@ -70,6 +76,6 @@
 
 /* Scene-node selection indicator for console graphic panes */
 [data-node-id].io-console-selected {
-  filter: drop-shadow(0 0 3px var(--io-accent)) drop-shadow(0 0 6px var(--io-accent));
+  filter: drop-shadow(0 0 3px var(--io-accent))
+    drop-shadow(0 0 6px var(--io-accent));
 }
-

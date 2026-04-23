@@ -9,7 +9,10 @@ import { create } from "zustand";
 import type { ClipboardData, SceneNode } from "../types/graphics";
 import { useIOClipboardStore } from "../clipboard";
 import { buildIOClipboardPayload } from "../clipboard";
-import { computeTextRepresentation, extractPointsFromNodes } from "../clipboard";
+import {
+  computeTextRepresentation,
+  extractPointsFromNodes,
+} from "../clipboard";
 
 interface ClipboardState {
   data: ClipboardData | null;
@@ -70,7 +73,9 @@ export const useClipboardStore = create<ClipboardState>((set) => ({
 export async function readClipboard(
   fallback: ClipboardData | null,
 ): Promise<ClipboardData | null> {
-  const payload = await useIOClipboardStore.getState().readFromSystemClipboard();
+  const payload = await useIOClipboardStore
+    .getState()
+    .readFromSystemClipboard();
   if (payload?.contents.nodes?.length) {
     return {
       source: "io-designer",

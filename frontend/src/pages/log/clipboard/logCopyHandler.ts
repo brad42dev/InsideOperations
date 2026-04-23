@@ -6,9 +6,7 @@ import { useGlobalSelectionStore } from "@/store/globalSelectionStore";
 import type { LogEntrySnapshot } from "@/shared/clipboard/types";
 
 export async function copyLogSelection(): Promise<void> {
-  const selected = useGlobalSelectionStore
-    .getState()
-    .getSelection("logbook");
+  const selected = useGlobalSelectionStore.getState().getSelection("logbook");
   if (selected.length === 0) return;
 
   const entries = selected
@@ -25,9 +23,7 @@ export async function copyLogSelection(): Promise<void> {
     contents: {
       logEntries: entries,
       ...(pointRefs.length ? { points: pointRefs } : {}),
-      textRepresentation: entries
-        .map((e) => e.tagname ?? e.id)
-        .join(" | "),
+      textRepresentation: entries.map((e) => e.tagname ?? e.id).join(" | "),
     },
   });
   await useIOClipboardStore.getState().writeToClipboard(payload);

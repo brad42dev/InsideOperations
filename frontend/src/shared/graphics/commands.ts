@@ -544,7 +544,9 @@ export class ApplyStyleCommand implements SceneCommand {
     for (const id of this.nodeIds) {
       const result = findNode(d, id);
       if (!result) continue;
-      const existing = ((result.node as unknown as { style?: Record<string, unknown> }).style) ?? {};
+      const existing =
+        (result.node as unknown as { style?: Record<string, unknown> }).style ??
+        {};
       this.prevStyles.set(id, clone(existing));
       d = updateNode(d, id, (n) => ({
         ...n,

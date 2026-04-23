@@ -18,7 +18,8 @@ export function createTextFieldTarget(): PasteTarget {
         const input = el as HTMLInputElement | HTMLTextAreaElement;
         const start = input.selectionStart ?? input.value.length;
         const end = input.selectionEnd ?? input.value.length;
-        input.value = input.value.slice(0, start) + text + input.value.slice(end);
+        input.value =
+          input.value.slice(0, start) + text + input.value.slice(end);
         input.setSelectionRange(start + text.length, start + text.length);
         input.dispatchEvent(new Event("input", { bubbles: true }));
       } else if (el.isContentEditable) {

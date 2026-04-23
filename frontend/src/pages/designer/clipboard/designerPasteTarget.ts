@@ -26,7 +26,8 @@ function collectShapeIds(nodes: SceneNode[]): string[] {
   const ids: string[] = [];
   function walk(n: SceneNode) {
     if (n.type === "symbol_instance") {
-      const shapeId = (n as { shapeRef?: { shapeId?: string } }).shapeRef?.shapeId;
+      const shapeId = (n as { shapeRef?: { shapeId?: string } }).shapeRef
+        ?.shapeId;
       if (shapeId) ids.push(shapeId);
     }
     const children = (n as { children?: SceneNode[] }).children;
@@ -83,7 +84,10 @@ export function createDesignerPasteTarget(): PasteTarget {
           // Enter two-phase place mode: floating ghost → click to anchor → confirm/cancel.
           document.dispatchEvent(
             new CustomEvent("io-designer:enter-place-mode", {
-              detail: { nodes: remapped.nodes, expressions: remapped.expressions },
+              detail: {
+                nodes: remapped.nodes,
+                expressions: remapped.expressions,
+              },
             }),
           );
           return;
@@ -241,10 +245,7 @@ function remapExpressionIds(
   return { nodes: nodes.map(patchNode), expressions: nextExpressions };
 }
 
-function findNodeById(
-  nodes: SceneNode[],
-  id: string,
-): SceneNode | null {
+function findNodeById(nodes: SceneNode[], id: string): SceneNode | null {
   for (const n of nodes) {
     if (n.id === id) return n;
     const children = (n as unknown as { children?: SceneNode[] }).children;

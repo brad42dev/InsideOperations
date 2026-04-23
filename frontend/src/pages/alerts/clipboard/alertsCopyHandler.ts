@@ -12,7 +12,10 @@ export async function copyAlertsSelection(): Promise<void> {
 
   const items = selected
     .filter((e) => e.kind === "alarm-row")
-    .map((e) => e.payload as { tagname?: string; title?: string; severity?: string });
+    .map(
+      (e) =>
+        e.payload as { tagname?: string; title?: string; severity?: string },
+    );
   if (!items.length) return;
 
   const alarms = items
@@ -25,7 +28,9 @@ export async function copyAlertsSelection(): Promise<void> {
     originContext: "alarm-list",
     contents: {
       alarms,
-      ...(alarms.length ? { points: alarms.map((a) => ({ tagname: a.tagname })) } : {}),
+      ...(alarms.length
+        ? { points: alarms.map((a) => ({ tagname: a.tagname })) }
+        : {}),
       textRepresentation: text,
     },
   });
