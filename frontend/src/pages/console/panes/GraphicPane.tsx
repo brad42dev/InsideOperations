@@ -483,9 +483,7 @@ export default function GraphicPane({
   // Pattern defined in docs/decisions/selection-behavior.md.
   // Do not inline pointer logic here — use useNodeMarquee / useNodeClick instead.
 
-  const zoneId = paneId
-    ? (`console/pane/${paneId}` as SelectionZoneId)
-    : null;
+  const zoneId = paneId ? (`console/pane/${paneId}` as SelectionZoneId) : null;
 
   const handleMarqueeSelect = useCallback(
     (nodeIds: string[]) => {
@@ -869,8 +867,7 @@ export default function GraphicPane({
             width: marquee.marqueeRect.w,
             height: marquee.marqueeRect.h,
             border: "1px solid var(--io-accent)",
-            background:
-              "color-mix(in srgb, var(--io-accent) 10%, transparent)",
+            background: "color-mix(in srgb, var(--io-accent) 10%, transparent)",
             pointerEvents: "none",
             zIndex: 100,
           }}

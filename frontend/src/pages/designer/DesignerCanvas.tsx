@@ -1644,10 +1644,30 @@ function SelectionOverlay({
                 const sinR = Math.sin(rotRad);
                 const pivot = getNodeRotationPivot(node);
                 return [
-                  { lx: vx - pad - zoneOutset, ly: vy - pad - zoneOutset, ox: -1, oy: -1 },
-                  { lx: vx + vw + pad + zoneOutset, ly: vy - pad - zoneOutset, ox: 0, oy: -1 },
-                  { lx: vx - pad - zoneOutset, ly: vy + vh + pad + zoneOutset, ox: -1, oy: 0 },
-                  { lx: vx + vw + pad + zoneOutset, ly: vy + vh + pad + zoneOutset, ox: 0, oy: 0 },
+                  {
+                    lx: vx - pad - zoneOutset,
+                    ly: vy - pad - zoneOutset,
+                    ox: -1,
+                    oy: -1,
+                  },
+                  {
+                    lx: vx + vw + pad + zoneOutset,
+                    ly: vy - pad - zoneOutset,
+                    ox: 0,
+                    oy: -1,
+                  },
+                  {
+                    lx: vx - pad - zoneOutset,
+                    ly: vy + vh + pad + zoneOutset,
+                    ox: -1,
+                    oy: 0,
+                  },
+                  {
+                    lx: vx + vw + pad + zoneOutset,
+                    ly: vy + vh + pad + zoneOutset,
+                    ox: 0,
+                    oy: 0,
+                  },
                 ].map(({ lx, ly, ox, oy }, i) => {
                   // World position of this corner for startRotate angle seed
                   const dlx = lx - cx,
@@ -1662,7 +1682,11 @@ function SelectionOverlay({
                   const dirDeg =
                     ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
                   const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
-                  const rotateCursor = _rotateCursorUrl(rDeg, cursorFill, cursorOutline);
+                  const rotateCursor = _rotateCursorUrl(
+                    rDeg,
+                    cursorFill,
+                    cursorOutline,
+                  );
                   return (
                     <rect
                       key={`rot-zone-${i}`}
@@ -1727,15 +1751,39 @@ function SelectionOverlay({
           const gcx = bx + bw / 2;
           const gcy = by + bh / 2;
           return [
-            { lx: bx - pad - zoneOutset, ly: by - pad - zoneOutset, ox: -1, oy: -1 },
-            { lx: bx + bw + pad + zoneOutset, ly: by - pad - zoneOutset, ox: 0, oy: -1 },
-            { lx: bx - pad - zoneOutset, ly: by + bh + pad + zoneOutset, ox: -1, oy: 0 },
-            { lx: bx + bw + pad + zoneOutset, ly: by + bh + pad + zoneOutset, ox: 0, oy: 0 },
+            {
+              lx: bx - pad - zoneOutset,
+              ly: by - pad - zoneOutset,
+              ox: -1,
+              oy: -1,
+            },
+            {
+              lx: bx + bw + pad + zoneOutset,
+              ly: by - pad - zoneOutset,
+              ox: 0,
+              oy: -1,
+            },
+            {
+              lx: bx - pad - zoneOutset,
+              ly: by + bh + pad + zoneOutset,
+              ox: -1,
+              oy: 0,
+            },
+            {
+              lx: bx + bw + pad + zoneOutset,
+              ly: by + bh + pad + zoneOutset,
+              ox: 0,
+              oy: 0,
+            },
           ].map(({ lx, ly, ox, oy }, i) => {
             const dirAngle = Math.atan2(gcy - ly, gcx - lx);
             const dirDeg = ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
             const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
-            const rotateCursor = _rotateCursorUrl(rDeg, cursorFill, cursorOutline);
+            const rotateCursor = _rotateCursorUrl(
+              rDeg,
+              cursorFill,
+              cursorOutline,
+            );
             return (
               <rect
                 key={`group-rot-zone-${i}`}
@@ -1837,7 +1885,11 @@ function SelectionOverlay({
                   strokeWidth={1 / zoom}
                   style={{
                     pointerEvents: dragActive ? "none" : "all",
-                    cursor: _resizeCursorUrl(HANDLE_ANGLES[rh.id] + nodeRot, "#ffffff", "#000000"),
+                    cursor: _resizeCursorUrl(
+                      HANDLE_ANGLES[rh.id] + nodeRot,
+                      "#ffffff",
+                      "#000000",
+                    ),
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -4411,7 +4463,9 @@ export default function DesignerCanvas({
         // Multi-selection AABB is always axis-aligned; use rotation=0 so the
         // selection box and anchor math don't pick up any individual node's angle.
         const isMulti = inter.resizeNodeIds.length > 1;
-        const rotation = isMulti ? 0 : (inter.resizeOrigTransform.rotation ?? 0);
+        const rotation = isMulti
+          ? 0
+          : (inter.resizeOrigTransform.rotation ?? 0);
 
         // Project world delta onto the element's local axes so resize works
         // correctly for rotated elements (dragging "right" on a 90°-rotated item
@@ -7241,7 +7295,9 @@ export default function DesignerCanvas({
             width="100%"
             height="100%"
             onDragStart={(e) => e.preventDefault()}
-            className={selectedNodeIds.size > 1 ? "io-multiselect-active" : undefined}
+            className={
+              selectedNodeIds.size > 1 ? "io-multiselect-active" : undefined
+            }
             style={{
               display: "block",
               overflow: "visible",
@@ -8462,8 +8518,7 @@ export default function DesignerCanvas({
                     slotName: d.slotName,
                     pos: d.rawPos,
                   }));
-                const dropCollResult =
-                  resolveSidecarCollisions(dropCollInputs);
+                const dropCollResult = resolveSidecarCollisions(dropCollInputs);
                 // Phase 3: build children with adjusted positions
                 const children: DisplayElement[] = dropDeInputs.map(
                   ({ dt, isVo, rawPos }) => {
@@ -8995,7 +9050,12 @@ export default function DesignerCanvas({
                     const editCollResult =
                       resolveSidecarCollisions(editCollInputs);
                     // Phase 3: emit AddDisplayElementCommand with adjusted positions
-                    for (const { dtype, userCfg, isVo, rawPos } of editDeInputs) {
+                    for (const {
+                      dtype,
+                      userCfg,
+                      isVo,
+                      rawPos,
+                    } of editDeInputs) {
                       const pos = isVo
                         ? rawPos
                         : (editCollResult.get(DE_TO_SIDECAR_KEY[dtype]) ??
@@ -9153,7 +9213,10 @@ export default function DesignerCanvas({
                               !EXCLUDED_COLLISION_SLOTS.has(c.slotId ?? ""),
                           )
                           .map((c) => {
-                            const cfg = c.config as unknown as Record<string, unknown>;
+                            const cfg = c.config as unknown as Record<
+                              string,
+                              unknown
+                            >;
                             return {
                               deType: c.displayType,
                               pos: c.transform.position,
@@ -9649,7 +9712,6 @@ function RulersOverlay({
     </>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Helper: default config for each display element type

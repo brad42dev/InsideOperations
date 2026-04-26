@@ -1487,7 +1487,13 @@ export function renderSymbolInstanceSvg(
       style={ctx.cursor ? { cursor: ctx.cursor } : undefined}
     >
       {ctx.showHitRect && (
-        <rect x={hitX - 2} y={hitY - 2} width={hitW + 4} height={hitH + 4} fill="transparent" />
+        <rect
+          x={hitX - 2}
+          y={hitY - 2}
+          width={hitW + 4}
+          height={hitH + 4}
+          fill="transparent"
+        />
       )}
       {/* Base shape SVG -- server-fetched trusted content */}
       {svgContent && <g dangerouslySetInnerHTML={{ __html: svgContent }} />}

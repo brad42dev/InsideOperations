@@ -156,7 +156,11 @@ export function SceneRenderer({
   );
 
   const { canvas: rawCanvas, layers, children } = document;
-  const canvas = rawCanvas ?? { width: 1920, height: 1080, backgroundColor: "var(--io-surface-secondary)" };
+  const canvas = rawCanvas ?? {
+    width: 1920,
+    height: 1080,
+    backgroundColor: "var(--io-surface-secondary)",
+  };
   const vp = viewport ?? {
     panX: 0,
     panY: 0,

@@ -35,7 +35,10 @@ export const DE_TO_SIDECAR_KEY: Record<DisplayElementType, SidecarKey> = {
 //   AnalogBar       — bar body (barWidth=20) + zone-label margin (≈20) = 40
 //                     total visual width; barHeight=80 default.
 
-export const SIDECAR_CANONICAL_SIZE: Record<SidecarKey, { w: number; h: number }> = {
+export const SIDECAR_CANONICAL_SIZE: Record<
+  SidecarKey,
+  { w: number; h: number }
+> = {
   AlarmIndicator: { w: 24, h: 18 },
   DigitalStatus: { w: 40, h: 22 },
   TextReadout: { w: 40, h: 16 },
