@@ -165,7 +165,7 @@ pub async fn list_graphics(
     };
 
     let count_sql = format!(
-        "SELECT COUNT(*) FROM design_objects WHERE type = 'graphic'{extra_where}",
+        "SELECT COUNT(*) FROM design_objects WHERE type = 'graphic' AND name NOT LIKE '__autosave_%'{extra_where}",
         extra_where = extra_where,
     );
 
@@ -207,7 +207,7 @@ pub async fn list_graphics(
                     FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
                 ) AS bindings_count
             FROM design_objects
-            WHERE type = 'graphic'{extra_where}
+            WHERE type = 'graphic' AND name NOT LIKE '__autosave_%'{extra_where}
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
             "#,
@@ -231,7 +231,7 @@ pub async fn list_graphics(
                     FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
                 ) AS bindings_count
             FROM design_objects
-            WHERE type = 'graphic'{extra_where}
+            WHERE type = 'graphic' AND name NOT LIKE '__autosave_%'{extra_where}
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
             "#,

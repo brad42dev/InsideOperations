@@ -348,7 +348,7 @@ export function userConfigToDisplayConfig(
       return {
         displayType: "point_name_label",
         style: uc.labelStyle ?? "hierarchy",
-        staticText: uc.labelText,
+        staticText: uc.labelText || undefined,
       };
   }
 }

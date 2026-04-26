@@ -105,6 +105,8 @@ export interface SymbolInstanceRenderContext extends RenderContext {
   isSelected?: boolean;
   /** Whether in designer mode (affects text zone placeholder display) */
   designerMode?: boolean;
+  /** Render a transparent hit-area rect so fill="none" shapes are clickable in the designer */
+  showHitRect?: boolean;
   /** State binding point tag value (for text zone default text) */
   stateTag?: string;
   /** Callback to render a child display element (avoids circular dependency) */
@@ -1455,6 +1457,15 @@ export function renderSymbolInstanceSvg(
   const parentPivotX = (naturalW * (node.transform.scale?.x ?? 1)) / 2;
   const parentPivotY = (naturalH * (node.transform.scale?.y ?? 1)) / 2;
 
+  // Hit-area rect: covers visual bounds so fill="none" bodies and composable-part
+  // areas are reliably clickable. Uses selectionBounds when available (tight visual
+  // box for shapes with large empty viewboxes like tanks/columns).
+  const hitSel = sidecarGeo?.selectionBounds;
+  const hitX = hitSel?.x ?? 0;
+  const hitY = hitSel?.y ?? 0;
+  const hitW = hitSel?.w ?? naturalW;
+  const hitH = hitSel?.h ?? naturalH;
+
   // ---- Assembly: ALL children stay inside the parent <g> ----
   // Interior sidecars (vessel_overlay fill gauge, inside analog bar) inherit parent transforms normally.
   // Exterior sidecars receive a counter-rotation transform that cancels the parent's rotation/scale
@@ -1475,6 +1486,9 @@ export function renderSymbolInstanceSvg(
       onClick={ctx.onClick}
       style={ctx.cursor ? { cursor: ctx.cursor } : undefined}
     >
+      {ctx.showHitRect && (
+        <rect x={hitX - 2} y={hitY - 2} width={hitW + 4} height={hitH + 4} fill="transparent" />
+      )}
       {/* Base shape SVG -- server-fetched trusted content */}
       {svgContent && <g dangerouslySetInnerHTML={{ __html: svgContent }} />}
       {composablePartElements}

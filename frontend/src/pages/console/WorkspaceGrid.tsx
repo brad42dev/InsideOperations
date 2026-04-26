@@ -549,9 +549,10 @@ export default function WorkspaceGrid({
   // no onClick handler), which was preventing PaneWrapper.handlePaneClick from
   // firing on simple clicks.
   const hasCaptureRef = useRef(false);
-  // True when the current pointer-down originated inside pane content (not on a
-  // drag handle). In that case, a marquee gesture is an in-pane interaction and
-  // must NOT trigger pane-level selection on pointerup.
+  // True when the current pointer-down originated inside pane content (not a
+  // drag handle). Drags from pane content are handled by the pane itself (e.g.
+  // GraphicPane node marquee); WorkspaceGrid must not capture or show its own
+  // pane-selection marquee in that case.
   const startedInPaneContentRef = useRef(false);
 
   const handleGridPointerDown = useCallback(
@@ -583,6 +584,8 @@ export default function WorkspaceGrid({
   const handleGridPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!boxStartRef.current || !e.isPrimary) return;
+      // Pane-content drags belong to the pane — skip pane-selection marquee.
+      if (startedInPaneContentRef.current) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
@@ -634,6 +637,12 @@ export default function WorkspaceGrid({
       hasCaptureRef.current = false;
       const startedInContent = startedInPaneContentRef.current;
       startedInPaneContentRef.current = false;
+      if (startedInContent) {
+        boxStartRef.current = null;
+        boxRectRef.current = null;
+        setBoxRect(null);
+        return;
+      }
       // Read from ref — never from the React state closure which may be stale
       // if React deferred the commit of the last setBoxRect call.
       const br = boxRectRef.current;
@@ -658,13 +667,6 @@ export default function WorkspaceGrid({
 
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (!containerRect) {
-        setBoxRect(null);
-        return;
-      }
-
-      // If the drag started inside pane content (not a drag handle), the user
-      // is interacting with pane content — do not select panes.
-      if (startedInContent) {
         setBoxRect(null);
         return;
       }

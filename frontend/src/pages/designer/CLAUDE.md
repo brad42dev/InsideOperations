@@ -26,3 +26,4 @@ These take priority over design-docs/09_DESIGNER_MODULE.md when they conflict.
 - `sceneStore` mutations outside of commands (bypassing `historyStore`)
 - Canvas right-click using a custom implementation instead of Radix `ContextMenu`
 - Only one or two designer modes implemented while calling the feature complete
+- Replacing the `interactionRef` FSM selection logic with shared hooks — designer uses Mode B; see `docs/decisions/selection-behavior.md`.

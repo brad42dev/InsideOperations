@@ -141,13 +141,13 @@ export function getNodeLocalSize(
         case "analog_bar":
           return { w: 40, h: cfg.barHeight ?? 80 };
         case "fill_gauge":
-          return { w: cfg.barWidth ?? 24, h: cfg.barHeight ?? 80 };
+          return { w: cfg.barWidth ?? 22, h: cfg.barHeight ?? 90 };
         case "sparkline":
           return { w: cfg.sparkWidth ?? 110, h: cfg.sparkHeight ?? 18 };
         case "alarm_indicator":
           return { w: 24, h: 18 };
         case "digital_status":
-          return { w: 48, h: 20 };
+          return { w: 40, h: 22 };
         case "point_name_label": {
           const fs = (cfg as PointNameLabelConfig).fontSize ?? 10;
           return { w: 80, h: fs + 2 };

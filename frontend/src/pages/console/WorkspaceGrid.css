@@ -74,8 +74,4 @@
   animation: io-pane-fullscreen-exit 200ms ease forwards;
 }
 
-/* Scene-node selection indicator for console graphic panes */
-[data-node-id].io-console-selected {
-  filter: drop-shadow(0 0 3px var(--io-accent))
-    drop-shadow(0 0 6px var(--io-accent));
-}
+/* Node selection glow is in index.css as [data-node-id].io-node-selected */

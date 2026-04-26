@@ -155,7 +155,8 @@ export function SceneRenderer({
     new Map(),
   );
 
-  const { canvas, layers, children } = document;
+  const { canvas: rawCanvas, layers, children } = document;
+  const canvas = rawCanvas ?? { width: 1920, height: 1080, backgroundColor: "var(--io-surface-secondary)" };
   const vp = viewport ?? {
     panX: 0,
     panY: 0,
@@ -840,6 +841,7 @@ export function SceneRenderer({
       statePointId: statePvKey,
       isSelected,
       designerMode,
+      showHitRect: true,
       stateTag: statePv?.tag,
       renderChild: (
         child,

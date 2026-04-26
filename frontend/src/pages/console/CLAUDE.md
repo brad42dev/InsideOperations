@@ -34,3 +34,4 @@ Key spec sections to check for common tasks:
 - Undo/redo implemented with custom arrays instead of zundo middleware
 - Template switching that replaces the entire DOM instead of preserving pane content
 - Missing aspect-ratio lock on panes that contain graphics (aspect ratio must be preserved on resize)
+- Inlining marquee or click-selection pointer logic in a pane — use `useNodeMarquee` + `useNodeClick` from `shared/hooks/` and `io-node-selected` CSS class. See `docs/decisions/selection-behavior.md`.

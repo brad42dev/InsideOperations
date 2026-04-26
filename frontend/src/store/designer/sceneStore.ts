@@ -191,7 +191,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       "var(--io-surface-primary)",
       "var(--io-surface)",
     ]);
-    const migratedDoc = LEGACY_BG.has(doc.canvas.backgroundColor)
+    const migratedDoc = LEGACY_BG.has(doc.canvas?.backgroundColor)
       ? {
           ...doc,
           canvas: {

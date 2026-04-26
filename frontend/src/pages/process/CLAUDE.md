@@ -22,3 +22,4 @@ This spec takes priority over design-docs/08_PROCESS_MODULE.md when they conflic
 - No initial zoom-to-fit (graphic renders at 100% requiring user to manually zoom out)
 - rbush R-tree used unconditionally regardless of element count
 - Zoom allowed below 5% or above 800%
+- Inlining node click/marquee selection logic — use `useNodeMarquee` + `useNodeClick` from `shared/hooks/`. See `docs/decisions/selection-behavior.md`.

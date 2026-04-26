@@ -103,6 +103,15 @@ import {
   isInsideFillSidecar,
 } from "../../shared/graphics/anchorSlots";
 import {
+  applyDeSlotOffset,
+  resolveSidecarCollisions,
+  resolveSingleSidecarAgainstFixed,
+  DE_TO_SIDECAR_KEY,
+  EXCLUDED_COLLISION_SLOTS,
+  type SidecarInput,
+  type DeLayoutHints,
+} from "../../shared/graphics/sidecarCollision";
+import {
   computeSnapTarget,
   type SlotTarget,
 } from "../../shared/graphics/useSnapToSlot";
@@ -182,6 +191,19 @@ const RESIZE_HANDLES: Array<{
   { id: "sw", cx: 0, cy: 1, cursor: "sw-resize" },
   { id: "w", cx: 0, cy: 0.5, cursor: "w-resize" },
 ];
+
+// Natural world angle (degrees, 0=right clockwise) from element center to each
+// handle at 0° rotation. Used by cursor functions to pick the correct axis.
+const HANDLE_ANGLES: Record<ResizeHandle, number> = {
+  n: 270,
+  ne: 315,
+  e: 0,
+  se: 45,
+  s: 90,
+  sw: 135,
+  w: 180,
+  nw: 225,
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1181,6 +1203,8 @@ function RenderNode({
         shapeSidecar: shapeEntry?.sidecar ?? null,
         partShapes,
         stateClass: "",
+        showHitRect: true,
+        isSelected: selectedIds.has(node.id),
         renderChild: (
           child: DisplayElement,
           _parentOffset?: { x: number; y: number },
@@ -1373,50 +1397,42 @@ function _rotateCursorUrl(
     `</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, grab`;
 }
-// Dark theme: teal fill (#2dd4bf matches --io-accent) + near-black outline
-// Light theme: dark teal fill (#0d9488 matches light --io-accent) + white outline
-// hphmi: white fill + black outline for maximum contrast
-const ROTATE_CURSORS_DARK: readonly string[] = Array.from(
-  { length: 8 },
-  (_, i) => _rotateCursorUrl(i * 45, "#2dd4bf", "rgba(9,9,11,0.85)"),
-);
-const ROTATE_CURSORS_LIGHT: readonly string[] = Array.from(
-  { length: 8 },
-  (_, i) => _rotateCursorUrl(i * 45, "#0d9488", "rgba(255,255,255,0.9)"),
-);
-const ROTATE_CURSORS_HPHMI: readonly string[] = Array.from(
-  { length: 8 },
-  (_, i) => _rotateCursorUrl(i * 45, "#ffffff", "#000000"),
-);
 
-// Returns the CSS resize cursor whose inward-pointing arrow faces the element center,
-// accounting for the element's rotation so the cursor always matches the actual drag axis.
-function resizeCursorForHandle(handle: string, rotation: number): string {
-  // Natural world angle (0=right, 90=down) from center to each handle at 0° rotation
-  const angles: Record<string, number> = {
-    n: 270,
-    ne: 315,
-    e: 0,
-    se: 45,
-    s: 90,
-    sw: 135,
-    w: 180,
-    nw: 225,
-  };
-  const cursors = [
-    "e-resize",
-    "se-resize",
-    "s-resize",
-    "sw-resize",
-    "w-resize",
-    "nw-resize",
-    "n-resize",
-    "ne-resize",
-  ];
-  const base = angles[handle] ?? 0;
-  const world = (((base + rotation) % 360) + 360) % 360;
-  return cursors[Math.round(world / 45) % 8];
+// Symmetric double-headed arrow along a horizontal axis, rotated by angleDeg
+// around (16,16). Same visual language as _rotateCursorUrl so resize and rotate
+// cursors share weight and style. Used for resize handles on rotated elements.
+function _resizeCursorUrl(
+  angleDeg: number,
+  fillColor: string,
+  outlineColor: string,
+): string {
+  const grp = `<g transform="rotate(${angleDeg},16,16)">`;
+  // Outline: outer shape + inner fill polygon as hole (evenodd) → ~1 px ring.
+  const outlinePath =
+    "M4 16 L9 12 L10 12 L10 14 L22 14 L22 12 L23 12 L28 16 " +
+    "L23 20 L22 20 L22 18 L10 18 L10 20 L9 20 Z " +
+    "M5 16 L9 13 L9 15 L23 15 L23 13 L27 16 L23 19 L23 17 L9 17 L9 19 Z";
+  // Fill: solid double-headed arrow, 2 px shaft, 6 px tall × 4 px wide heads.
+  const fillPath =
+    "M5 16 L9 13 L9 15 L23 15 L23 13 L27 16 L23 19 L23 17 L9 17 L9 19 Z";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">` +
+    `${grp}` +
+    `<path fill-rule="evenodd" clip-rule="evenodd" d="${outlinePath}" fill="${outlineColor}"/>` +
+    `<path d="${fillPath}" fill="${fillColor}"/>` +
+    `</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, ew-resize`;
 }
+
+// Per-theme colors shared by both cursor generators (rotate and resize).
+const ROTATE_CURSOR_COLORS: Record<
+  "dark" | "light" | "hphmi",
+  { fill: string; outline: string }
+> = {
+  dark: { fill: "#2dd4bf", outline: "rgba(9,9,11,0.85)" },
+  light: { fill: "#0d9488", outline: "rgba(255,255,255,0.9)" },
+  hphmi: { fill: "#ffffff", outline: "#000000" },
+};
 
 // ---------------------------------------------------------------------------
 
@@ -1471,12 +1487,8 @@ function SelectionOverlay({
 }) {
   if (nodeIds.size === 0) return null;
 
-  const rotateCursors =
-    theme === "light"
-      ? ROTATE_CURSORS_LIGHT
-      : theme === "hphmi"
-        ? ROTATE_CURSORS_HPHMI
-        : ROTATE_CURSORS_DARK;
+  const { fill: cursorFill, outline: cursorOutline } =
+    ROTATE_CURSOR_COLORS[theme ?? "dark"];
 
   // During resize: replace normal selection rects with a single ghost outline at preview bounds.
   // Handles are rendered at the preview position (pointer-events off — resize is committed on mouseup).
@@ -1605,18 +1617,19 @@ function SelectionOverlay({
 
         return (
           <g key={id} transform={rotAttr}>
-            {/* Selection rect — uses visual bounds so shapes with padding in their
-                viewBox (reactors, tanks) show a tight outline around the body. */}
-            <rect
-              x={vx - pad}
-              y={vy - pad}
-              width={vw + pad * 2}
-              height={vh + pad * 2}
-              fill="none"
-              stroke="var(--io-accent)"
-              strokeWidth={1 / zoom}
-              strokeDasharray={`${4 / zoom},${2 / zoom}`}
-            />
+            {/* Single-select: dashed outline. Multi-select: glow applied to shape via CSS (see io-multiselect-active). */}
+            {isSingle && (
+              <rect
+                x={vx - pad}
+                y={vy - pad}
+                width={vw + pad * 2}
+                height={vh + pad * 2}
+                fill="none"
+                stroke="var(--io-accent)"
+                strokeWidth={1 / zoom}
+                strokeDasharray={`${4 / zoom},${2 / zoom}`}
+              />
+            )}
 
             {/* Corner rotation proximity zones — single selection only.
                 For multi-selection, rotate zones are rendered ONCE at the
@@ -1625,21 +1638,17 @@ function SelectionOverlay({
               showRotateHandle &&
               (() => {
                 const zoneSize = 16 / zoom;
-                const zoneHalf = zoneSize / 2;
                 const zoneOutset = 3 / zoom;
                 const rotRad = (rot * Math.PI) / 180;
                 const cosR = Math.cos(rotRad);
                 const sinR = Math.sin(rotRad);
                 const pivot = getNodeRotationPivot(node);
                 return [
-                  { lx: vx - pad - zoneOutset, ly: vy - pad - zoneOutset },
-                  { lx: vx + vw + pad + zoneOutset, ly: vy - pad - zoneOutset },
-                  { lx: vx - pad - zoneOutset, ly: vy + vh + pad + zoneOutset },
-                  {
-                    lx: vx + vw + pad + zoneOutset,
-                    ly: vy + vh + pad + zoneOutset,
-                  },
-                ].map(({ lx, ly }, i) => {
+                  { lx: vx - pad - zoneOutset, ly: vy - pad - zoneOutset, ox: -1, oy: -1 },
+                  { lx: vx + vw + pad + zoneOutset, ly: vy - pad - zoneOutset, ox: 0, oy: -1 },
+                  { lx: vx - pad - zoneOutset, ly: vy + vh + pad + zoneOutset, ox: -1, oy: 0 },
+                  { lx: vx + vw + pad + zoneOutset, ly: vy + vh + pad + zoneOutset, ox: 0, oy: 0 },
+                ].map(({ lx, ly, ox, oy }, i) => {
                   // World position of this corner for startRotate angle seed
                   const dlx = lx - cx,
                     dly = ly - cy;
@@ -1653,12 +1662,12 @@ function SelectionOverlay({
                   const dirDeg =
                     ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
                   const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
-                  const rotateCursor = rotateCursors[Math.round(rDeg / 45) % 8];
+                  const rotateCursor = _rotateCursorUrl(rDeg, cursorFill, cursorOutline);
                   return (
                     <rect
                       key={`rot-zone-${i}`}
-                      x={lx - zoneHalf}
-                      y={ly - zoneHalf}
+                      x={lx + ox * zoneSize}
+                      y={ly + oy * zoneSize}
                       width={zoneSize}
                       height={zoneSize}
                       fill="transparent"
@@ -1686,6 +1695,20 @@ function SelectionOverlay({
         );
       })}
 
+      {/* Multi-selection group outline — solid box around the full union AABB */}
+      {!isSingle && selectionBBox.w > 0 && selectionBBox.h > 0 && (
+        <rect
+          x={selectionBBox.x}
+          y={selectionBBox.y}
+          width={selectionBBox.w}
+          height={selectionBBox.h}
+          fill="none"
+          stroke="var(--io-accent)"
+          strokeWidth={1.5 / zoom}
+          strokeOpacity={0.4}
+        />
+      )}
+
       {/* Multi-selection group rotation zones — four corner proximity zones
           at the union AABB corners. Clicking any of them starts a group
           rotation around the union AABB center. */}
@@ -1696,7 +1719,6 @@ function SelectionOverlay({
         (() => {
           const pad = Math.max(1.5, 3 / zoom);
           const zoneSize = 16 / zoom;
-          const zoneHalf = zoneSize / 2;
           const zoneOutset = 3 / zoom;
           const bx = selectionBBox.x;
           const by = selectionBBox.y;
@@ -1705,23 +1727,20 @@ function SelectionOverlay({
           const gcx = bx + bw / 2;
           const gcy = by + bh / 2;
           return [
-            { lx: bx - pad - zoneOutset, ly: by - pad - zoneOutset },
-            { lx: bx + bw + pad + zoneOutset, ly: by - pad - zoneOutset },
-            { lx: bx - pad - zoneOutset, ly: by + bh + pad + zoneOutset },
-            {
-              lx: bx + bw + pad + zoneOutset,
-              ly: by + bh + pad + zoneOutset,
-            },
-          ].map(({ lx, ly }, i) => {
+            { lx: bx - pad - zoneOutset, ly: by - pad - zoneOutset, ox: -1, oy: -1 },
+            { lx: bx + bw + pad + zoneOutset, ly: by - pad - zoneOutset, ox: 0, oy: -1 },
+            { lx: bx - pad - zoneOutset, ly: by + bh + pad + zoneOutset, ox: -1, oy: 0 },
+            { lx: bx + bw + pad + zoneOutset, ly: by + bh + pad + zoneOutset, ox: 0, oy: 0 },
+          ].map(({ lx, ly, ox, oy }, i) => {
             const dirAngle = Math.atan2(gcy - ly, gcx - lx);
             const dirDeg = ((((dirAngle * 180) / Math.PI) % 360) + 360) % 360;
             const rDeg = (((dirDeg - 45) % 360) + 360) % 360;
-            const rotateCursor = rotateCursors[Math.round(rDeg / 45) % 8];
+            const rotateCursor = _rotateCursorUrl(rDeg, cursorFill, cursorOutline);
             return (
               <rect
                 key={`group-rot-zone-${i}`}
-                x={lx - zoneHalf}
-                y={ly - zoneHalf}
+                x={lx + ox * zoneSize}
+                y={ly + oy * zoneSize}
                 width={zoneSize}
                 height={zoneSize}
                 fill="transparent"
@@ -1818,7 +1837,7 @@ function SelectionOverlay({
                   strokeWidth={1 / zoom}
                   style={{
                     pointerEvents: dragActive ? "none" : "all",
-                    cursor: resizeCursorForHandle(rh.id, nodeRot),
+                    cursor: _resizeCursorUrl(HANDLE_ANGLES[rh.id] + nodeRot, "#ffffff", "#000000"),
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -3097,11 +3116,12 @@ export default function DesignerCanvas({
           // available) so clicking in the empty padding of a large viewBox (tanks, reactors,
           // columns) does not register as a hit and incorrectly starts a drag instead of a marquee.
           const b = getNodeVisualBounds(si, d!.children);
+          const P = 2;
           if (
-            canvasX >= b.x &&
-            canvasX <= b.x + b.w &&
-            canvasY >= b.y &&
-            canvasY <= b.y + b.h
+            canvasX >= b.x - P &&
+            canvasX <= b.x + b.w + P &&
+            canvasY >= b.y - P &&
+            canvasY <= b.y + b.h + P
           ) {
             return { nodeId: si.id, nodeType: "symbol_instance" };
           }
@@ -3117,11 +3137,12 @@ export default function DesignerCanvas({
         const by = parentOffset ? b.y * psy + parentOffset.y : b.y;
         const bw = b.w;
         const bh = b.h;
+        const P = 2;
         if (
-          canvasX >= bx &&
-          canvasX <= bx + bw &&
-          canvasY >= by &&
-          canvasY <= by + bh
+          canvasX >= bx - P &&
+          canvasX <= bx + bw + P &&
+          canvasY >= by - P &&
+          canvasY <= by + bh + P
         ) {
           return { nodeId: n.id, nodeType: n.type, parentSymbolId };
         }
@@ -3189,6 +3210,7 @@ export default function DesignerCanvas({
     resizeNodeOrigTransforms: Map<NodeId, Transform>;
     resizeNodeOrigDims: Map<NodeId, { w: number; h: number }>;
     resizeOrigSelectionBBox: { x: number; y: number; w: number; h: number };
+    deferredSingleSelectId: NodeId | null;
   }>({
     type: "none",
     startCanvasX: 0,
@@ -3217,6 +3239,10 @@ export default function DesignerCanvas({
     resizeNodeOrigTransforms: new Map(),
     resizeNodeOrigDims: new Map(),
     resizeOrigSelectionBBox: { x: 0, y: 0, w: 0, h: 0 },
+    // When mousedown lands on an already-selected node in a multi-select group,
+    // selection change is deferred: if the pointer releases without dragging we
+    // commit the single-select; if the user drags we move the whole group.
+    deferredSingleSelectId: null as NodeId | null,
   });
 
   const handleMouseDown = useCallback(
@@ -3390,64 +3416,6 @@ export default function DesignerCanvas({
               }
             }
           }
-          // Guard: reject hit when the click lands inside a composable part's
-          // bounding box (e.g. FO/FC/FL indicators on gate valves).
-          if (hit?.nodeType === "symbol_instance") {
-            const siDoc = docRef.current;
-            if (siDoc) {
-              function findSiForBoundsCheck(
-                nodes: SceneNode[],
-              ): SymbolInstance | null {
-                for (const n of nodes) {
-                  if (n.id === hit!.nodeId && n.type === "symbol_instance")
-                    return n as SymbolInstance;
-                  if ("children" in n && Array.isArray(n.children)) {
-                    const f = findSiForBoundsCheck(n.children as SceneNode[]);
-                    if (f) return f;
-                  }
-                }
-                return null;
-              }
-              const siNode = findSiForBoundsCheck(siDoc.children);
-              if (siNode && (siNode.composableParts?.length ?? 0) > 0) {
-                const sData = useLibraryStore
-                  .getState()
-                  .getShape(siNode.shapeRef.shapeId);
-                const ssx = siNode.transform.scale?.x ?? 1;
-                const ssy = siNode.transform.scale?.y ?? 1;
-                const sp = siNode.transform.position;
-                const margin = 6;
-                for (const cp of siNode.composableParts) {
-                  const pid =
-                    cp.partId ??
-                    (cp as unknown as Record<string, string>)["part_id"];
-                  if (!pid) continue;
-                  const att = (sData?.sidecar?.compositeAttachments ?? []).find(
-                    (a: { forPart: string }) => a.forPart === pid,
-                  );
-                  if (!att) continue;
-                  const partShape = useLibraryStore
-                    .getState()
-                    .getShape("part-" + pid);
-                  const pGeo = partShape?.sidecar?.geometry;
-                  if (!pGeo?.bodyBase) continue;
-                  const pw = (pGeo.width ?? 32) * ssx;
-                  const ph = (pGeo.height ?? 32) * ssy;
-                  const partX = sp.x + (att.x - pGeo.bodyBase.x) * ssx;
-                  const partY = sp.y + (att.y - pGeo.bodyBase.y) * ssy;
-                  if (
-                    cx >= partX - margin &&
-                    cx <= partX + pw + margin &&
-                    cy >= partY - margin &&
-                    cy <= partY + ph + margin
-                  ) {
-                    hit = null;
-                    break;
-                  }
-                }
-              }
-            }
-          }
         }
 
         if (hit) {
@@ -3473,8 +3441,22 @@ export default function DesignerCanvas({
 
           // In confirming phase the group selection was already locked in above;
           // skip the normal single-node replacement so the drag uses all pasted nodes.
-          const newSelection =
-            placeModeRef.current?.phase === "confirming"
+          //
+          // Deferred-selection: if the user clicks (no modifier) on a node that is
+          // already part of a multi-select, keep the full group selection so the drag
+          // moves them all. Only collapse to single-select at dragUpFn time when no
+          // meaningful movement occurred (i.e. it was a pure click, not a drag).
+          inter.deferredSingleSelectId = null;
+          const isGroupHit =
+            !e.shiftKey &&
+            !e.ctrlKey &&
+            placeModeRef.current?.phase !== "confirming" &&
+            selectedIdsRef.current.has(hitId) &&
+            selectedIdsRef.current.size > 1;
+
+          const newSelection = isGroupHit
+            ? selectedIdsRef.current
+            : placeModeRef.current?.phase === "confirming"
               ? selectedIdsRef.current
               : e.shiftKey || e.ctrlKey
                 ? selectedIdsRef.current.has(hitId)
@@ -3483,7 +3465,11 @@ export default function DesignerCanvas({
                     )
                   : new Set([...selectedIdsRef.current, hitId])
                 : new Set([hitId]);
-          if (placeModeRef.current?.phase !== "confirming") {
+
+          if (isGroupHit) {
+            // Defer the single-select until we know whether this becomes a drag.
+            inter.deferredSingleSelectId = hitId;
+          } else if (placeModeRef.current?.phase !== "confirming") {
             selectedIdsRef.current = newSelection;
             useUiStore.getState().setSelectedNodes(Array.from(newSelection));
           }
@@ -3914,6 +3900,18 @@ export default function DesignerCanvas({
                     ),
                   );
                 }
+                // Movement was real — discard the deferred single-select.
+                interactionRef.current.deferredSingleSelectId = null;
+              } else {
+                // No meaningful movement — commit deferred single-select if one is pending.
+                const deferredId =
+                  interactionRef.current.deferredSingleSelectId;
+                if (deferredId) {
+                  const single = new Set([deferredId]);
+                  selectedIdsRef.current = single;
+                  useUiStore.getState().setSelectedNodes([deferredId]);
+                }
+                interactionRef.current.deferredSingleSelectId = null;
               }
             }
 
@@ -4410,7 +4408,10 @@ export default function DesignerCanvas({
         const rdy = cy - inter.startCanvasY;
         const ob = inter.resizeOrigBounds;
         const handle = inter.resizeHandle;
-        const rotation = inter.resizeOrigTransform.rotation ?? 0;
+        // Multi-selection AABB is always axis-aligned; use rotation=0 so the
+        // selection box and anchor math don't pick up any individual node's angle.
+        const isMulti = inter.resizeNodeIds.length > 1;
+        const rotation = isMulti ? 0 : (inter.resizeOrigTransform.rotation ?? 0);
 
         // Project world delta onto the element's local axes so resize works
         // correctly for rotated elements (dragging "right" on a 90°-rotated item
@@ -4508,12 +4509,26 @@ export default function DesignerCanvas({
             const origSy = origT.scale?.y ?? 1;
             const gEl = svgEl.querySelector(`[data-node-id="${nid}"]`);
             if (gEl) {
-              // Preserve element rotation in DOM preview so the element doesn't
-              // snap to axis-aligned during the drag.
-              const rotStr =
-                rotation !== 0
-                  ? ` rotate(${rotation},${nw / 2},${nh / 2})`
-                  : "";
+              // For single-node, use the node's own rotation around the resized
+              // box center. For multi-node, each node keeps its OWN rotation
+              // around its own scaled center — never apply one node's angle to all.
+              let rotStr: string;
+              if (isMulti) {
+                const nodeRot = origT.rotation ?? 0;
+                if (nodeRot !== 0) {
+                  const origDim = inter.resizeNodeOrigDims.get(nid);
+                  const pX = origDim ? (origDim.w * sx) / 2 : nw / 2;
+                  const pY = origDim ? (origDim.h * sy) / 2 : nh / 2;
+                  rotStr = ` rotate(${nodeRot},${pX},${pY})`;
+                } else {
+                  rotStr = "";
+                }
+              } else {
+                rotStr =
+                  rotation !== 0
+                    ? ` rotate(${rotation},${nw / 2},${nh / 2})`
+                    : "";
+              }
               gEl.setAttribute(
                 "transform",
                 `translate(${nx + relX},${ny + relY})${rotStr} scale(${origSx * sx},${origSy * sy})`,
@@ -7226,6 +7241,7 @@ export default function DesignerCanvas({
             width="100%"
             height="100%"
             onDragStart={(e) => e.preventDefault()}
+            className={selectedNodeIds.size > 1 ? "io-multiselect-active" : undefined}
             style={{
               display: "block",
               overflow: "visible",
@@ -7540,9 +7556,7 @@ export default function DesignerCanvas({
                   );
                 })()}
 
-              {/* Selection overlay — suppressed in confirming mode to avoid chaotic
-                  per-node rotated boxes when multiple pasted nodes are selected. */}
-              {doc && placeMode?.phase !== "confirming" && (
+              {doc && (
                 <SelectionOverlay
                   nodeIds={selectedIdsRef.current}
                   doc={doc}
@@ -7556,43 +7570,6 @@ export default function DesignerCanvas({
                   theme={theme}
                 />
               )}
-
-              {/* Confirming-phase overlay: single clean AABB around all pasted nodes. */}
-              {placeMode?.phase === "confirming" &&
-                doc &&
-                (() => {
-                  let minX = Infinity,
-                    minY = Infinity,
-                    maxX = -Infinity,
-                    maxY = -Infinity;
-                  for (const id of placeMode.pastedNodeIds) {
-                    const n = doc.children.find((c) => c.id === id);
-                    if (!n) continue;
-                    const b = getNodeBounds(n);
-                    if (b.x < minX) minX = b.x;
-                    if (b.y < minY) minY = b.y;
-                    if (b.x + b.w > maxX) maxX = b.x + b.w;
-                    if (b.y + b.h > maxY) maxY = b.y + b.h;
-                  }
-                  if (minX === Infinity) return null;
-                  const pad = Math.max(1.5, 3 / zoom);
-                  const cddx = dragDelta?.dx ?? 0;
-                  const cddy = dragDelta?.dy ?? 0;
-                  return (
-                    <g style={{ pointerEvents: "none" }}>
-                      <rect
-                        x={minX - pad + cddx}
-                        y={minY - pad + cddy}
-                        width={maxX - minX + pad * 2}
-                        height={maxY - minY + pad * 2}
-                        fill="none"
-                        stroke="var(--io-accent)"
-                        strokeWidth={1.5 / zoom}
-                        strokeDasharray={`${4 / zoom} ${2 / zoom}`}
-                      />
-                    </g>
-                  );
-                })()}
 
               {/* Place mode floating ghost — canvas-space dashed bbox follows cursor.
                   Inner <g> transform is updated by direct DOM mutation in handleMouseMove
@@ -8451,7 +8428,8 @@ export default function DesignerCanvas({
                   DigitalStatus: "bottom",
                   PointNameLabel: "top",
                 };
-                const children: DisplayElement[] = (
+                // Phase 1: compute raw slot positions
+                const dropDeInputs = (
                   config.displayElements as DisplayElementType[]
                 ).map((dt) => {
                   const key = DE_SIDECAR_KEY[dt] ?? dt;
@@ -8460,7 +8438,10 @@ export default function DesignerCanvas({
                     dropDefaultSlots[key] ??
                     DE_DEFAULT_SLOTS[key] ??
                     "bottom";
-                  const pos = applyDeSlotOffset(
+                  const isVo =
+                    slotName === "vessel-interior" &&
+                    !!dropSidecar?.vesselInteriorPath;
+                  const rawPos = applyDeSlotOffset(
                     dt,
                     slotName,
                     resolveSlotWithSidecar(
@@ -8470,44 +8451,64 @@ export default function DesignerCanvas({
                       dropRelBbox,
                     ),
                   );
-                  return {
-                    id: crypto.randomUUID(),
-                    type: "display_element" as const,
-                    displayType: dt,
-                    transform: {
-                      position: pos,
-                      rotation: 0,
-                      scale: { x: 1, y: 1 },
-                      mirror: "none" as const,
-                    },
-                    binding: config.pointBindings[0]?.pointId
-                      ? {
-                          pointId: config.pointBindings[0].pointId,
-                          ...(config.pointBindings[0].pointTag
-                            ? { pointTag: config.pointBindings[0].pointTag }
-                            : {}),
-                          ...(config.pointBindings[0].displayName
-                            ? {
-                                displayName:
-                                  config.pointBindings[0].displayName,
-                              }
-                            : {}),
-                          ...(config.pointBindings[0].unit
-                            ? { unit: config.pointBindings[0].unit }
-                            : {}),
-                        }
-                      : {},
-                    config: makeDefaultDisplayConfig(dt, {
-                      vesselOverlay:
-                        slotName === "vessel-interior" &&
-                        !!dropSidecar?.vesselInteriorPath,
-                    }),
-                    opacity: 1,
-                    visible: true,
-                    locked: false,
-                    name: dt,
-                  };
+                  return { dt, key, slotName, isVo, rawPos };
                 });
+                // Phase 2: resolve collisions
+                const dropCollInputs: SidecarInput[] = dropDeInputs
+                  .filter((d) => !d.isVo)
+                  .map((d) => ({
+                    key: DE_TO_SIDECAR_KEY[d.dt],
+                    deType: d.dt,
+                    slotName: d.slotName,
+                    pos: d.rawPos,
+                  }));
+                const dropCollResult =
+                  resolveSidecarCollisions(dropCollInputs);
+                // Phase 3: build children with adjusted positions
+                const children: DisplayElement[] = dropDeInputs.map(
+                  ({ dt, isVo, rawPos }) => {
+                    const pos = isVo
+                      ? rawPos
+                      : (dropCollResult.get(DE_TO_SIDECAR_KEY[dt]) ?? rawPos);
+                    return {
+                      id: crypto.randomUUID(),
+                      type: "display_element" as const,
+                      displayType: dt,
+                      transform: {
+                        position: pos,
+                        rotation: 0,
+                        scale: { x: 1, y: 1 },
+                        mirror: "none" as const,
+                      },
+                      binding: config.pointBindings[0]?.pointId
+                        ? {
+                            pointId: config.pointBindings[0].pointId,
+                            ...(config.pointBindings[0].pointTag
+                              ? {
+                                  pointTag: config.pointBindings[0].pointTag,
+                                }
+                              : {}),
+                            ...(config.pointBindings[0].displayName
+                              ? {
+                                  displayName:
+                                    config.pointBindings[0].displayName,
+                                }
+                              : {}),
+                            ...(config.pointBindings[0].unit
+                              ? { unit: config.pointBindings[0].unit }
+                              : {}),
+                          }
+                        : {},
+                      config: makeDefaultDisplayConfig(dt, {
+                        vesselOverlay: isVo,
+                      }),
+                      opacity: 1,
+                      visible: true,
+                      locked: false,
+                      name: dt,
+                    };
+                  },
+                );
                 const dropPtId = config.pointBindings[0]?.pointId;
                 const dropPtTag = config.pointBindings[0]?.pointTag;
                 const dropPtDisplay = config.pointBindings[0]?.displayName;
@@ -8656,7 +8657,8 @@ export default function DesignerCanvas({
                       PointNameLabel: "top",
                     };
 
-                    const children: DisplayElement[] = (
+                    // Phase 1: compute raw slot positions
+                    const ghostDeInputs = (
                       config.displayElements as DisplayElementType[]
                     ).map((dt) => {
                       const key = GHOST_SIDECAR_KEY[dt] ?? dt;
@@ -8665,7 +8667,11 @@ export default function DesignerCanvas({
                         ghostDefaultSlots[key] ??
                         GHOST_DE_SLOTS[key] ??
                         "bottom";
-                      const pos = applyDeSlotOffset(
+                      const uc = config.displayElementConfigs?.[dt];
+                      const isVo =
+                        slotName === "vessel-interior" &&
+                        !!ghostSidecar?.vesselInteriorPath;
+                      const rawPos = applyDeSlotOffset(
                         dt,
                         slotName,
                         resolveSlotWithSidecar(
@@ -8674,53 +8680,76 @@ export default function DesignerCanvas({
                           ghostSidecar,
                           ghostRelBbox,
                         ),
+                        uc as DeLayoutHints | undefined,
                       );
-                      return {
-                        id: crypto.randomUUID(),
-                        type: "display_element" as const,
-                        displayType: dt,
-                        transform: {
-                          position: pos,
-                          rotation: 0,
-                          scale: { x: 1, y: 1 },
-                          mirror: "none" as const,
-                        },
-                        binding: config.pointBindings[0]?.pointId
-                          ? {
-                              pointId: config.pointBindings[0].pointId,
-                              ...(config.pointBindings[0].pointTag
-                                ? { pointTag: config.pointBindings[0].pointTag }
-                                : {}),
-                              ...(config.pointBindings[0].displayName
-                                ? {
-                                    displayName:
-                                      config.pointBindings[0].displayName,
-                                  }
-                                : {}),
-                              ...(config.pointBindings[0].unit
-                                ? { unit: config.pointBindings[0].unit }
-                                : {}),
-                            }
-                          : {},
-                        config: (() => {
-                          const uc = config.displayElementConfigs?.[dt];
-                          const vo =
-                            slotName === "vessel-interior" &&
-                            !!ghostSidecar?.vesselInteriorPath;
-                          return uc
-                            ? userConfigToDisplayConfig(dt, uc, {
-                                vesselOverlay: vo,
-                              })
-                            : makeDefaultDisplayConfig(dt, {
-                                vesselOverlay: vo,
-                              });
-                        })(),
-                        opacity: 1,
-                        visible: true,
-                        locked: false,
-                        name: dt,
-                      };
+                      return { dt, key, slotName, uc, isVo, rawPos };
                     });
+                    // Phase 2: resolve collisions
+                    const ghostCollInputs: SidecarInput[] = ghostDeInputs
+                      .filter((d) => !d.isVo)
+                      .map((d) => ({
+                        key: DE_TO_SIDECAR_KEY[d.dt],
+                        deType: d.dt,
+                        slotName: d.slotName,
+                        pos: d.rawPos,
+                        cfg: d.uc as DeLayoutHints | undefined,
+                      }));
+                    const ghostCollResult =
+                      resolveSidecarCollisions(ghostCollInputs);
+                    // Phase 3: build children with adjusted positions
+                    const children: DisplayElement[] = ghostDeInputs.map(
+                      ({ dt, uc, isVo, rawPos }) => {
+                        const pos = isVo
+                          ? rawPos
+                          : (ghostCollResult.get(DE_TO_SIDECAR_KEY[dt]) ??
+                            rawPos);
+                        return {
+                          id: crypto.randomUUID(),
+                          type: "display_element" as const,
+                          displayType: dt,
+                          transform: {
+                            position: pos,
+                            rotation: 0,
+                            scale: { x: 1, y: 1 },
+                            mirror: "none" as const,
+                          },
+                          binding: config.pointBindings[0]?.pointId
+                            ? {
+                                pointId: config.pointBindings[0].pointId,
+                                ...(config.pointBindings[0].pointTag
+                                  ? {
+                                      pointTag:
+                                        config.pointBindings[0].pointTag,
+                                    }
+                                  : {}),
+                                ...(config.pointBindings[0].displayName
+                                  ? {
+                                      displayName:
+                                        config.pointBindings[0].displayName,
+                                    }
+                                  : {}),
+                                ...(config.pointBindings[0].unit
+                                  ? { unit: config.pointBindings[0].unit }
+                                  : {}),
+                              }
+                            : {},
+                          config: (() => {
+                            const vo = isVo;
+                            return uc
+                              ? userConfigToDisplayConfig(dt, uc, {
+                                  vesselOverlay: vo,
+                                })
+                              : makeDefaultDisplayConfig(dt, {
+                                  vesselOverlay: vo,
+                                });
+                          })(),
+                          opacity: 1,
+                          visible: true,
+                          locked: false,
+                          name: dt,
+                        };
+                      },
+                    );
 
                     const ghostPtId = config.pointBindings[0]?.pointId;
                     const ghostPtTag = config.pointBindings[0]?.pointTag;
@@ -8925,16 +8954,22 @@ export default function DesignerCanvas({
                       ),
                     ];
 
-                    // Re-add all selected display elements with user config applied
-                    for (const dt of config.displayElements) {
-                      const dtype = dt as DisplayElementType;
-                      const editKey = EDIT_SIDECAR_KEY[dt] ?? dt;
+                    // Re-add all selected display elements with collision avoidance
+                    // Phase 1: compute raw positions
+                    const editDeInputs = (
+                      config.displayElements as DisplayElementType[]
+                    ).map((dtype) => {
+                      const editKey = EDIT_SIDECAR_KEY[dtype] ?? dtype;
                       const slotName =
-                        config.displayElementSlots?.[dt] ??
+                        config.displayElementSlots?.[dtype] ??
                         editDefaultSlots[editKey] ??
                         EDIT_DE_SLOTS[editKey] ??
                         "bottom";
-                      const pos = applyDeSlotOffset(
+                      const userCfg = config.displayElementConfigs?.[dtype];
+                      const isVo =
+                        slotName === "vessel-interior" &&
+                        !!editSidecar?.vesselInteriorPath;
+                      const rawPos = applyDeSlotOffset(
                         dtype,
                         slotName,
                         resolveSlotWithSidecar(
@@ -8943,8 +8978,29 @@ export default function DesignerCanvas({
                           editSidecar,
                           editRelBbox,
                         ),
+                        userCfg as DeLayoutHints | undefined,
                       );
-                      const userCfg = config.displayElementConfigs?.[dt];
+                      return { dtype, slotName, userCfg, isVo, rawPos };
+                    });
+                    // Phase 2: resolve collisions
+                    const editCollInputs: SidecarInput[] = editDeInputs
+                      .filter((d) => !d.isVo)
+                      .map((d) => ({
+                        key: DE_TO_SIDECAR_KEY[d.dtype],
+                        deType: d.dtype,
+                        slotName: d.slotName,
+                        pos: d.rawPos,
+                        cfg: d.userCfg as DeLayoutHints | undefined,
+                      }));
+                    const editCollResult =
+                      resolveSidecarCollisions(editCollInputs);
+                    // Phase 3: emit AddDisplayElementCommand with adjusted positions
+                    for (const { dtype, userCfg, isVo, rawPos } of editDeInputs) {
+                      const pos = isVo
+                        ? rawPos
+                        : (editCollResult.get(DE_TO_SIDECAR_KEY[dtype]) ??
+                          rawPos);
+                      const vo = isVo;
                       const el: DisplayElement = {
                         id: crypto.randomUUID(),
                         type: "display_element",
@@ -8965,22 +9021,17 @@ export default function DesignerCanvas({
                               ...(newPointUnit ? { unit: newPointUnit } : {}),
                             }
                           : {},
-                        config: (() => {
-                          const vo =
-                            slotName === "vessel-interior" &&
-                            !!editSidecar?.vesselInteriorPath;
-                          return userCfg
-                            ? userConfigToDisplayConfig(dtype, userCfg, {
-                                vesselOverlay: vo,
-                              })
-                            : makeDefaultDisplayConfig(dtype, {
-                                vesselOverlay: vo,
-                              });
-                        })(),
+                        config: userCfg
+                          ? userConfigToDisplayConfig(dtype, userCfg, {
+                              vesselOverlay: vo,
+                            })
+                          : makeDefaultDisplayConfig(dtype, {
+                              vesselOverlay: vo,
+                            }),
                         opacity: 1,
                         visible: true,
                         locked: false,
-                        name: dt,
+                        name: dtype,
                       };
                       cmds.push(
                         new AddDisplayElementCommand(shapeConfigNodeId, el),
@@ -9084,7 +9135,7 @@ export default function DesignerCanvas({
                       onClick={() => {
                         const slotName =
                           editDefaultSlots[key] ?? slotPopover.slotId;
-                        const pos = applyDeSlotOffset(
+                        const rawPos = applyDeSlotOffset(
                           deType,
                           slotName,
                           resolveSlotWithSidecar(
@@ -9093,6 +9144,39 @@ export default function DesignerCanvas({
                             shapeEntry?.sidecar,
                             relBbox,
                           ),
+                        );
+                        // Displace against existing sidecars; existing ones
+                        // stay put (user may have positioned them manually)
+                        const existingFixed = (si?.children ?? [])
+                          .filter(
+                            (c) =>
+                              !EXCLUDED_COLLISION_SLOTS.has(c.slotId ?? ""),
+                          )
+                          .map((c) => {
+                            const cfg = c.config as unknown as Record<string, unknown>;
+                            return {
+                              deType: c.displayType,
+                              pos: c.transform.position,
+                              cfg: {
+                                barHeight: cfg.barHeight as number | undefined,
+                                barWidth: cfg.barWidth as number | undefined,
+                                sparkWidth: cfg.sparkWidth as
+                                  | number
+                                  | undefined,
+                                sparkHeight: cfg.sparkHeight as
+                                  | number
+                                  | undefined,
+                              } satisfies DeLayoutHints,
+                            };
+                          });
+                        const pos = resolveSingleSidecarAgainstFixed(
+                          {
+                            key: DE_TO_SIDECAR_KEY[deType],
+                            deType,
+                            slotName,
+                            pos: rawPos,
+                          },
+                          existingFixed,
                         );
                         const el: DisplayElement = {
                           id: crypto.randomUUID() as NodeId,
@@ -9566,88 +9650,6 @@ function RulersOverlay({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Helper: adjust raw slot position so each DE type is visually well-placed
-//
-// resolveSlotWithSidecar returns the raw anchor coordinate (e.g. nx=0.5,ny=1.15
-// → shape center-bottom).  Each element type has a different rendering origin:
-//   - alarm_indicator  : renders *centered* at (x,y)  → no offset needed
-//   - analog_bar       : getNodeBounds = {x: x-15, y, w:40, h:80}
-//                        zone-labels extend 15 units left of position; we push
-//                        x right so labels start at the clearance line, and
-//                        center vertically.
-//   - everything else  : top-left origin → center on the slot axis direction.
-// ---------------------------------------------------------------------------
-function applyDeSlotOffset(
-  dt: DisplayElementType,
-  slotName: string,
-  pos: { x: number; y: number },
-): { x: number; y: number } {
-  let { x, y } = pos;
-  const isTop = slotName === "top";
-  const isBottom = slotName === "bottom";
-  const isHoriz = isTop || isBottom;
-  const isRight = slotName.startsWith("right");
-  const isLeft = slotName.startsWith("left");
-  const isVert = isRight || isLeft;
-
-  switch (dt) {
-    case "text_readout": {
-      const h = 24;
-      if (isTop) y -= h; // label bottom at slot line
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= 40; // pull right edge to slot line
-      break;
-    }
-    case "alarm_indicator":
-      // center-based rendering — no adjustment needed
-      break;
-    case "analog_bar": {
-      const h = 80; // default barHeight
-      // zone labels sit at x−15; push right so they clear the shape boundary
-      if (isRight) x += 15;
-      if (isLeft) x -= 25; // right extent (x+25) at slot edge
-      y -= h / 2; // always center vertically
-      break;
-    }
-    case "fill_gauge": {
-      const w = 22; // default barWidth
-      const h = 90; // default barHeight
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-    case "sparkline": {
-      const h = 18; // default sparkHeight
-      if (isHoriz) x -= 55; // half of 110 default sparkWidth
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= 110;
-      break;
-    }
-    case "digital_status": {
-      const w = 30; // conservative estimate (unbound "—" ≈18px, bound ≈36px)
-      const h = 20;
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-    case "point_name_label": {
-      const w = 80; // getNodeBounds default
-      const h = 12; // fontSize:10 + 2
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h; // label bottom at slot line (sits above shape)
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-  }
-  return { x, y };
-}
 
 // ---------------------------------------------------------------------------
 // Helper: default config for each display element type

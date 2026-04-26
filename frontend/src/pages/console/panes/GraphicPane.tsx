@@ -1,4 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useNodeMarquee } from "../../../shared/hooks/useNodeMarquee";
+import { useNodeClick } from "../../../shared/hooks/useNodeClick";
+import type { NodeHit } from "../../../shared/hooks/useNodeClick";
 
 import { useQuery } from "@tanstack/react-query";
 import { graphicsApi } from "../../../api/graphics";
@@ -476,6 +479,87 @@ export default function GraphicPane({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ── Scene-node selection — canonical Mode A behavior ─────────────────────────
+  // Pattern defined in docs/decisions/selection-behavior.md.
+  // Do not inline pointer logic here — use useNodeMarquee / useNodeClick instead.
+
+  const zoneId = paneId
+    ? (`console/pane/${paneId}` as SelectionZoneId)
+    : null;
+
+  const handleMarqueeSelect = useCallback(
+    (nodeIds: string[]) => {
+      if (!zoneId) return;
+      const store = useGlobalSelectionStore.getState();
+      containerRef.current
+        ?.querySelectorAll(".io-node-selected")
+        .forEach((n) => n.classList.remove("io-node-selected"));
+      if (nodeIds.length > 0) {
+        nodeIds.forEach((nodeId, i) => {
+          containerRef.current
+            ?.querySelector(`[data-node-id="${nodeId}"]`)
+            ?.classList.add("io-node-selected");
+          store.select(
+            zoneId,
+            { id: nodeId, zoneId, kind: "scene-node" },
+            i === 0 ? "replace" : "add",
+          );
+        });
+        store.setActiveZone(zoneId);
+      } else {
+        store.clearZone(zoneId);
+      }
+    },
+    [zoneId],
+  );
+
+  const handleNodeHit = useCallback(
+    (hit: NodeHit, additive: boolean) => {
+      if (!zoneId) return;
+      const store = useGlobalSelectionStore.getState();
+      const entity: SelectableEntity = {
+        id: hit.nodeId,
+        zoneId,
+        kind: "scene-node",
+      };
+      if (additive) {
+        if (store.isSelected(zoneId, hit.nodeId)) {
+          hit.nodeEl.classList.remove("io-node-selected");
+          store.select(zoneId, entity, "remove");
+        } else {
+          hit.nodeEl.classList.add("io-node-selected");
+          store.select(zoneId, entity, "add");
+        }
+      } else {
+        containerRef.current
+          ?.querySelectorAll(".io-node-selected")
+          .forEach((n) => n.classList.remove("io-node-selected"));
+        hit.nodeEl.classList.add("io-node-selected");
+        store.select(zoneId, entity, "replace");
+      }
+      store.setActiveZone(zoneId);
+    },
+    [zoneId],
+  );
+
+  const handleNodeMiss = useCallback(() => {
+    if (!zoneId) return;
+    containerRef.current
+      ?.querySelectorAll(".io-node-selected")
+      .forEach((n) => n.classList.remove("io-node-selected"));
+    useGlobalSelectionStore.getState().clearZone(zoneId);
+  }, [zoneId]);
+
+  const marquee = useNodeMarquee({
+    containerRef,
+    onSelect: handleMarqueeSelect,
+  });
+  const nodeClick = useNodeClick({
+    containerRef,
+    onHit: handleNodeHit,
+    onMiss: handleNodeMiss,
+  });
+
   // ── Point hover tooltip handlers ─────────────────────────────────────────────
 
   const handleSvgMouseMove = useCallback(
@@ -609,8 +693,7 @@ export default function GraphicPane({
   // ── Scene-node selection zone registration ──────────────────────────────────
 
   useEffect(() => {
-    if (!paneId) return;
-    const zoneId = `console/pane/${paneId}` as SelectionZoneId;
+    if (!zoneId) return;
     const store = useGlobalSelectionStore.getState();
     store.registerZone({
       zoneId,
@@ -618,96 +701,23 @@ export default function GraphicPane({
       supportsSelectAll: false,
     });
     return () => store.unregisterZone(zoneId);
-  }, [paneId]);
+  }, [zoneId]);
 
-  // Clear store selection when graphic changes (SVG re-renders, old DOM classes gone)
+  // Clear store + DOM selection when graphic changes (SVG re-renders, old classes gone)
   useEffect(() => {
-    if (!paneId) return;
-    useGlobalSelectionStore
-      .getState()
-      .clearZone(`console/pane/${paneId}` as SelectionZoneId);
-  }, [graphicId, paneId]);
+    if (!zoneId) return;
+    containerRef.current
+      ?.querySelectorAll(".io-node-selected")
+      .forEach((n) => n.classList.remove("io-node-selected"));
+    useGlobalSelectionStore.getState().clearZone(zoneId);
+  }, [graphicId, zoneId]);
 
   const handleNodeClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!paneId) return;
-
-      function walkToNodeId(
-        target: Element | null,
-        root: Element | null,
-      ): { nodeId: string; nodeEl: Element } | null {
-        let el = target as HTMLElement | null;
-        while (el && el !== root) {
-          const id = el.getAttribute("data-node-id");
-          if (id) return { nodeId: id, nodeEl: el };
-          el = el.parentElement;
-        }
-        return null;
-      }
-
-      // Try exact target first, then search a small radius to widen the hit area
-      let found = walkToNodeId(e.target as Element, containerRef.current);
-
-      if (!found) {
-        const OFFSETS = [
-          [-4, 0],
-          [4, 0],
-          [0, -4],
-          [0, 4],
-          [-3, -3],
-          [3, -3],
-          [-3, 3],
-          [3, 3],
-        ] as const;
-        outer: for (const [dx, dy] of OFFSETS) {
-          for (const el of document.elementsFromPoint(
-            e.clientX + dx,
-            e.clientY + dy,
-          )) {
-            found = walkToNodeId(el, containerRef.current);
-            if (found) break outer;
-          }
-        }
-      }
-
-      const zoneId = `console/pane/${paneId}` as SelectionZoneId;
-      const store = useGlobalSelectionStore.getState();
-
-      if (!found) {
-        containerRef.current
-          ?.querySelectorAll(".io-console-selected")
-          .forEach((n) => n.classList.remove("io-console-selected"));
-        store.clearZone(zoneId);
-        return;
-      }
-
-      const { nodeId, nodeEl } = found;
-      const entity: SelectableEntity = {
-        id: nodeId,
-        zoneId,
-        kind: "scene-node",
-      };
-      const isMulti = e.ctrlKey || e.metaKey;
-
-      if (isMulti) {
-        if (store.isSelected(zoneId, nodeId)) {
-          nodeEl.classList.remove("io-console-selected");
-          store.select(zoneId, entity, "remove");
-        } else {
-          nodeEl.classList.add("io-console-selected");
-          store.select(zoneId, entity, "add");
-        }
-      } else {
-        containerRef.current
-          ?.querySelectorAll(".io-console-selected")
-          .forEach((n) => n.classList.remove("io-console-selected"));
-        nodeEl.classList.add("io-console-selected");
-        store.select(zoneId, entity, "replace");
-      }
-
-      store.setActiveZone(zoneId);
+      if (marquee.consumeClick()) return;
+      nodeClick.handleClick(e);
     },
-    [paneId],
+    [marquee, nodeClick],
   );
 
   if (isLoading) {
@@ -827,6 +837,10 @@ export default function GraphicPane({
         position: "relative",
       }}
       onClick={handleNodeClick}
+      onPointerDown={marquee.onPointerDown}
+      onPointerMove={marquee.onPointerMove}
+      onPointerUp={marquee.onPointerUp}
+      onPointerCancel={marquee.onPointerCancel}
       onMouseMove={(e) => {
         handleSvgMouseMove(e);
         lastHoveredPointRef.current = findPointId(e.target);
@@ -844,6 +858,24 @@ export default function GraphicPane({
         preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
         style={{ width: "100%", height: "100%" }}
       />
+
+      {/* Marquee selection overlay */}
+      {marquee.marqueeRect && (
+        <div
+          style={{
+            position: "absolute",
+            left: marquee.marqueeRect.x,
+            top: marquee.marqueeRect.y,
+            width: marquee.marqueeRect.w,
+            height: marquee.marqueeRect.h,
+            border: "1px solid var(--io-accent)",
+            background:
+              "color-mix(in srgb, var(--io-accent) 10%, transparent)",
+            pointerEvents: "none",
+            zIndex: 100,
+          }}
+        />
+      )}
 
       {/* Point hover tooltip */}
       {tooltip && (

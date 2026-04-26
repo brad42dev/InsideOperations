@@ -1403,7 +1403,7 @@ export function renderPointNameLabelSvg(
         y={0}
         fontFamily="Inter"
         fontSize={9}
-        fill={cfg.style === "uniform" ? UNIT_COLOR : undefined}
+        fill={cfg.style === "uniform" ? UNIT_COLOR : TAG_COLOR}
         fontWeight={cfg.fontWeight ?? "normal"}
         dominantBaseline="hanging"
         style={{ pointerEvents: "none" }}

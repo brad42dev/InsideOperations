@@ -891,3 +891,15 @@ kbd,
     display: none !important;
   }
 }
+
+/* Canonical Mode A (view) node selection glow — docs/decisions/selection-behavior.md */
+[data-node-id].io-node-selected {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--io-accent) 80%, transparent))
+    drop-shadow(0 0 6px color-mix(in srgb, var(--io-accent) 40%, transparent));
+}
+
+/* Designer Mode B multi-select: glow on actual shape geometry, not an overlay rect */
+svg.io-multiselect-active [data-node-id].io-selected {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--io-accent) 80%, transparent))
+    drop-shadow(0 0 6px color-mix(in srgb, var(--io-accent) 40%, transparent));
+}

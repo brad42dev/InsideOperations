@@ -37,6 +37,14 @@ import {
   displayConfigToUserConfig as _displayConfigToUserConfig,
 } from "./ShapeDropDialog";
 import { resolveSlotWithSidecar } from "../../../shared/graphics/anchorSlots";
+import {
+  applyDeSlotOffset,
+  dePixelSize,
+  resolveSidecarCollisions,
+  DE_TO_SIDECAR_KEY,
+  type SidecarInput,
+  type DeLayoutHints,
+} from "../../../shared/graphics/sidecarCollision";
 import { SceneRenderer } from "../../../shared/graphics/SceneRenderer";
 import { ShapePointSelector, resolvePointBindings } from "./ShapePointSelector";
 import type { ShapeSlotDef, ShapeBindingEntry } from "./ShapePointSelector";
@@ -297,111 +305,6 @@ function AddonThumbnailCard({
 // ---------------------------------------------------------------------------
 
 /** Pixel dimensions SceneRenderer renders each DE type at with the given config. */
-function dePixelSize(
-  dt: DisplayElementType,
-  cfg?: DisplayElementUserConfig,
-): { w: number; h: number } {
-  switch (dt) {
-    case "text_readout": {
-      // Mirror nodeTransforms.ts getNodeLocalSize text_readout branch:
-      // ROW_H=16, GAP=2; rows = value + optional pointName + optional displayName
-      const rows =
-        1 + (cfg?.showPointName ? 1 : 0) + (cfg?.showDisplayName ? 1 : 0);
-      return { w: 40, h: rows * 16 + (rows - 1) * 2 };
-    }
-    case "alarm_indicator":
-      return { w: 24, h: 18 };
-    case "analog_bar":
-      return { w: 20, h: 80 };
-    case "fill_gauge":
-      return { w: 22, h: 90 };
-    case "sparkline":
-      return { w: 110, h: 18 };
-    case "digital_status":
-      return { w: 40, h: 22 };
-    case "point_name_label":
-      return { w: 50, h: 12 };
-    default:
-      return { w: 40, h: 20 };
-  }
-}
-
-/**
- * Convert a slot center to the transform.position used by SceneRenderer.
- * Most DE types are top-left anchored; alarm_indicator is center-anchored.
- * Mirrors applyDeSlotOffset in DesignerCanvas.
- */
-function deSlotToPosition(
-  dt: DisplayElementType,
-  slotName: string,
-  center: { x: number; y: number },
-  cfg?: DisplayElementUserConfig,
-): { x: number; y: number } {
-  let { x, y } = center;
-  const isTop = slotName === "top";
-  const isHoriz = isTop || slotName === "bottom";
-  const isRight = slotName.startsWith("right");
-  const isLeft = slotName.startsWith("left");
-  const isVert = isRight || isLeft;
-
-  switch (dt) {
-    case "alarm_indicator":
-      break; // center-based — no adjustment
-    case "text_readout": {
-      // renderTextReadoutSvg applies translate(-w/2, 0), so pos.x is the horizontal
-      // center anchor. Only adjust y and left-slot x (mirrors new applyDeSlotOffset).
-      const { h } = dePixelSize(dt, cfg);
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= 40;
-      break;
-    }
-    case "analog_bar": {
-      const h = 80;
-      if (isRight) x += 15;
-      if (isLeft) x -= 25;
-      y -= h / 2;
-      break;
-    }
-    case "fill_gauge": {
-      const w = 22,
-        h = 90;
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-    case "sparkline": {
-      const w = 110,
-        h = 18;
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-    case "digital_status": {
-      const w = 40,
-        h = 22;
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-    case "point_name_label": {
-      const w = 50,
-        h = 12;
-      if (isHoriz) x -= w / 2;
-      if (isTop) y -= h;
-      if (isVert) y -= h / 2;
-      if (isLeft) x -= w;
-      break;
-    }
-  }
-  return { x, y };
-}
 
 function buildPreviewDocument(
   shapeId: string,
@@ -474,25 +377,56 @@ function buildPreviewDocument(
     }
   }
 
-  // Display elements: resolve slot positions and extend bounding box
-  const deChildren: DisplayElement[] = [];
+  // Display elements — two-phase: position then collide, then extend bbox
+  // Phase 1: compute raw slot positions
+  const dePlacements: Array<{
+    dt: DisplayElementType;
+    slotName: string;
+    userCfg: DisplayElementUserConfig;
+    isVesselOverlay: boolean;
+    rawPos: { x: number; y: number };
+  }> = [];
   for (const dt of selectedElements) {
     const key = DE_SIDECAR_KEY[dt] ?? dt;
     const slotName = elementSlots[dt] ?? DE_FALLBACK_SLOT[key] ?? "bottom";
-    const center = resolveSlotWithSidecar(slotName, key, sidecar, relBbox);
     const userCfg = elementConfigs[dt] ?? makeDefaultElementConfig(dt);
-    const { w: dw, h: dh } = dePixelSize(dt, userCfg);
-    const pos = deSlotToPosition(dt, slotName, center, userCfg);
-
-    // vessel_overlay fill gauges are contained within the vessel — no bbox extension.
-    // alarm_indicator is center-anchored (x and y).
-    // text_readout: renderTextReadoutSvg applies translate(-w/2,0), so pos.x is the
-    //   horizontal center — treat like alarm_indicator for x, top-anchored for y.
-    // All other DEs are top-left anchored.
+    const center = resolveSlotWithSidecar(slotName, key, sidecar, relBbox);
     const isVesselOverlay =
       dt === "fill_gauge" &&
       slotName === "vessel-interior" &&
       !!sidecar.vesselInteriorPath;
+    const rawPos = applyDeSlotOffset(
+      dt,
+      slotName,
+      center,
+      userCfg as DeLayoutHints,
+    );
+    dePlacements.push({ dt, slotName, userCfg, isVesselOverlay, rawPos });
+  }
+  // Phase 2: resolve collisions among exterior sidecars
+  const collInputs: SidecarInput[] = dePlacements
+    .filter((p) => !p.isVesselOverlay)
+    .map((p) => ({
+      key: DE_TO_SIDECAR_KEY[p.dt],
+      deType: p.dt,
+      slotName: p.slotName,
+      pos: p.rawPos,
+      cfg: p.userCfg as DeLayoutHints,
+    }));
+  const collResult = resolveSidecarCollisions(collInputs);
+  // Phase 3: build children and extend canvas bounding box
+  const deChildren: DisplayElement[] = [];
+  for (const { dt, userCfg, isVesselOverlay, rawPos } of dePlacements) {
+    const pos = isVesselOverlay
+      ? rawPos
+      : (collResult.get(DE_TO_SIDECAR_KEY[dt]) ?? rawPos);
+    const { w: dw, h: dh } = dePixelSize(dt, userCfg as DeLayoutHints);
+    // vessel_overlay fill gauges are contained within the vessel — no bbox extension.
+    // alarm_indicator is centre-anchored (x and y).
+    // text_readout: renderTextReadoutSvg applies translate(-w/2,0), so pos.x is the
+    //   horizontal centre — treat like alarm_indicator for x, top-anchored for y.
+    // analog_bar: zone labels extend 15px left of pos.x; bar body is 20px wide.
+    // All other DEs are top-left anchored.
     if (!isVesselOverlay) {
       if (dt === "alarm_indicator") {
         minX = Math.min(minX, pos.x - dw / 2 - 4);
@@ -503,6 +437,11 @@ function buildPreviewDocument(
         minX = Math.min(minX, pos.x - dw / 2 - 4);
         minY = Math.min(minY, pos.y - 4);
         maxX = Math.max(maxX, pos.x + dw / 2 + 4);
+        maxY = Math.max(maxY, pos.y + dh + 4);
+      } else if (dt === "analog_bar") {
+        minX = Math.min(minX, pos.x - 15 - 4);
+        minY = Math.min(minY, pos.y - 4);
+        maxX = Math.max(maxX, pos.x + 20 + 4);
         maxY = Math.max(maxY, pos.y + dh + 4);
       } else {
         minX = Math.min(minX, pos.x - 4);
