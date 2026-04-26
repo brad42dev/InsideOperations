@@ -600,7 +600,7 @@ export default function ChartPointSelector({
           const pts = points.filter((p) => p.role === s.id);
           const max = s.maxPoints ?? 12;
           const cap = s.multi ? max : 1;
-          const isOverCap = s.multi && pts.length > cap;
+          const isOverCap = pts.length > cap;
           const full = !isOverCap && (s.multi ? pts.length >= max : pts.length >= 1);
           return (
             <div
@@ -634,9 +634,9 @@ export default function ChartPointSelector({
                 >
                   {pts.length}/{cap}
                   {isOverCap
-                    ? ` — remove ${pts.length - cap}`
+                    ? " — Too Many Points Selected"
                     : full
-                      ? " — full"
+                      ? " — Full"
                       : ""}
                 </span>
               )}
@@ -662,7 +662,7 @@ export default function ChartPointSelector({
           const isEmpty = slotPoints.length === 0;
           const count = slotPoints.length;
           const cap = slot.multi ? maxPoints : 1;
-          const isOverCap = slot.multi && count > cap;
+          const isOverCap = count > cap;
           const isFull = !isOverCap && (slot.multi ? count >= maxPoints : count >= 1);
 
           return (
@@ -709,9 +709,9 @@ export default function ChartPointSelector({
                     >
                       {count}/{cap}
                       {isOverCap
-                        ? ` — remove ${count - cap}`
+                        ? " — Too Many Points Selected"
                         : isFull
-                          ? " — full"
+                          ? " — Full"
                           : ""}
                     </span>
                   )}
