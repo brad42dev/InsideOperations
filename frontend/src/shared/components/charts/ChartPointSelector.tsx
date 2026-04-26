@@ -15,6 +15,11 @@ import {
 } from "./chart-config-types";
 import type { PointTypeCategory } from "./chart-definitions";
 import { useThemeName } from "../../theme/ThemeContext";
+import {
+  extractPoints,
+  isIOClipboardPayload,
+} from "../../clipboard";
+import type { IOClipboardPayload, PortablePointRef } from "../../clipboard";
 
 interface ChartPointSelectorProps {
   slotDefs: SlotDefinition[];
@@ -234,6 +239,77 @@ export default function ChartPointSelector({
     setDragOverSlot(null);
   }
 
+  async function resolvePointId(tagname: string): Promise<string | null> {
+    const inList = filtered.find((p) => p.tagname === tagname);
+    if (inList) return inList.id;
+    const result = await pointsApi.list({ search: tagname, limit: 5 });
+    if (!result.success) return null;
+    return result.data.data.find((p) => p.tagname === tagname)?.id ?? null;
+  }
+
+  async function handlePasteFromClipboard(payload: IOClipboardPayload) {
+    const refs = extractPoints(payload);
+    if (!refs.length) return;
+
+    const resolved: Array<{ id: string; ref: PortablePointRef }> = [];
+    for (const ref of refs) {
+      const id = await resolvePointId(ref.tagname);
+      if (id) resolved.push({ id, ref });
+    }
+    if (!resolved.length) return;
+
+    // Accumulate all changes in one pass so onChange is called once.
+    let updatedPoints = [...points];
+    for (const { id, ref } of resolved) {
+      const label = ref.displayName ?? ref.tagname;
+      const { tagname } = ref;
+
+      const target = slotDefs.find((s) => {
+        const filled = updatedPoints.filter((p) => p.role === s.id);
+        const max = s.multi ? (s.maxPoints ?? 12) : 1;
+        return filled.length < max && !filled.some((p) => p.pointId === id);
+      });
+      if (!target) continue;
+
+      if (!target.multi) {
+        updatedPoints = updatedPoints.filter((p) => p.role !== target.id);
+        updatedPoints.push({
+          slotId: target.id,
+          role: target.id,
+          pointId: id,
+          label,
+          tagname,
+          color: autoColorForTheme(updatedPoints.length, theme),
+        });
+      } else {
+        const slotId = makeSlotId(target.id, updatedPoints);
+        updatedPoints.push({
+          slotId,
+          role: target.id,
+          pointId: id,
+          label,
+          tagname,
+          color: autoColorForTheme(updatedPoints.length, theme),
+        });
+      }
+    }
+    onChange(updatedPoints);
+  }
+
+  function handleContainerPaste(e: React.ClipboardEvent) {
+    const text = e.clipboardData.getData("text/plain");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (isIOClipboardPayload(parsed)) {
+      e.preventDefault();
+      void handlePasteFromClipboard(parsed);
+    }
+  }
+
   function handleContextMenu(e: React.MouseEvent, pointId: string) {
     e.preventDefault();
     // Build context menu items — one per role
@@ -286,6 +362,7 @@ export default function ChartPointSelector({
 
   return (
     <div
+      onPaste={handleContainerPaste}
       style={{
         display: "grid",
         gridTemplateColumns: "40% 1fr",
@@ -497,7 +574,7 @@ export default function ChartPointSelector({
           color: "var(--io-text-muted)",
         }}
       >
-        Drag to slot · Double-click to add · Right-click for options
+        Drag to slot · Double-click to add · Right-click for options · Ctrl+V to paste
       </div>
 
       {/* ── Right row 1: first slot label ───────────────────────────────── */}
