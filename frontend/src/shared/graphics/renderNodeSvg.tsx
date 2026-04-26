@@ -99,8 +99,10 @@ export interface SymbolInstanceRenderContext extends RenderContext {
   partShapes: Map<string, { svg: string; sidecar: ShapeSidecar | null }>;
   /** Operational state CSS class (e.g., "io-running", "io-fault", "io-oos") */
   stateClass: string;
-  /** State binding point ID for data-point-id attribute */
+  /** State binding resolved UUID — sets data-point-id on the outer <g> */
   statePointId?: string;
+  /** State binding raw tag name — sets data-point-tag on the outer <g> so unresolved bindings are right-clickable */
+  statePointTag?: string;
   /** Whether this node is selected (designer mode only) */
   isSelected?: boolean;
   /** Whether in designer mode (affects text zone placeholder display) */
@@ -1478,6 +1480,7 @@ export function renderSymbolInstanceSvg(
       data-node-id={node.id}
       data-lod="0"
       data-point-id={ctx.statePointId || undefined}
+      data-point-tag={ctx.statePointTag || undefined}
       className={
         [ctx.stateClass, ctx.isSelected ? "io-selected" : ""]
           .filter(Boolean)

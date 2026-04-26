@@ -699,6 +699,7 @@ export function SceneRenderer({
     parentOffset?: { x: number; y: number },
     vesselInteriorPath?: string,
     overrideTransform?: string,
+    parentScaleX?: number,
   ): React.ReactElement | null {
     // Resolve binding: UUID pointId wins; fall back to resolved tag (pointTag or legacy
     // pointId-stored-as-tag); then expressionId.
@@ -772,6 +773,8 @@ export function SceneRenderer({
       setpointValue,
       designerMode,
       previewMode,
+      parentScaleX,
+      pointCategory: meta?.point_category,
     };
 
     return renderDisplayElementSvg(node, deCtx);
@@ -843,6 +846,10 @@ export function SceneRenderer({
       partShapes,
       stateClass,
       statePointId: statePvKey,
+      statePointTag:
+        node.stateBinding?.pointTag ??
+        (isTagInStateId ? rawStateId : undefined) ??
+        undefined,
       isSelected,
       designerMode,
       showHitRect: true,
@@ -858,6 +865,8 @@ export function SceneRenderer({
           parentOffset,
           vesselInteriorPath,
           overrideTransform,
+          // Only exterior sidecars need parentScaleX (they counter-scale to canvas pixels).
+          overrideTransform ? node.transform.scale.x : undefined,
         ),
     };
     return renderSymbolInstanceSvg(node, ctx);
@@ -1359,20 +1368,25 @@ function applyPointValue(
 
     case "digital_status": {
       const cfg = config as DigitalStatusConfig;
+      const isAnalogMismatch = pointMeta?.point_category === "analog";
       const rawVal = value !== null ? String(value) : null;
-      // Prefer enum label from point metadata (resolvePointLabel), then static
-      // stateLabels config, then raw value string as last resort.
-      const label =
-        rawVal !== null
+      const label = isAnalogMismatch
+        ? "ANALOG"
+        : rawVal !== null
           ? (cfg.stateLabels[rawVal] ?? discreteLabel ?? rawVal)
           : "---";
-      const isNormal = rawVal === null || cfg.normalStates.includes(rawVal);
-      const fill = isNormal
-        ? DE_COLORS.displayZoneInactive
-        : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
-      const textColor = isNormal
-        ? DE_COLORS.textSecondary
-        : DE_COLORS.textPrimary;
+      const isNormal =
+        !isAnalogMismatch && (rawVal === null || cfg.normalStates.includes(rawVal));
+      const fill = isAnalogMismatch
+        ? "#7F1D1D"
+        : isNormal
+          ? DE_COLORS.displayZoneInactive
+          : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
+      const textColor = isAnalogMismatch
+        ? "#FCA5A5"
+        : isNormal
+          ? DE_COLORS.textSecondary
+          : DE_COLORS.textPrimary;
       const bgRect = el.querySelector<SVGRectElement>('[data-role="bg"]');
       if (bgRect) bgRect.setAttribute("fill", fill);
       const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');

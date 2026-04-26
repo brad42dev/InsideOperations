@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useNodeMarquee } from "../../../shared/hooks/useNodeMarquee";
 import { useNodeClick } from "../../../shared/hooks/useNodeClick";
 import type { NodeHit } from "../../../shared/hooks/useNodeClick";
@@ -6,6 +7,7 @@ import type { NodeHit } from "../../../shared/hooks/useNodeClick";
 import { useQuery } from "@tanstack/react-query";
 import { graphicsApi } from "../../../api/graphics";
 import { pointsApi } from "../../../api/points";
+import { forensicsApi } from "../../../api/forensics";
 import { SceneRenderer } from "../../../shared/graphics/SceneRenderer";
 import type { PointValue as ScenePointValue } from "../../../shared/graphics/SceneRenderer";
 import {
@@ -19,10 +21,15 @@ import type {
   SelectionZoneId,
   SelectableEntity,
 } from "../../../shared/clipboard";
+import {
+  useIOClipboardStore,
+  buildIOClipboardPayload,
+  extractPointsFromNodes,
+} from "../../../shared/clipboard";
 import { useHistoricalValues } from "../../../shared/hooks/useHistoricalValues";
 import { usePlaybackStore } from "../../../store/playback";
 import TileGraphicViewer from "../../../shared/components/TileGraphicViewer";
-import PointContextMenu from "../../../shared/components/PointContextMenu";
+import ContextMenu from "../../../shared/components/ContextMenu";
 import PointDetailPanel from "../../../shared/components/PointDetailPanel";
 import type {
   SceneNode,
@@ -44,6 +51,17 @@ interface PointTooltip {
 }
 
 // ── Walk up the DOM tree to find the nearest ancestor with data-point-id ─────
+
+function findNodeById(nodes: SceneNode[], id: string): SceneNode | null {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    if ("children" in n && Array.isArray(n.children)) {
+      const found = findNodeById(n.children as SceneNode[], id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 function formatTooltipValue(v: number | string): string {
   const n = typeof v === "string" ? parseFloat(v) : v;
@@ -69,6 +87,10 @@ function findPointInfo(
         el.dataset?.pointTag || el.getAttribute?.("data-point-tag") || null;
       return { id, tag };
     }
+    // Also match elements that carry only data-point-tag (e.g. symbol_instance with
+    // an unresolved tag stateBinding — data-point-id not set until tag resolves to UUID).
+    const tag = el.dataset?.pointTag || el.getAttribute?.("data-point-tag");
+    if (tag) return { id: tag, tag };
     el = el.parentElement;
   }
   return null;
@@ -399,6 +421,14 @@ export default function GraphicPane({
   // Used by handleSvgMouseMove for desktop live mode. Historical mode reads from pointValues.
   const tooltipValuesRef = useRef<Map<string, WsPointValue>>(new Map());
 
+  // Refs so context menu callbacks can access latest resolved tag maps without re-creation
+  const resolvedAllTagsRef = useRef(resolvedAllTags);
+  const uuidToTagMapRef = useRef(uuidToTagMap);
+  useEffect(() => {
+    resolvedAllTagsRef.current = resolvedAllTags;
+    uuidToTagMapRef.current = uuidToTagMap;
+  }, [resolvedAllTags, uuidToTagMap]);
+
   useEffect(() => {
     if (isPhone || isHistorical || pointIds.length === 0) return;
     const handler = (pv: WsPointValue) => {
@@ -452,6 +482,8 @@ export default function GraphicPane({
     tagName: string;
     isAlarm: boolean;
     isAlarmElement: boolean;
+    nodeId: string | null;
+    nodeSelected: boolean;
   } | null>(null);
 
   // ── Point Detail floating panels (up to 3 concurrent per spec §7.2) ──────────
@@ -630,17 +662,33 @@ export default function GraphicPane({
 
   // ── Point right-click context menu handler ───────────────────────────────────
 
+  const navigate = useNavigate();
+  const writeToClipboard = useIOClipboardStore((s) => s.writeToClipboard);
+
   const handleSvgContextMenu = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      const pointId = findPointId(e.target);
+      let pointId = findPointId(e.target);
       if (!pointId) return;
-      // Point found — show point context menu instead of pane context menu
+
+      // findPointId may return a raw tag name (from data-point-tag) when the UUID
+      // hasn't been resolved yet. Resolve it to a UUID so PV lookups work.
+      const UUID_RE =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!UUID_RE.test(pointId)) {
+        pointId = resolvedAllTagsRef.current?.[pointId] ?? pointId;
+      }
+
+      const nodeEl = (e.target as Element).closest?.("[data-node-id]");
+      const nodeId = nodeEl?.getAttribute("data-node-id") ?? null;
+      const nodeSelected =
+        nodeId && zoneId
+          ? useGlobalSelectionStore.getState().isSelected(zoneId, nodeId)
+          : false;
+
       e.preventDefault();
       e.stopPropagation();
-      // Resolve alarm state from cached tooltip values; tagName falls back to pointId
-      // (WsPointValue does not carry tagName — the server sends pointId as the canonical identifier)
       const pv = tooltipValuesRef.current.get(pointId);
-      const tagName = pointId;
+      const tagName = uuidToTagMapRef.current?.get(pointId) ?? pointId;
       const isAlarm = pv?.quality === "alarm";
       setPointCtxMenu({
         x: e.clientX,
@@ -649,9 +697,12 @@ export default function GraphicPane({
         tagName,
         isAlarm,
         isAlarmElement: false,
+        nodeId,
+        nodeSelected,
       });
     },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zoneId],
   );
 
   // ── Double-click on point element → open Point Detail (spec §7.2) ────────────
@@ -949,29 +1000,151 @@ export default function GraphicPane({
         </div>
       )}
 
-      {/* Point right-click context menu — shared PointContextMenu component (spec CX-POINT-CONTEXT) */}
+      {/* Point / shape right-click context menu — ContextMenu portals to document.body
+          so position: fixed coordinates are always relative to the viewport regardless
+          of CSS transforms from react-grid-layout ancestors */}
       {pointCtxMenu && (
-        <PointContextMenu
-          pointId={pointCtxMenu.pointId}
-          tagName={pointCtxMenu.tagName}
-          isAlarm={pointCtxMenu.isAlarm}
-          isAlarmElement={pointCtxMenu.isAlarmElement}
-          onPointDetail={(pid) => {
-            openPointDetail(pid, pointCtxMenu.x, pointCtxMenu.y);
-            setPointCtxMenu(null);
-          }}
-        >
-          {/* Invisible fixed-position portal anchor — PointContextMenu opens at this location */}
-          <span
-            style={{
-              position: "fixed",
-              top: pointCtxMenu.y,
-              left: pointCtxMenu.x,
-              width: 0,
-              height: 0,
-            }}
-          />
-        </PointContextMenu>
+        <ContextMenu
+          x={pointCtxMenu.x}
+          y={pointCtxMenu.y}
+          onClose={() => setPointCtxMenu(null)}
+          items={[
+            {
+              label: "Point Detail",
+              onClick: () => {
+                openPointDetail(
+                  pointCtxMenu.pointId,
+                  pointCtxMenu.x,
+                  pointCtxMenu.y,
+                );
+                setPointCtxMenu(null);
+              },
+            },
+            {
+              label: "Trend Point",
+              permission: "console:read",
+              onClick: () => {
+                navigate(
+                  `/console?trend=${encodeURIComponent(pointCtxMenu.pointId)}`,
+                );
+                setPointCtxMenu(null);
+              },
+            },
+            {
+              label: "Investigate Point",
+              permission: "forensics:write",
+              onClick: () => {
+                void forensicsApi
+                  .createInvestigation({
+                    name: `Investigation — ${pointCtxMenu.tagName}`,
+                    anchor_point_id: pointCtxMenu.pointId,
+                  })
+                  .then((r) => {
+                    if (r.success)
+                      navigate(`/forensics/investigations/${r.data.id}`);
+                  });
+                setPointCtxMenu(null);
+              },
+            },
+            {
+              label: "Report on Point",
+              permission: "reports:read",
+              onClick: () => {
+                navigate(
+                  `/reports/new?point=${encodeURIComponent(pointCtxMenu.pointId)}`,
+                );
+                setPointCtxMenu(null);
+              },
+            },
+            ...(pointCtxMenu.isAlarm || pointCtxMenu.isAlarmElement
+              ? [
+                  {
+                    label: "Investigate Alarm",
+                    onClick: () => {
+                      navigate(
+                        `/forensics/new?alarm=${encodeURIComponent(pointCtxMenu.pointId)}`,
+                      );
+                      setPointCtxMenu(null);
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: "Copy Tag Name",
+              divider: true,
+              onClick: () => {
+                void navigator.clipboard.writeText(pointCtxMenu.tagName);
+                setPointCtxMenu(null);
+              },
+            },
+            {
+              label: "Copy",
+              divider: true,
+              onClick: () => {
+                const sceneChildren = data.scene_data?.children ?? [];
+                // Prefer the full selection; fall back to just the right-clicked node.
+                const selectedIds = zoneId
+                  ? useGlobalSelectionStore
+                      .getState()
+                      .getSelection(zoneId)
+                      .map((e) => e.id)
+                  : [];
+                const nodeIds =
+                  selectedIds.length > 0
+                    ? selectedIds
+                    : pointCtxMenu.nodeId
+                      ? [pointCtxMenu.nodeId]
+                      : [];
+                const nodes = nodeIds
+                  .map((id) => findNodeById(sceneChildren, id))
+                  .filter((n): n is SceneNode => n !== null);
+                const points = extractPointsFromNodes(nodes);
+                void writeToClipboard(
+                  buildIOClipboardPayload({
+                    originContext: "console-pane",
+                    originPaneId: paneId,
+                    originGraphicId: graphicId,
+                    contents:
+                      nodes.length > 0
+                        ? {
+                            nodes,
+                            points:
+                              points.length > 0
+                                ? points
+                                : [{ tagname: pointCtxMenu.tagName }],
+                            textRepresentation: pointCtxMenu.tagName,
+                          }
+                        : {
+                            points: [{ tagname: pointCtxMenu.tagName }],
+                            textRepresentation: pointCtxMenu.tagName,
+                          },
+                  }),
+                );
+                setPointCtxMenu(null);
+              },
+            },
+            ...(pointCtxMenu.nodeId
+              ? [
+                  {
+                    label: pointCtxMenu.nodeSelected ? "Deselect" : "Select",
+                    onClick: () => {
+                      const nid = pointCtxMenu.nodeId!;
+                      const el = containerRef.current?.querySelector(
+                        `[data-node-id="${nid}"]`,
+                      );
+                      if (el) {
+                        handleNodeHit(
+                          { nodeId: nid, nodeEl: el },
+                          false,
+                        );
+                      }
+                      setPointCtxMenu(null);
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
       )}
 
       {/* Point Detail floating panels (up to 3 concurrent per spec §7.2) */}

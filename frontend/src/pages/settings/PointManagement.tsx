@@ -1,6 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget, useSelectableItem } from "../../shared/clipboard";
+import { copySettingsPointsSelection } from "./clipboard/settingsCopyHandler";
+import { settingsPasteTarget } from "./clipboard/settingsPasteTarget";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1335,6 +1339,166 @@ function BulkAggregationBar({
 }
 
 // ---------------------------------------------------------------------------
+// PointTableRow — extracted so useSelectableItem hook can be called per-row
+// ---------------------------------------------------------------------------
+
+function PointTableRow({
+  point,
+  index,
+  totalPoints,
+  checkboxSelected,
+  onToggleCheckbox,
+  onContextMenu,
+  onConfigure,
+  onLifecycle,
+}: {
+  point: PointConfig;
+  index: number;
+  totalPoints: number;
+  checkboxSelected: boolean;
+  onToggleCheckbox: (id: string) => void;
+  onContextMenu: (e: React.MouseEvent, point: PointConfig) => void;
+  onConfigure: (point: PointConfig) => void;
+  onLifecycle: (point: PointConfig) => void;
+}) {
+  const { onMouseDown, isSelected } = useSelectableItem({
+    zoneId: "settings-points",
+    entity: {
+      id: point.id,
+      zoneId: "settings-points",
+      kind: "table-row",
+      payload: {
+        tagname: point.tagname,
+        display_name: point.display_name,
+        unit: point.unit,
+        data_type: point.data_type,
+      },
+    },
+    interactive: false,
+  });
+
+  const rowSelected = checkboxSelected || isSelected;
+
+  return (
+    <tr
+      key={point.id}
+      onMouseDown={onMouseDown}
+      onContextMenu={(e) => onContextMenu(e, point)}
+      className={isSelected ? "io-node-selected" : undefined}
+      style={{
+        borderBottom:
+          index < totalPoints - 1
+            ? "1px solid var(--io-border-subtle)"
+            : undefined,
+        background: rowSelected
+          ? "rgba(var(--io-accent-rgb, 234,179,8),0.05)"
+          : undefined,
+        cursor: "context-menu",
+      }}
+    >
+      {/* Checkbox */}
+      <td
+        style={{
+          ...tdStyle,
+          width: "40px",
+          paddingRight: "4px",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={checkboxSelected}
+          onChange={() => onToggleCheckbox(point.id)}
+          style={{
+            accentColor: "var(--io-accent)",
+            cursor: "pointer",
+          }}
+        />
+      </td>
+
+      {/* Tag name */}
+      <td style={tdStyle}>
+        <div
+          style={{
+            fontWeight: 500,
+            color: "var(--io-text-primary)",
+            fontSize: "12px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {point.tagname}
+        </div>
+        {point.display_name && point.display_name !== point.tagname && (
+          <div
+            style={{
+              fontSize: "11px",
+              color: "var(--io-text-muted)",
+              marginTop: "1px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {point.display_name}
+          </div>
+        )}
+      </td>
+
+      {/* Source */}
+      <td style={tdStyle}>
+        <span style={{ fontSize: "12px" }}>{point.source_name ?? "—"}</span>
+      </td>
+
+      {/* Area */}
+      <td style={tdStyle}>
+        <span style={{ fontSize: "12px" }}>{point.area ?? "—"}</span>
+      </td>
+
+      {/* Criticality */}
+      <td style={tdStyle}>
+        <CriticalityBadge value={point.criticality} />
+      </td>
+
+      {/* Active */}
+      <td style={tdStyle}>
+        <ActiveBadge active={point.active} />
+      </td>
+
+      {/* Aggregation */}
+      <td style={tdStyle}>
+        <AggBadges mask={point.aggregation_types} />
+      </td>
+
+      {/* Actions */}
+      <td style={tdStyle}>
+        <div style={{ display: "flex", gap: "5px" }}>
+          <button style={btnSmall} onClick={() => onConfigure(point)}>
+            Configure
+          </button>
+          {point.active ? (
+            <button style={btnSmallDanger} onClick={() => onLifecycle(point)}>
+              Deactivate
+            </button>
+          ) : (
+            <button
+              style={{
+                ...btnSmall,
+                color: "var(--io-success)",
+                borderColor: "var(--io-success)",
+              }}
+              onClick={() => onLifecycle(point)}
+            >
+              Reactivate
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main PointManagement page
 // ---------------------------------------------------------------------------
 
@@ -1385,6 +1549,14 @@ export default function PointManagement() {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const { menuState, handleContextMenu, closeMenu } =
     useContextMenu<PointConfig>();
+
+  // Clipboard: selection zone + paste target
+  useSelectionZone({
+    zoneId: "settings-points",
+    indicatorStyle: "soft-glow",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(settingsPasteTarget);
 
   // Build query params
   const queryParams = useMemo(() => {
@@ -1738,135 +1910,19 @@ export default function PointManagement() {
                     </td>
                   </tr>
                 )}
-                {points.map((point, i) => {
-                  const selected = selectedIds.has(point.id);
-                  return (
-                    <tr
-                      key={point.id}
-                      onContextMenu={(e) => handleContextMenu(e, point)}
-                      style={{
-                        borderBottom:
-                          i < points.length - 1
-                            ? "1px solid var(--io-border-subtle)"
-                            : undefined,
-                        background: selected
-                          ? "rgba(var(--io-accent-rgb, 234,179,8),0.05)"
-                          : undefined,
-                        cursor: "context-menu",
-                      }}
-                    >
-                      {/* Checkbox */}
-                      <td
-                        style={{
-                          ...tdStyle,
-                          width: "40px",
-                          paddingRight: "4px",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleSelect(point.id)}
-                          style={{
-                            accentColor: "var(--io-accent)",
-                            cursor: "pointer",
-                          }}
-                        />
-                      </td>
-
-                      {/* Tag name */}
-                      <td style={tdStyle}>
-                        <div
-                          style={{
-                            fontWeight: 500,
-                            color: "var(--io-text-primary)",
-                            fontSize: "12px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {point.tagname}
-                        </div>
-                        {point.display_name &&
-                          point.display_name !== point.tagname && (
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                color: "var(--io-text-muted)",
-                                marginTop: "1px",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {point.display_name}
-                            </div>
-                          )}
-                      </td>
-
-                      {/* Source */}
-                      <td style={tdStyle}>
-                        <span style={{ fontSize: "12px" }}>
-                          {point.source_name ?? "—"}
-                        </span>
-                      </td>
-
-                      {/* Area */}
-                      <td style={tdStyle}>
-                        <span style={{ fontSize: "12px" }}>
-                          {point.area ?? "—"}
-                        </span>
-                      </td>
-
-                      {/* Criticality */}
-                      <td style={tdStyle}>
-                        <CriticalityBadge value={point.criticality} />
-                      </td>
-
-                      {/* Active */}
-                      <td style={tdStyle}>
-                        <ActiveBadge active={point.active} />
-                      </td>
-
-                      {/* Aggregation */}
-                      <td style={tdStyle}>
-                        <AggBadges mask={point.aggregation_types} />
-                      </td>
-
-                      {/* Actions */}
-                      <td style={tdStyle}>
-                        <div style={{ display: "flex", gap: "5px" }}>
-                          <button
-                            style={btnSmall}
-                            onClick={() => openConfig(point)}
-                          >
-                            Configure
-                          </button>
-                          {point.active ? (
-                            <button
-                              style={btnSmallDanger}
-                              onClick={() => openLifecycle(point)}
-                            >
-                              Deactivate
-                            </button>
-                          ) : (
-                            <button
-                              style={{
-                                ...btnSmall,
-                                color: "var(--io-success)",
-                                borderColor: "var(--io-success)",
-                              }}
-                              onClick={() => openLifecycle(point)}
-                            >
-                              Reactivate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {points.map((point, i) => (
+                  <PointTableRow
+                    key={point.id}
+                    point={point}
+                    index={i}
+                    totalPoints={points.length}
+                    checkboxSelected={selectedIds.has(point.id)}
+                    onToggleCheckbox={toggleSelect}
+                    onContextMenu={handleContextMenu}
+                    onConfigure={openConfig}
+                    onLifecycle={openLifecycle}
+                  />
+                ))}
               </tbody>
             )}
           </table>
@@ -1944,7 +2000,16 @@ export default function PointManagement() {
           y={menuState.y}
           items={[
             {
+              label: "Copy",
+              shortcut: "Ctrl+C",
+              onClick: () => {
+                closeMenu();
+                void copySettingsPointsSelection();
+              },
+            },
+            {
               label: "Configure",
+              divider: true,
               permission: "points:configure",
               onClick: () => {
                 setConfigPoint(menuState.data!);

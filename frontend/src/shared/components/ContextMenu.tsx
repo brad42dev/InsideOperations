@@ -174,6 +174,7 @@ export default function ContextMenu({
         animation: "io-context-menu-in 0.08s ease",
       }}
       onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
       {visibleItems.map((item, idx) => (

@@ -181,6 +181,16 @@ export interface DisplayElementRenderContext {
   discreteLabel?: string | null;
   /** Offset from parent SymbolInstance origin (for signal lines) */
   parentOffset?: { x: number; y: number };
+  /** Point category from metadata — used by digital_status to detect analog misuse */
+  pointCategory?: "analog" | "boolean" | "discrete_enum";
+  /**
+   * Parent SymbolInstance scale.x — used by digital_status and point_name_label
+   * to correct horizontal centering at non-unity scale without a data migration.
+   * Stored positions are (slotCenter - canonicalW/2); renderer adds canonicalW/2 * parentScaleX
+   * so the visual centre lands at slotCenter * parentScaleX regardless of scale.
+   * Omit (or pass 1) for interior sidecars and standalone display elements.
+   */
+  parentScaleX?: number;
   /** Vessel interior clip path (for fill_gauge vessel_overlay mode) */
   vesselInteriorPath?: string;
   /** Sparkline history buffer */
@@ -554,18 +564,27 @@ export function renderDigitalStatusSvg(
   const deTransform = ctx.transform;
   const parentOffset = ctx.parentOffset;
 
+  const isAnalogMismatch = ctx.pvKey != null && ctx.pointCategory === "analog";
+
   const rawVal =
     pv?.value !== undefined && pv.value !== null ? String(pv.value) : null;
-  const label =
-    rawVal !== null
+  const label = isAnalogMismatch
+    ? "ANALOG"
+    : rawVal !== null
       ? (cfg.stateLabels[rawVal] ?? ctx.discreteLabel ?? rawVal)
       : "---";
-  const isNormal = rawVal === null || cfg.normalStates.includes(rawVal);
-  const fill = isNormal
-    ? DE_COLORS.displayZoneInactive
-    : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
-  const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary;
+  const isNormal = !isAnalogMismatch && (rawVal === null || cfg.normalStates.includes(rawVal));
+  const fill = isAnalogMismatch
+    ? "#7F1D1D"
+    : isNormal
+      ? DE_COLORS.displayZoneInactive
+      : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
+  const textColor = isAnalogMismatch ? "#FCA5A5" : isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary;
   const w = Math.max(40, label.length * 7.5 + 12);
+  // pos.x stores slotCenter - 20 (canonical w/2). After counter-scale, group origin
+  // is (slotCenter - 20) * scale canvas px from shape origin. Adding 20 * scale centres
+  // the element at slotCenter * scale at any parent scale.
+  const cx = 20 * (ctx.parentScaleX ?? 1);
 
   return (
     <g
@@ -581,7 +600,7 @@ export function renderDigitalStatusSvg(
     >
       <rect
         data-role="bg"
-        x={0}
+        x={cx - w / 2}
         y={0}
         width={w}
         height={22}
@@ -590,7 +609,7 @@ export function renderDigitalStatusSvg(
       />
       <text
         data-role="value"
-        x={w / 2}
+        x={cx}
         y={11}
         textAnchor="middle"
         dominantBaseline="central"
@@ -608,7 +627,7 @@ export function renderDigitalStatusSvg(
           const ey = -parentOffset.y;
           return (
             <line
-              x1={0}
+              x1={cx}
               y1={h / 2}
               x2={ex}
               y2={ey}
@@ -1399,12 +1418,13 @@ export function renderPointNameLabelSvg(
       data-display-type="point_name_label"
     >
       <text
-        x={0}
+        x={40 * (ctx.parentScaleX ?? 1)}
         y={0}
         fontFamily="Inter"
         fontSize={9}
         fill={cfg.style === "uniform" ? UNIT_COLOR : TAG_COLOR}
         fontWeight={cfg.fontWeight ?? "normal"}
+        textAnchor="middle"
         dominantBaseline="hanging"
         style={{ pointerEvents: "none" }}
       >

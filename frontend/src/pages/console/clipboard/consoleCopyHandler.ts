@@ -10,6 +10,36 @@ import type { PaneConfig } from "@/pages/console/types";
 import type { SelectionZoneId } from "@/shared/clipboard";
 import type { SceneNode, GraphicExpression } from "@/shared/types/graphics";
 
+/**
+ * Copy a single pane config to the universal clipboard, including scene nodes
+ * for graphic panes. Used by the PaneWrapper context menu to match the full
+ * fidelity of the keyboard shortcut path (which goes through copyConsoleActiveZone).
+ */
+export async function copySingleConsolePane(config: PaneConfig): Promise<void> {
+  let nodes: SceneNode[] | undefined;
+  let expressions: Record<string, GraphicExpression> | undefined;
+  if (config.type === "graphic" && config.graphicId) {
+    try {
+      const res = await graphicsApi.get(config.graphicId);
+      if (res.success) {
+        nodes = res.data.scene_data?.children ?? [];
+        expressions = res.data.scene_data?.expressions ?? {};
+      }
+    } catch {
+      // non-fatal — fall back to pane-only payload
+    }
+  }
+  const payload = buildIOClipboardPayload({
+    originContext: "console-pane",
+    contents: {
+      paneConfigs: [JSON.parse(JSON.stringify(config))],
+      ...(nodes ? { nodes, expressions } : {}),
+      textRepresentation: config.title ?? config.id,
+    },
+  });
+  await useIOClipboardStore.getState().writeToClipboard(payload);
+}
+
 export async function copyConsoleActiveZone(zoneId: string): Promise<void> {
   const selected = useGlobalSelectionStore
     .getState()

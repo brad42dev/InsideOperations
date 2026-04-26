@@ -12,6 +12,10 @@ import { type ChartConfig, makeSlotLabeler } from "../chart-config-types";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
 import { usePointMeta } from "../../../../shared/hooks/usePointMeta";
+import {
+  buildIOClipboardPayload,
+  useIOClipboardStore,
+} from "../../../clipboard";
 
 interface RendererProps {
   config: ChartConfig;
@@ -361,7 +365,12 @@ export default function StateTimelineChart({ config }: RendererProps) {
               onClick: () => {
                 setMenuPos(null);
                 if (menuPos.rowLabel)
-                  void navigator.clipboard.writeText(menuPos.rowLabel);
+                  void useIOClipboardStore.getState().writeToClipboard(
+                    buildIOClipboardPayload({
+                      originContext: "chart",
+                      contents: { textRepresentation: menuPos.rowLabel },
+                    }),
+                  );
               },
               disabled: !menuPos.rowLabel,
             },

@@ -31,6 +31,13 @@ import ProcessMinimap from "./ProcessMinimap";
 import ProcessSidebar from "./ProcessSidebar";
 import type { ViewportBookmark } from "./ProcessSidebar";
 import { useUserPreference } from "../../shared/hooks/useUserPreference";
+import { useSelectionZone } from "../../store/useSelectionZone";
+import { usePasteTarget } from "../../shared/clipboard";
+import { copyProcessSelection } from "./clipboard/processCopyHandler";
+import { processPasteTarget } from "./clipboard/processPasteTarget";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+import { useNodeMarquee } from "../../shared/hooks/useNodeMarquee";
+import { useNodeClick } from "../../shared/hooks/useNodeClick";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -567,6 +574,15 @@ export default function ProcessPage() {
   const [searchParams] = useSearchParams();
   const { isKiosk, setKiosk } = useUiStore();
 
+  // ---- Clipboard: selection zone + paste target ----------------------------
+
+  useSelectionZone({
+    zoneId: "process",
+    indicatorStyle: "soft-glow",
+    supportsSelectAll: false,
+  });
+  usePasteTarget(processPasteTarget);
+
   // ---- Kiosk mode -----------------------------------------------------------
 
   const kioskExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -694,6 +710,47 @@ export default function ProcessPage() {
       return null;
     },
     enabled: !!selectedId,
+  });
+
+  // ---- Node selection (Mode A) ----------------------------------------------
+
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, SceneNode>();
+    function walk(node: SceneNode) {
+      map.set(node.id, node);
+      if ("children" in node && Array.isArray((node as unknown as { children: SceneNode[] }).children)) {
+        for (const child of (node as unknown as { children: SceneNode[] }).children) walk(child);
+      }
+    }
+    for (const node of graphic?.scene_data?.children ?? []) walk(node as SceneNode);
+    return map;
+  }, [graphic?.scene_data]);
+
+  const selectionStore = useGlobalSelectionStore();
+
+  const marquee = useNodeMarquee({
+    containerRef,
+    onSelect(nodeIds) {
+      selectionStore.selectMany(
+        "process",
+        nodeIds.map((id) => ({ id, zoneId: "process" as const, kind: "scene-node" as const, payload: nodeMap.get(id) })),
+        "replace",
+      );
+    },
+  });
+
+  const { handleClick: handleNodeClick } = useNodeClick({
+    containerRef,
+    onHit(hit, additive) {
+      selectionStore.select(
+        "process",
+        { id: hit.nodeId, zoneId: "process", kind: "scene-node", payload: nodeMap.get(hit.nodeId) },
+        additive ? "toggle" : "replace",
+      );
+    },
+    onMiss() {
+      selectionStore.clearZone("process");
+    },
   });
 
   // ---- Viewport bookmarks ---------------------------------------------------
@@ -978,13 +1035,14 @@ export default function ProcessPage() {
       }
     }
     // Middle-click, Alt+left-click, or left-click on background canvas (not interactive elements)
+    // Shift+left-click on background is reserved for marquee selection — don't pan.
     const target = e.target as HTMLElement;
     const isBackground =
       target === containerRef.current || target.tagName === "DIV";
     if (
       e.button !== 1 &&
       !(e.button === 0 && e.altKey) &&
-      !(e.button === 0 && isBackground)
+      !(e.button === 0 && isBackground && !e.shiftKey)
     )
       return;
     isPanning.current = true;
@@ -1786,14 +1844,47 @@ export default function ProcessPage() {
             ref={containerRef}
             style={{ flex: 1, position: "relative", overflow: "hidden" }}
             onWheel={handleWheel}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
+            onPointerDown={(e) => {
+              if (e.shiftKey && e.button === 0) marquee.onPointerDown(e);
+              else handlePointerDown(e);
+            }}
+            onPointerMove={(e) => {
+              marquee.onPointerMove(e);
+              handlePointerMove(e);
+            }}
+            onPointerUp={(e) => {
+              marquee.onPointerUp(e);
+              handlePointerUp(e);
+            }}
+            onPointerCancel={(e) => {
+              marquee.onPointerCancel(e);
+              handlePointerUp(e);
+            }}
             onPointerLeave={handlePointerUp}
             onMouseMove={handleContainerMouseMove}
             onMouseLeave={handleContainerMouseLeave}
             onContextMenu={handleContainerContextMenu}
+            onClick={(e) => {
+              if (marquee.consumeClick()) return;
+              handleNodeClick(e);
+            }}
           >
+            {/* Marquee selection overlay */}
+            {marquee.marqueeRect && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: marquee.marqueeRect.x,
+                  top: marquee.marqueeRect.y,
+                  width: marquee.marqueeRect.w,
+                  height: marquee.marqueeRect.h,
+                  border: "1px solid var(--io-accent)",
+                  background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+                  pointerEvents: "none",
+                  zIndex: 10,
+                }}
+              />
+            )}
             {/* Empty state */}
             {!selectedId && (
               <div
@@ -2073,7 +2164,16 @@ export default function ProcessPage() {
               onClose={() => setCanvasCtxMenu(null)}
               items={[
                 {
+                  label: "Copy",
+                  shortcut: "Ctrl+C",
+                  onClick: () => {
+                    setCanvasCtxMenu(null);
+                    void copyProcessSelection();
+                  },
+                },
+                {
                   label: "Zoom to Fit",
+                  divider: true,
                   onClick: () => {
                     zoomFit();
                     setCanvasCtxMenu(null);

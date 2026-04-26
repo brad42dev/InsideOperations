@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,12 +10,14 @@ import {
 import { useAuthStore } from "../../store/auth";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
+import { useSelectableItem } from "../../shared/clipboard";
 import { ExportButton } from "../../shared/components/ExportDialog";
 import { SkeletonBlock } from "../../shared/components/Skeleton";
 import { useSelectionZone } from "../../store/useSelectionZone";
 import { usePasteTarget } from "../../shared/clipboard";
 import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { logPasteTarget } from "./clipboard/logPasteTarget";
+import { copyLogSelection } from "./clipboard/logCopyHandler";
 
 // ---------------------------------------------------------------------------
 // Skeleton loading states (CX-LOADING)
@@ -208,25 +210,44 @@ function InstanceCard({
   const date = new Date(instance.created_at).toLocaleDateString();
   const { menuState, handleContextMenu, closeMenu } =
     useContextMenu<LogInstance>();
+  const { onMouseDown, isSelected } = useSelectableItem({
+    zoneId: "logbook",
+    entity: {
+      id: instance.id,
+      zoneId: "logbook",
+      kind: "log-entry",
+      payload: {
+        id: instance.id,
+        timestamp: instance.created_at,
+        tagname: instance.template_name ?? instance.id,
+        value: null,
+      },
+    },
+    interactive: true,
+    onInteractiveClick: () => onClick(),
+  });
   return (
     <div
-      onClick={onClick}
+      onMouseDown={onMouseDown}
       style={{
         background: "var(--io-surface)",
-        border: "1px solid var(--io-border)",
+        border: `1px solid ${isSelected ? "var(--io-accent)" : "var(--io-border)"}`,
         borderRadius: "8px",
         padding: "16px",
         cursor: "pointer",
         transition: "border-color 0.15s",
+        outline: isSelected ? "1px solid var(--io-accent)" : undefined,
       }}
       onContextMenu={(e) => handleContextMenu(e, instance)}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor =
-          "var(--io-accent)";
+        if (!isSelected)
+          (e.currentTarget as HTMLDivElement).style.borderColor =
+            "var(--io-accent)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor =
-          "var(--io-border)";
+        if (!isSelected)
+          (e.currentTarget as HTMLDivElement).style.borderColor =
+            "var(--io-border)";
       }}
     >
       <div
@@ -260,6 +281,13 @@ function InstanceCard({
           x={menuState.x}
           y={menuState.y}
           items={[
+            {
+              label: "Copy",
+              onClick: () => {
+                closeMenu();
+                void copyLogSelection();
+              },
+            },
             {
               label: "View",
               onClick: () => {
@@ -692,6 +720,20 @@ export default function LogPage() {
     supportsSelectAll: false,
   });
   usePasteTarget(logPasteTarget);
+
+  useEffect(() => {
+    function handler(e: Event) {
+      const { tagnames } = (
+        e as CustomEvent<{ tagnames: string[] }>
+      ).detail;
+      const query = tagnames.join(" ");
+      setSearchQuery(query);
+      setSearchSubmitted(true);
+      setTab("active");
+    }
+    window.addEventListener("io-navigate:logbook", handler);
+    return () => window.removeEventListener("io-navigate:logbook", handler);
+  }, []);
 
   const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
 

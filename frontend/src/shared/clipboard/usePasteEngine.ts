@@ -4,7 +4,44 @@ import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { findTargetForZone, pickDefaultMode } from "./pasteTargetRegistry";
 import { createTextFieldTarget } from "./targets/textFieldTarget";
 import { showToast } from "../components/Toast";
-import type { PasteMode } from "./types";
+import type { IOClipboardPayload, PasteMode } from "./types";
+
+function describePaste(payload: IOClipboardPayload): string {
+  const c = payload.contents;
+  const parts: string[] = [];
+  const n = (count: number, singular: string, plural: string) =>
+    `${count} ${count === 1 ? singular : plural}`;
+  if (c.nodes?.length) parts.push(n(c.nodes.length, "shape", "shapes"));
+  if (c.points?.length) parts.push(n(c.points.length, "point", "points"));
+  if (c.paneConfigs?.length) parts.push(n(c.paneConfigs.length, "pane", "panes"));
+  if (c.alarms?.length) parts.push(n(c.alarms.length, "alarm", "alarms"));
+  if (c.logEntries?.length) parts.push(n(c.logEntries.length, "log entry", "log entries"));
+  if (c.tableRows?.length) parts.push(n(c.tableRows.length, "row", "rows"));
+  if (c.expressionTiles?.length) parts.push(n(c.expressionTiles.length, "expression tile", "expression tiles"));
+  return parts.length > 0 ? parts.join(", ") : "clipboard contents";
+}
+
+async function applyAndToast(
+  apply: () => void | Promise<void>,
+  payload: IOClipboardPayload,
+): Promise<boolean> {
+  try {
+    await apply();
+    showToast({
+      title: "Pasted",
+      description: describePaste(payload),
+      variant: "success",
+    });
+    return true;
+  } catch (err) {
+    showToast({
+      title: "Paste failed",
+      description: err instanceof Error ? err.message : "Unknown error",
+      variant: "error",
+    });
+    return false;
+  }
+}
 
 function isEditableElement(el: Element | null): boolean {
   if (!el) return false;
@@ -29,8 +66,7 @@ export function usePasteEngine() {
       if (target) {
         const mode = pickDefaultMode(target, payload);
         if (mode) {
-          await target.applyPaste(payload, mode);
-          return true;
+          return applyAndToast(() => target.applyPaste(payload, mode), payload);
         }
       }
     }
@@ -39,8 +75,10 @@ export function usePasteEngine() {
       payload.contents.textRepresentation &&
       isEditableElement(document.activeElement)
     ) {
-      await createTextFieldTarget().applyPaste(payload, "text");
-      return true;
+      return applyAndToast(
+        () => createTextFieldTarget().applyPaste(payload, "text"),
+        payload,
+      );
     }
     return false;
   }, [read]);
@@ -61,8 +99,7 @@ export function usePasteEngine() {
       if (target) {
         const mode = pickDefaultMode(target, payload);
         if (mode) {
-          await target.applyPaste(payload, mode);
-          return true;
+          return applyAndToast(() => target.applyPaste(payload, mode), payload);
         }
       }
     }
@@ -70,8 +107,10 @@ export function usePasteEngine() {
       payload.contents.textRepresentation &&
       isEditableElement(document.activeElement)
     ) {
-      await createTextFieldTarget().applyPaste(payload, "text");
-      return true;
+      return applyAndToast(
+        () => createTextFieldTarget().applyPaste(payload, "text"),
+        payload,
+      );
     }
     return false;
   }, [getPrevious]);
@@ -86,8 +125,7 @@ export function usePasteEngine() {
       if (!zoneId || !payload) return false;
       const target = findTargetForZone(zoneId);
       if (target && target.accepts(payload).includes(mode)) {
-        await target.applyPaste(payload, mode);
-        return true;
+        return applyAndToast(() => target.applyPaste(payload, mode), payload);
       }
       // Text-field fallback for explicit text paste
       if (
@@ -95,8 +133,10 @@ export function usePasteEngine() {
         payload.contents.textRepresentation &&
         isEditableElement(document.activeElement)
       ) {
-        await createTextFieldTarget().applyPaste(payload, "text");
-        return true;
+        return applyAndToast(
+          () => createTextFieldTarget().applyPaste(payload, "text"),
+          payload,
+        );
       }
       return false;
     },

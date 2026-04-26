@@ -52,12 +52,12 @@ export const SIDECAR_CANONICAL_SIZE: Record<
 
 export const SIDECAR_PRIORITY: Record<SidecarKey, number> = {
   AlarmIndicator: 0,
-  DigitalStatus: 1,
-  TextReadout: 2,
+  TextReadout: 1,
+  DigitalStatus: 2,
   PointNameLabel: 3,
   FillGauge: 4,
-  Sparkline: 5,
-  AnalogBar: 6,
+  AnalogBar: 5,
+  Sparkline: 6,
 };
 
 // ─── Layout-relevant config fields ────────────────────────────────────────────
@@ -111,10 +111,14 @@ export function dePixelSize(
  * placement path (DesignerCanvas) and the preview (CategoryShapeWizard).
  *
  * Rendering anchors per type:
- *   alarm_indicator — centre-anchored; no offset needed.
- *   text_readout    — renderTextReadoutSvg applies translate(-w/2, 0), so pos.x
- *                     is the horizontal centre; only y and left-slot x adjusted.
- *   all others      — top-left anchored.
+ *   alarm_indicator  — centre-anchored; no offset needed.
+ *   text_readout     — renderTextReadoutSvg applies translate(-w/2, 0), so pos.x
+ *                      is the horizontal centre; only y and left-slot x adjusted.
+ *   digital_status   — top-left anchored storage (pos.x = slotCenter - canonicalW/2).
+ *                      Renderer corrects with x = canonicalW/2 * parentScaleX so the
+ *                      element stays centred at any scale without a data migration.
+ *   point_name_label — same pattern as digital_status.
+ *   all others       — top-left anchored.
  */
 export function applyDeSlotOffset(
   dt: DisplayElementType,
@@ -166,6 +170,7 @@ export function applyDeSlotOffset(
     }
     case "digital_status": {
       const { w, h } = SIDECAR_CANONICAL_SIZE.DigitalStatus;
+      // top-left anchored storage; renderer compensates using parentScaleX
       if (isHoriz) x -= w / 2;
       if (isTop) y -= h;
       if (isVert) y -= h / 2;
@@ -174,6 +179,7 @@ export function applyDeSlotOffset(
     }
     case "point_name_label": {
       const { w, h } = SIDECAR_CANONICAL_SIZE.PointNameLabel;
+      // top-left anchored storage; renderer compensates using parentScaleX
       if (isHoriz) x -= w / 2;
       if (isTop) y -= h;
       if (isVert) y -= h / 2;

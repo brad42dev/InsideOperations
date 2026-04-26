@@ -14,6 +14,10 @@ import { useContextMenu } from "../../../hooks/useContextMenu";
 import ContextMenu from "../../ContextMenu";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
+import {
+  buildIOClipboardPayload,
+  useIOClipboardStore,
+} from "../../../clipboard";
 
 interface RendererProps {
   config: ChartConfig;
@@ -415,8 +419,13 @@ export default function ScorecardTableChart({ config }: RendererProps) {
               label: "Copy Period",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(
-                  menuState.data?.period ?? "",
+                void useIOClipboardStore.getState().writeToClipboard(
+                  buildIOClipboardPayload({
+                    originContext: "chart",
+                    contents: {
+                      textRepresentation: menuState.data?.period ?? "",
+                    },
+                  }),
                 );
               },
             },
@@ -424,7 +433,14 @@ export default function ScorecardTableChart({ config }: RendererProps) {
               label: "Copy Values",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(menuState.data?.value ?? "");
+                void useIOClipboardStore.getState().writeToClipboard(
+                  buildIOClipboardPayload({
+                    originContext: "chart",
+                    contents: {
+                      textRepresentation: menuState.data?.value ?? "",
+                    },
+                  }),
+                );
               },
             },
           ]}

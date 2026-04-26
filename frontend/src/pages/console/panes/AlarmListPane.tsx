@@ -1,8 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../api/client";
 import { useWebSocket } from "../../../shared/hooks/useWebSocket";
 import type { PaneConfig } from "../types";
+import { useSelectableItem } from "../../../shared/clipboard";
+import type { SelectionZoneId } from "../../../shared/clipboard";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +87,113 @@ function StateBadge({ state }: { state: AlarmRow["state"] }) {
           ? "Unack"
           : "Acked"}
     </span>
+  );
+}
+
+// ─── Selectable row sub-component ───────────────────────────────────────────
+
+function AlarmRowItem({
+  alarm,
+  paneZoneId,
+  onAcknowledge,
+  isPending,
+}: {
+  alarm: AlarmRow;
+  paneZoneId: SelectionZoneId;
+  onAcknowledge: (id: string, e: React.MouseEvent) => void;
+  isPending: boolean;
+}) {
+  const entity = useMemo(
+    () => ({
+      id: alarm.id,
+      zoneId: paneZoneId,
+      kind: "alarm-row" as const,
+      payload: {
+        tagname: alarm.tag,
+        severity: alarm.priority,
+        title: alarm.message,
+      },
+    }),
+    [alarm.id, alarm.tag, alarm.priority, alarm.message, paneZoneId],
+  );
+
+  const { onMouseDown, isSelected } = useSelectableItem({
+    zoneId: paneZoneId,
+    entity,
+    interactive: true,
+    onInteractiveClick: () => {},
+  });
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "60px 90px 1fr 80px 90px 70px",
+        padding: "0 10px",
+        height: 38,
+        alignItems: "center",
+        borderBottom: "1px solid var(--io-border)",
+        fontSize: 12,
+        color: "var(--io-text-primary)",
+        background: isSelected
+          ? "var(--io-accent-subtle)"
+          : alarm.state === "active"
+            ? "rgba(239,68,68,0.04)"
+            : "transparent",
+        outline: isSelected ? "1px solid var(--io-accent)" : undefined,
+        cursor: "default",
+      }}
+    >
+      <span>
+        <PriorityBadge priority={alarm.priority} />
+      </span>
+      <span style={{ fontFamily: "monospace", fontSize: 12 }}>
+        {alarm.tag}
+      </span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          paddingRight: 8,
+        }}
+      >
+        {alarm.message}
+      </span>
+      <span
+        style={{
+          fontFamily: "monospace",
+          fontSize: 11,
+          color: "var(--io-text-muted)",
+        }}
+      >
+        {alarm.time}
+      </span>
+      <span>
+        <StateBadge state={alarm.state} />
+      </span>
+      <span>
+        {alarm.state !== "acknowledged" && (
+          <button
+            onClick={(e) => onAcknowledge(alarm.id, e)}
+            disabled={isPending}
+            style={{
+              padding: "2px 7px",
+              fontSize: 10,
+              border: "1px solid var(--io-border)",
+              borderRadius: 3,
+              background: "transparent",
+              color: "var(--io-text-muted)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Ack
+          </button>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -284,72 +393,13 @@ export default function AlarmListPane({ config }: AlarmListPaneProps) {
           </div>
         )}
         {filtered.map((alarm) => (
-          <div
+          <AlarmRowItem
             key={alarm.id}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "60px 90px 1fr 80px 90px 70px",
-              padding: "0 10px",
-              height: 38,
-              alignItems: "center",
-              borderBottom: "1px solid var(--io-border)",
-              fontSize: 12,
-              color: "var(--io-text-primary)",
-              background:
-                alarm.state === "active"
-                  ? "rgba(239,68,68,0.04)"
-                  : "transparent",
-            }}
-          >
-            <span>
-              <PriorityBadge priority={alarm.priority} />
-            </span>
-            <span style={{ fontFamily: "monospace", fontSize: 12 }}>
-              {alarm.tag}
-            </span>
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                paddingRight: 8,
-              }}
-            >
-              {alarm.message}
-            </span>
-            <span
-              style={{
-                fontFamily: "monospace",
-                fontSize: 11,
-                color: "var(--io-text-muted)",
-              }}
-            >
-              {alarm.time}
-            </span>
-            <span>
-              <StateBadge state={alarm.state} />
-            </span>
-            <span>
-              {alarm.state !== "acknowledged" && (
-                <button
-                  onClick={(e) => handleAcknowledge(alarm.id, e)}
-                  disabled={ackMutation.isPending}
-                  style={{
-                    padding: "2px 7px",
-                    fontSize: 10,
-                    border: "1px solid var(--io-border)",
-                    borderRadius: 3,
-                    background: "transparent",
-                    color: "var(--io-text-muted)",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Ack
-                </button>
-              )}
-            </span>
-          </div>
+            alarm={alarm}
+            paneZoneId={`console/pane/${config.id}` as SelectionZoneId}
+            onAcknowledge={handleAcknowledge}
+            isPending={ackMutation.isPending}
+          />
         ))}
       </div>
     </div>

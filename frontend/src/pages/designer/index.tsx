@@ -2162,6 +2162,54 @@ export default function DesignerPage() {
   }, [requestCloseTab, switchToTab]);
 
   // -------------------------------------------------------------------------
+  // Paste → new graphic: create a blank document then enter place mode with
+  // the clipboard nodes, so the user can position them in the new scene.
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    function handler(e: Event) {
+      const payload = (e as CustomEvent).detail;
+      if (!payload) return;
+
+      const outgoingTabId = useTabStore.getState().activeTabId;
+      if (outgoingTabId) {
+        const currentDoc = useSceneStore.getState().doc;
+        if (currentDoc) tabStoreSaveScene(outgoingTabId, currentDoc);
+        tabStoreSaveViewport(outgoingTabId, useUiStore.getState().viewport);
+      }
+
+      newDocument("graphic", "Untitled", 1920, 1080, false, "console");
+      historyClear();
+      tabStoreOpenTab("new-" + crypto.randomUUID(), "Untitled");
+
+      const nodes = payload.contents?.nodes ?? [];
+      const expressions = payload.contents?.expressions ?? {};
+      if (nodes.length > 0) {
+        requestAnimationFrame(() => {
+          document.dispatchEvent(
+            new CustomEvent("io-designer:enter-place-mode", {
+              detail: { nodes, expressions },
+            }),
+          );
+        });
+      }
+    }
+
+    window.addEventListener("io-designer:new-graphic-from-clipboard", handler);
+    return () =>
+      window.removeEventListener(
+        "io-designer:new-graphic-from-clipboard",
+        handler,
+      );
+  }, [
+    newDocument,
+    historyClear,
+    tabStoreOpenTab,
+    tabStoreSaveScene,
+    tabStoreSaveViewport,
+  ]);
+
+  // -------------------------------------------------------------------------
   // Auto-save — server-backed with IDB fallback and undo history persistence
   //
   // Architecture:

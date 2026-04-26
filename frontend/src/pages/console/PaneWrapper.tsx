@@ -12,6 +12,24 @@ import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from "./ConsolePalette";
 import { graphicsApi } from "../../api/graphics";
 import { usePermission } from "../../shared/hooks/usePermission";
 import type { PaneConfig } from "./types";
+import {
+  useIOClipboardStore,
+  usePasteEngine,
+  findTargetForZone,
+} from "../../shared/clipboard";
+import { copySingleConsolePane } from "./clipboard/consoleCopyHandler";
+import type { SelectionZoneId, PasteMode } from "../../shared/clipboard";
+import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
+
+const PASTE_AS_ORDER: { mode: PasteMode; label: string }[] = [
+  { mode: "points", label: "Points" },
+  { mode: "shapes", label: "Shapes" },
+  { mode: "style", label: "Style" },
+  { mode: "table", label: "Table" },
+  { mode: "text", label: "Text" },
+  { mode: "new-graphic", label: "New Graphic" },
+  { mode: "temporary-graphic", label: "Temporary Graphic" },
+];
 
 export interface PaneWrapperProps {
   config: PaneConfig;
@@ -155,7 +173,7 @@ export default function PaneWrapper({
   onSelect,
   onPaletteDrop,
   preserveAspectRatio = true,
-  onCopy,
+  onCopy: _onCopy,
   onDuplicate,
   onZoomToFit,
   onResetZoom,
@@ -171,6 +189,13 @@ export default function PaneWrapper({
   const navigate = useNavigate();
   const canExportGraphic = usePermission("designer:export");
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type;
+  const { pasteDefault, pasteAs } = usePasteEngine();
+  const clipboardCurrent = useIOClipboardStore((s) => s.current);
+  const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+  const paneZoneId = `console/pane/${config.id}` as SelectionZoneId;
+  const pasteTarget = findTargetForZone(paneZoneId);
+  const availableModes =
+    pasteTarget && clipboardCurrent ? pasteTarget.accepts(clipboardCurrent) : [];
   const containerRef = useRef<HTMLDivElement>(null);
   const [paneCtxMenu, setPaneCtxMenu] = useState<{
     x: number;
@@ -328,9 +353,11 @@ export default function PaneWrapper({
               ? "2px dashed var(--io-accent)"
               : isSelected
                 ? "2px solid var(--io-accent)"
-                : hovered
-                  ? "1px solid var(--io-border)"
-                  : "1px solid transparent",
+                : hovered && availableModes.length > 0
+                  ? "1px dashed var(--io-accent)"
+                  : hovered
+                    ? "1px solid var(--io-border)"
+                    : "1px solid transparent",
         borderRadius: 4,
         overflow: "hidden",
         boxSizing: "border-box",
@@ -762,7 +789,47 @@ export default function PaneWrapper({
           onClose={() => setPaneCtxMenu(null)}
           items={[
             {
+              label: "Cut",
+              shortcut: "Ctrl+X",
+              onClick: () => {
+                setPaneCtxMenu(null);
+                void copySingleConsolePane(config).then(() =>
+                  onRemove(config.id),
+                );
+              },
+            },
+            {
+              label: "Copy",
+              shortcut: "Ctrl+C",
+              onClick: () => {
+                setPaneCtxMenu(null);
+                void copySingleConsolePane(config);
+              },
+            },
+            {
+              label: "Paste",
+              shortcut: "Ctrl+V",
+              disabled: availableModes.length === 0,
+              onClick: () => {
+                setActiveZone(paneZoneId);
+                void pasteDefault();
+              },
+            },
+            {
+              label: "Paste as…",
+              disabled: availableModes.length === 0,
+              children: PASTE_AS_ORDER.map(({ mode, label }) => ({
+                label,
+                disabled: !availableModes.includes(mode),
+                onClick: () => {
+                  setActiveZone(paneZoneId);
+                  void pasteAs(mode, "current");
+                },
+              })),
+            },
+            {
               label: isFullscreen ? "Exit Full Screen" : "Full Screen",
+              divider: true,
               onClick: () => handleToggleMaximize(),
             },
             ...(workspaceId
@@ -780,16 +847,6 @@ export default function PaneWrapper({
                   },
                 ]
               : []),
-            {
-              label: "Copy",
-              onClick: () => {
-                if (onCopy) {
-                  onCopy({ ...config });
-                } else {
-                  console.log("[Console] Copy pane", config.id);
-                }
-              },
-            },
             {
               label: "Duplicate",
               onClick: () => {

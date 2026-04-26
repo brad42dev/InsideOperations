@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Routes,
@@ -12,9 +12,12 @@ import ReportConfigPanel from "./ReportConfigPanel";
 import ReportHistory from "./ReportHistory";
 import ReportSchedules from "./ReportSchedules";
 import { useSelectionZone } from "../../store/useSelectionZone";
-import { usePasteTarget } from "../../shared/clipboard";
+import { usePasteTarget, useSelectableItem } from "../../shared/clipboard";
 import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { reportsPasteTarget } from "./clipboard/reportsPasteTarget";
+import { copyReportsSelection } from "./clipboard/reportsCopyHandler";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import ContextMenu from "../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Category filter options
@@ -46,27 +49,43 @@ function TemplateCard({
   selected: boolean;
   onClick: () => void;
 }) {
+  const { menuState, handleContextMenu, closeMenu } =
+    useContextMenu<ReportTemplate>();
+  const { onMouseDown, isSelected: isZoneSelected } = useSelectableItem({
+    zoneId: "reports",
+    entity: {
+      id: template.id,
+      zoneId: "reports",
+      kind: "table-row",
+      payload: { name: template.name, id: template.id },
+    },
+    interactive: true,
+    onInteractiveClick: () => onClick(),
+  });
+  const isHighlighted = selected || isZoneSelected;
   return (
+    <>
     <div
-      onClick={onClick}
+      onMouseDown={onMouseDown}
+      onContextMenu={(e) => handleContextMenu(e, template)}
       style={{
-        background: selected
+        background: isHighlighted
           ? "var(--io-accent-subtle)"
           : "var(--io-surface-elevated)",
-        border: `1px solid ${selected ? "var(--io-accent)" : "var(--io-border)"}`,
+        border: `1px solid ${isHighlighted ? "var(--io-accent)" : "var(--io-border)"}`,
         borderRadius: "var(--io-radius)",
         padding: "12px 14px",
         cursor: "pointer",
         transition: "border-color 0.1s, background 0.1s",
       }}
       onMouseEnter={(e) => {
-        if (!selected) {
+        if (!isHighlighted) {
           (e.currentTarget as HTMLDivElement).style.borderColor =
             "var(--io-accent)";
         }
       }}
       onMouseLeave={(e) => {
-        if (!selected) {
+        if (!isHighlighted) {
           (e.currentTarget as HTMLDivElement).style.borderColor =
             "var(--io-border)";
         }
@@ -145,6 +164,23 @@ function TemplateCard({
         </p>
       )}
     </div>
+    {menuState && (
+      <ContextMenu
+        x={menuState.x}
+        y={menuState.y}
+        items={[
+          {
+            label: "Copy",
+            onClick: () => {
+              closeMenu();
+              void copyReportsSelection();
+            },
+          },
+        ]}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 }
 
@@ -202,11 +238,17 @@ function SkeletonCard() {
 function TemplateBrowser({
   selectedId,
   onSelect,
+  forcedSearch,
 }: {
   selectedId: string | null;
   onSelect: (template: ReportTemplate) => void;
+  forcedSearch?: string;
 }) {
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (forcedSearch !== undefined) setSearch(forcedSearch);
+  }, [forcedSearch]);
   const [category, setCategory] = useState("All");
 
   const query = useQuery({
@@ -465,7 +507,7 @@ function TabBar() {
 // Templates tab — browser + config panel
 // ---------------------------------------------------------------------------
 
-function TemplatesTab() {
+function TemplatesTab({ forcedSearch }: { forcedSearch?: string }) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<ReportTemplate | null>(null);
 
@@ -486,6 +528,7 @@ function TemplatesTab() {
         <TemplateBrowser
           selectedId={selectedTemplate?.id ?? null}
           onSelect={(t) => setSelectedTemplate(t)}
+          forcedSearch={forcedSearch}
         />
       </div>
 
@@ -558,6 +601,20 @@ export default function ReportsPage() {
   usePasteTarget(reportsPasteTarget);
 
   const setActiveZone = useGlobalSelectionStore((s) => s.setActiveZone);
+  const [forcedSearch, setForcedSearch] = useState<string | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    function handler(e: Event) {
+      const { tagnames } = (
+        e as CustomEvent<{ tagnames: string[] }>
+      ).detail;
+      setForcedSearch(tagnames.join(" "));
+    }
+    window.addEventListener("io-navigate:reports", handler);
+    return () => window.removeEventListener("io-navigate:reports", handler);
+  }, []);
 
   return (
     <div
@@ -614,7 +671,7 @@ export default function ReportsPage() {
         }}
       >
         <Routes>
-          <Route index element={<TemplatesTab />} />
+          <Route index element={<TemplatesTab forcedSearch={forcedSearch} />} />
           <Route path="history" element={<ReportHistory />} />
           <Route path="schedules" element={<ReportSchedules />} />
           <Route path="*" element={<Navigate to="/reports" replace />} />

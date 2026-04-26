@@ -126,7 +126,9 @@ export type SelectionZoneId =
   | "logbook"
   | "forensics"
   | "reports"
-  | "expression-builder";
+  | "expression-builder"
+  | "process"
+  | "settings-points";
 
 export type SelectableEntityKind =
   | "scene-node"

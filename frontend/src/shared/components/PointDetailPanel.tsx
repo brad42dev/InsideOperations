@@ -20,6 +20,11 @@ import type { PointDetailResponse } from "../../api/points";
 import { useWebSocket } from "../hooks/useWebSocket";
 import TimeSeriesChart from "./charts/TimeSeriesChart";
 import { usePointDetailStore } from "../../store/pointDetailStore";
+import {
+  buildIOClipboardPayload,
+  useIOClipboardStore,
+} from "../clipboard";
+import ContextMenu from "./ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Session storage helpers
@@ -612,6 +617,13 @@ export default function PointDetailPanel({
   const { pinPanel, unpinPanel } = usePointDetailStore();
   const navigate = useNavigate();
 
+  // ── Clipboard copy ────────────────────────────────────────────────────────
+
+  const [copyMenuPos, setCopyMenuPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
   // ── Panel state (position, size, minimized) — session-persisted ──────────
 
   const [panelState, setPanelStateRaw] = useState<PanelState>(() => {
@@ -817,6 +829,37 @@ export default function PointDetailPanel({
       sparkTimestamps.push(t);
       sparkValues.push(entry.value);
     }
+  }
+
+  // ── Clipboard copy helper ─────────────────────────────────────────────────
+
+  function copyPointToClipboard() {
+    if (!pointId) return;
+    const displayName =
+      (meta as { name?: string } | null | undefined)?.name ?? pointId;
+    const unit =
+      (meta as { engineering_unit?: string | null } | null | undefined)
+        ?.engineering_unit ?? undefined;
+    const value =
+      displayValue?.value !== undefined ? String(displayValue.value) : "—";
+    const textRepr = unit
+      ? `${displayName} - ${pointId}: ${value} ${unit}`
+      : `${displayName} - ${pointId}: ${value}`;
+
+    const payload = buildIOClipboardPayload({
+      originContext: "console-pane",
+      contents: {
+        points: [
+          {
+            tagname: pointId,
+            displayName,
+            unit: unit ?? undefined,
+          },
+        ],
+        textRepresentation: textRepr,
+      },
+    });
+    void useIOClipboardStore.getState().writeToClipboard(payload);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1059,6 +1102,10 @@ export default function PointDetailPanel({
   return (
     <div
       ref={panelRef}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setCopyMenuPos({ x: e.clientX, y: e.clientY });
+      }}
       style={{
         position: "fixed",
         top,
@@ -1187,6 +1234,25 @@ export default function PointDetailPanel({
 
       {/* Body — hidden when minimized */}
       {!minimized && panelBody}
+
+      {/* Right-click copy context menu */}
+      {copyMenuPos && (
+        <ContextMenu
+          x={copyMenuPos.x}
+          y={copyMenuPos.y}
+          onClose={() => setCopyMenuPos(null)}
+          items={[
+            {
+              label: "Copy Point",
+              shortcut: "Ctrl+C",
+              onClick: () => {
+                setCopyMenuPos(null);
+                copyPointToClipboard();
+              },
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

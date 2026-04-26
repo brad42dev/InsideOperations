@@ -72,15 +72,31 @@ export function extractStyleFromNodes(
   nodes: SceneNode[],
 ): StyleSnapshot | undefined {
   for (const n of nodes) {
-    const s = (n as unknown as { style?: StyleSnapshot }).style;
-    if (s && Object.keys(s).length) return s;
+    const node = n as unknown as Record<string, unknown>;
+    const snap: StyleSnapshot = {};
+    if (typeof node.fill === "string") snap.fill = node.fill;
+    if (typeof node.stroke === "string") snap.stroke = node.stroke;
+    if (typeof node.strokeWidth === "number") snap.strokeWidth = node.strokeWidth;
+    if (typeof node.strokeDasharray === "string")
+      snap.strokeDasharray = node.strokeDasharray;
+    if (typeof node.opacity === "number") snap.opacity = node.opacity;
+    if (typeof node.fontFamily === "string") snap.fontFamily = node.fontFamily;
+    if (typeof node.fontSize === "number") snap.fontSize = node.fontSize;
+    if (
+      typeof node.fontWeight === "number" ||
+      typeof node.fontWeight === "string"
+    )
+      snap.fontWeight = node.fontWeight as number | string;
+    if (Object.keys(snap).length > 0) return snap;
   }
   return undefined;
 }
 
 export function stripBindings<T extends SceneNode>(nodes: T[]): T[] {
   return JSON.parse(JSON.stringify(nodes), (k, v) => {
-    if (k === "binding") return undefined;
+    // Replace binding with an empty object rather than deleting it — renderers
+    // access de.binding.pointId etc. without null guards, so undefined crashes.
+    if (k === "binding") return {};
     if (k === "expressionId") return undefined;
     return v;
   });

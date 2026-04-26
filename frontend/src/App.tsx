@@ -20,6 +20,7 @@ import { useSelectionKeybinds } from "./shared/clipboard";
 import ClipboardInspector from "./shared/clipboard/ClipboardInspector";
 import { copyDesignerSelection } from "./pages/designer/clipboard/designerCopyHandler";
 import { copyConsoleActiveZone } from "./pages/console/clipboard/consoleCopyHandler";
+import { cutConsoleActiveZone } from "./pages/console/clipboard/consoleCutHandler";
 import { copyExpressionSelection } from "./shared/components/expression/clipboard/expressionCopyHandler";
 import { copyAlertsSelection } from "./pages/alerts/clipboard/alertsCopyHandler";
 import { copyLogSelection } from "./pages/log/clipboard/logCopyHandler";
@@ -1470,6 +1471,10 @@ function SelectionKeybindsMounter() {
           handler: (z) => copyConsoleActiveZone(z),
         },
       ],
+    },
+    {
+      // designer handles Ctrl+X locally via its own onKeyDown — not registered here
+      console: () => cutConsoleActiveZone("console"),
     },
   );
   return null;

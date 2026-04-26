@@ -148,6 +148,8 @@ import {
   usePasteTarget,
   useIOClipboardStore,
   usePasteEngine,
+  findTargetForZone,
+  type PasteMode,
 } from "../../shared/clipboard";
 import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { createDesignerPasteTarget } from "./clipboard/designerPasteTarget";
@@ -917,9 +919,11 @@ function TextReadoutDE({
 function DisplayElementRenderer({
   node,
   tx,
+  parentScaleX = 1,
 }: {
   node: DisplayElement;
   tx: string;
+  parentScaleX?: number;
 }) {
   const cfg = node.config;
   const de = node;
@@ -1021,7 +1025,8 @@ function DisplayElementRenderer({
     }
     case "digital_status": {
       const stateText = de.binding.pointId ? "AUTO" : "—";
-      const dW = stateText.length * 6 + 12;
+      const dW = Math.max(40, stateText.length * 6 + 12);
+      const dcx = 20 * parentScaleX; // canonical w/2=20; see sidecarCollision comment
       return (
         <g
           transform={tx}
@@ -1030,9 +1035,9 @@ function DisplayElementRenderer({
           data-canvas-y={String(Math.round(de.transform.position.y))}
           opacity={de.opacity}
         >
-          <rect x={0} y={0} width={dW} height={20} rx={2} fill="#3F3F46" />
+          <rect x={dcx - dW / 2} y={0} width={dW} height={20} rx={2} fill="#3F3F46" />
           <text
-            x={dW / 2}
+            x={dcx}
             y={10}
             textAnchor="middle"
             dominantBaseline="central"
@@ -1047,7 +1052,8 @@ function DisplayElementRenderer({
     }
     case "point_name_label": {
       const pnCfg = cfg as PointNameLabelConfig;
-      const text = pnCfg.staticText ?? de.binding.pointId ?? "TAG.NAME";
+      const text =
+        pnCfg.staticText ?? de.binding.pointTag ?? de.binding.pointId ?? "TAG.NAME";
       const fs = pnCfg.fontSize ?? 10;
       const ff = deFontToCss(pnCfg.fontFamily);
       const color =
@@ -1060,7 +1066,7 @@ function DisplayElementRenderer({
           data-canvas-y={String(Math.round(de.transform.position.y))}
           opacity={de.opacity}
         >
-          <text x={0} y={fs} fontSize={fs} fill={color} fontFamily={ff}>
+          <text x={40 * parentScaleX} y={fs} fontSize={fs} fill={color} fontFamily={ff} textAnchor="middle">
             {text}
           </text>
         </g>
@@ -1270,7 +1276,11 @@ function RenderNode({
                 key={child.id}
                 style={{ filter: childFilter, opacity: childOpacity }}
               >
-                <DisplayElementRenderer node={child} tx={_overrideTransform} />
+                <DisplayElementRenderer
+                  node={child}
+                  tx={_overrideTransform}
+                  parentScaleX={transform.scale.x}
+                />
               </g>
             );
           }
@@ -2755,6 +2765,36 @@ export default function DesignerCanvas({
     null,
   );
   const [shapeConfigJumpToPoint, setShapeConfigJumpToPoint] = useState(false);
+
+  // Stable memoized initial config for CategoryShapeWizard — recomputed only
+  // when the configured node's identity or the doc changes, NOT on every render.
+  // Without this, the inline object literal changes reference every render and
+  // re-triggers the wizard's shape-loading useEffect, resetting the form state.
+  const shapeConfigInitialConfig = useMemo(() => {
+    if (!shapeConfigNodeId || !doc) return undefined;
+    const configNode = doc.children.find(
+      (n) => n.id === shapeConfigNodeId,
+    ) as SymbolInstance | undefined;
+    if (!configNode) return undefined;
+    return {
+      bindings: [
+        {
+          partKey: "body",
+          tag: configNode.stateBinding?.pointTag ?? "",
+          pointId: configNode.stateBinding?.pointId ?? "",
+          displayName: configNode.stateBinding?.displayName,
+          unit: configNode.stateBinding?.unit,
+        },
+      ],
+      selectedElements: configNode.children.map((c) => c.displayType as string),
+      elementConfigs: Object.fromEntries(
+        configNode.children.map((c) => [
+          c.displayType,
+          displayConfigToUserConfig(c.config),
+        ]),
+      ),
+    };
+  }, [shapeConfigNodeId, doc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save-as-stencil dialog — holds the selected nodes to save
   const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null);
@@ -8883,38 +8923,13 @@ export default function DesignerCanvas({
                   .index.find((i) => i.id === configShapeId)?.category ??
                 "equipment";
 
-              // Pre-populate wizard from existing node state.
-              // Never fall back to pointId for the tag — pointId is a UUID and must never be shown to users.
-              const editInitialConfig = configNode
-                ? {
-                    bindings: [
-                      {
-                        partKey: "body",
-                        tag: configNode.stateBinding?.pointTag ?? "",
-                        pointId: configNode.stateBinding?.pointId ?? "",
-                        displayName: configNode.stateBinding?.displayName,
-                        unit: configNode.stateBinding?.unit,
-                      },
-                    ],
-                    selectedElements: configNode.children.map(
-                      (c) => c.displayType as string,
-                    ),
-                    elementConfigs: Object.fromEntries(
-                      configNode.children.map((c) => [
-                        c.displayType,
-                        displayConfigToUserConfig(c.config),
-                      ]),
-                    ),
-                  }
-                : undefined;
-
               return (
                 <CategoryShapeWizard
                   editMode
                   categoryId={configCategoryId}
                   defaultShapeId={configShapeId}
                   shapeDisplayName={configNode?.name ?? "Shape"}
-                  initialConfig={editInitialConfig}
+                  initialConfig={shapeConfigInitialConfig}
                   jumpToPointBindings={shapeConfigJumpToPoint}
                   onCancel={() => {
                     setShapeConfigNodeId(null);
@@ -9854,7 +9869,28 @@ function DesignerContextMenuContent({
   const testMode = useUiStore((s) => s.testMode);
   const testModePaused = useUiStore((s) => s.testModePaused);
   const ioClipboardCurrent = useIOClipboardStore((s) => s.current);
-  const { pasteDefault } = usePasteEngine();
+  const ioClipboardPrevious = useIOClipboardStore((s) => s.previous);
+  const { pasteDefault, pasteAs } = usePasteEngine();
+  const designerTarget = findTargetForZone("designer");
+  const designerCurrentModes: PasteMode[] =
+    designerTarget && ioClipboardCurrent
+      ? designerTarget.accepts(ioClipboardCurrent)
+      : [];
+  const designerPreviousModes: PasteMode[] =
+    designerTarget && ioClipboardPrevious
+      ? designerTarget.accepts(ioClipboardPrevious)
+      : [];
+
+  const DESIGNER_PASTE_AS_ORDER: { mode: PasteMode; label: string }[] = [
+    { mode: "shapes", label: "Shapes" },
+    { mode: "points", label: "Points" },
+    { mode: "style", label: "Style" },
+    { mode: "style+layout", label: "Style + Layout" },
+    { mode: "table", label: "Table" },
+    { mode: "text", label: "Text" },
+    { mode: "new-graphic", label: "New Graphic" },
+    { mode: "temporary-graphic", label: "Temporary Graphic" },
+  ];
 
   // ctxNodeId is React state (not just a ref) so this component re-renders
   // with the correct value every time the context menu is triggered.
@@ -10042,7 +10078,7 @@ function DesignerContextMenuContent({
           // RC-DES-1: Empty-canvas context menu
           // ----------------------------------------------------------------
           <>
-            {/* Paste — disabled when universal clipboard is empty */}
+            {/* Paste */}
             <ContextMenuPrimitive.Item
               style={itemStyle}
               disabled={!ioClipboardCurrent}
@@ -10050,6 +10086,44 @@ function DesignerContextMenuContent({
             >
               Paste
             </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{
+                  ...itemStyle,
+                  ...(designerCurrentModes.length === 0
+                    ? { opacity: 0.4, pointerEvents: "none" }
+                    : {}),
+                }}
+                disabled={designerCurrentModes.length === 0}
+              >
+                Paste as…
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  {DESIGNER_PASTE_AS_ORDER.map(({ mode, label }) => {
+                    const available = designerCurrentModes.includes(mode);
+                    return (
+                      <ContextMenuPrimitive.Item
+                        key={mode}
+                        style={{
+                          ...itemStyle,
+                          ...(available
+                            ? {}
+                            : { opacity: 0.4, pointerEvents: "none" }),
+                        }}
+                        disabled={!available}
+                        onSelect={() => void pasteAs(mode, "current")}
+                      >
+                        {label}
+                      </ContextMenuPrimitive.Item>
+                    );
+                  })}
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
 
             {/* Select All — disabled when doc has no children */}
             <ContextMenuPrimitive.Item
@@ -10217,6 +10291,81 @@ function DesignerContextMenuContent({
             >
               Paste
             </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{
+                  ...itemStyle,
+                  ...(designerCurrentModes.length === 0
+                    ? { opacity: 0.4, pointerEvents: "none" }
+                    : {}),
+                }}
+                disabled={designerCurrentModes.length === 0}
+              >
+                Paste as…
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  {DESIGNER_PASTE_AS_ORDER.map(({ mode, label }) => {
+                    const available = designerCurrentModes.includes(mode);
+                    return (
+                      <ContextMenuPrimitive.Item
+                        key={mode}
+                        style={{
+                          ...itemStyle,
+                          ...(available
+                            ? {}
+                            : { opacity: 0.4, pointerEvents: "none" }),
+                        }}
+                        disabled={!available}
+                        onSelect={() => void pasteAs(mode, "current")}
+                      >
+                        {label}
+                      </ContextMenuPrimitive.Item>
+                    );
+                  })}
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
+
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger
+                style={{
+                  ...itemStyle,
+                  ...(!ioClipboardPrevious ||
+                  designerPreviousModes.length === 0
+                    ? { opacity: 0.4, pointerEvents: "none" }
+                    : {}),
+                }}
+                disabled={
+                  !ioClipboardPrevious || designerPreviousModes.length === 0
+                }
+              >
+                Paste Previous as…
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  {DESIGNER_PASTE_AS_ORDER.map(({ mode, label }) => {
+                    const available = designerPreviousModes.includes(mode);
+                    return (
+                      <ContextMenuPrimitive.Item
+                        key={mode}
+                        style={{
+                          ...itemStyle,
+                          ...(available
+                            ? {}
+                            : { opacity: 0.4, pointerEvents: "none" }),
+                        }}
+                        disabled={!available}
+                        onSelect={() => void pasteAs(mode, "previous")}
+                      >
+                        {label}
+                      </ContextMenuPrimitive.Item>
+                    );
+                  })}
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
 
             <ContextMenuPrimitive.Separator style={sepStyle} />
 

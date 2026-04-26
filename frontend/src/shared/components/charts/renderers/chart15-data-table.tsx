@@ -10,6 +10,10 @@ import { pointsApi } from "../../../../api/points";
 import { type ChartConfig } from "../chart-config-types";
 import { useContextMenu } from "../../../hooks/useContextMenu";
 import ContextMenu from "../../ContextMenu";
+import {
+  buildIOClipboardPayload,
+  useIOClipboardStore,
+} from "../../../clipboard";
 
 interface RendererProps {
   config: ChartConfig;
@@ -189,8 +193,15 @@ export default function Chart15DataTable({ config }: RendererProps) {
               label: "Copy Tag Name",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(
-                  menuState.data?.tagName ?? "",
+                const tagName = menuState.data?.tagName ?? "";
+                void useIOClipboardStore.getState().writeToClipboard(
+                  buildIOClipboardPayload({
+                    originContext: "chart",
+                    contents: {
+                      points: tagName ? [{ tagname: tagName }] : [],
+                      textRepresentation: tagName,
+                    },
+                  }),
                 );
               },
             },
@@ -198,8 +209,12 @@ export default function Chart15DataTable({ config }: RendererProps) {
               label: "Copy Value",
               onClick: () => {
                 closeMenu();
-                void navigator.clipboard.writeText(
-                  menuState.data?.displayValue ?? "",
+                const displayValue = menuState.data?.displayValue ?? "";
+                void useIOClipboardStore.getState().writeToClipboard(
+                  buildIOClipboardPayload({
+                    originContext: "chart",
+                    contents: { textRepresentation: displayValue },
+                  }),
                 );
               },
             },
