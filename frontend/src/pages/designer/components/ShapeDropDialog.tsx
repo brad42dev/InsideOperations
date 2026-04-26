@@ -1475,6 +1475,7 @@ export function ShapeDropDialog({
 
   // Step 2+ state
   const [bindings, setBindings] = useState<ShapeBindingEntry[]>([]);
+  const [bindingsOverCapacity, setBindingsOverCapacity] = useState(false);
   const [selectedElements, setSelectedElements] = useState<Set<string>>(
     new Set(),
   );
@@ -2028,6 +2029,7 @@ export function ShapeDropDialog({
               slots={slotDefs}
               bindings={bindings}
               onChange={setBindings}
+              onOverCapacityChange={setBindingsOverCapacity}
             />
           )}
         </div>
@@ -2080,6 +2082,17 @@ export function ShapeDropDialog({
               <button style={btnStyle()} onClick={() => setStep(2)}>
                 ← Back
               </button>
+              {bindingsOverCapacity && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "var(--io-alarm-urgent)",
+                    marginLeft: 8,
+                  }}
+                >
+                  Too many points — remove excess to place
+                </span>
+              )}
               <div style={{ flex: 1 }} />
               <button style={btnStyle()} onClick={onCancel}>
                 Cancel
@@ -2089,6 +2102,7 @@ export function ShapeDropDialog({
               </button>
               <button
                 style={btnStyle(true)}
+                disabled={bindingsOverCapacity}
                 onClick={() => onPlace(buildConfig())}
               >
                 {editMode ? "Save" : "Place"}

@@ -16,6 +16,15 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { pointsApi } from "../../../api/points";
 import type { PointMeta } from "../../../api/points";
+import {
+  extractPoints,
+  isIOClipboardPayload,
+  useIOClipboardStore,
+  buildIOClipboardPayload,
+} from "../../../shared/clipboard";
+import type { IOClipboardPayload } from "../../../shared/clipboard";
+import ContextMenu from "../../../shared/components/ContextMenu";
+import type { ContextMenuItem } from "../../../shared/components/ContextMenu";
 
 // ---------------------------------------------------------------------------
 // Types (exported so callers can type their state)
@@ -45,6 +54,8 @@ interface ShapePointSelectorProps {
   slots: ShapeSlotDef[];
   bindings: ShapeBindingEntry[];
   onChange: (bindings: ShapeBindingEntry[]) => void;
+  /** Called whenever over-capacity state changes. Parent uses this to block Apply/Place. */
+  onOverCapacityChange?: (isOverCapacity: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,12 +66,21 @@ export function ShapePointSelector({
   slots,
   bindings,
   onChange,
+  onOverCapacityChange,
 }: ShapePointSelectorProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dragPointId, setDragPointId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{
+    x: number;
+    y: number;
+    pt?: PointMeta;
+  } | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const { current: currentPayload, previous: previousPayload } =
+    useIOClipboardStore();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 250);
@@ -115,40 +135,56 @@ export function ShapePointSelector({
 
   const defaultBinding = bindings.find((b) => b.partKey === "body");
 
+  const isOverCapacity = slots.some(
+    (slot) =>
+      bindings.filter((b) => b.partKey === slot.partId && b.pointId).length > 1,
+  );
+
+  useEffect(() => {
+    onOverCapacityChange?.(isOverCapacity);
+  }, [isOverCapacity, onOverCapacityChange]);
+
   function assignPoint(partId: string, pt: PointMeta) {
+    // Only update the first matching entry so over-cap extras are preserved
+    let done = false;
     onChange(
-      bindings.map((b) =>
-        b.partKey === partId
-          ? {
-              ...b,
-              tag: pt.tagname,
-              pointId: pt.id,
-              displayName: pt.display_name ?? undefined,
-              unit: pt.unit ?? undefined,
-              rangeLo: pt.eu_range_low ?? undefined,
-              rangeHi: pt.eu_range_high ?? undefined,
-            }
-          : b,
-      ),
+      bindings.map((b) => {
+        if (b.partKey === partId && !done) {
+          done = true;
+          return {
+            ...b,
+            tag: pt.tagname,
+            pointId: pt.id,
+            displayName: pt.display_name ?? undefined,
+            unit: pt.unit ?? undefined,
+            rangeLo: pt.eu_range_low ?? undefined,
+            rangeHi: pt.eu_range_high ?? undefined,
+          };
+        }
+        return b;
+      }),
     );
   }
 
-  function clearPoint(partId: string) {
-    onChange(
-      bindings.map((b) =>
-        b.partKey === partId
-          ? {
-              ...b,
-              tag: "",
-              pointId: "",
-              displayName: undefined,
-              unit: undefined,
-              rangeLo: undefined,
-              rangeHi: undefined,
-            }
-          : b,
-      ),
-    );
+  function clearPoint(partId: string, pointId: string) {
+    const totalForPart = bindings.filter((b) => b.partKey === partId).length;
+    if (totalForPart <= 1) {
+      // Keep the placeholder entry but blank it
+      onChange(
+        bindings.map((b) =>
+          b.partKey === partId && b.pointId === pointId
+            ? { ...b, tag: "", pointId: "", displayName: undefined, unit: undefined, rangeLo: undefined, rangeHi: undefined }
+            : b,
+        ),
+      );
+    } else {
+      // Remove this specific over-cap entry
+      const idx = bindings.findIndex(
+        (b) => b.partKey === partId && b.pointId === pointId,
+      );
+      if (idx >= 0)
+        onChange([...bindings.slice(0, idx), ...bindings.slice(idx + 1)]);
+    }
   }
 
   function handleDrop(partId: string) {
@@ -167,37 +203,119 @@ export function ShapePointSelector({
     if (target) assignPoint(target.partId, pt);
   }
 
+  async function resolvePointMeta(tagname: string): Promise<PointMeta | null> {
+    const found = allPoints.find((p) => p.tagname === tagname);
+    if (found) return found;
+    try {
+      const res = await pointsApi.list({ search: tagname, limit: 5 });
+      if (!res.success) return null;
+      return res.data.data.find((p) => p.tagname === tagname) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handlePasteFromClipboard(payload: IOClipboardPayload) {
+    const refs = extractPoints(payload);
+    if (refs.length === 0) return;
+
+    const resolved: PointMeta[] = [];
+    for (const ref of refs) {
+      const pt = await resolvePointMeta(ref.tagname);
+      if (pt) resolved.push(pt);
+    }
+    if (resolved.length === 0) return;
+
+    let updatedBindings = [...bindings];
+    let refIdx = 0;
+
+    // Pass 1: fill each slot's primary (first empty) binding in order
+    for (const slot of slots) {
+      if (refIdx >= resolved.length) break;
+      const idx = updatedBindings.findIndex(
+        (b) => b.partKey === slot.partId && !b.pointId,
+      );
+      if (idx >= 0) {
+        const pt = resolved[refIdx++];
+        updatedBindings[idx] = {
+          ...updatedBindings[idx],
+          tag: pt.tagname,
+          pointId: pt.id,
+          displayName: pt.display_name ?? undefined,
+          unit: pt.unit ?? undefined,
+          rangeLo: pt.eu_range_low ?? undefined,
+          rangeHi: pt.eu_range_high ?? undefined,
+        };
+      }
+    }
+
+    // Pass 2: remaining refs go into the first slot as over-cap entries —
+    // they appear in the UI so the user can remove the excess before placing.
+    const firstPartId = slots[0]?.partId;
+    if (firstPartId) {
+      while (refIdx < resolved.length) {
+        const pt = resolved[refIdx++];
+        updatedBindings.push({
+          partKey: firstPartId,
+          tag: pt.tagname,
+          pointId: pt.id,
+          displayName: pt.display_name ?? undefined,
+          unit: pt.unit ?? undefined,
+          rangeLo: pt.eu_range_low ?? undefined,
+          rangeHi: pt.eu_range_high ?? undefined,
+        });
+      }
+    }
+
+    onChange(updatedBindings);
+  }
+
+  function handleContainerPaste(e: React.ClipboardEvent) {
+    const text = e.clipboardData.getData("text/plain");
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (isIOClipboardPayload(parsed)) {
+        e.preventDefault();
+        handlePasteFromClipboard(parsed);
+      }
+    } catch {
+      // not IO clipboard data
+    }
+  }
+
   function handleContextMenu(e: React.MouseEvent, pt: PointMeta) {
     e.preventDefault();
-    const menu = document.createElement("div");
-    menu.style.cssText = `
-      position:fixed; left:${e.clientX}px; top:${e.clientY}px;
-      background:var(--io-surface-elevated); border:1px solid var(--io-border);
-      border-radius:6px; padding:4px 0; z-index:9999; min-width:160px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.4); font-size:12px;
-    `;
-    slots.forEach((slot) => {
-      const item = document.createElement("div");
-      item.textContent = `Assign to ${slot.label}`;
-      item.style.cssText = `padding:6px 12px; cursor:pointer; color:var(--io-text-primary);`;
-      item.addEventListener("mouseenter", () => {
-        item.style.background = "var(--io-surface-hover)";
-      });
-      item.addEventListener("mouseleave", () => {
-        item.style.background = "";
-      });
-      item.addEventListener("click", () => {
-        assignPoint(slot.partId, pt);
-        document.body.removeChild(menu);
-      });
-      menu.appendChild(item);
-    });
-    document.body.appendChild(menu);
-    const dismiss = () => {
-      if (document.body.contains(menu)) document.body.removeChild(menu);
-      document.removeEventListener("click", dismiss);
-    };
-    setTimeout(() => document.addEventListener("click", dismiss), 0);
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, pt });
+  }
+
+  function handleContainerContextMenu(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest("[data-point-item]")) return;
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  function buildPasteItems(
+    payload: IOClipboardPayload | null,
+    pasteLabel: string,
+  ): ContextMenuItem[] {
+    if (!payload || extractPoints(payload).length === 0)
+      return [{ label: pasteLabel, disabled: true }];
+
+    const pasteAsChildren: ContextMenuItem[] = slots.map((slot) => ({
+      label: slot.label,
+      onClick: async () => {
+        const refs = extractPoints(payload);
+        if (!refs.length) return;
+        const pt = await resolvePointMeta(refs[0].tagname);
+        if (pt) assignPoint(slot.partId, pt);
+      },
+    }));
+
+    return [
+      { label: pasteLabel, onClick: () => handlePasteFromClipboard(payload) },
+      { label: `${pasteLabel} As…`, children: pasteAsChildren },
+    ];
   }
 
   const assignedPointIds = new Set(
@@ -219,7 +337,11 @@ export function ShapePointSelector({
   };
 
   return (
+    <>
     <div
+      tabIndex={-1}
+      onPaste={handleContainerPaste}
+      onContextMenu={handleContainerContextMenu}
       style={{
         display: "grid",
         gridTemplateColumns: "40% 1fr",
@@ -228,6 +350,7 @@ export function ShapePointSelector({
         rowGap: 6,
         flex: 1,
         minHeight: 0,
+        outline: "none",
       }}
     >
       {/* ── Left col label ─────────────────────────────────────────────────── */}
@@ -279,6 +402,7 @@ export function ShapePointSelector({
           return (
             <div
               key={pt.id}
+              data-point-item
               draggable
               onDragStart={() => setDragPointId(pt.id)}
               onDoubleClick={() => handleDoubleClick(pt)}
@@ -363,7 +487,7 @@ export function ShapePointSelector({
           color: "var(--io-text-muted)",
         }}
       >
-        Drag to slot · Double-click to add · Right-click for options
+        Drag to slot · Double-click to add · Right-click for options · Ctrl+V to paste
       </div>
 
       {/* ── Right col header ───────────────────────────────────────────────── */}
@@ -394,8 +518,11 @@ export function ShapePointSelector({
         }}
       >
         {slots.map((slot) => {
-          const binding = bindings.find((b) => b.partKey === slot.partId);
-          const hasOwn = Boolean(binding?.pointId);
+          const slotBindings = bindings.filter(
+            (b) => b.partKey === slot.partId && b.pointId,
+          );
+          const hasOwn = slotBindings.length > 0;
+          const isOverCap = slotBindings.length > 1;
           const usesDefault =
             !slot.isDefault && !hasOwn && Boolean(defaultBinding?.pointId);
           const isEmpty = !hasOwn && !usesDefault;
@@ -414,13 +541,27 @@ export function ShapePointSelector({
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  color: slot.isDefault
-                    ? "var(--io-accent)"
-                    : "var(--io-text-muted)",
+                  color: isOverCap
+                    ? "var(--io-alarm-urgent)"
+                    : slot.isDefault
+                      ? "var(--io-accent)"
+                      : "var(--io-text-muted)",
                 }}
               >
                 {slot.label}
-                {slot.isDefault && (
+                {isOverCap ? (
+                  <span
+                    style={{
+                      fontWeight: 400,
+                      fontSize: "0.9em",
+                      color: "var(--io-alarm-urgent)",
+                      textTransform: "none",
+                      letterSpacing: 0,
+                    }}
+                  >
+                    — {slotBindings.length}/1 Too Many Points Selected
+                  </span>
+                ) : slot.isDefault ? (
                   <span
                     style={{
                       fontWeight: 400,
@@ -432,7 +573,7 @@ export function ShapePointSelector({
                   >
                     — default
                   </span>
-                )}
+                ) : null}
               </div>
 
               {/* Drop zone */}
@@ -544,16 +685,17 @@ export function ShapePointSelector({
                   </div>
                 )}
 
-                {/* Explicit assignment */}
-                {hasOwn && (
+                {/* Explicit assignments — one chip per binding (>1 = over-cap) */}
+                {slotBindings.map((b) => (
                   <div
+                    key={b.pointId}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
                       fontSize: "0.9em",
                       background: "var(--io-surface-secondary)",
-                      border: "1px solid var(--io-border)",
+                      border: `1px solid ${isOverCap ? "var(--io-alarm-urgent)" : "var(--io-border)"}`,
                       borderRadius: 3,
                       padding: "3px 6px",
                     }}
@@ -568,9 +710,9 @@ export function ShapePointSelector({
                           fontSize: "0.95em",
                         }}
                       >
-                        {binding!.tag}
+                        {b.tag}
                       </div>
-                      {binding!.displayName && (
+                      {b.displayName && (
                         <div
                           style={{
                             fontSize: "0.8em",
@@ -580,12 +722,12 @@ export function ShapePointSelector({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {binding!.displayName}
+                          {b.displayName}
                         </div>
                       )}
                     </span>
                     <button
-                      onClick={() => clearPoint(slot.partId)}
+                      onClick={() => clearPoint(slot.partId, b.pointId)}
                       style={{
                         background: "none",
                         border: "none",
@@ -601,13 +743,63 @@ export function ShapePointSelector({
                       ×
                     </button>
                   </div>
-                )}
+                ))}
               </div>
             </div>
           );
         })}
+
       </div>
     </div>
+    {ctxMenu && (
+      <ContextMenu
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        items={(() => {
+          const items: ContextMenuItem[] = [];
+          if (ctxMenu.pt) {
+            slots.forEach((slot) => {
+              items.push({
+                label: `Assign to ${slot.label}`,
+                onClick: () => {
+                  assignPoint(slot.partId, ctxMenu.pt!);
+                  setCtxMenu(null);
+                },
+              });
+            });
+            items.push({
+              label: "Copy",
+              divider: true,
+              onClick: () => {
+                const payload = buildIOClipboardPayload({
+                  originContext: "designer",
+                  contents: {
+                    points: [
+                      {
+                        tagname: ctxMenu.pt!.tagname,
+                        displayName: ctxMenu.pt!.display_name ?? undefined,
+                        unit: ctxMenu.pt!.unit ?? undefined,
+                      },
+                    ],
+                  },
+                });
+                useIOClipboardStore.getState().writeToClipboard(payload);
+                setCtxMenu(null);
+              },
+            });
+          }
+          const pasteItems = buildPasteItems(currentPayload, "Paste");
+          const prevItems = buildPasteItems(previousPayload, "Paste Previous");
+          const withDivider = pasteItems.map((item, i) =>
+            i === 0 && items.length > 0 ? { ...item, divider: true } : item,
+          );
+          return [...items, ...withDivider, ...prevItems];
+        })()}
+        onClose={() => setCtxMenu(null)}
+        zIndex={9999}
+      />
+    )}
+    </>
   );
 }
 

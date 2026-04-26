@@ -573,6 +573,7 @@ export function CategoryShapeWizard({
   const [focusedElement, setFocusedElement] =
     useState<DisplayElementType | null>(null);
   const [bindings, setBindings] = useState<ShapeBindingEntry[]>([]);
+  const [bindingsOverCapacity, setBindingsOverCapacity] = useState(false);
 
   // Steps: 0 (variant picker) + N addon groups + 1 (display elements) + 1 (point bindings)
   const totalSteps = 1 + addonGroups.length + 2;
@@ -1097,6 +1098,7 @@ export function CategoryShapeWizard({
                       slots={slotDefs}
                       bindings={bindings}
                       onChange={setBindings}
+                      onOverCapacityChange={setBindingsOverCapacity}
                     />
                   );
                 })()}
@@ -1276,11 +1278,26 @@ export function CategoryShapeWizard({
               ← Back
             </button>
           )}
+          {bindingsOverCapacity && (
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--io-alarm-urgent)",
+                marginLeft: 8,
+              }}
+            >
+              Too many points — remove excess to place
+            </span>
+          )}
           <div style={{ flex: 1 }} />
           <button style={btnStyle()} onClick={onCancel}>
             Cancel
           </button>
-          <button style={btnStyle(true)} onClick={handlePlace}>
+          <button
+            style={btnStyle(true)}
+            disabled={bindingsOverCapacity}
+            onClick={handlePlace}
+          >
             {editMode ? "Save" : "Place ↗"}
           </button>
           {!isLastStep && (
