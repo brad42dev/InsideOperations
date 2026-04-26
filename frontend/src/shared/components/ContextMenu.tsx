@@ -28,6 +28,8 @@ export interface ContextMenuProps {
   y: number;
   items: ContextMenuItem[];
   onClose: () => void;
+  /** Override z-index (default 1800). Use 9999 when rendering inside a portal-based modal. */
+  zIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ export default function ContextMenu({
   y,
   items,
   onClose,
+  zIndex = 1800,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -162,7 +165,7 @@ export default function ContextMenu({
         position: "fixed",
         left: x,
         top: y,
-        zIndex: 1800,
+        zIndex,
         background: "var(--io-surface-elevated)",
         border: "1px solid var(--io-border)",
         borderRadius: "var(--io-radius)",
@@ -188,7 +191,7 @@ export default function ContextMenu({
               }}
             />
           )}
-          <MenuItemRow item={item} onClose={onClose} />
+          <MenuItemRow item={item} onClose={onClose} zIndex={zIndex} />
         </div>
       ))}
     </div>
@@ -204,9 +207,11 @@ export default function ContextMenu({
 function MenuItemRow({
   item,
   onClose,
+  zIndex,
 }: {
   item: ContextMenuItem;
   onClose: () => void;
+  zIndex: number;
 }) {
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [submenuPos, setSubmenuPos] = useState({ x: 0, y: 0 });
@@ -340,6 +345,7 @@ function MenuItemRow({
           x={submenuPos.x}
           y={submenuPos.y}
           items={item.children!}
+          zIndex={zIndex}
           onClose={() => {
             setSubmenuOpen(false);
             onClose();

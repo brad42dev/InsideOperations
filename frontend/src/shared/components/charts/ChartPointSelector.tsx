@@ -22,6 +22,8 @@ import {
   buildIOClipboardPayload,
 } from "../../clipboard";
 import type { IOClipboardPayload, PortablePointRef } from "../../clipboard";
+import ContextMenu from "../ContextMenu";
+import type { ContextMenuItem } from "../ContextMenu";
 
 interface ChartPointSelectorProps {
   slotDefs: SlotDefinition[];
@@ -89,6 +91,13 @@ export default function ChartPointSelector({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dragPointId, setDragPointId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{
+    x: number;
+    y: number;
+    pointId?: string;
+  } | null>(null);
+  const currentPayload = useIOClipboardStore((s) => s.current);
+  const previousPayload = useIOClipboardStore((s) => s.previous);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Map pointId → assigned colors (a point can appear in multiple slots)
@@ -312,87 +321,45 @@ export default function ChartPointSelector({
     }
   }
 
-  function spawnMenu(
-    x: number,
-    y: number,
-    items: { label: string; disabled?: boolean; divider?: boolean; onClick?: () => void }[],
-  ) {
-    const menu = document.createElement("div");
-    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--io-surface-elevated);border:1px solid var(--io-border);border-radius:6px;padding:4px 0;z-index:9999;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.4);font-size:12px;`;
-    const dismiss = () => {
-      if (document.body.contains(menu)) document.body.removeChild(menu);
-      document.removeEventListener("mousedown", dismiss);
-    };
-    items.forEach(({ label, disabled, divider, onClick }) => {
-      if (divider) {
-        const hr = document.createElement("div");
-        hr.style.cssText = `height:1px;background:var(--io-border);margin:3px 0;`;
-        menu.appendChild(hr);
-        return;
-      }
-      const row = document.createElement("div");
-      row.textContent = label;
-      row.style.cssText = `padding:6px 12px;cursor:${disabled ? "default" : "pointer"};color:${disabled ? "var(--io-text-muted)" : "var(--io-text-primary)"};opacity:${disabled ? 0.5 : 1};`;
-      if (!disabled) {
-        row.addEventListener("mouseenter", () => { row.style.background = "var(--io-surface-hover)"; });
-        row.addEventListener("mouseleave", () => { row.style.background = ""; });
-        row.addEventListener("mousedown", (ev) => {
-          ev.stopPropagation();
-          dismiss();
-          onClick?.();
-        });
-      }
-      menu.appendChild(row);
-    });
-    document.body.appendChild(menu);
-    setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
-  }
-
   function handleContextMenu(e: React.MouseEvent, pointId: string) {
     e.preventDefault();
     e.stopPropagation();
-    const meta = filtered.find((p) => p.id === pointId);
-    const currentPayload = useIOClipboardStore.getState().current;
-    const clipboardPoints = currentPayload ? extractPoints(currentPayload) : [];
-    spawnMenu(e.clientX, e.clientY, [
-      ...slotDefs.map((slot) => ({
-        label: `Add to ${slot.label}`,
-        onClick: () => assignPoint(slot.id, pointId),
-      })),
-      { label: "", divider: true },
-      {
-        label: "Copy Point",
-        disabled: !meta,
-        onClick: () => {
-          if (!meta) return;
-          const payload = buildIOClipboardPayload({
-            originContext: "chart",
-            contents: {
-              points: [{ tagname: meta.tagname, displayName: meta.display_name ?? undefined }],
-            },
-          });
-          void useIOClipboardStore.getState().writeToClipboard(payload);
-        },
-      },
-      {
-        label: "Paste from Clipboard",
-        disabled: clipboardPoints.length === 0,
-        onClick: () => { if (currentPayload) void handlePasteFromClipboard(currentPayload); },
-      },
-    ]);
+    setCtxMenu({ x: e.clientX, y: e.clientY, pointId });
   }
 
   function handleContainerContextMenu(e: React.MouseEvent) {
     e.preventDefault();
-    const currentPayload = useIOClipboardStore.getState().current;
-    const clipboardPoints = currentPayload ? extractPoints(currentPayload) : [];
-    spawnMenu(e.clientX, e.clientY, [
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  function buildPasteItems(
+    payload: IOClipboardPayload | null,
+    pasteLabel: string,
+  ): ContextMenuItem[] {
+    const refs = payload ? extractPoints(payload) : [];
+    const hasPoints = refs.length > 0;
+    return [
       {
-        label: "Paste from Clipboard",
-        disabled: clipboardPoints.length === 0,
-        onClick: () => { if (currentPayload) void handlePasteFromClipboard(currentPayload); },
+        label: pasteLabel,
+        shortcut: pasteLabel === "Paste" ? "Ctrl+V" : undefined,
+        disabled: !hasPoints,
+        onClick: () => { if (payload) void handlePasteFromClipboard(payload); },
       },
-    ]);
+      {
+        label: `${pasteLabel} As…`,
+        disabled: !hasPoints,
+        children: [
+          {
+            label: "Points",
+            onClick: () => { if (payload) void handlePasteFromClipboard(payload); },
+          },
+          {
+            label: "Text (fill search)",
+            onClick: () => { if (refs[0]) setSearch(refs[0].tagname); },
+          },
+        ],
+      },
+    ];
   }
 
   const inputStyle: React.CSSProperties = {
@@ -410,6 +377,7 @@ export default function ChartPointSelector({
   };
 
   return (
+    <>
     <div
       tabIndex={-1}
       onPaste={handleContainerPaste}
@@ -866,9 +834,9 @@ export default function ChartPointSelector({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {meta?.tagname ?? sp.pointId}
+                          {meta?.tagname ?? sp.tagname ?? sp.pointId}
                         </div>
-                        {meta?.display_name && (
+                        {(meta?.display_name ?? sp.label) && (
                           <div
                             style={{
                               fontSize: "0.8em",
@@ -878,7 +846,7 @@ export default function ChartPointSelector({
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {meta.display_name}
+                            {meta?.display_name ?? sp.label}
                           </div>
                         )}
                       </span>
@@ -926,5 +894,50 @@ export default function ChartPointSelector({
         })}
       </div>
     </div>
+
+    {ctxMenu && (() => {
+      const clickedMeta = ctxMenu.pointId
+        ? filtered.find((p) => p.id === ctxMenu.pointId)
+        : undefined;
+      const items: ContextMenuItem[] = [
+        ...(ctxMenu.pointId
+          ? [
+              ...slotDefs.map((slot) => ({
+                label: `Add to ${slot.label}`,
+                onClick: () => assignPoint(slot.id, ctxMenu.pointId!),
+              })),
+              { label: "", divider: true },
+              {
+                label: "Copy Point",
+                disabled: !clickedMeta,
+                onClick: () => {
+                  if (!clickedMeta) return;
+                  void useIOClipboardStore.getState().writeToClipboard(
+                    buildIOClipboardPayload({
+                      originContext: "chart",
+                      contents: {
+                        points: [{ tagname: clickedMeta.tagname, displayName: clickedMeta.display_name ?? undefined }],
+                      },
+                    }),
+                  );
+                },
+              },
+              { label: "", divider: true },
+            ]
+          : []),
+        ...buildPasteItems(currentPayload, "Paste"),
+        ...buildPasteItems(previousPayload, "Paste Previous"),
+      ];
+      return (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={items}
+          zIndex={9999}
+          onClose={() => setCtxMenu(null)}
+        />
+      );
+    })()}
+    </>
   );
 }
