@@ -165,6 +165,12 @@ export default function ChartConfigPanel({
 
   const slotDefs = CHART_SLOTS[config.chartType];
 
+  const isOverCapacity = slotDefs.some((slot) => {
+    const count = config.points.filter((p) => p.role === slot.id).length;
+    const max = slot.multi ? (slot.maxPoints ?? 12) : 1;
+    return count > max;
+  });
+
   const handleSave = useCallback(() => {
     onSave(config);
     onClose();
@@ -428,6 +434,17 @@ export default function ChartConfigPanel({
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {isOverCapacity && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "var(--io-alarm-urgent)",
+                  fontWeight: 500,
+                }}
+              >
+                Too many points — remove excess from Data Points to apply
+              </span>
+            )}
             {onSaveChart && (
               <button
                 onClick={() => setSaveModal({ publish: false })}
@@ -477,22 +494,32 @@ export default function ChartConfigPanel({
               Cancel
             </button>
             <button
-              onClick={handleSave}
+              onClick={isOverCapacity ? undefined : handleSave}
+              disabled={isOverCapacity}
+              title={
+                isOverCapacity
+                  ? "Remove excess points before applying"
+                  : undefined
+              }
               style={{
-                background: "var(--io-accent)",
-                border: "none",
-                color: "#fff",
+                background: isOverCapacity
+                  ? "var(--io-surface-secondary)"
+                  : "var(--io-accent)",
+                border: isOverCapacity ? "1px solid var(--io-border)" : "none",
+                color: isOverCapacity ? "var(--io-text-muted)" : "#fff",
                 borderRadius: 6,
                 padding: "7px 20px",
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: isOverCapacity ? "not-allowed" : "pointer",
+                opacity: isOverCapacity ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.9";
+                if (!isOverCapacity)
+                  e.currentTarget.style.opacity = "0.9";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.opacity = isOverCapacity ? "0.6" : "1";
               }}
             >
               Apply

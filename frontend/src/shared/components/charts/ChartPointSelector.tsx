@@ -275,10 +275,12 @@ export default function ChartPointSelector({
       const label = ref.displayName ?? ref.tagname;
       const { tagname } = ref;
 
+      // No capacity guard here — paste adds everything and lets the user trim.
+      // Non-multi slots replace their single point; multi slots accumulate beyond
+      // maxPoints so ChartConfigPanel can block Apply until the user removes excess.
       const target = slotDefs.find((s) => {
         const filled = updatedPoints.filter((p) => p.role === s.id);
-        const max = s.multi ? (s.maxPoints ?? 12) : 1;
-        return filled.length < max && !filled.some((p) => p.pointId === id);
+        return !filled.some((p) => p.pointId === id);
       });
       if (!target) continue;
 
@@ -604,7 +606,8 @@ export default function ChartPointSelector({
           const pts = points.filter((p) => p.role === s.id);
           const max = s.maxPoints ?? 12;
           const cap = s.multi ? max : 1;
-          const full = s.multi ? pts.length >= max : pts.length >= 1;
+          const isOverCap = s.multi && pts.length > cap;
+          const full = !isOverCap && (s.multi ? pts.length >= max : pts.length >= 1);
           return (
             <div
               style={{
@@ -628,11 +631,19 @@ export default function ChartPointSelector({
                 <span
                   style={{
                     fontWeight: 600,
-                    color: full ? "var(--io-accent)" : "var(--io-text-muted)",
+                    color: isOverCap
+                      ? "var(--io-alarm-urgent)"
+                      : full
+                        ? "var(--io-accent)"
+                        : "var(--io-text-muted)",
                   }}
                 >
                   {pts.length}/{cap}
-                  {full ? " — full" : ""}
+                  {isOverCap
+                    ? ` — remove ${pts.length - cap}`
+                    : full
+                      ? " — full"
+                      : ""}
                 </span>
               )}
             </div>
@@ -652,14 +663,13 @@ export default function ChartPointSelector({
       >
         {slotDefs.map((slot, slotIdx) => {
           const slotPoints = points.filter((p) => p.role === slot.id);
-          const isOver = dragOverSlot === slot.id;
+          const isDragOver = dragOverSlot === slot.id;
           const maxPoints = slot.maxPoints ?? 12;
           const isEmpty = slotPoints.length === 0;
-          const isFull = slot.multi
-            ? slotPoints.length >= maxPoints
-            : slotPoints.length >= 1;
           const count = slotPoints.length;
           const cap = slot.multi ? maxPoints : 1;
+          const isOverCap = slot.multi && count > cap;
+          const isFull = !isOverCap && (slot.multi ? count >= maxPoints : count >= 1);
 
           return (
             <div key={slot.id}>
@@ -696,13 +706,19 @@ export default function ChartPointSelector({
                       style={{
                         fontSize: "0.75em",
                         fontWeight: 600,
-                        color: isFull
-                          ? "var(--io-accent)"
-                          : "var(--io-text-muted)",
+                        color: isOverCap
+                          ? "var(--io-alarm-urgent)"
+                          : isFull
+                            ? "var(--io-accent)"
+                            : "var(--io-text-muted)",
                       }}
                     >
                       {count}/{cap}
-                      {isFull ? " — full" : ""}
+                      {isOverCap
+                        ? ` — remove ${count - cap}`
+                        : isFull
+                          ? " — full"
+                          : ""}
                     </span>
                   )}
                 </div>
@@ -711,7 +727,7 @@ export default function ChartPointSelector({
               {/* ── Drop zone ── */}
               <div
                 onDragOver={(e) => {
-                  if (!isFull) {
+                  if (!isFull && !isOverCap) {
                     e.preventDefault();
                     setDragOverSlot(slot.id);
                   }
@@ -720,20 +736,24 @@ export default function ChartPointSelector({
                 onDrop={() => handleDrop(slot.id)}
                 style={{
                   border: `1px dashed ${
-                    isOver
-                      ? "var(--io-accent)"
-                      : isFull
-                        ? "var(--io-border)"
-                        : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
+                    isOverCap
+                      ? "var(--io-alarm-urgent)"
+                      : isDragOver
+                        ? "var(--io-accent)"
+                        : isFull
+                          ? "var(--io-border)"
+                          : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
                   }`,
                   borderRadius: 6,
                   padding: isEmpty ? "18px 12px" : "6px 8px",
-                  background: isOver
-                    ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
-                    : isEmpty
-                      ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
-                      : "var(--io-surface)",
-                  opacity: isFull ? 0.7 : 1,
+                  background: isOverCap
+                    ? "color-mix(in srgb, var(--io-alarm-urgent) 5%, var(--io-surface))"
+                    : isDragOver
+                      ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
+                      : isEmpty
+                        ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
+                        : "var(--io-surface)",
+                  opacity: isFull || isOverCap ? 0.9 : 1,
                   transition:
                     "border-color 0.15s, background 0.15s, padding 0.15s",
                   display: "flex",
@@ -749,7 +769,7 @@ export default function ChartPointSelector({
                       flexDirection: "column",
                       alignItems: "center",
                       gap: 6,
-                      color: isOver
+                      color: isDragOver
                         ? "var(--io-accent)"
                         : "var(--io-text-muted)",
                       pointerEvents: "none",
@@ -872,11 +892,11 @@ export default function ChartPointSelector({
                 })}
 
                 {/* Drop-more footer — shown when has points but not full */}
-                {!isEmpty && !isFull && slot.multi && (
+                {!isEmpty && !isFull && !isOverCap && slot.multi && (
                   <div
                     style={{
                       fontSize: "0.78em",
-                      color: isOver
+                      color: isDragOver
                         ? "var(--io-accent)"
                         : "var(--io-text-muted)",
                       padding: "4px 2px 2px",
