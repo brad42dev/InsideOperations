@@ -284,27 +284,21 @@ export default function ChartPointSelector({
       });
       if (!target) continue;
 
-      if (!target.multi) {
-        updatedPoints = updatedPoints.filter((p) => p.role !== target.id);
-        updatedPoints.push({
-          slotId: target.id,
-          role: target.id,
-          pointId: id,
-          label,
-          tagname,
-          color: autoColorForTheme(updatedPoints.length, theme),
-        });
-      } else {
-        const slotId = makeSlotId(target.id, updatedPoints);
-        updatedPoints.push({
-          slotId,
-          role: target.id,
-          pointId: id,
-          label,
-          tagname,
-          color: autoColorForTheme(updatedPoints.length, theme),
-        });
-      }
+      // Always accumulate during paste — even non-multi slots get overflow entries
+      // so isOverCapacity fires and Apply stays blocked until the user trims.
+      const existingInSlot = updatedPoints.filter((p) => p.role === target.id);
+      const slotId =
+        existingInSlot.length === 0
+          ? target.id
+          : makeSlotId(target.id, updatedPoints);
+      updatedPoints.push({
+        slotId,
+        role: target.id,
+        pointId: id,
+        label,
+        tagname,
+        color: autoColorForTheme(updatedPoints.length, theme),
+      });
     }
     onChange(updatedPoints);
   }
