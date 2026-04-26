@@ -143,7 +143,7 @@ export default function ChartConfigPanel({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // When chart type changes, reset points that don't have valid roles for the new type
+  // When chart type changes, reset incompatible points then advance to Data Points tab.
   function handleTypeSelect(type: ChartTypeId) {
     const newSlots = CHART_SLOTS[type];
     const validRoles = new Set(newSlots.map((s) => s.id));
@@ -151,12 +151,12 @@ export default function ChartConfigPanel({
     const accepted = newDef?.acceptedPointTypes ?? ["any"];
     const filteredPoints = config.points.filter((p) => {
       if (!validRoles.has(p.role)) return false;
-      // Clear points whose category is incompatible with the new chart type
       if (accepted.includes("any")) return true;
       const cat = pointMeta.get(p.pointId)?.point_category ?? "analog";
       return accepted.includes(cat as PointTypeCategory);
     });
     setConfig((c) => ({ ...c, chartType: type, points: filteredPoints }));
+    setTab("points");
   }
 
   function patchConfig(patch: Partial<ChartConfig>) {

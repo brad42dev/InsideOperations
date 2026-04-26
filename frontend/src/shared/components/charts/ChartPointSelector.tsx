@@ -18,6 +18,8 @@ import { useThemeName } from "../../theme/ThemeContext";
 import {
   extractPoints,
   isIOClipboardPayload,
+  useIOClipboardStore,
+  buildIOClipboardPayload,
 } from "../../clipboard";
 import type { IOClipboardPayload, PortablePointRef } from "../../clipboard";
 
@@ -310,40 +312,87 @@ export default function ChartPointSelector({
     }
   }
 
-  function handleContextMenu(e: React.MouseEvent, pointId: string) {
-    e.preventDefault();
-    // Build context menu items — one per role
+  function spawnMenu(
+    x: number,
+    y: number,
+    items: { label: string; disabled?: boolean; divider?: boolean; onClick?: () => void }[],
+  ) {
     const menu = document.createElement("div");
-    menu.style.cssText = `
-      position:fixed; left:${e.clientX}px; top:${e.clientY}px;
-      background:var(--io-surface-elevated); border:1px solid var(--io-border);
-      border-radius:6px; padding:4px 0; z-index:9999; min-width:160px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.4); font-size:12px;
-    `;
-    slotDefs.forEach((slot) => {
-      const item = document.createElement("div");
-      item.textContent = `Add to ${slot.label}`;
-      item.style.cssText = `
-        padding:6px 12px; cursor:pointer; color:var(--io-text-primary);
-      `;
-      item.addEventListener("mouseenter", () => {
-        item.style.background = "var(--io-surface-hover)";
-      });
-      item.addEventListener("mouseleave", () => {
-        item.style.background = "";
-      });
-      item.addEventListener("click", () => {
-        assignPoint(slot.id, pointId);
-        document.body.removeChild(menu);
-      });
-      menu.appendChild(item);
-    });
-    document.body.appendChild(menu);
+    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--io-surface-elevated);border:1px solid var(--io-border);border-radius:6px;padding:4px 0;z-index:9999;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.4);font-size:12px;`;
     const dismiss = () => {
       if (document.body.contains(menu)) document.body.removeChild(menu);
-      document.removeEventListener("click", dismiss);
+      document.removeEventListener("mousedown", dismiss);
     };
-    setTimeout(() => document.addEventListener("click", dismiss), 0);
+    items.forEach(({ label, disabled, divider, onClick }) => {
+      if (divider) {
+        const hr = document.createElement("div");
+        hr.style.cssText = `height:1px;background:var(--io-border);margin:3px 0;`;
+        menu.appendChild(hr);
+        return;
+      }
+      const row = document.createElement("div");
+      row.textContent = label;
+      row.style.cssText = `padding:6px 12px;cursor:${disabled ? "default" : "pointer"};color:${disabled ? "var(--io-text-muted)" : "var(--io-text-primary)"};opacity:${disabled ? 0.5 : 1};`;
+      if (!disabled) {
+        row.addEventListener("mouseenter", () => { row.style.background = "var(--io-surface-hover)"; });
+        row.addEventListener("mouseleave", () => { row.style.background = ""; });
+        row.addEventListener("mousedown", (ev) => {
+          ev.stopPropagation();
+          dismiss();
+          onClick?.();
+        });
+      }
+      menu.appendChild(row);
+    });
+    document.body.appendChild(menu);
+    setTimeout(() => document.addEventListener("mousedown", dismiss), 0);
+  }
+
+  function handleContextMenu(e: React.MouseEvent, pointId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const meta = filtered.find((p) => p.id === pointId);
+    const currentPayload = useIOClipboardStore.getState().current;
+    const clipboardPoints = currentPayload ? extractPoints(currentPayload) : [];
+    spawnMenu(e.clientX, e.clientY, [
+      ...slotDefs.map((slot) => ({
+        label: `Add to ${slot.label}`,
+        onClick: () => assignPoint(slot.id, pointId),
+      })),
+      { label: "", divider: true },
+      {
+        label: "Copy Point",
+        disabled: !meta,
+        onClick: () => {
+          if (!meta) return;
+          const payload = buildIOClipboardPayload({
+            originContext: "chart",
+            contents: {
+              points: [{ tagname: meta.tagname, displayName: meta.display_name ?? undefined }],
+            },
+          });
+          void useIOClipboardStore.getState().writeToClipboard(payload);
+        },
+      },
+      {
+        label: "Paste from Clipboard",
+        disabled: clipboardPoints.length === 0,
+        onClick: () => { if (currentPayload) void handlePasteFromClipboard(currentPayload); },
+      },
+    ]);
+  }
+
+  function handleContainerContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    const currentPayload = useIOClipboardStore.getState().current;
+    const clipboardPoints = currentPayload ? extractPoints(currentPayload) : [];
+    spawnMenu(e.clientX, e.clientY, [
+      {
+        label: "Paste from Clipboard",
+        disabled: clipboardPoints.length === 0,
+        onClick: () => { if (currentPayload) void handlePasteFromClipboard(currentPayload); },
+      },
+    ]);
   }
 
   const inputStyle: React.CSSProperties = {
@@ -362,7 +411,9 @@ export default function ChartPointSelector({
 
   return (
     <div
+      tabIndex={-1}
       onPaste={handleContainerPaste}
+      onContextMenu={handleContainerContextMenu}
       style={{
         display: "grid",
         gridTemplateColumns: "40% 1fr",
@@ -371,6 +422,7 @@ export default function ChartPointSelector({
         rowGap: 6,
         flex: 1,
         minHeight: 0,
+        outline: "none",
       }}
     >
       {/* ── Left row 1: label ───────────────────────────────────────────── */}
