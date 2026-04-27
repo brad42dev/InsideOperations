@@ -477,6 +477,9 @@ export default function ConsolePage() {
   const [searchParams] = useSearchParams();
   const { setKiosk, isKiosk } = useUiStore();
 
+  const { mode: playbackMode, setMode: setPlaybackMode } = usePlaybackStore();
+  const isHistorical = playbackMode === "historical";
+
   // Track whether this component instance set kiosk to true, so cleanup
   // doesn't accidentally clear kiosk state set by another module.
   const didSetKioskRef = useRef(false);
@@ -2035,6 +2038,31 @@ export default function ConsolePage() {
             flexShrink: 0,
           }}
         >
+          {/* Live / Historical toggle */}
+          <button
+            onClick={() => setPlaybackMode("live")}
+            style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", border: "1px solid",
+              background: !isHistorical ? "var(--io-accent-subtle)" : "transparent",
+              color: !isHistorical ? "var(--io-accent)" : "var(--io-text-muted)",
+              borderColor: !isHistorical ? "var(--io-accent)" : "var(--io-border)",
+            }}
+          >
+            ● Live
+          </button>
+          <button
+            onClick={() => setPlaybackMode("historical")}
+            style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", border: "1px solid",
+              background: isHistorical ? "var(--io-warning-subtle)" : "transparent",
+              color: isHistorical ? "var(--io-warning)" : "var(--io-text-muted)",
+              borderColor: isHistorical ? "var(--io-warning)" : "var(--io-border)",
+            }}
+          >
+            ◷ Historical
+          </button>
+          <div style={{ width: 1, height: 18, background: "var(--io-border)", margin: "0 4px" }} />
+
           {activeWorkspace && (
             <>
               {/* Undo / Redo */}
@@ -2932,8 +2960,8 @@ export default function ConsolePage() {
             </div>
           )}
 
-          {/* Historical Playback Bar — always shown at bottom of workspace area */}
-          {workspaces.length > 0 && <HistoricalPlaybackBar />}
+          {/* Historical Playback Bar — only shown in historical mode */}
+          {workspaces.length > 0 && isHistorical && <HistoricalPlaybackBar />}
 
           {/* Status bar */}
           {workspaces.length > 0 && (

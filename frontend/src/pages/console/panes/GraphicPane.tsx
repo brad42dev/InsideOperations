@@ -383,7 +383,10 @@ export default function GraphicPane({
     enabled: sparklinePointIds.length > 0,
   });
 
-  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore();
+  const playbackMode = usePlaybackStore((s) => s.mode);
+  const playbackTs = usePlaybackStore((s) =>
+    s.mode === "historical" ? Math.floor(s.timestamp / 1000) * 1000 : undefined,
+  );
   const isHistorical = playbackMode === "historical";
 
   // Phone path only: RAF-coalesced subscription feeding TileGraphicViewer (React prop)

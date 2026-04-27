@@ -19,8 +19,13 @@ export function useHistoricalValues(
   const [values, setValues] = useState<HistoricalValues>(new Map());
   const abortRef = useRef<AbortController | null>(null);
 
+  // Snap to 1-second resolution so the effect doesn't fire on every 100ms
+  // timer tick. Without this, each tick aborts the previous in-flight request
+  // and no fetch ever completes during playback.
+  const snappedTs = timestamp ? Math.floor(timestamp / 1000) * 1000 : undefined;
+
   useEffect(() => {
-    if (!timestamp || pointIds.length === 0) {
+    if (!snappedTs || pointIds.length === 0) {
       setValues(new Map());
       return;
     }
@@ -30,15 +35,18 @@ export function useHistoricalValues(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const ts = new Date(timestamp);
-    // 10-second window ending at ts to capture the last recorded value
-    const end = ts.toISOString();
-    const start = new Date(timestamp - 10_000).toISOString();
+    // 2-hour lookback window with no explicit limit (backend default: 10 000 rows).
+    // The backend returns rows ascending by timestamp; taking entries[last] gives
+    // the most-recent sample at or before the playback position.
+    // A wide window is necessary because OPC sample intervals vary widely (seconds
+    // to hours) and the backend has no DESC-LIMIT-1 path.
+    const end = new Date(snappedTs).toISOString();
+    const start = new Date(snappedTs - 2 * 60 * 60 * 1000).toISOString();
 
     async function fetchAll() {
       const results = await Promise.allSettled(
         pointIds.map((id) =>
-          pointsApi.getHistory(id, { start, end, resolution: "raw", limit: 1 }),
+          pointsApi.getHistory(id, { start, end, resolution: "raw" }),
         ),
       );
 
@@ -48,10 +56,13 @@ export function useHistoricalValues(
       for (let i = 0; i < pointIds.length; i++) {
         const r = results[i];
         if (r.status === "fulfilled" && r.value.success) {
-          const entries = r.value.data;
-          const last = Array.isArray(entries)
-            ? entries[entries.length - 1]
-            : null;
+          // Archive API returns { point_id, resolution, rows: [...] }, not a bare array.
+          const raw = r.value.data as unknown;
+          const rows: Array<{ value?: number | null; quality?: string }> =
+            Array.isArray(raw)
+              ? (raw as Array<{ value?: number | null; quality?: string }>)
+              : ((raw as { rows?: Array<{ value?: number | null; quality?: string }> }).rows ?? []);
+          const last = rows.length > 0 ? rows[rows.length - 1] : null;
           if (last) {
             out.set(pointIds[i], {
               pointId: pointIds[i],
@@ -75,7 +86,7 @@ export function useHistoricalValues(
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timestamp, pointIds.join(",")]);
+  }, [snappedTs, pointIds.join(",")]);
 
   return values;
 }

@@ -39,12 +39,6 @@ function speedLabel(s: PlaybackSpeed): string {
   return `x${s}`;
 }
 
-function fmtTimestamp(epochMs: number): string {
-  return (
-    new Date(epochMs).toISOString().replace("T", " ").slice(0, 19) + " UTC"
-  );
-}
-
 function fmtDatetimeLocal(epochMs: number): string {
   // Format suitable for <input type="datetime-local">
   const d = new Date(epochMs);
@@ -456,7 +450,6 @@ function PlaybackBarInner() {
     loopStart,
     loopEnd,
     loopEnabled,
-    setMode,
     setTimestamp,
     setTimeRange,
     setPlaying,
@@ -470,6 +463,7 @@ function PlaybackBarInner() {
   // Step interval state — default to index 4 (1 minute)
   const [stepIdx, setStepIdx] = useState<number>(4);
   const selectedStepMs = STEP_OPTIONS[stepIdx].ms;
+  const [expanded, setExpanded] = useState(false);
 
   // Fetch alarm events for the current time range in historical mode
   const { data: alarmEvents } = useQuery({
@@ -613,61 +607,243 @@ function PlaybackBarInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [mode, stepIdx, selectedStepMs]);
 
-  if (mode === "live") {
-    return (
-      <div style={barStyle}>
-        <button
-          onClick={() => setMode("historical")}
-          style={liveButtonStyle}
-          title="Switch to historical playback mode"
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#22C55E",
-              display: "inline-block",
-              marginRight: 6,
-            }}
-          />
-          LIVE
-        </button>
-        <span
-          style={{ color: "var(--io-text-muted)", fontSize: 11, marginLeft: 8 }}
-        >
-          Click to enter historical playback
-        </span>
-      </div>
-    );
-  }
-
   const rangeMs = timeRange.end - timeRange.start;
   const progress = rangeMs > 0 ? (timestamp - timeRange.start) / rangeMs : 0;
   const sliderValue = Math.round(progress * 1000);
 
-  // Loop region handle positions as 0–1000 slider units
+  // Loop region handle positions as 0–1000 slider units, clamped so markers
+  // stay on-track if the time range is narrowed after loop bounds are set.
   const loopStartSlider =
     loopStart !== null && rangeMs > 0
-      ? Math.round(((loopStart - timeRange.start) / rangeMs) * 1000)
+      ? Math.round(Math.max(0, Math.min(1000, ((loopStart - timeRange.start) / rangeMs) * 1000)))
       : null;
   const loopEndSlider =
     loopEnd !== null && rangeMs > 0
-      ? Math.round(((loopEnd - timeRange.start) / rangeMs) * 1000)
+      ? Math.round(Math.max(0, Math.min(1000, ((loopEnd - timeRange.start) / rangeMs) * 1000)))
       : null;
 
-  return (
-    <div style={barStyle}>
-      {/* Back to live */}
-      <button
-        onClick={() => setMode("live")}
-        style={backLiveStyle}
-        title="Return to live mode"
-      >
-        ◉ Live
-      </button>
+  const scrubSlider = (
+    <div
+      style={{
+        position: "relative",
+        flex: 1,
+        minWidth: 80,
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      {/* Loop region shading */}
+      {loopEnabled &&
+        loopStartSlider !== null &&
+        loopEndSlider !== null &&
+        loopEndSlider > loopStartSlider && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: `${loopStartSlider / 10}%`,
+              width: `${(loopEndSlider - loopStartSlider) / 10}%`,
+              top: 0,
+              bottom: 0,
+              background: "var(--io-accent)",
+              opacity: 0.15,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
+        )}
 
-      {/* Range selectors */}
+      <input
+        type="range"
+        min={0}
+        max={1000}
+        value={sliderValue}
+        aria-label="Playback timeline scrubber"
+        onChange={(e) => {
+          const pct = Number(e.target.value) / 1000;
+          setTimestamp(timeRange.start + pct * rangeMs);
+        }}
+        style={{
+          width: "100%",
+          cursor: "pointer",
+          margin: 0,
+          position: "relative",
+          zIndex: 2,
+        }}
+      />
+
+      {/* Loop start handle */}
+      {loopStartSlider !== null && (
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={loopStartSlider}
+          onChange={(e) => {
+            const pct = Number(e.target.value) / 1000;
+            setLoopStart(timeRange.start + pct * rangeMs);
+          }}
+          title="Loop start"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            width: "100%",
+            margin: 0,
+            opacity: 0,
+            cursor: "ew-resize",
+            zIndex: 3,
+          }}
+        />
+      )}
+
+      {/* Loop start marker line */}
+      {loopStartSlider !== null && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: `${loopStartSlider / 10}%`,
+            transform: "translateX(-50%)",
+            top: 2,
+            bottom: 2,
+            width: 3,
+            background: "var(--io-accent)",
+            borderRadius: 2,
+            pointerEvents: "none",
+            zIndex: 4,
+            opacity: 0.85,
+          }}
+        />
+      )}
+
+      {/* Loop end handle */}
+      {loopEndSlider !== null && (
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={loopEndSlider}
+          onChange={(e) => {
+            const pct = Number(e.target.value) / 1000;
+            setLoopEnd(timeRange.start + pct * rangeMs);
+          }}
+          title="Loop end"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            width: "100%",
+            margin: 0,
+            opacity: 0,
+            cursor: "ew-resize",
+            zIndex: 3,
+          }}
+        />
+      )}
+
+      {/* Loop end marker line */}
+      {loopEndSlider !== null && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: `${loopEndSlider / 10}%`,
+            transform: "translateX(-50%)",
+            top: 2,
+            bottom: 2,
+            width: 3,
+            background: "var(--io-accent)",
+            borderRadius: 2,
+            pointerEvents: "none",
+            zIndex: 4,
+            opacity: 0.85,
+          }}
+        />
+      )}
+
+      {/* Alarm event tick marks */}
+      {rangeMs > 0 && alarmEvents && alarmEvents.length > 0 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 8,
+            pointerEvents: "none",
+            zIndex: 5,
+          }}
+        >
+          {alarmEvents.map((event) => {
+            const ts = new Date(event.timestamp).getTime();
+            if (ts < timeRange.start || ts > timeRange.end) return null;
+            const pct = ((ts - timeRange.start) / rangeMs) * 100;
+            return (
+              <div
+                key={event.id}
+                title={`${event.priority.toUpperCase()}: ${event.message} @ ${new Date(event.timestamp).toLocaleTimeString()}`}
+                onClick={() => setTimestamp(ts)}
+                style={{
+                  position: "absolute",
+                  left: `${pct}%`,
+                  transform: "translateX(-50%)",
+                  width: 2,
+                  height: 8,
+                  background: ALARM_PRIORITY_COLORS[event.priority],
+                  bottom: 0,
+                  pointerEvents: "auto",
+                  cursor: "pointer",
+                  zIndex: 6,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const atEnd = timestamp >= timeRange.end;
+  const atStart = timestamp <= timeRange.start;
+
+  const playPauseBtn = (
+    <button
+      onClick={() => {
+        if (isPlaying && !isReversing) {
+          setPlaying(false);
+        } else {
+          setReversing(false);
+          // If sitting at the end, rewind to start so play has somewhere to go
+          if (atEnd) setTimestamp(timeRange.start);
+          setPlaying(true);
+        }
+      }}
+      style={{
+        ...iconBtnStyle,
+        minWidth: 32,
+        color:
+          isPlaying && !isReversing
+            ? "var(--io-accent)"
+            : "var(--io-text-primary)",
+        borderColor:
+          isPlaying && !isReversing ? "var(--io-accent)" : "var(--io-border)",
+      }}
+      title={
+        isPlaying && !isReversing
+          ? "Pause"
+          : atEnd
+            ? "Replay from start"
+            : "Play"
+      }
+    >
+      {isPlaying && !isReversing ? "⏸" : atEnd ? "↺" : "▶"}
+    </button>
+  );
+
+  const fromPicker = (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
       <label style={labelStyle}>From</label>
       <input
         type="datetime-local"
@@ -679,8 +855,13 @@ function PlaybackBarInner() {
             if (timestamp < v) setTimestamp(v);
           }
         }}
-        style={inputStyle}
+        style={{ ...inputStyle, width: 150 }}
       />
+    </div>
+  );
+
+  const toPicker = (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
       <label style={labelStyle}>To</label>
       <input
         type="datetime-local"
@@ -692,324 +873,133 @@ function PlaybackBarInner() {
             if (timestamp > v) setTimestamp(v);
           }
         }}
-        style={inputStyle}
+        style={{ ...inputStyle, width: 150 }}
       />
+    </div>
+  );
 
-      {/* Step interval dropdown */}
-      <select
-        value={stepIdx}
-        onChange={(e) => setStepIdx(Number(e.target.value))}
-        style={inputStyle}
-        title="Step interval"
-      >
-        {STEP_OPTIONS.map((opt, i) => (
-          <option key={i} value={i}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+  return (
+    <div style={wrapperStyle}>
+      {/* Row 1: always visible */}
+      <div style={{ ...barStyle, borderTop: "none" }}>
+        {playPauseBtn}
+        {!expanded && fromPicker}
+        {scrubSlider}
+        {!expanded && toPicker}
 
-      {/* Step back */}
-      <button
-        onClick={() => {
-          const ms = selectedStepMs || 60_000;
-          setTimestamp(Math.max(timeRange.start, timestamp - ms));
-        }}
-        style={iconBtnStyle}
-        title="Step back"
-      >
-        ⏮
-      </button>
+        {/* Speed selector */}
+        <select
+          value={speed}
+          onChange={(e) => setSpeed(Number(e.target.value) as PlaybackSpeed)}
+          style={inputStyle}
+          title="Playback speed"
+        >
+          {SPEEDS.map((s) => (
+            <option key={s} value={s}>
+              {speedLabel(s)}
+            </option>
+          ))}
+        </select>
 
-      {/* Reverse button */}
-      <button
-        onClick={() => {
-          if (isReversing && isPlaying) {
-            // Already reversing — pause
-            setPlaying(false);
-            setReversing(false);
-          } else {
-            setReversing(true);
-            setPlaying(true);
-          }
-        }}
-        style={{
-          ...iconBtnStyle,
-          minWidth: 32,
-          color:
-            isReversing && isPlaying
-              ? "var(--io-accent)"
-              : "var(--io-text-primary)",
-          borderColor:
-            isReversing && isPlaying ? "var(--io-accent)" : "var(--io-border)",
-        }}
-        title={isReversing && isPlaying ? "Pause reverse" : "Reverse"}
-      >
-        ◀◀
-      </button>
-
-      {/* Play / Pause */}
-      <button
-        onClick={() => {
-          if (isPlaying && !isReversing) {
-            setPlaying(false);
-          } else {
-            setReversing(false);
-            setPlaying(true);
-          }
-        }}
-        style={{
-          ...iconBtnStyle,
-          minWidth: 32,
-          color:
-            isPlaying && !isReversing
-              ? "var(--io-accent)"
-              : "var(--io-text-primary)",
-          borderColor:
-            isPlaying && !isReversing ? "var(--io-accent)" : "var(--io-border)",
-        }}
-        title={isPlaying && !isReversing ? "Pause" : "Play"}
-      >
-        {isPlaying && !isReversing ? "⏸" : "▶"}
-      </button>
-
-      {/* Step forward */}
-      <button
-        onClick={() => {
-          const ms = selectedStepMs || 60_000;
-          setTimestamp(Math.min(timeRange.end, timestamp + ms));
-        }}
-        style={iconBtnStyle}
-        title="Step forward"
-      >
-        ⏭
-      </button>
-
-      {/* Loop toggle button */}
-      <button
-        onClick={() => setLoopEnabled(!loopEnabled)}
-        style={{
-          ...iconBtnStyle,
-          color: loopEnabled ? "var(--io-accent)" : "var(--io-text-muted)",
-          borderColor: loopEnabled ? "var(--io-accent)" : "var(--io-border)",
-        }}
-        title={
-          loopEnabled
-            ? "Disable loop"
-            : "Enable loop (set handles with [ and ])"
-        }
-      >
-        ↺
-      </button>
-
-      {/* Scrub slider with alarm event markers and loop region handles */}
-      <div
-        style={{
-          position: "relative",
-          flex: 1,
-          minWidth: 80,
-          maxWidth: 300,
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        {/* Loop region shading */}
-        {loopEnabled &&
-          loopStartSlider !== null &&
-          loopEndSlider !== null &&
-          loopEndSlider > loopStartSlider && (
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                left: `${loopStartSlider / 10}%`,
-                width: `${(loopEndSlider - loopStartSlider) / 10}%`,
-                top: 0,
-                bottom: 0,
-                background: "var(--io-accent)",
-                opacity: 0.15,
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            />
-          )}
-
-        <input
-          type="range"
-          min={0}
-          max={1000}
-          value={sliderValue}
-          onChange={(e) => {
-            const pct = Number(e.target.value) / 1000;
-            setTimestamp(timeRange.start + pct * rangeMs);
-          }}
-          style={{
-            width: "100%",
-            cursor: "pointer",
-            margin: 0,
-            position: "relative",
-            zIndex: 2,
-          }}
-        />
-
-        {/* Loop start handle */}
-        {loopStartSlider !== null && (
-          <input
-            type="range"
-            min={0}
-            max={1000}
-            value={loopStartSlider}
-            onChange={(e) => {
-              const pct = Number(e.target.value) / 1000;
-              setLoopStart(timeRange.start + pct * rangeMs);
-            }}
-            title="Loop start"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              width: "100%",
-              margin: 0,
-              opacity: 0,
-              cursor: "ew-resize",
-              zIndex: 3,
-            }}
-          />
-        )}
-
-        {/* Loop start marker line */}
-        {loopStartSlider !== null && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: `${loopStartSlider / 10}%`,
-              transform: "translateX(-50%)",
-              top: 2,
-              bottom: 2,
-              width: 3,
-              background: "var(--io-accent)",
-              borderRadius: 2,
-              pointerEvents: "none",
-              zIndex: 4,
-              opacity: 0.85,
-            }}
-          />
-        )}
-
-        {/* Loop end handle — draggable range input */}
-        {loopEndSlider !== null && (
-          <input
-            type="range"
-            min={0}
-            max={1000}
-            value={loopEndSlider}
-            onChange={(e) => {
-              const pct = Number(e.target.value) / 1000;
-              setLoopEnd(timeRange.start + pct * rangeMs);
-            }}
-            title="Loop end"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              width: "100%",
-              margin: 0,
-              opacity: 0,
-              cursor: "ew-resize",
-              zIndex: 3,
-            }}
-          />
-        )}
-
-        {/* Loop end marker line */}
-        {loopEndSlider !== null && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: `${loopEndSlider / 10}%`,
-              transform: "translateX(-50%)",
-              top: 2,
-              bottom: 2,
-              width: 3,
-              background: "var(--io-accent)",
-              borderRadius: 2,
-              pointerEvents: "none",
-              zIndex: 4,
-              opacity: 0.85,
-            }}
-          />
-        )}
-
-        {/* Alarm event tick marks — rendered on top of the range track */}
-        {rangeMs > 0 && alarmEvents && alarmEvents.length > 0 && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 8,
-              pointerEvents: "none",
-              zIndex: 5,
-            }}
-          >
-            {alarmEvents.map((event) => {
-              const ts = new Date(event.timestamp).getTime();
-              if (ts < timeRange.start || ts > timeRange.end) return null;
-              const pct = ((ts - timeRange.start) / rangeMs) * 100;
-              return (
-                <div
-                  key={event.id}
-                  title={`${event.priority.toUpperCase()}: ${event.message} @ ${new Date(event.timestamp).toLocaleTimeString()}`}
-                  onClick={() => setTimestamp(ts)}
-                  style={{
-                    position: "absolute",
-                    left: `${pct}%`,
-                    transform: "translateX(-50%)",
-                    width: 2,
-                    height: 8,
-                    background: ALARM_PRIORITY_COLORS[event.priority],
-                    bottom: 0,
-                    pointerEvents: "auto",
-                    cursor: "pointer",
-                    zIndex: 6,
-                  }}
-                />
-              );
-            })}
-          </div>
-        )}
+        {/* Chevron expand/collapse */}
+        <button
+          style={iconBtnStyle}
+          onClick={() => setExpanded((v) => !v)}
+          title={expanded ? "Collapse advanced controls" : "Expand advanced controls"}
+        >
+          {expanded ? "▼" : "▲"}
+        </button>
       </div>
 
-      {/* Timestamp display */}
-      <span
-        style={{
-          fontSize: 11,
-          fontFamily: "var(--io-font-mono, monospace)",
-          color: "var(--io-accent)",
-          whiteSpace: "nowrap",
-          minWidth: 170,
-        }}
-      >
-        {fmtTimestamp(timestamp)}
-      </span>
+      {/* Row 2: expanded transport + step controls */}
+      {expanded && (
+        <div style={{ ...barStyle, borderTop: "1px solid var(--io-border)" }}>
+          {fromPicker}
 
-      {/* Speed selector */}
-      <select
-        value={speed}
-        onChange={(e) => setSpeed(Number(e.target.value) as PlaybackSpeed)}
-        style={inputStyle}
-        title="Playback speed"
-      >
-        {SPEEDS.map((s) => (
-          <option key={s} value={s}>
-            {speedLabel(s)}
-          </option>
-        ))}
-      </select>
+          {/* Step-back ⏮ */}
+          <button
+            style={iconBtnStyle}
+            title="Step back"
+            onClick={() => {
+              const ms = selectedStepMs || 60_000;
+              setTimestamp(Math.max(timeRange.start, timestamp - ms));
+            }}
+          >
+            ⏮
+          </button>
+
+          {/* Reverse ◀◀ */}
+          <button
+            style={{
+              ...iconBtnStyle,
+              color:
+                isPlaying && isReversing
+                  ? "var(--io-accent)"
+                  : "var(--io-text-primary)",
+              borderColor:
+                isPlaying && isReversing ? "var(--io-accent)" : "var(--io-border)",
+            }}
+            title={isPlaying && isReversing ? "Stop reverse" : "Reverse"}
+            onClick={() => {
+              if (isPlaying && isReversing) {
+                setPlaying(false);
+              } else {
+                // If sitting at the start, jump to end so reverse has somewhere to go
+                if (atStart) setTimestamp(timeRange.end);
+                setReversing(true);
+                setPlaying(true);
+              }
+            }}
+          >
+            ◀◀
+          </button>
+
+          {playPauseBtn}
+
+          {/* Step-forward ⏭ */}
+          <button
+            style={iconBtnStyle}
+            title="Step forward"
+            onClick={() => {
+              const ms = selectedStepMs || 60_000;
+              setTimestamp(Math.min(timeRange.end, timestamp + ms));
+            }}
+          >
+            ⏭
+          </button>
+
+          {/* Loop toggle ↺ */}
+          <button
+            style={{
+              ...iconBtnStyle,
+              color: loopEnabled ? "var(--io-accent)" : "var(--io-text-primary)",
+              borderColor: loopEnabled ? "var(--io-accent)" : "var(--io-border)",
+            }}
+            title={loopEnabled ? "Disable loop" : "Enable loop"}
+            onClick={() => setLoopEnabled(!loopEnabled)}
+          >
+            ↺
+          </button>
+
+          {/* Step interval select */}
+          <select
+            value={stepIdx}
+            onChange={(e) => setStepIdx(Number(e.target.value))}
+            style={inputStyle}
+            title="Step interval"
+          >
+            {STEP_OPTIONS.map((opt, i) => (
+              <option key={i} value={i}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          <div style={{ flex: 1 }} />
+
+          {toPicker}
+        </div>
+      )}
     </div>
   );
 }
@@ -1028,32 +1018,6 @@ const barStyle: React.CSSProperties = {
   background: "var(--io-surface)",
   borderTop: "1px solid var(--io-border)",
   overflow: "hidden",
-};
-
-const liveButtonStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  background: "var(--io-surface-secondary)",
-  border: "1px solid var(--io-border)",
-  borderRadius: 6,
-  padding: "3px 10px",
-  cursor: "pointer",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#22C55E",
-  letterSpacing: "0.05em",
-};
-
-const backLiveStyle: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid var(--io-accent)",
-  borderRadius: 5,
-  padding: "2px 8px",
-  cursor: "pointer",
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--io-accent)",
-  whiteSpace: "nowrap",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -1081,4 +1045,12 @@ const iconBtnStyle: React.CSSProperties = {
   fontSize: 13,
   color: "var(--io-text-primary)",
   lineHeight: 1,
+};
+
+const wrapperStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  flexShrink: 0,
+  background: "var(--io-surface)",
+  borderTop: "1px solid var(--io-border)",
 };

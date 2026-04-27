@@ -138,7 +138,10 @@ export default function PointTablePane({
 }: PointTablePaneProps) {
   const pointIds = config.tablePointIds ?? [];
 
-  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore();
+  const playbackMode = usePlaybackStore((s) => s.mode);
+  const playbackTs = usePlaybackStore((s) =>
+    s.mode === "historical" ? Math.floor(s.timestamp / 1000) * 1000 : undefined,
+  );
   const isHistorical = playbackMode === "historical";
 
   const { data: metaMap } = usePointsMeta(pointIds);
@@ -209,7 +212,7 @@ export default function PointTablePane({
           minute: "2-digit",
           second: "2-digit",
         })
-      : isHistorical
+      : isHistorical && playbackTs
         ? new Date(playbackTs).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
