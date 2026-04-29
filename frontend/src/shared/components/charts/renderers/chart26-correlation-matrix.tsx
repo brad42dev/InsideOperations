@@ -57,7 +57,8 @@ export default function CorrelationMatrixChart({ config }: RendererProps) {
   const showValues = config.extras?.showValues !== false;
   const durationMinutes = config.durationMinutes ?? 60 * 24;
 
-  const { startMs: chartStartMs, endMs: chartEndMs } = useChartTimeRange(durationMinutes);
+  const { startMs: chartStartMs, endMs: chartEndMs } =
+    useChartTimeRange(durationMinutes);
   const end = new Date(chartEndMs).toISOString();
   const start = new Date(chartStartMs).toISOString();
 

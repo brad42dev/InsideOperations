@@ -13,11 +13,16 @@ function describePaste(payload: IOClipboardPayload): string {
     `${count} ${count === 1 ? singular : plural}`;
   if (c.nodes?.length) parts.push(n(c.nodes.length, "shape", "shapes"));
   if (c.points?.length) parts.push(n(c.points.length, "point", "points"));
-  if (c.paneConfigs?.length) parts.push(n(c.paneConfigs.length, "pane", "panes"));
+  if (c.paneConfigs?.length)
+    parts.push(n(c.paneConfigs.length, "pane", "panes"));
   if (c.alarms?.length) parts.push(n(c.alarms.length, "alarm", "alarms"));
-  if (c.logEntries?.length) parts.push(n(c.logEntries.length, "log entry", "log entries"));
+  if (c.logEntries?.length)
+    parts.push(n(c.logEntries.length, "log entry", "log entries"));
   if (c.tableRows?.length) parts.push(n(c.tableRows.length, "row", "rows"));
-  if (c.expressionTiles?.length) parts.push(n(c.expressionTiles.length, "expression tile", "expression tiles"));
+  if (c.expressionTiles?.length)
+    parts.push(
+      n(c.expressionTiles.length, "expression tile", "expression tiles"),
+    );
   return parts.length > 0 ? parts.join(", ") : "clipboard contents";
 }
 

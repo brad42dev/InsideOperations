@@ -86,7 +86,12 @@ export function useSelectionKeybinds(
         }
         // No fallback — zones without a cut handler ignore Ctrl+X globally
         // (e.g. designer handles it locally via its own onKeyDown handler)
-      } else if (ctrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "v") {
+      } else if (
+        ctrl &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === "v"
+      ) {
         e.preventDefault();
         await pasteDefault();
       } else if (ctrl && e.altKey && e.key.toLowerCase() === "v") {

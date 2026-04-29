@@ -24,7 +24,9 @@ export function useHistoricalValues(
 
   // 2-hour lookback window — covers OPC points that update infrequently.
   const end = snappedTs ? new Date(snappedTs).toISOString() : "";
-  const start = snappedTs ? new Date(snappedTs - 2 * 60 * 60 * 1000).toISOString() : "";
+  const start = snappedTs
+    ? new Date(snappedTs - 2 * 60 * 60 * 1000).toISOString()
+    : "";
 
   // Preserve last-known values so the scene doesn't blank out while queries for a
   // new scrub position are in flight. Updated each time a query resolves.
@@ -37,10 +39,16 @@ export function useHistoricalValues(
     queries: pointIds.map((id) => ({
       queryKey: ["historical", id, snappedTs] as const,
       queryFn: async (): Promise<RawRow | null> => {
-        const r = await pointsApi.getHistory(id, { start, end, resolution: "raw" });
+        const r = await pointsApi.getHistory(id, {
+          start,
+          end,
+          resolution: "raw",
+        });
         if (!r.success) return null;
         const raw = r.data as unknown as RawResponse;
-        const rows: RawRow[] = Array.isArray(raw) ? raw : (raw as { rows?: RawRow[] }).rows ?? [];
+        const rows: RawRow[] = Array.isArray(raw)
+          ? raw
+          : ((raw as { rows?: RawRow[] }).rows ?? []);
         return rows.length > 0 ? rows[rows.length - 1] : null;
       },
       enabled: !!snappedTs,
@@ -58,7 +66,9 @@ export function useHistoricalValues(
         pointId: pointIds[i],
         value: row.value ?? null,
         quality:
-          row.quality === "good" || row.quality === "bad" || row.quality === "uncertain"
+          row.quality === "good" ||
+          row.quality === "bad" ||
+          row.quality === "uncertain"
             ? row.quality
             : "uncertain",
       };

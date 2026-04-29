@@ -69,15 +69,16 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
     gcTime: Infinity,
   });
 
-  const { timestamps, seriesData, isFetching, historicalNowMs } = useTimeSeriesBuffer({
-    bufferKey,
-    pointIds,
-    durationMinutes,
-    interpolation: config.interpolation ?? "linear",
-    bucketSeconds: config.aggregateSize,
-    aggregateType: config.aggregateType,
-    msiMap,
-  });
+  const { timestamps, seriesData, isFetching, historicalNowMs } =
+    useTimeSeriesBuffer({
+      bufferKey,
+      pointIds,
+      durationMinutes,
+      interpolation: config.interpolation ?? "linear",
+      bucketSeconds: config.aggregateSize,
+      aggregateType: config.aggregateType,
+      msiMap,
+    });
 
   // Live mode: auto-scrolling window anchored to now.
   // Historical mode: fixed window from the playback time range.

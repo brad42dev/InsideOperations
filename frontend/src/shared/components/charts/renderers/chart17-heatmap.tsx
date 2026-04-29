@@ -39,7 +39,11 @@ export default function HeatmapChart({ config }: RendererProps) {
       ? config.extras.calendarYear
       : new Date().getFullYear();
 
-  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: chartStartMs,
+    endMs: chartEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
   const end = new Date(chartEndMs).toISOString();
   const start =
     !isHistorical && calendarMode

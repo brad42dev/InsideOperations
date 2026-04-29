@@ -339,7 +339,9 @@ export default function ChartPointSelector({
         label: pasteLabel,
         shortcut: pasteLabel === "Paste" ? "Ctrl+V" : undefined,
         disabled: !hasPoints,
-        onClick: () => { if (payload) void handlePasteFromClipboard(payload); },
+        onClick: () => {
+          if (payload) void handlePasteFromClipboard(payload);
+        },
       },
       {
         label: `${pasteLabel} As…`,
@@ -347,11 +349,15 @@ export default function ChartPointSelector({
         children: [
           {
             label: "Points",
-            onClick: () => { if (payload) void handlePasteFromClipboard(payload); },
+            onClick: () => {
+              if (payload) void handlePasteFromClipboard(payload);
+            },
           },
           {
             label: "Text (fill search)",
-            onClick: () => { if (refs[0]) setSearch(refs[0].tagname); },
+            onClick: () => {
+              if (refs[0]) setSearch(refs[0].tagname);
+            },
           },
         ],
       },
@@ -374,584 +380,594 @@ export default function ChartPointSelector({
 
   return (
     <>
-    <div
-      tabIndex={-1}
-      onPaste={handleContainerPaste}
-      onContextMenu={handleContainerContextMenu}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "40% 1fr",
-        gridTemplateRows: "auto auto 1fr auto",
-        columnGap: 12,
-        rowGap: 6,
-        flex: 1,
-        minHeight: 0,
-        outline: "none",
-      }}
-    >
-      {/* ── Left row 1: label ───────────────────────────────────────────── */}
       <div
+        tabIndex={-1}
+        onPaste={handleContainerPaste}
+        onContextMenu={handleContainerContextMenu}
         style={{
-          gridColumn: 1,
-          gridRow: 1,
-          fontSize: "0.85em",
-          fontWeight: 600,
-          color: "var(--io-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        Available Points
-      </div>
-      {/* ── Left row 2: search ──────────────────────────────────────────── */}
-      <input
-        type="text"
-        placeholder="Search…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ ...inputStyle, gridColumn: 1, gridRow: 2 }}
-      />
-      {/* ── Left row 3: scrollable list ─────────────────────────────────── */}
-      <div
-        style={{
-          gridColumn: 1,
-          gridRow: 3,
-          overflowY: "auto",
-          border: "1px solid var(--io-border)",
-          borderRadius: 4,
-          background: "var(--io-surface)",
+          display: "grid",
+          gridTemplateColumns: "40% 1fr",
+          gridTemplateRows: "auto auto 1fr auto",
+          columnGap: 12,
+          rowGap: 6,
+          flex: 1,
           minHeight: 0,
+          outline: "none",
         }}
       >
-        {filtered.length === 0 && (
-          <div
-            style={{
-              padding: 12,
-              color: "var(--io-text-muted)",
-              fontSize: 12,
-            }}
-          >
-            {isSearching ? "Searching…" : search ? "No matches" : "Loading…"}
-          </div>
-        )}
-        {filtered.map((pt) => {
-          const compatible = isPointCompatible(pt, acceptedPointTypes);
-          const colors = assignedColors.get(pt.id);
-          const isAssigned = Boolean(colors?.length);
-          const primaryColor = colors?.[0];
-          const assignedBg = primaryColor
-            ? `color-mix(in srgb, ${primaryColor} 12%, transparent)`
-            : undefined;
-          return (
+        {/* ── Left row 1: label ───────────────────────────────────────────── */}
+        <div
+          style={{
+            gridColumn: 1,
+            gridRow: 1,
+            fontSize: "0.85em",
+            fontWeight: 600,
+            color: "var(--io-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          Available Points
+        </div>
+        {/* ── Left row 2: search ──────────────────────────────────────────── */}
+        <input
+          type="text"
+          placeholder="Search…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ ...inputStyle, gridColumn: 1, gridRow: 2 }}
+        />
+        {/* ── Left row 3: scrollable list ─────────────────────────────────── */}
+        <div
+          style={{
+            gridColumn: 1,
+            gridRow: 3,
+            overflowY: "auto",
+            border: "1px solid var(--io-border)",
+            borderRadius: 4,
+            background: "var(--io-surface)",
+            minHeight: 0,
+          }}
+        >
+          {filtered.length === 0 && (
             <div
-              key={pt.id}
-              draggable
-              onDragStart={() => handleDragStart(pt.id)}
-              onContextMenu={(e) => handleContextMenu(e, pt.id)}
-              onDoubleClick={() => {
-                // Double-click: fill first non-full slot in order
-                const target = slotDefs.find((s) => {
-                  const filled = points.filter((p) => p.role === s.id);
-                  const max = s.multi ? (s.maxPoints ?? 12) : 1;
-                  return (
-                    filled.length < max &&
-                    !filled.some((p) => p.pointId === pt.id)
-                  );
-                });
-                if (target) assignPoint(target.id, pt.id);
-              }}
-              title={
-                !compatible
-                  ? `${pt.tagname} — incompatible with this chart type`
-                  : pt.display_name
-                    ? `${pt.tagname}\n${pt.display_name}`
-                    : pt.tagname
-              }
               style={{
-                padding: "4px 8px",
-                fontSize: "0.9em",
-                cursor: "grab",
-                borderBottom: "1px solid var(--io-border)",
-                color: "var(--io-text-primary)",
-                userSelect: "none",
-                opacity: compatible ? 1 : 0.35,
-                background: assignedBg,
-                borderLeft: isAssigned
-                  ? `3px solid ${primaryColor}`
-                  : "3px solid transparent",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = assignedBg
-                  ? `color-mix(in srgb, ${primaryColor} 22%, var(--io-surface-hover))`
-                  : "var(--io-surface-hover)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = assignedBg ?? "";
+                padding: 12,
+                color: "var(--io-text-muted)",
+                fontSize: 12,
               }}
             >
+              {isSearching ? "Searching…" : search ? "No matches" : "Loading…"}
+            </div>
+          )}
+          {filtered.map((pt) => {
+            const compatible = isPointCompatible(pt, acceptedPointTypes);
+            const colors = assignedColors.get(pt.id);
+            const isAssigned = Boolean(colors?.length);
+            const primaryColor = colors?.[0];
+            const assignedBg = primaryColor
+              ? `color-mix(in srgb, ${primaryColor} 12%, transparent)`
+              : undefined;
+            return (
               <div
+                key={pt.id}
+                draggable
+                onDragStart={() => handleDragStart(pt.id)}
+                onContextMenu={(e) => handleContextMenu(e, pt.id)}
+                onDoubleClick={() => {
+                  // Double-click: fill first non-full slot in order
+                  const target = slotDefs.find((s) => {
+                    const filled = points.filter((p) => p.role === s.id);
+                    const max = s.multi ? (s.maxPoints ?? 12) : 1;
+                    return (
+                      filled.length < max &&
+                      !filled.some((p) => p.pointId === pt.id)
+                    );
+                  });
+                  if (target) assignPoint(target.id, pt.id);
+                }}
+                title={
+                  !compatible
+                    ? `${pt.tagname} — incompatible with this chart type`
+                    : pt.display_name
+                      ? `${pt.tagname}\n${pt.display_name}`
+                      : pt.tagname
+                }
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  minWidth: 0,
+                  padding: "4px 8px",
+                  fontSize: "0.9em",
+                  cursor: "grab",
+                  borderBottom: "1px solid var(--io-border)",
+                  color: "var(--io-text-primary)",
+                  userSelect: "none",
+                  opacity: compatible ? 1 : 0.35,
+                  background: assignedBg,
+                  borderLeft: isAssigned
+                    ? `3px solid ${primaryColor}`
+                    : "3px solid transparent",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = assignedBg
+                    ? `color-mix(in srgb, ${primaryColor} 22%, var(--io-surface-hover))`
+                    : "var(--io-surface-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = assignedBg ?? "";
                 }}
               >
-                <div
-                  style={{
-                    fontWeight: 500,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1,
-                    minWidth: 0,
-                  }}
-                >
-                  {pt.tagname}
-                </div>
-                {acceptedPointTypes &&
-                  !acceptedPointTypes.includes("any") &&
-                  compatible &&
-                  pt.point_category !== "analog" && (
-                    <span
-                      style={{
-                        fontSize: "0.7em",
-                        fontWeight: 600,
-                        letterSpacing: "0.04em",
-                        padding: "1px 5px",
-                        borderRadius: 3,
-                        flexShrink: 0,
-                        background:
-                          pt.point_category === "boolean"
-                            ? "color-mix(in srgb, #10B981 20%, transparent)"
-                            : "color-mix(in srgb, #8B5CF6 20%, transparent)",
-                        color:
-                          pt.point_category === "boolean"
-                            ? "#10B981"
-                            : "#8B5CF6",
-                      }}
-                    >
-                      {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
-                    </span>
-                  )}
-                {colors &&
-                  colors.length > 1 &&
-                  colors.map((c, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: c,
-                        flexShrink: 0,
-                        display: "inline-block",
-                      }}
-                    />
-                  ))}
-              </div>
-              {pt.display_name && (
-                <div
-                  style={{
-                    color: "var(--io-text-muted)",
-                    fontSize: "0.8em",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {pt.display_name}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {/* Sentinel: triggers next-page fetch when scrolled into view */}
-        <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />
-        {isSearching && filtered.length > 0 && (
-          <div
-            style={{
-              padding: "6px 8px",
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              textAlign: "center",
-            }}
-          >
-            Loading…
-          </div>
-        )}
-      </div>
-      {/* ── Left row 4: hint ────────────────────────────────────────────── */}
-      <div
-        style={{
-          gridColumn: 1,
-          gridRow: 4,
-          fontSize: "0.75em",
-          color: "var(--io-text-muted)",
-        }}
-      >
-        Drag to slot · Double-click to add · Right-click for options · Ctrl+V to paste
-      </div>
-
-      {/* ── Right row 1: first slot label ───────────────────────────────── */}
-      {slotDefs[0] &&
-        (() => {
-          const s = slotDefs[0];
-          const pts = points.filter((p) => p.role === s.id);
-          const max = s.maxPoints ?? 12;
-          const cap = s.multi ? max : 1;
-          const isOverCap = pts.length > cap;
-          const full = !isOverCap && (s.multi ? pts.length >= max : pts.length >= 1);
-          return (
-            <div
-              style={{
-                gridColumn: 2,
-                gridRow: 1,
-                display: "flex",
-                alignItems: "baseline",
-                gap: 6,
-                fontSize: "0.85em",
-                fontWeight: 600,
-                color: "var(--io-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              {s.label}
-              {s.required && (
-                <span style={{ color: "var(--io-accent)" }}>*</span>
-              )}
-              {pts.length > 0 && (
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: isOverCap
-                      ? "var(--io-alarm-urgent)"
-                      : full
-                        ? "var(--io-accent)"
-                        : "var(--io-text-muted)",
-                  }}
-                >
-                  {pts.length}/{cap}
-                  {isOverCap
-                    ? " — Too Many Points Selected"
-                    : full
-                      ? " — Full"
-                      : ""}
-                </span>
-              )}
-            </div>
-          );
-        })()}
-
-      {/* ── Right row 3: slot boxes ───────────────────────────────────────── */}
-      <div
-        style={{
-          gridColumn: 2,
-          gridRow: 3,
-          display: "flex",
-          flexDirection: "column",
-          gap: 26,
-          minHeight: 0,
-        }}
-      >
-        {slotDefs.map((slot, slotIdx) => {
-          const slotPoints = points.filter((p) => p.role === slot.id);
-          const isDragOver = dragOverSlot === slot.id;
-          const maxPoints = slot.maxPoints ?? 12;
-          const isEmpty = slotPoints.length === 0;
-          const count = slotPoints.length;
-          const cap = slot.multi ? maxPoints : 1;
-          const isOverCap = count > cap;
-          const isFull = !isOverCap && (slot.multi ? count >= maxPoints : count >= 1);
-
-          return (
-            <div key={slot.id}>
-              {/* ── Slot header — first slot label lives in row 1 above ── */}
-              {slotIdx > 0 && (
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "baseline",
-                    gap: 6,
-                    marginBottom: 26,
+                    alignItems: "center",
+                    gap: 5,
+                    minWidth: 0,
                   }}
                 >
                   <div
                     style={{
-                      fontSize: "0.85em",
-                      fontWeight: 600,
-                      color: "var(--io-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
+                      fontWeight: 500,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      flex: 1,
+                      minWidth: 0,
                     }}
                   >
-                    {slot.label}
-                    {slot.required && (
+                    {pt.tagname}
+                  </div>
+                  {acceptedPointTypes &&
+                    !acceptedPointTypes.includes("any") &&
+                    compatible &&
+                    pt.point_category !== "analog" && (
                       <span
-                        style={{ color: "var(--io-accent)", marginLeft: 4 }}
+                        style={{
+                          fontSize: "0.7em",
+                          fontWeight: 600,
+                          letterSpacing: "0.04em",
+                          padding: "1px 5px",
+                          borderRadius: 3,
+                          flexShrink: 0,
+                          background:
+                            pt.point_category === "boolean"
+                              ? "color-mix(in srgb, #10B981 20%, transparent)"
+                              : "color-mix(in srgb, #8B5CF6 20%, transparent)",
+                          color:
+                            pt.point_category === "boolean"
+                              ? "#10B981"
+                              : "#8B5CF6",
+                        }}
                       >
-                        *
+                        {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
                       </span>
                     )}
-                  </div>
-                  {count > 0 && (
-                    <span
-                      style={{
-                        fontSize: "0.75em",
-                        fontWeight: 600,
-                        color: isOverCap
-                          ? "var(--io-alarm-urgent)"
-                          : isFull
-                            ? "var(--io-accent)"
-                            : "var(--io-text-muted)",
-                      }}
-                    >
-                      {count}/{cap}
-                      {isOverCap
-                        ? " — Too Many Points Selected"
-                        : isFull
-                          ? " — Full"
-                          : ""}
-                    </span>
-                  )}
+                  {colors &&
+                    colors.length > 1 &&
+                    colors.map((c, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: c,
+                          flexShrink: 0,
+                          display: "inline-block",
+                        }}
+                      />
+                    ))}
                 </div>
-              )}
+                {pt.display_name && (
+                  <div
+                    style={{
+                      color: "var(--io-text-muted)",
+                      fontSize: "0.8em",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {pt.display_name}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {/* Sentinel: triggers next-page fetch when scrolled into view */}
+          <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />
+          {isSearching && filtered.length > 0 && (
+            <div
+              style={{
+                padding: "6px 8px",
+                fontSize: 11,
+                color: "var(--io-text-muted)",
+                textAlign: "center",
+              }}
+            >
+              Loading…
+            </div>
+          )}
+        </div>
+        {/* ── Left row 4: hint ────────────────────────────────────────────── */}
+        <div
+          style={{
+            gridColumn: 1,
+            gridRow: 4,
+            fontSize: "0.75em",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          Drag to slot · Double-click to add · Right-click for options · Ctrl+V
+          to paste
+        </div>
 
-              {/* ── Drop zone ── */}
+        {/* ── Right row 1: first slot label ───────────────────────────────── */}
+        {slotDefs[0] &&
+          (() => {
+            const s = slotDefs[0];
+            const pts = points.filter((p) => p.role === s.id);
+            const max = s.maxPoints ?? 12;
+            const cap = s.multi ? max : 1;
+            const isOverCap = pts.length > cap;
+            const full =
+              !isOverCap && (s.multi ? pts.length >= max : pts.length >= 1);
+            return (
               <div
-                onDragOver={(e) => {
-                  if (!isFull && !isOverCap) {
-                    e.preventDefault();
-                    setDragOverSlot(slot.id);
-                  }
-                }}
-                onDragLeave={() => setDragOverSlot(null)}
-                onDrop={() => handleDrop(slot.id)}
                 style={{
-                  border: `1px dashed ${
-                    isOverCap
-                      ? "var(--io-alarm-urgent)"
-                      : isDragOver
-                        ? "var(--io-accent)"
-                        : isFull
-                          ? "var(--io-border)"
-                          : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
-                  }`,
-                  borderRadius: 6,
-                  padding: isEmpty ? "18px 12px" : "6px 8px",
-                  background: isOverCap
-                    ? "color-mix(in srgb, var(--io-alarm-urgent) 5%, var(--io-surface))"
-                    : isDragOver
-                      ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
-                      : isEmpty
-                        ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
-                        : "var(--io-surface)",
-                  opacity: isFull || isOverCap ? 0.9 : 1,
-                  transition:
-                    "border-color 0.15s, background 0.15s, padding 0.15s",
+                  gridColumn: 2,
+                  gridRow: 1,
                   display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
+                  alignItems: "baseline",
+                  gap: 6,
+                  fontSize: "0.85em",
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                 }}
               >
-                {/* Empty state — large, prominent */}
-                {isEmpty && (
+                {s.label}
+                {s.required && (
+                  <span style={{ color: "var(--io-accent)" }}>*</span>
+                )}
+                {pts.length > 0 && (
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: isOverCap
+                        ? "var(--io-alarm-urgent)"
+                        : full
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
+                    }}
+                  >
+                    {pts.length}/{cap}
+                    {isOverCap
+                      ? " — Too Many Points Selected"
+                      : full
+                        ? " — Full"
+                        : ""}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
+        {/* ── Right row 3: slot boxes ───────────────────────────────────────── */}
+        <div
+          style={{
+            gridColumn: 2,
+            gridRow: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 26,
+            minHeight: 0,
+          }}
+        >
+          {slotDefs.map((slot, slotIdx) => {
+            const slotPoints = points.filter((p) => p.role === slot.id);
+            const isDragOver = dragOverSlot === slot.id;
+            const maxPoints = slot.maxPoints ?? 12;
+            const isEmpty = slotPoints.length === 0;
+            const count = slotPoints.length;
+            const cap = slot.multi ? maxPoints : 1;
+            const isOverCap = count > cap;
+            const isFull =
+              !isOverCap && (slot.multi ? count >= maxPoints : count >= 1);
+
+            return (
+              <div key={slot.id}>
+                {/* ── Slot header — first slot label lives in row 1 above ── */}
+                {slotIdx > 0 && (
                   <div
                     style={{
                       display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
+                      alignItems: "baseline",
                       gap: 6,
-                      color: isDragOver
-                        ? "var(--io-accent)"
-                        : "var(--io-text-muted)",
-                      pointerEvents: "none",
+                      marginBottom: 26,
                     }}
                   >
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 22 22"
-                      fill="none"
-                      style={{ opacity: 0.5 }}
-                    >
-                      <rect
-                        x="1"
-                        y="5"
-                        width="20"
-                        height="14"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeDasharray="3 2"
-                      />
-                      <path
-                        d="M11 9v6M8 12l3-3 3 3"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span
+                    <div
                       style={{
-                        fontSize: "0.82em",
-                        textAlign: "center",
-                        lineHeight: 1.4,
+                        fontSize: "0.85em",
+                        fontWeight: 600,
+                        color: "var(--io-text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
                       }}
                     >
-                      {slot.multi
-                        ? `Drag points here · up to ${maxPoints}`
-                        : "Drag a point here"}
-                    </span>
+                      {slot.label}
+                      {slot.required && (
+                        <span
+                          style={{ color: "var(--io-accent)", marginLeft: 4 }}
+                        >
+                          *
+                        </span>
+                      )}
+                    </div>
+                    {count > 0 && (
+                      <span
+                        style={{
+                          fontSize: "0.75em",
+                          fontWeight: 600,
+                          color: isOverCap
+                            ? "var(--io-alarm-urgent)"
+                            : isFull
+                              ? "var(--io-accent)"
+                              : "var(--io-text-muted)",
+                        }}
+                      >
+                        {count}/{cap}
+                        {isOverCap
+                          ? " — Too Many Points Selected"
+                          : isFull
+                            ? " — Full"
+                            : ""}
+                      </span>
+                    )}
                   </div>
                 )}
 
-                {/* Assigned points */}
-                {slotPoints.map((sp) => {
-                  const meta = filtered.find((p) => p.id === sp.pointId);
-                  const globalIdx = points.findIndex(
-                    (p) => p.slotId === sp.slotId,
-                  );
-                  return (
+                {/* ── Drop zone ── */}
+                <div
+                  onDragOver={(e) => {
+                    if (!isFull && !isOverCap) {
+                      e.preventDefault();
+                      setDragOverSlot(slot.id);
+                    }
+                  }}
+                  onDragLeave={() => setDragOverSlot(null)}
+                  onDrop={() => handleDrop(slot.id)}
+                  style={{
+                    border: `1px dashed ${
+                      isOverCap
+                        ? "var(--io-alarm-urgent)"
+                        : isDragOver
+                          ? "var(--io-accent)"
+                          : isFull
+                            ? "var(--io-border)"
+                            : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
+                    }`,
+                    borderRadius: 6,
+                    padding: isEmpty ? "18px 12px" : "6px 8px",
+                    background: isOverCap
+                      ? "color-mix(in srgb, var(--io-alarm-urgent) 5%, var(--io-surface))"
+                      : isDragOver
+                        ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
+                        : isEmpty
+                          ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
+                          : "var(--io-surface)",
+                    opacity: isFull || isOverCap ? 0.9 : 1,
+                    transition:
+                      "border-color 0.15s, background 0.15s, padding 0.15s",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {/* Empty state — large, prominent */}
+                  {isEmpty && (
                     <div
-                      key={sp.slotId}
                       style={{
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         gap: 6,
-                        fontSize: "0.9em",
-                        background: "var(--io-surface-secondary)",
-                        border: "1px solid var(--io-border)",
-                        borderRadius: 3,
-                        padding: "3px 6px",
+                        color: isDragOver
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
+                        pointerEvents: "none",
                       }}
                     >
-                      <ColorSwatch
-                        color={
-                          sp.color ??
-                          autoColorForTheme(
-                            globalIdx >= 0 ? globalIdx : 0,
-                            theme,
-                          )
-                        }
-                        onChange={(c) => updateColor(sp.slotId, c)}
-                      />
-                      <span
-                        style={{ flex: 1, overflow: "hidden", minWidth: 0 }}
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 22 22"
+                        fill="none"
+                        style={{ opacity: 0.5 }}
                       >
-                        <div
-                          style={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
+                        <rect
+                          x="1"
+                          y="5"
+                          width="20"
+                          height="14"
+                          rx="2"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeDasharray="3 2"
+                        />
+                        <path
+                          d="M11 9v6M8 12l3-3 3 3"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span
+                        style={{
+                          fontSize: "0.82em",
+                          textAlign: "center",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {slot.multi
+                          ? `Drag points here · up to ${maxPoints}`
+                          : "Drag a point here"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Assigned points */}
+                  {slotPoints.map((sp) => {
+                    const meta = filtered.find((p) => p.id === sp.pointId);
+                    const globalIdx = points.findIndex(
+                      (p) => p.slotId === sp.slotId,
+                    );
+                    return (
+                      <div
+                        key={sp.slotId}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: "0.9em",
+                          background: "var(--io-surface-secondary)",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: 3,
+                          padding: "3px 6px",
+                        }}
+                      >
+                        <ColorSwatch
+                          color={
+                            sp.color ??
+                            autoColorForTheme(
+                              globalIdx >= 0 ? globalIdx : 0,
+                              theme,
+                            )
+                          }
+                          onChange={(c) => updateColor(sp.slotId, c)}
+                        />
+                        <span
+                          style={{ flex: 1, overflow: "hidden", minWidth: 0 }}
                         >
-                          {meta?.tagname ?? sp.tagname ?? sp.pointId}
-                        </div>
-                        {(meta?.display_name ?? sp.label) && (
                           <div
                             style={{
-                              fontSize: "0.8em",
-                              color: "var(--io-text-muted)",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {meta?.display_name ?? sp.label}
+                            {meta?.tagname ?? sp.tagname ?? sp.pointId}
                           </div>
-                        )}
-                      </span>
-                      <button
-                        onClick={() => removePoint(sp.slotId)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          color: "var(--io-text-muted)",
-                          padding: "0 2px",
-                          fontSize: "1.1em",
-                          lineHeight: 1,
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                        title="Remove"
-                      >
-                        ×
-                      </button>
+                          {(meta?.display_name ?? sp.label) && (
+                            <div
+                              style={{
+                                fontSize: "0.8em",
+                                color: "var(--io-text-muted)",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {meta?.display_name ?? sp.label}
+                            </div>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => removePoint(sp.slotId)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--io-text-muted)",
+                            padding: "0 2px",
+                            fontSize: "1.1em",
+                            lineHeight: 1,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Drop-more footer — shown when has points but not full */}
+                  {!isEmpty && !isFull && !isOverCap && slot.multi && (
+                    <div
+                      style={{
+                        fontSize: "0.78em",
+                        color: isDragOver
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
+                        padding: "4px 2px 2px",
+                        borderTop: "1px dashed var(--io-border)",
+                        marginTop: 2,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      Drop more points here…
                     </div>
-                  );
-                })}
-
-                {/* Drop-more footer — shown when has points but not full */}
-                {!isEmpty && !isFull && !isOverCap && slot.multi && (
-                  <div
-                    style={{
-                      fontSize: "0.78em",
-                      color: isDragOver
-                        ? "var(--io-accent)"
-                        : "var(--io-text-muted)",
-                      padding: "4px 2px 2px",
-                      borderTop: "1px dashed var(--io-border)",
-                      marginTop: 2,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    Drop more points here…
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
 
-    {ctxMenu && (() => {
-      const clickedMeta = ctxMenu.pointId
-        ? filtered.find((p) => p.id === ctxMenu.pointId)
-        : undefined;
-      const items: ContextMenuItem[] = [
-        ...(ctxMenu.pointId
-          ? [
-              ...slotDefs.map((slot) => ({
-                label: `Add to ${slot.label}`,
-                onClick: () => assignPoint(slot.id, ctxMenu.pointId!),
-              })),
-              { label: "", divider: true },
-              {
-                label: "Copy Point",
-                disabled: !clickedMeta,
-                onClick: () => {
-                  if (!clickedMeta) return;
-                  void useIOClipboardStore.getState().writeToClipboard(
-                    buildIOClipboardPayload({
-                      originContext: "chart",
-                      contents: {
-                        points: [{ tagname: clickedMeta.tagname, displayName: clickedMeta.display_name ?? undefined }],
-                      },
-                    }),
-                  );
-                },
-              },
-              { label: "", divider: true },
-            ]
-          : []),
-        ...buildPasteItems(currentPayload, "Paste"),
-        ...buildPasteItems(previousPayload, "Paste Previous"),
-      ];
-      return (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          items={items}
-          zIndex={9999}
-          onClose={() => setCtxMenu(null)}
-        />
-      );
-    })()}
+      {ctxMenu &&
+        (() => {
+          const clickedMeta = ctxMenu.pointId
+            ? filtered.find((p) => p.id === ctxMenu.pointId)
+            : undefined;
+          const items: ContextMenuItem[] = [
+            ...(ctxMenu.pointId
+              ? [
+                  ...slotDefs.map((slot) => ({
+                    label: `Add to ${slot.label}`,
+                    onClick: () => assignPoint(slot.id, ctxMenu.pointId!),
+                  })),
+                  { label: "", divider: true },
+                  {
+                    label: "Copy Point",
+                    disabled: !clickedMeta,
+                    onClick: () => {
+                      if (!clickedMeta) return;
+                      void useIOClipboardStore.getState().writeToClipboard(
+                        buildIOClipboardPayload({
+                          originContext: "chart",
+                          contents: {
+                            points: [
+                              {
+                                tagname: clickedMeta.tagname,
+                                displayName:
+                                  clickedMeta.display_name ?? undefined,
+                              },
+                            ],
+                          },
+                        }),
+                      );
+                    },
+                  },
+                  { label: "", divider: true },
+                ]
+              : []),
+            ...buildPasteItems(currentPayload, "Paste"),
+            ...buildPasteItems(previousPayload, "Paste Previous"),
+          ];
+          return (
+            <ContextMenu
+              x={ctxMenu.x}
+              y={ctxMenu.y}
+              items={items}
+              zIndex={9999}
+              onClose={() => setCtxMenu(null)}
+            />
+          );
+        })()}
     </>
   );
 }

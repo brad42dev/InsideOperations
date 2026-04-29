@@ -56,9 +56,12 @@ export default function ExportRenderPage() {
 
   useEffect(() => {
     const style = document.createElement("style");
-    style.textContent = "* { animation: none !important; transition: none !important; }";
+    style.textContent =
+      "* { animation: none !important; transition: none !important; }";
     document.head.appendChild(style);
-    return () => { document.head.removeChild(style); };
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   // Expose in-place timestamp update for the capture worker.

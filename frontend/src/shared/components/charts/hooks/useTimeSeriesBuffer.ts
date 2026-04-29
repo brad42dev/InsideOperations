@@ -146,7 +146,8 @@ export function useTimeSeriesBuffer({
     ],
     queryFn: async () => {
       const startMs = historicalNowMs - historicalWindowMs;
-      const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+      const effectiveBucket =
+        bucketSeconds ?? defaultBucketSeconds(durationMinutes);
       const effectiveAgg = aggregateType ?? "avg";
       const results = await Promise.all(
         pointIds.map((id) =>
@@ -172,7 +173,8 @@ export function useTimeSeriesBuffer({
                     ? row.value
                     : typeof row.avg === "number"
                       ? row.avg
-                      : typeof row.min === "number" && typeof row.max === "number"
+                      : typeof row.min === "number" &&
+                          typeof row.max === "number"
                         ? (row.min + row.max) / 2
                         : NaN,
               }))
@@ -314,7 +316,8 @@ export function useTimeSeriesBuffer({
           pendingPvsRef.current.clear();
           if (pending.size === 0) return;
 
-          const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+          const bucketSec =
+            bucketSeconds ?? defaultBucketSeconds(durationMinutes);
           const cutoff = Date.now() / 1000 - durationMinutes * 60;
           let changed = false;
 
@@ -355,7 +358,13 @@ export function useTimeSeriesBuffer({
       pendingPvsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHistorical, pointIds.join(","), bucketSeconds, durationMinutes, interpolation]);
+  }, [
+    isHistorical,
+    pointIds.join(","),
+    bucketSeconds,
+    durationMinutes,
+    interpolation,
+  ]);
 
   // Build output
   // In historical mode always use the historical query result.

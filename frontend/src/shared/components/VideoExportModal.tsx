@@ -1,14 +1,17 @@
 import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { usePlaybackStore } from "../../store/playback";
-import { videoExportsApi, type CreateVideoExportRequest } from "../../api/videoExports";
+import {
+  videoExportsApi,
+  type CreateVideoExportRequest,
+} from "../../api/videoExports";
 import { showToast } from "./Toast";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSuccess?: (jobId: string) => void;
-  module: 'process' | 'console';
+  module: "process" | "console";
   graphicId: string;
   resolveExportGraphicId?: () => Promise<string>;
 }
@@ -57,11 +60,24 @@ function toDatetimeLocal(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function VideoExportModal({ open, onClose, onSuccess, module, graphicId, resolveExportGraphicId }: Props) {
+export default function VideoExportModal({
+  open,
+  onClose,
+  onSuccess,
+  module,
+  graphicId,
+  resolveExportGraphicId,
+}: Props) {
   if (!open) return null;
 
   return createPortal(
-    <VideoExportModalInner onClose={onClose} onSuccess={onSuccess} module={module} graphicId={graphicId} resolveExportGraphicId={resolveExportGraphicId} />,
+    <VideoExportModalInner
+      onClose={onClose}
+      onSuccess={onSuccess}
+      module={module}
+      graphicId={graphicId}
+      resolveExportGraphicId={resolveExportGraphicId}
+    />,
     document.body,
   );
 }
@@ -75,7 +91,7 @@ function VideoExportModalInner({
 }: {
   onClose: () => void;
   onSuccess?: (jobId: string) => void;
-  module: 'process' | 'console';
+  module: "process" | "console";
   graphicId: string;
   resolveExportGraphicId?: () => Promise<string>;
 }) {
@@ -91,8 +107,14 @@ function VideoExportModalInner({
   const [error, setError] = useState<string | null>(null);
 
   // Detected once at mount
-  const widthPx = useMemo(() => Math.round(window.screen.width * window.devicePixelRatio), []);
-  const heightPx = useMemo(() => Math.round(window.screen.height * window.devicePixelRatio), []);
+  const widthPx = useMemo(
+    () => Math.round(window.screen.width * window.devicePixelRatio),
+    [],
+  );
+  const heightPx = useMemo(
+    () => Math.round(window.screen.height * window.devicePixelRatio),
+    [],
+  );
 
   const frames = Math.floor((rangeEnd - rangeStart) / stepMs);
   const videoDurationSec = stepsPerSec > 0 ? frames / stepsPerSec : 0;
@@ -111,7 +133,11 @@ function VideoExportModalInner({
         effectiveGraphicId = await resolveExportGraphicId();
         snapshotWorkspaceId = effectiveGraphicId;
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Could not snapshot workspace. Please try again.");
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Could not snapshot workspace. Please try again.",
+        );
         setSubmitting(false);
         return;
       }
@@ -132,7 +158,9 @@ function VideoExportModalInner({
       snapshot_workspace_id: snapshotWorkspaceId,
     };
     try {
-      const result = await videoExportsApi.create(req) as { data?: { id?: string }; id?: string } | undefined;
+      const result = (await videoExportsApi.create(req)) as
+        | { data?: { id?: string }; id?: string }
+        | undefined;
       const jobId = result?.data?.id ?? result?.id;
       if (onSuccess && jobId) {
         onSuccess(jobId);
@@ -145,7 +173,11 @@ function VideoExportModalInner({
       }
       onClose();
     } catch (e: unknown) {
-      const err = e as { status?: number; message?: string; error?: string | { message?: string; code?: string } };
+      const err = e as {
+        status?: number;
+        message?: string;
+        error?: string | { message?: string; code?: string };
+      };
       if (err?.status === 409) {
         setError("You already have a video export in progress.");
       } else {
@@ -172,7 +204,9 @@ function VideoExportModalInner({
         justifyContent: "center",
         zIndex: 9999,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         style={{
@@ -188,11 +222,26 @@ function VideoExportModalInner({
         }}
       >
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--io-text-primary)" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 16,
+              fontWeight: 700,
+              color: "var(--io-text-primary)",
+            }}
+          >
             Export Video
           </h2>
-          <button onClick={onClose} style={BTN_ICON} aria-label="Close">✕</button>
+          <button onClick={onClose} style={BTN_ICON} aria-label="Close">
+            ✕
+          </button>
         </div>
 
         {/* Time range */}
@@ -208,7 +257,9 @@ function VideoExportModalInner({
               }}
               style={INPUT}
             />
-            <span style={{ color: "var(--io-text-muted)", fontSize: 12 }}>to</span>
+            <span style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
+              to
+            </span>
             <input
               type="datetime-local"
               value={toDatetimeLocal(rangeEnd)}
@@ -231,15 +282,23 @@ function VideoExportModalInner({
               style={INPUT}
             >
               {STEP_OPTIONS.map((o) => (
-                <option key={o.ms} value={o.ms}>{o.label}</option>
+                <option key={o.ms} value={o.ms}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
           <div style={{ ...FIELD_GROUP, flex: 1 }}>
             <label style={LABEL}>Quality</label>
-            <select value={crf} onChange={(e) => setCrf(Number(e.target.value))} style={INPUT}>
+            <select
+              value={crf}
+              onChange={(e) => setCrf(Number(e.target.value))}
+              style={INPUT}
+            >
               {QUALITY_OPTIONS.map((q) => (
-                <option key={q.crf} value={q.crf}>{q.label}</option>
+                <option key={q.crf} value={q.crf}>
+                  {q.label}
+                </option>
               ))}
             </select>
           </div>
@@ -254,7 +313,9 @@ function VideoExportModalInner({
             style={INPUT}
           >
             {STEPS_PER_SEC_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -278,11 +339,24 @@ function VideoExportModalInner({
           <label style={LABEL}>Resolution</label>
           <span style={{ fontSize: 12, color: "var(--io-text-secondary)" }}>
             {widthPx} × {heightPx} px
-            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--io-text-muted)" }}>
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 11,
+                color: "var(--io-text-muted)",
+              }}
+            >
               Detected from your display
             </span>
           </span>
-          <p style={{ margin: 0, fontSize: 11, color: "var(--io-text-muted)", marginTop: 4 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              marginTop: 4,
+            }}
+          >
             Export runs server-side — any browser is supported.
           </p>
         </div>
@@ -306,8 +380,15 @@ function VideoExportModalInner({
             {frames > 0 ? `${videoDurationSec.toFixed(1)}s video` : "—"}
           </span>
           {overLimit && (
-            <span style={{ color: "var(--io-danger)", fontWeight: 600, marginTop: 4 }}>
-              Exceeds 1 hour at 1s step — shorten the range or increase the step interval.
+            <span
+              style={{
+                color: "var(--io-danger)",
+                fontWeight: 600,
+                marginTop: 4,
+              }}
+            >
+              Exceeds 1 hour at 1s step — shorten the range or increase the step
+              interval.
             </span>
           )}
         </div>
@@ -337,8 +418,9 @@ function VideoExportModalInner({
             disabled={invalid || overLimit || submitting}
             style={{
               ...BTN_PRIMARY,
-              opacity: (invalid || overLimit || submitting) ? 0.5 : 1,
-              cursor: (invalid || overLimit || submitting) ? "not-allowed" : "pointer",
+              opacity: invalid || overLimit || submitting ? 0.5 : 1,
+              cursor:
+                invalid || overLimit || submitting ? "not-allowed" : "pointer",
             }}
           >
             {submitting ? "Submitting…" : "⏺ Start Export"}

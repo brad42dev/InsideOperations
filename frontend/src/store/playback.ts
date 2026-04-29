@@ -11,7 +11,7 @@ export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16 | 32;
 
 export interface ActiveExportJob {
   id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
   framesRendered: number;
   framesTotal: number | null;
 }

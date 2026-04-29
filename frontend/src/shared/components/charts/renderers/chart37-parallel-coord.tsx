@@ -117,7 +117,11 @@ export default function ParallelCoordChart({ config }: RendererProps) {
       : 0.4;
   const highlightOutliers = config.extras?.highlightOutliers === true;
 
-  const { startMs: windowStartMs, endMs: windowEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: windowStartMs,
+    endMs: windowEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();

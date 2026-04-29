@@ -573,13 +573,18 @@ export function renderDigitalStatusSvg(
     : rawVal !== null
       ? (cfg.stateLabels[rawVal] ?? ctx.discreteLabel ?? rawVal)
       : "---";
-  const isNormal = !isAnalogMismatch && (rawVal === null || cfg.normalStates.includes(rawVal));
+  const isNormal =
+    !isAnalogMismatch && (rawVal === null || cfg.normalStates.includes(rawVal));
   const fill = isAnalogMismatch
     ? "#7F1D1D"
     : isNormal
       ? DE_COLORS.displayZoneInactive
       : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1]);
-  const textColor = isAnalogMismatch ? "#FCA5A5" : isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary;
+  const textColor = isAnalogMismatch
+    ? "#FCA5A5"
+    : isNormal
+      ? DE_COLORS.textSecondary
+      : DE_COLORS.textPrimary;
   const w = Math.max(40, label.length * 7.5 + 12);
   // pos.x stores slotCenter - 20 (canonical w/2). After counter-scale, group origin
   // is (slotCenter - 20) * scale canvas px from shape origin. Adding 20 * scale centres

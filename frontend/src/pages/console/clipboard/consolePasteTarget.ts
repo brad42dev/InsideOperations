@@ -128,7 +128,8 @@ export function createConsolePaneTarget(paneId: string): PasteTarget {
       if (pane?.type === "point_table")
         return "Table only accepts points or table rows";
       if (pane?.type === "alarm_list") return "Alarm list only accepts points";
-      if (pane?.type === "blank") return "Blank pane accepts points or table rows";
+      if (pane?.type === "blank")
+        return "Blank pane accepts points or table rows";
       return "This pane accepts no data from the clipboard";
     },
   };

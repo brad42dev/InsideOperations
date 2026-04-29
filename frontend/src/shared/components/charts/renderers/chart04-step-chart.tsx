@@ -58,15 +58,16 @@ export default function Chart04StepChart({
   });
 
   // Step charts always force step interpolation regardless of config.interpolation.
-  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } = useTimeSeriesBuffer({
-    bufferKey,
-    pointIds,
-    durationMinutes,
-    interpolation: "step",
-    bucketSeconds: config.aggregateSize,
-    aggregateType: config.aggregateType,
-    msiMap,
-  });
+  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } =
+    useTimeSeriesBuffer({
+      bufferKey,
+      pointIds,
+      durationMinutes,
+      interpolation: "step",
+      bucketSeconds: config.aggregateSize,
+      aggregateType: config.aggregateType,
+      msiMap,
+    });
 
   const xRangeRef = useRef<{ min: number; max: number }>({ min: 0, max: 0 });
   const nowSec = Date.now() / 1000;

@@ -1035,7 +1035,14 @@ function DisplayElementRenderer({
           data-canvas-y={String(Math.round(de.transform.position.y))}
           opacity={de.opacity}
         >
-          <rect x={dcx - dW / 2} y={0} width={dW} height={20} rx={2} fill="#3F3F46" />
+          <rect
+            x={dcx - dW / 2}
+            y={0}
+            width={dW}
+            height={20}
+            rx={2}
+            fill="#3F3F46"
+          />
           <text
             x={dcx}
             y={10}
@@ -1053,7 +1060,10 @@ function DisplayElementRenderer({
     case "point_name_label": {
       const pnCfg = cfg as PointNameLabelConfig;
       const text =
-        pnCfg.staticText ?? de.binding.pointTag ?? de.binding.pointId ?? "TAG.NAME";
+        pnCfg.staticText ??
+        de.binding.pointTag ??
+        de.binding.pointId ??
+        "TAG.NAME";
       const fs = pnCfg.fontSize ?? 10;
       const ff = deFontToCss(pnCfg.fontFamily);
       const color =
@@ -1066,7 +1076,14 @@ function DisplayElementRenderer({
           data-canvas-y={String(Math.round(de.transform.position.y))}
           opacity={de.opacity}
         >
-          <text x={40 * parentScaleX} y={fs} fontSize={fs} fill={color} fontFamily={ff} textAnchor="middle">
+          <text
+            x={40 * parentScaleX}
+            y={fs}
+            fontSize={fs}
+            fill={color}
+            fontFamily={ff}
+            textAnchor="middle"
+          >
             {text}
           </text>
         </g>
@@ -2772,9 +2789,9 @@ export default function DesignerCanvas({
   // re-triggers the wizard's shape-loading useEffect, resetting the form state.
   const shapeConfigInitialConfig = useMemo(() => {
     if (!shapeConfigNodeId || !doc) return undefined;
-    const configNode = doc.children.find(
-      (n) => n.id === shapeConfigNodeId,
-    ) as SymbolInstance | undefined;
+    const configNode = doc.children.find((n) => n.id === shapeConfigNodeId) as
+      | SymbolInstance
+      | undefined;
     if (!configNode) return undefined;
     return {
       bindings: [
@@ -10332,8 +10349,7 @@ function DesignerContextMenuContent({
               <ContextMenuPrimitive.SubTrigger
                 style={{
                   ...itemStyle,
-                  ...(!ioClipboardPrevious ||
-                  designerPreviousModes.length === 0
+                  ...(!ioClipboardPrevious || designerPreviousModes.length === 0
                     ? { opacity: 0.4, pointerEvents: "none" }
                     : {}),
                 }}

@@ -2043,10 +2043,20 @@ export default function ConsolePage() {
           <button
             onClick={() => setPlaybackMode("live")}
             style={{
-              padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", border: "1px solid",
-              background: !isHistorical ? "var(--io-accent-subtle)" : "transparent",
-              color: !isHistorical ? "var(--io-accent)" : "var(--io-text-muted)",
-              borderColor: !isHistorical ? "var(--io-accent)" : "var(--io-border)",
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 12,
+              cursor: "pointer",
+              border: "1px solid",
+              background: !isHistorical
+                ? "var(--io-accent-subtle)"
+                : "transparent",
+              color: !isHistorical
+                ? "var(--io-accent)"
+                : "var(--io-text-muted)",
+              borderColor: !isHistorical
+                ? "var(--io-accent)"
+                : "var(--io-border)",
             }}
           >
             ● Live
@@ -2054,15 +2064,32 @@ export default function ConsolePage() {
           <button
             onClick={() => setPlaybackMode("historical")}
             style={{
-              padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", border: "1px solid",
-              background: isHistorical ? "var(--io-warning-subtle)" : "transparent",
-              color: isHistorical ? "var(--io-warning)" : "var(--io-text-muted)",
-              borderColor: isHistorical ? "var(--io-warning)" : "var(--io-border)",
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 12,
+              cursor: "pointer",
+              border: "1px solid",
+              background: isHistorical
+                ? "var(--io-warning-subtle)"
+                : "transparent",
+              color: isHistorical
+                ? "var(--io-warning)"
+                : "var(--io-text-muted)",
+              borderColor: isHistorical
+                ? "var(--io-warning)"
+                : "var(--io-border)",
             }}
           >
             ◷ Historical
           </button>
-          <div style={{ width: 1, height: 18, background: "var(--io-border)", margin: "0 4px" }} />
+          <div
+            style={{
+              width: 1,
+              height: 18,
+              background: "var(--io-border)",
+              margin: "0 4px",
+            }}
+          />
 
           {activeWorkspace && (
             <>
@@ -2967,7 +2994,8 @@ export default function ConsolePage() {
               module="console"
               graphicId={activeId ?? ""}
               resolveExportGraphicId={async () => {
-                const { workspaces: ws, activeId: aid } = useWorkspaceStore.getState();
+                const { workspaces: ws, activeId: aid } =
+                  useWorkspaceStore.getState();
                 const live = ws.find((w) => w.id === aid);
                 if (!live) throw new Error("No active workspace to export");
                 const result = await consoleApi.saveWorkspaceSnapshot({
@@ -2979,7 +3007,8 @@ export default function ConsolePage() {
                   published: false,
                   description: live.description,
                 });
-                if (!result.success) throw new Error("Failed to save workspace snapshot");
+                if (!result.success)
+                  throw new Error("Failed to save workspace snapshot");
                 return result.data.id;
               }}
             />

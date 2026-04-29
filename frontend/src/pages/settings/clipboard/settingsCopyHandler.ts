@@ -40,9 +40,7 @@ export async function copySettingsPointsSelection(): Promise<void> {
   }));
 
   const textRepresentation = points
-    .map((p) =>
-      p.displayName ? `${p.displayName} (${p.tagname})` : p.tagname,
-    )
+    .map((p) => (p.displayName ? `${p.displayName} (${p.tagname})` : p.tagname))
     .join(", ");
 
   const payload = buildIOClipboardPayload({

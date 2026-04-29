@@ -107,7 +107,11 @@ export default function StateTimelineChart({ config }: RendererProps) {
     [config.extras?.stateLabels],
   );
 
-  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: chartStartMs,
+    endMs: chartEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
   // Live mode: truncate to minute for stable query keys
   const windowEndMs = isHistorical
     ? chartEndMs

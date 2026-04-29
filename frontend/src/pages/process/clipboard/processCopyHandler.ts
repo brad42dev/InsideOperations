@@ -13,9 +13,7 @@ import type { SceneNode, GraphicExpression } from "@/shared/types/graphics";
  * `points` (for paste-as-points in trend/console).
  */
 export async function copyProcessSelection(): Promise<void> {
-  const selected = useGlobalSelectionStore
-    .getState()
-    .getSelection("process");
+  const selected = useGlobalSelectionStore.getState().getSelection("process");
   if (selected.length === 0) return;
 
   const sceneNodes = selected
@@ -26,14 +24,22 @@ export async function copyProcessSelection(): Promise<void> {
   if (sceneNodes.length === 0) return;
 
   // Collect bound point tagnames from the selected nodes
-  const points: Array<{ tagname: string; displayName?: string; unit?: string }> =
-    [];
+  const points: Array<{
+    tagname: string;
+    displayName?: string;
+    unit?: string;
+  }> = [];
   const seenTagnames = new Set<string>();
 
   function extractPoints(node: SceneNode) {
     const n = node as unknown as Record<string, unknown>;
     const binding = n.binding as
-      | { pointId?: string; pointTag?: string; displayName?: string; unit?: string }
+      | {
+          pointId?: string;
+          pointTag?: string;
+          displayName?: string;
+          unit?: string;
+        }
       | undefined;
     if (binding?.pointId && !seenTagnames.has(binding.pointId)) {
       seenTagnames.add(binding.pointId);
@@ -51,9 +57,7 @@ export async function copyProcessSelection(): Promise<void> {
         unit: binding.unit,
       });
     }
-    const stateBinding = n.stateBinding as
-      | { pointId?: string }
-      | undefined;
+    const stateBinding = n.stateBinding as { pointId?: string } | undefined;
     if (stateBinding?.pointId && !seenTagnames.has(stateBinding.pointId)) {
       seenTagnames.add(stateBinding.pointId);
       points.push({ tagname: stateBinding.pointId });
@@ -67,7 +71,9 @@ export async function copyProcessSelection(): Promise<void> {
   const expressions: Record<string, GraphicExpression> = {};
   const textParts = sceneNodes.map((n) => {
     const node = n as unknown as Record<string, unknown>;
-    return (node.name as string | undefined) ?? (node.id as string | undefined) ?? "";
+    return (
+      (node.name as string | undefined) ?? (node.id as string | undefined) ?? ""
+    );
   });
 
   const payload = buildIOClipboardPayload({

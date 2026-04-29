@@ -148,9 +148,7 @@ function AlarmRowItem({
       <span>
         <PriorityBadge priority={alarm.priority} />
       </span>
-      <span style={{ fontFamily: "monospace", fontSize: 12 }}>
-        {alarm.tag}
-      </span>
+      <span style={{ fontFamily: "monospace", fontSize: 12 }}>{alarm.tag}</span>
       <span
         style={{
           overflow: "hidden",

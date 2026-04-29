@@ -100,7 +100,13 @@ export default function HistoricalPlaybackBar({
     return <TimeContextBar />;
   }
 
-  return <PlaybackBarInner module={module} graphicId={graphicId} resolveExportGraphicId={resolveExportGraphicId} />;
+  return (
+    <PlaybackBarInner
+      module={module}
+      graphicId={graphicId}
+      resolveExportGraphicId={resolveExportGraphicId}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -474,22 +480,39 @@ function PlaybackBarInner({
     setCcOverlayEnabled,
   } = usePlaybackStore();
 
-  const canExportVideo = usePermission(module ? `${module}:video_export` : "__never__");
+  const canExportVideo = usePermission(
+    module ? `${module}:video_export` : "__never__",
+  );
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const { activeExportJob, setActiveExportJob } = usePlaybackStore();
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!activeExportJob) return;
-    if (activeExportJob.status === 'completed' || activeExportJob.status === 'failed' || activeExportJob.status === 'cancelled') return;
+    if (
+      activeExportJob.status === "completed" ||
+      activeExportJob.status === "failed" ||
+      activeExportJob.status === "cancelled"
+    )
+      return;
     const timer = setInterval(async () => {
       try {
         const job = await videoExportsApi.get(activeExportJob.id);
-        setActiveExportJob({ id: job.id, status: job.status, framesRendered: job.frames_rendered, framesTotal: job.frames_total });
-        if (job.status === 'failed') {
-          showToast({ title: "Export failed", description: job.error_message ?? "An error occurred during export.", variant: "error" });
+        setActiveExportJob({
+          id: job.id,
+          status: job.status,
+          framesRendered: job.frames_rendered,
+          framesTotal: job.frames_total,
+        });
+        if (job.status === "failed") {
+          showToast({
+            title: "Export failed",
+            description:
+              job.error_message ?? "An error occurred during export.",
+            variant: "error",
+          });
           setActiveExportJob(null);
-        } else if (job.status === 'cancelled') {
+        } else if (job.status === "cancelled") {
           setActiveExportJob(null);
         }
       } catch {
@@ -654,11 +677,21 @@ function PlaybackBarInner({
   // stay on-track if the time range is narrowed after loop bounds are set.
   const loopStartSlider =
     loopStart !== null && rangeMs > 0
-      ? Math.round(Math.max(0, Math.min(1000, ((loopStart - timeRange.start) / rangeMs) * 1000)))
+      ? Math.round(
+          Math.max(
+            0,
+            Math.min(1000, ((loopStart - timeRange.start) / rangeMs) * 1000),
+          ),
+        )
       : null;
   const loopEndSlider =
     loopEnd !== null && rangeMs > 0
-      ? Math.round(Math.max(0, Math.min(1000, ((loopEnd - timeRange.start) / rangeMs) * 1000)))
+      ? Math.round(
+          Math.max(
+            0,
+            Math.min(1000, ((loopEnd - timeRange.start) / rangeMs) * 1000),
+          ),
+        )
       : null;
 
   const scrubSlider = (
@@ -931,7 +964,11 @@ function PlaybackBarInner({
             fontSize: 11,
             letterSpacing: "0.05em",
           }}
-          title={ccOverlayEnabled ? "Hide timestamp overlay" : "Show timestamp overlay"}
+          title={
+            ccOverlayEnabled
+              ? "Hide timestamp overlay"
+              : "Show timestamp overlay"
+          }
           onClick={() => setCcOverlayEnabled(!ccOverlayEnabled)}
         >
           CC
@@ -949,7 +986,11 @@ function PlaybackBarInner({
                       await videoExportsApi.download(activeExportJob.id);
                       setActiveExportJob(null);
                     } catch {
-                      showToast({ title: "Download failed", description: "Could not download the video.", variant: "error" });
+                      showToast({
+                        title: "Download failed",
+                        description: "Could not download the video.",
+                        variant: "error",
+                      });
                     } finally {
                       setDownloading(false);
                     }
@@ -972,9 +1013,14 @@ function PlaybackBarInner({
               ) : (
                 (() => {
                   const pct = activeExportJob.framesTotal
-                    ? Math.round((activeExportJob.framesRendered / activeExportJob.framesTotal) * 100)
+                    ? Math.round(
+                        (activeExportJob.framesRendered /
+                          activeExportJob.framesTotal) *
+                          100,
+                      )
                     : 0;
-                  const label = activeExportJob.status === "queued" ? "Queued…" : `${pct}%`;
+                  const label =
+                    activeExportJob.status === "queued" ? "Queued…" : `${pct}%`;
                   return (
                     <div
                       style={{
@@ -1004,7 +1050,14 @@ function PlaybackBarInner({
                           transition: "width 0.5s ease",
                         }}
                       />
-                      <span style={{ position: "relative", fontSize: 11, fontWeight: 600, color: "var(--io-text-primary)" }}>
+                      <span
+                        style={{
+                          position: "relative",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "var(--io-text-primary)",
+                        }}
+                      >
                         {label}
                       </span>
                     </div>
@@ -1030,7 +1083,12 @@ function PlaybackBarInner({
               open={exportModalOpen}
               onClose={() => setExportModalOpen(false)}
               onSuccess={(jobId) => {
-                setActiveExportJob({ id: jobId, status: "queued", framesRendered: 0, framesTotal: null });
+                setActiveExportJob({
+                  id: jobId,
+                  status: "queued",
+                  framesRendered: 0,
+                  framesTotal: null,
+                });
               }}
               module={module}
               graphicId={graphicId ?? ""}
@@ -1057,16 +1115,26 @@ function PlaybackBarInner({
         <button
           style={iconBtnStyle}
           onClick={() => setExpanded((v) => !v)}
-          title={expanded ? "Collapse advanced controls" : "Expand advanced controls"}
+          title={
+            expanded ? "Collapse advanced controls" : "Expand advanced controls"
+          }
         >
           {expanded ? "▼" : "▲"}
         </button>
       </div>
 
       {/* CC timestamp overlay — portal to body to escape CSS transform stacking contexts */}
-      {ccOverlayEnabled && mode === "historical" &&
+      {ccOverlayEnabled &&
+        mode === "historical" &&
         createPortal(
-          <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9998 }}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              pointerEvents: "none",
+              zIndex: 9998,
+            }}
+          >
             <TimestampOverlay timestamp={timestamp} />
           </div>,
           document.body,
@@ -1098,7 +1166,9 @@ function PlaybackBarInner({
                   ? "var(--io-accent)"
                   : "var(--io-text-primary)",
               borderColor:
-                isPlaying && isReversing ? "var(--io-accent)" : "var(--io-border)",
+                isPlaying && isReversing
+                  ? "var(--io-accent)"
+                  : "var(--io-border)",
             }}
             title={isPlaying && isReversing ? "Stop reverse" : "Reverse"}
             onClick={() => {
@@ -1133,8 +1203,12 @@ function PlaybackBarInner({
           <button
             style={{
               ...iconBtnStyle,
-              color: loopEnabled ? "var(--io-accent)" : "var(--io-text-primary)",
-              borderColor: loopEnabled ? "var(--io-accent)" : "var(--io-border)",
+              color: loopEnabled
+                ? "var(--io-accent)"
+                : "var(--io-text-primary)",
+              borderColor: loopEnabled
+                ? "var(--io-accent)"
+                : "var(--io-border)",
             }}
             title={loopEnabled ? "Disable loop" : "Enable loop"}
             onClick={() => setLoopEnabled(!loopEnabled)}

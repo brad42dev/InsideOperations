@@ -1138,10 +1138,7 @@ export default function GraphicPane({
                         `[data-node-id="${nid}"]`,
                       );
                       if (el) {
-                        handleNodeHit(
-                          { nodeId: nid, nodeEl: el },
-                          false,
-                        );
+                        handleNodeHit({ nodeId: nid, nodeEl: el }, false);
                       }
                       setPointCtxMenu(null);
                     },

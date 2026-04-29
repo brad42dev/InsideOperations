@@ -31,7 +31,9 @@ import { usePointDetailStore } from "./store/pointDetailStore";
 import ToastProvider from "./shared/components/Toast";
 import LoginPage from "./pages/Login";
 import NotFound from "./pages/NotFound";
-const ExportRenderPage = lazy(() => import("./pages/export-render/ExportRenderPage"));
+const ExportRenderPage = lazy(
+  () => import("./pages/export-render/ExportRenderPage"),
+);
 import ResetPassword from "./pages/ResetPassword";
 import EulaAcceptance from "./pages/EulaAcceptance";
 import EulaGate from "./pages/EulaGate";

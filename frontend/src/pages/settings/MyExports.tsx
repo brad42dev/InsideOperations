@@ -22,7 +22,8 @@ function formatRelative(iso: string): string {
 function formatBytes(bytes: number | null): string {
   if (bytes === null || bytes === 0) return "—";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
@@ -30,11 +31,31 @@ type RowStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 
 function StatusBadge({ status }: { status: RowStatus }) {
   const map: Record<RowStatus, { bg: string; color: string; label: string }> = {
-    queued: { bg: "var(--io-surface-secondary)", color: "var(--io-text-muted)", label: "Queued" },
-    processing: { bg: "rgba(45,212,191,0.15)", color: "var(--io-accent)", label: "Processing" },
-    completed: { bg: "rgba(34,197,94,0.15)", color: "var(--io-success)", label: "Ready" },
-    failed: { bg: "rgba(239,68,68,0.15)", color: "var(--io-danger)", label: "Failed" },
-    cancelled: { bg: "rgba(156,163,175,0.2)", color: "var(--io-text-muted)", label: "Cancelled" },
+    queued: {
+      bg: "var(--io-surface-secondary)",
+      color: "var(--io-text-muted)",
+      label: "Queued",
+    },
+    processing: {
+      bg: "rgba(45,212,191,0.15)",
+      color: "var(--io-accent)",
+      label: "Processing",
+    },
+    completed: {
+      bg: "rgba(34,197,94,0.15)",
+      color: "var(--io-success)",
+      label: "Ready",
+    },
+    failed: {
+      bg: "rgba(239,68,68,0.15)",
+      color: "var(--io-danger)",
+      label: "Failed",
+    },
+    cancelled: {
+      bg: "rgba(156,163,175,0.2)",
+      color: "var(--io-text-muted)",
+      label: "Cancelled",
+    },
   };
   const { bg, color, label } = map[status];
   return (
@@ -47,7 +68,10 @@ function StatusBadge({ status }: { status: RowStatus }) {
         fontWeight: 600,
         background: bg,
         color,
-        animation: status === "processing" ? "io-status-pulse 1.5s ease-in-out infinite" : "none",
+        animation:
+          status === "processing"
+            ? "io-status-pulse 1.5s ease-in-out infinite"
+            : "none",
       }}
     >
       {label}
@@ -100,7 +124,8 @@ function toUnified(jobs: ExportJob[], videos: VideoExportJob[]): UnifiedRow[] {
     })),
   ];
   return rows.sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
 
@@ -128,7 +153,8 @@ export default function MyExports() {
   const dataQuery = useQuery({
     queryKey: ["settings-my-exports-data"],
     queryFn: () => exportsApi.listMyExports({ limit: 100 }).then((r) => r.data),
-    refetchInterval: (q) => (hasActive(toUnified(q.state.data ?? [], [])) ? 5000 : false),
+    refetchInterval: (q) =>
+      hasActive(toUnified(q.state.data ?? [], [])) ? 5000 : false,
   });
 
   const videoQuery = useQuery({
@@ -144,12 +170,18 @@ export default function MyExports() {
 
   const cancelVideoMutation = useMutation({
     mutationFn: (id: string) => videoExportsApi.cancel(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["settings-my-exports-video"] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ["settings-my-exports-video"],
+      }),
   });
 
   const cancelDataMutation = useMutation({
     mutationFn: (id: string) => exportsApi.cancelExport(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["settings-my-exports-data"] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ["settings-my-exports-data"],
+      }),
   });
 
   const rows = toUnified(dataQuery.data ?? [], videoQuery.data ?? []);
@@ -174,7 +206,7 @@ export default function MyExports() {
             color: "var(--io-text-muted)",
           }}
         >
-          {row.kind === "video" ? "Video" : row.format ?? "Data"}
+          {row.kind === "video" ? "Video" : (row.format ?? "Data")}
         </span>
       ),
       width: 90,
@@ -200,9 +232,15 @@ export default function MyExports() {
       id: "progress",
       header: "Progress",
       cell: (_v, row) => {
-        if (row.kind !== "video" || row.status !== "processing") return <span>—</span>;
+        if (row.kind !== "video" || row.status !== "processing")
+          return <span>—</span>;
         const total = row.frames_total ?? 0;
-        if (!total) return <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>—</span>;
+        if (!total)
+          return (
+            <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+              —
+            </span>
+          );
         return (
           <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
             {row.frames_rendered} / {total} frames
@@ -259,18 +297,32 @@ export default function MyExports() {
                 if (row.kind === "video") cancelVideoMutation.mutate(row.id);
                 else cancelDataMutation.mutate(row.id);
               }}
-              disabled={cancelVideoMutation.isPending || cancelDataMutation.isPending}
-              style={{ ...btnBase, color: "var(--io-danger)", borderColor: "rgba(239,68,68,0.4)" }}
+              disabled={
+                cancelVideoMutation.isPending || cancelDataMutation.isPending
+              }
+              style={{
+                ...btnBase,
+                color: "var(--io-danger)",
+                borderColor: "rgba(239,68,68,0.4)",
+              }}
             >
               Cancel
             </button>
           )}
-          {row.status !== "queued" && row.status !== "processing" && row.status !== "completed" && (
-            <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>—</span>
-          )}
+          {row.status !== "queued" &&
+            row.status !== "processing" &&
+            row.status !== "completed" && (
+              <span style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+                —
+              </span>
+            )}
           {row.status === "failed" && row.error_message && (
             <span
-              style={{ fontSize: "11px", color: "var(--io-danger)", maxWidth: 200 }}
+              style={{
+                fontSize: "11px",
+                color: "var(--io-danger)",
+                maxWidth: 200,
+              }}
               title={row.error_message}
             >
               {row.error_message.slice(0, 40)}

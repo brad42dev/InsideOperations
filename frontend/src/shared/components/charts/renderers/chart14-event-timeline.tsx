@@ -62,7 +62,11 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
   const pointIds = seriesSlots.map((s) => s.pointId);
   const durationMinutes = config.durationMinutes ?? 60;
 
-  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: chartStartMs,
+    endMs: chartEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
   const nowMs = chartEndMs;
   // Live mode: truncate to minute for stable query key
   const startMs = isHistorical

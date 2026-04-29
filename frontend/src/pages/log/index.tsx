@@ -723,9 +723,7 @@ export default function LogPage() {
 
   useEffect(() => {
     function handler(e: Event) {
-      const { tagnames } = (
-        e as CustomEvent<{ tagnames: string[] }>
-      ).detail;
+      const { tagnames } = (e as CustomEvent<{ tagnames: string[] }>).detail;
       const query = tagnames.join(" ");
       setSearchQuery(query);
       setSearchSubmitted(true);

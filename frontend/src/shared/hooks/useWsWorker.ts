@@ -292,9 +292,11 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
               action: {
                 label: "Download",
                 onClick: () => {
-                  import("../../api/videoExports").then(({ videoExportsApi }) => {
-                    void videoExportsApi.download(job_id);
-                  });
+                  import("../../api/videoExports").then(
+                    ({ videoExportsApi }) => {
+                      void videoExportsApi.download(job_id);
+                    },
+                  );
                 },
               },
               duration: 10000,

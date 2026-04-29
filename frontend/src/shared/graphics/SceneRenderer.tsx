@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo, memo } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useState,
+  useMemo,
+  memo,
+} from "react";
 import { usePointMeta } from "../hooks/usePointMeta";
 import type { PointDetail } from "../../api/points";
 import { resolvePointLabel } from "../utils/resolvePointLabel";
@@ -353,7 +361,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           if (!nodeId) continue;
           const conf = nodeConfigMapRef.current.get(nodeId);
           if (!conf) continue;
-          applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMapRef.current);
+          applyPointValue(
+            el,
+            conf.displayType,
+            conf.config,
+            pv,
+            pid,
+            pointMetaMapRef.current,
+          );
         }
       }
     }
@@ -489,7 +504,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
         if (!nodeId) continue;
         const conf = nodeConfigMapRef.current.get(nodeId);
         if (!conf) continue;
-        applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMapRef.current);
+        applyPointValue(
+          el,
+          conf.displayType,
+          conf.config,
+          pv,
+          pid,
+          pointMetaMapRef.current,
+        );
       }
     }
   });
@@ -512,7 +534,8 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     }
     const pvMap = historicalPvRef.current;
     if (pvMap.size === 0) return;
-    const elements = svgRef.current.querySelectorAll<SVGGElement>("[data-point-id]");
+    const elements =
+      svgRef.current.querySelectorAll<SVGGElement>("[data-point-id]");
     for (const el of elements) {
       const pointId = el.getAttribute("data-point-id");
       if (!pointId) continue;
@@ -1478,7 +1501,8 @@ function applyPointValue(
           ? (cfg.stateLabels[rawVal] ?? discreteLabel ?? rawVal)
           : "---";
       const isNormal =
-        !isAnalogMismatch && (rawVal === null || cfg.normalStates.includes(rawVal));
+        !isAnalogMismatch &&
+        (rawVal === null || cfg.normalStates.includes(rawVal));
       const fill = isAnalogMismatch
         ? "#7F1D1D"
         : isNormal

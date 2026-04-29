@@ -74,15 +74,16 @@ export default function Chart22StackedArea({
     gcTime: Infinity,
   });
 
-  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } = useTimeSeriesBuffer({
-    bufferKey,
-    pointIds,
-    durationMinutes,
-    interpolation: config.interpolation ?? "linear",
-    bucketSeconds: config.aggregateSize,
-    aggregateType: config.aggregateType,
-    msiMap,
-  });
+  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } =
+    useTimeSeriesBuffer({
+      bufferKey,
+      pointIds,
+      durationMinutes,
+      interpolation: config.interpolation ?? "linear",
+      bucketSeconds: config.aggregateSize,
+      aggregateType: config.aggregateType,
+      msiMap,
+    });
 
   const useStack = (config.extras?.stacked as boolean) ?? true; // default stacked; toggle via Options
   const showGrid = config.extras?.showGrid !== false;

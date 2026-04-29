@@ -76,7 +76,8 @@ export function extractStyleFromNodes(
     const snap: StyleSnapshot = {};
     if (typeof node.fill === "string") snap.fill = node.fill;
     if (typeof node.stroke === "string") snap.stroke = node.stroke;
-    if (typeof node.strokeWidth === "number") snap.strokeWidth = node.strokeWidth;
+    if (typeof node.strokeWidth === "number")
+      snap.strokeWidth = node.strokeWidth;
     if (typeof node.strokeDasharray === "string")
       snap.strokeDasharray = node.strokeDasharray;
     if (typeof node.opacity === "number") snap.opacity = node.opacity;

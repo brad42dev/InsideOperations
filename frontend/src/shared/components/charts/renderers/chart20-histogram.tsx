@@ -250,7 +250,8 @@ export default function HistogramChart({ config }: RendererProps) {
   const displayMode = (config.extras?.displayMode as string) ?? "histogram";
   const horizontal = config.extras?.orientation === "horizontal";
 
-  const { startMs: chartStartMs, endMs: chartEndMs } = useChartTimeRange(durationMinutes);
+  const { startMs: chartStartMs, endMs: chartEndMs } =
+    useChartTimeRange(durationMinutes);
   const end = new Date(chartEndMs).toISOString();
   const start = new Date(chartStartMs).toISOString();
 

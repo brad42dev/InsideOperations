@@ -65,121 +65,121 @@ function TemplateCard({
   const isHighlighted = selected || isZoneSelected;
   return (
     <>
-    <div
-      onMouseDown={onMouseDown}
-      onContextMenu={(e) => handleContextMenu(e, template)}
-      style={{
-        background: isHighlighted
-          ? "var(--io-accent-subtle)"
-          : "var(--io-surface-elevated)",
-        border: `1px solid ${isHighlighted ? "var(--io-accent)" : "var(--io-border)"}`,
-        borderRadius: "var(--io-radius)",
-        padding: "12px 14px",
-        cursor: "pointer",
-        transition: "border-color 0.1s, background 0.1s",
-      }}
-      onMouseEnter={(e) => {
-        if (!isHighlighted) {
-          (e.currentTarget as HTMLDivElement).style.borderColor =
-            "var(--io-accent)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isHighlighted) {
-          (e.currentTarget as HTMLDivElement).style.borderColor =
-            "var(--io-border)";
-        }
-      }}
-    >
       <div
+        onMouseDown={onMouseDown}
+        onContextMenu={(e) => handleContextMenu(e, template)}
         style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: "8px",
-          marginBottom: "6px",
+          background: isHighlighted
+            ? "var(--io-accent-subtle)"
+            : "var(--io-surface-elevated)",
+          border: `1px solid ${isHighlighted ? "var(--io-accent)" : "var(--io-border)"}`,
+          borderRadius: "var(--io-radius)",
+          padding: "12px 14px",
+          cursor: "pointer",
+          transition: "border-color 0.1s, background 0.1s",
+        }}
+        onMouseEnter={(e) => {
+          if (!isHighlighted) {
+            (e.currentTarget as HTMLDivElement).style.borderColor =
+              "var(--io-accent)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isHighlighted) {
+            (e.currentTarget as HTMLDivElement).style.borderColor =
+              "var(--io-border)";
+          }
         }}
       >
-        <span
+        <div
           style={{
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "var(--io-text-primary)",
-            lineHeight: 1.3,
-          }}
-        >
-          {template.name}
-        </span>
-        <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-          {template.is_system_template && (
-            <span
-              style={{
-                display: "inline-block",
-                padding: "2px 6px",
-                borderRadius: "100px",
-                fontSize: "10px",
-                fontWeight: 700,
-                background: "var(--io-accent-subtle)",
-                color: "var(--io-accent)",
-                letterSpacing: "0.03em",
-              }}
-            >
-              System
-            </span>
-          )}
-        </div>
-      </div>
-
-      {template.category && (
-        <span
-          style={{
-            display: "inline-block",
-            padding: "2px 7px",
-            borderRadius: "100px",
-            fontSize: "10px",
-            fontWeight: 600,
-            background: "var(--io-surface-secondary)",
-            color: "var(--io-text-muted)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "8px",
             marginBottom: "6px",
           }}
         >
-          {template.category}
-        </span>
-      )}
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+              lineHeight: 1.3,
+            }}
+          >
+            {template.name}
+          </span>
+          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+            {template.is_system_template && (
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "2px 6px",
+                  borderRadius: "100px",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  background: "var(--io-accent-subtle)",
+                  color: "var(--io-accent)",
+                  letterSpacing: "0.03em",
+                }}
+              >
+                System
+              </span>
+            )}
+          </div>
+        </div>
 
-      {template.description && (
-        <p
-          style={{
-            margin: 0,
-            fontSize: "12px",
-            color: "var(--io-text-secondary)",
-            lineHeight: 1.4,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {template.description}
-        </p>
-      )}
-    </div>
-    {menuState && (
-      <ContextMenu
-        x={menuState.x}
-        y={menuState.y}
-        items={[
-          {
-            label: "Copy",
-            onClick: () => {
-              closeMenu();
-              void copyReportsSelection();
+        {template.category && (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "2px 7px",
+              borderRadius: "100px",
+              fontSize: "10px",
+              fontWeight: 600,
+              background: "var(--io-surface-secondary)",
+              color: "var(--io-text-muted)",
+              marginBottom: "6px",
+            }}
+          >
+            {template.category}
+          </span>
+        )}
+
+        {template.description && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: "12px",
+              color: "var(--io-text-secondary)",
+              lineHeight: 1.4,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {template.description}
+          </p>
+        )}
+      </div>
+      {menuState && (
+        <ContextMenu
+          x={menuState.x}
+          y={menuState.y}
+          items={[
+            {
+              label: "Copy",
+              onClick: () => {
+                closeMenu();
+                void copyReportsSelection();
+              },
             },
-          },
-        ]}
-        onClose={closeMenu}
-      />
-    )}
+          ]}
+          onClose={closeMenu}
+        />
+      )}
     </>
   );
 }
@@ -607,9 +607,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     function handler(e: Event) {
-      const { tagnames } = (
-        e as CustomEvent<{ tagnames: string[] }>
-      ).detail;
+      const { tagnames } = (e as CustomEvent<{ tagnames: string[] }>).detail;
       setForcedSearch(tagnames.join(" "));
     }
     window.addEventListener("io-navigate:reports", handler);

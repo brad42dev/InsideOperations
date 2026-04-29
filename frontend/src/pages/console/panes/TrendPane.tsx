@@ -404,7 +404,8 @@ export default function TrendPane({
     ],
     queryFn: async () => {
       const startMs = historicalNowMs - historicalWindowMs;
-      const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+      const effectiveBucket =
+        bucketSeconds ?? defaultBucketSeconds(durationMinutes);
       const effectiveAgg = aggregateType ?? "avg";
       const results = await Promise.all(
         pointIds.map((id) =>
@@ -430,7 +431,8 @@ export default function TrendPane({
                     ? row.value
                     : typeof row.avg === "number"
                       ? row.avg
-                      : typeof row.min === "number" && typeof row.max === "number"
+                      : typeof row.min === "number" &&
+                          typeof row.max === "number"
                         ? (row.min + row.max) / 2
                         : NaN,
               }))
@@ -560,7 +562,8 @@ export default function TrendPane({
           trendPendingPvsRef.current.clear();
           if (pending.size === 0) return;
 
-          const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+          const bucketSec =
+            bucketSeconds ?? defaultBucketSeconds(durationMinutes);
           const cutoff = Date.now() / 1000 - durationMinutes * 60;
           let changed = false;
 

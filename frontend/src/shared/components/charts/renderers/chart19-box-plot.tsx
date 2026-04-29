@@ -73,7 +73,8 @@ export default function BoxPlotChart({ config }: RendererProps) {
   const showPoints = config.extras?.showPoints === true;
   const horizontal = config.extras?.orientation === "horizontal";
 
-  const { startMs: chartStartMs, endMs: chartEndMs } = useChartTimeRange(durationMinutes);
+  const { startMs: chartStartMs, endMs: chartEndMs } =
+    useChartTimeRange(durationMinutes);
   const end = new Date(chartEndMs).toISOString();
   const start = new Date(chartStartMs).toISOString();
 

@@ -13,16 +13,23 @@ interface Props {
   overlayEnabled: boolean;
 }
 
-export function ExportRenderConsole({ graphicId, tsParam, width, height, overlayEnabled }: Props) {
+export function ExportRenderConsole({
+  graphicId,
+  tsParam,
+  width,
+  height,
+  overlayEnabled,
+}: Props) {
   const snappedTs = Math.floor(tsParam / 1000) * 1000;
 
-  const { data: workspace, isSuccess: workspaceLoaded } = useQuery<WorkspaceLayout | null>({
-    queryKey: ["workspace", graphicId],
-    queryFn: async () => {
-      const result = await consoleApi.getWorkspace(graphicId);
-      return result.success ? result.data ?? null : null;
-    },
-  });
+  const { data: workspace, isSuccess: workspaceLoaded } =
+    useQuery<WorkspaceLayout | null>({
+      queryKey: ["workspace", graphicId],
+      queryFn: async () => {
+        const result = await consoleApi.getWorkspace(graphicId);
+        return result.success ? (result.data ?? null) : null;
+      },
+    });
 
   // useHistoricalValues inside GraphicPane uses useQueries with keys ["historical", id, ts].
   // useIsFetching counts all in-flight queries with that prefix, so this gate correctly
@@ -54,9 +61,7 @@ export function ExportRenderConsole({ graphicId, tsParam, width, height, overlay
         onConfigurePane={() => undefined}
         onRemovePane={() => undefined}
       />
-      {overlayEnabled && (
-        <TimestampOverlay timestamp={tsParam} />
-      )}
+      {overlayEnabled && <TimestampOverlay timestamp={tsParam} />}
     </div>
   );
 }

@@ -169,7 +169,11 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
   );
   const showWERules = config.extras?.showWERules !== false;
 
-  const { startMs: windowStartMs, endMs: windowEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: windowStartMs,
+    endMs: windowEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();

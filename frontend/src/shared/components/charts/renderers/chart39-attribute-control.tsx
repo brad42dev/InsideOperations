@@ -132,7 +132,11 @@ export default function AttributeControlChart({ config }: RendererProps) {
       : 100;
   const showWERules = config.extras?.showWERules !== false;
 
-  const { startMs: windowStartMs, endMs: windowEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const {
+    startMs: windowStartMs,
+    endMs: windowEndMs,
+    isHistorical,
+  } = useChartTimeRange(durationMinutes);
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();

@@ -718,11 +718,17 @@ export default function ProcessPage() {
     const map = new Map<string, SceneNode>();
     function walk(node: SceneNode) {
       map.set(node.id, node);
-      if ("children" in node && Array.isArray((node as unknown as { children: SceneNode[] }).children)) {
-        for (const child of (node as unknown as { children: SceneNode[] }).children) walk(child);
+      if (
+        "children" in node &&
+        Array.isArray((node as unknown as { children: SceneNode[] }).children)
+      ) {
+        for (const child of (node as unknown as { children: SceneNode[] })
+          .children)
+          walk(child);
       }
     }
-    for (const node of graphic?.scene_data?.children ?? []) walk(node as SceneNode);
+    for (const node of graphic?.scene_data?.children ?? [])
+      walk(node as SceneNode);
     return map;
   }, [graphic?.scene_data]);
 
@@ -733,7 +739,12 @@ export default function ProcessPage() {
     onSelect(nodeIds) {
       selectionStore.selectMany(
         "process",
-        nodeIds.map((id) => ({ id, zoneId: "process" as const, kind: "scene-node" as const, payload: nodeMap.get(id) })),
+        nodeIds.map((id) => ({
+          id,
+          zoneId: "process" as const,
+          kind: "scene-node" as const,
+          payload: nodeMap.get(id),
+        })),
         "replace",
       );
     },
@@ -744,7 +755,12 @@ export default function ProcessPage() {
     onHit(hit, additive) {
       selectionStore.select(
         "process",
-        { id: hit.nodeId, zoneId: "process", kind: "scene-node", payload: nodeMap.get(hit.nodeId) },
+        {
+          id: hit.nodeId,
+          zoneId: "process",
+          kind: "scene-node",
+          payload: nodeMap.get(hit.nodeId),
+        },
         additive ? "toggle" : "replace",
       );
     },
@@ -1879,7 +1895,8 @@ export default function ProcessPage() {
                   width: marquee.marqueeRect.w,
                   height: marquee.marqueeRect.h,
                   border: "1px solid var(--io-accent)",
-                  background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+                  background:
+                    "color-mix(in srgb, var(--io-accent) 12%, transparent)",
                   pointerEvents: "none",
                   zIndex: 10,
                 }}
@@ -2600,7 +2617,12 @@ export default function ProcessPage() {
           )}
 
           {/* Historical Playback Bar (only in historical mode) */}
-          {isHistorical && <HistoricalPlaybackBar module="process" graphicId={selectedId ?? ""} />}
+          {isHistorical && (
+            <HistoricalPlaybackBar
+              module="process"
+              graphicId={selectedId ?? ""}
+            />
+          )}
 
           {/* Status bar — hidden in kiosk mode */}
           {!isKiosk && (

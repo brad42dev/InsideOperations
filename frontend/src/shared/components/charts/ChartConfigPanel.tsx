@@ -515,8 +515,7 @@ export default function ChartConfigPanel({
                 opacity: isOverCapacity ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
-                if (!isOverCapacity)
-                  e.currentTarget.style.opacity = "0.9";
+                if (!isOverCapacity) e.currentTarget.style.opacity = "0.9";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.opacity = isOverCapacity ? "0.6" : "1";

@@ -195,7 +195,9 @@ export default function PaneWrapper({
   const paneZoneId = `console/pane/${config.id}` as SelectionZoneId;
   const pasteTarget = findTargetForZone(paneZoneId);
   const availableModes =
-    pasteTarget && clipboardCurrent ? pasteTarget.accepts(clipboardCurrent) : [];
+    pasteTarget && clipboardCurrent
+      ? pasteTarget.accepts(clipboardCurrent)
+      : [];
   const containerRef = useRef<HTMLDivElement>(null);
   const [paneCtxMenu, setPaneCtxMenu] = useState<{
     x: number;

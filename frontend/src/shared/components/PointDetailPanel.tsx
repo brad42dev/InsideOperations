@@ -20,10 +20,7 @@ import type { PointDetailResponse } from "../../api/points";
 import { useWebSocket } from "../hooks/useWebSocket";
 import TimeSeriesChart from "./charts/TimeSeriesChart";
 import { usePointDetailStore } from "../../store/pointDetailStore";
-import {
-  buildIOClipboardPayload,
-  useIOClipboardStore,
-} from "../clipboard";
+import { buildIOClipboardPayload, useIOClipboardStore } from "../clipboard";
 import ContextMenu from "./ContextMenu";
 
 // ---------------------------------------------------------------------------
