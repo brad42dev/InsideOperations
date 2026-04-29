@@ -526,6 +526,35 @@ function PlaybackBarInner({
   const [stepIdx, setStepIdx] = useState<number>(4);
   const selectedStepMs = STEP_OPTIONS[stepIdx].ms;
   const [expanded, setExpanded] = useState(false);
+  const [hiddenPriorities, setHiddenPriorities] = useState<Set<AlarmPriority>>(
+    new Set(),
+  );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
+  const [filterPopPos, setFilterPopPos] = useState<{
+    bottom: number;
+    right: number;
+  } | null>(null);
+
+  function togglePriority(p: AlarmPriority) {
+    setHiddenPriorities((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+
+  function openFilter() {
+    if (filterBtnRef.current) {
+      const rect = filterBtnRef.current.getBoundingClientRect();
+      setFilterPopPos({
+        bottom: window.innerHeight - rect.top + 2,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setFilterOpen((v) => !v);
+  }
 
   // Fetch alarm events for the current time range in historical mode
   const { data: alarmEvents } = useQuery({
@@ -672,6 +701,9 @@ function PlaybackBarInner({
   const rangeMs = timeRange.end - timeRange.start;
   const progress = rangeMs > 0 ? (timestamp - timeRange.start) / rangeMs : 0;
   const sliderValue = Math.round(progress * 1000);
+  const visibleAlarmEvents = alarmEvents?.filter(
+    (e) => !hiddenPriorities.has(e.priority),
+  );
 
   // Loop region handle positions as 0–1000 slider units, clamped so markers
   // stay on-track if the time range is narrowed after loop bounds are set.
@@ -835,7 +867,7 @@ function PlaybackBarInner({
       )}
 
       {/* Alarm event tick marks */}
-      {rangeMs > 0 && alarmEvents && alarmEvents.length > 0 && (
+      {rangeMs > 0 && visibleAlarmEvents && visibleAlarmEvents.length > 0 && (
         <div
           aria-hidden="true"
           style={{
@@ -848,7 +880,7 @@ function PlaybackBarInner({
             zIndex: 5,
           }}
         >
-          {alarmEvents.map((event) => {
+          {visibleAlarmEvents.map((event) => {
             const ts = new Date(event.timestamp).getTime();
             if (ts < timeRange.start || ts > timeRange.end) return null;
             const pct = ((ts - timeRange.start) / rangeMs) * 100;
@@ -943,6 +975,219 @@ function PlaybackBarInner({
 
   return (
     <div style={wrapperStyle}>
+      {/* Event Timeline Row — visible only when expanded */}
+      {expanded && (
+        <div
+          style={{
+            position: "relative",
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            background: "var(--io-surface)",
+            borderTop: "1px solid var(--io-border)",
+          }}
+        >
+          {/* Timeline track — full width, clickable to scrub */}
+          <div
+            style={{
+              flex: 1,
+              position: "relative",
+              height: "100%",
+              cursor: "crosshair",
+            }}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = (e.clientX - rect.left) / rect.width;
+              setTimestamp(timeRange.start + pct * rangeMs);
+            }}
+          >
+            {/* Baseline */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: "50%",
+                height: 1,
+                background: "var(--io-border)",
+                transform: "translateY(-50%)",
+                pointerEvents: "none",
+              }}
+            />
+
+            {/* Playhead */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: `${progress * 100}%`,
+                top: 0,
+                bottom: 0,
+                width: 2,
+                background: "var(--io-accent)",
+                transform: "translateX(-50%)",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            />
+
+            {/* Event markers */}
+            {rangeMs > 0 &&
+              visibleAlarmEvents?.map((event) => {
+                const ts = new Date(event.timestamp).getTime();
+                if (ts < timeRange.start || ts > timeRange.end) return null;
+                const pct = ((ts - timeRange.start) / rangeMs) * 100;
+                return (
+                  <div
+                    key={event.id}
+                    title={`${event.priority.toUpperCase()}: ${event.message} @ ${new Date(event.timestamp).toLocaleTimeString()}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTimestamp(ts);
+                    }}
+                    style={{
+                      position: "absolute",
+                      left: `${pct}%`,
+                      top: "50%",
+                      width: 10,
+                      height: 10,
+                      background: ALARM_PRIORITY_COLORS[event.priority],
+                      transform:
+                        "translateX(-50%) translateY(-50%) rotate(45deg)",
+                      cursor: "pointer",
+                      zIndex: 3,
+                      borderRadius: 1,
+                      border: "1px solid rgba(0,0,0,0.25)",
+                    }}
+                  />
+                );
+              })}
+          </div>
+
+          {/* Filter button */}
+          <button
+            ref={filterBtnRef}
+            style={{
+              ...iconBtnStyle,
+              flexShrink: 0,
+              margin: "0 6px",
+              fontSize: 11,
+              color:
+                hiddenPriorities.size > 0
+                  ? "var(--io-accent)"
+                  : "var(--io-text-muted)",
+              borderColor:
+                hiddenPriorities.size > 0
+                  ? "var(--io-accent)"
+                  : "var(--io-border)",
+            }}
+            title="Filter event types"
+            onClick={openFilter}
+          >
+            ⚟
+          </button>
+
+          {/* Filter popup — portaled above the button */}
+          {filterOpen &&
+            filterPopPos &&
+            createPortal(
+              <>
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+                  onClick={() => setFilterOpen(false)}
+                />
+                <div
+                  style={{
+                    position: "fixed",
+                    bottom: filterPopPos.bottom,
+                    right: filterPopPos.right,
+                    zIndex: 9999,
+                    background: "var(--io-surface)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: 6,
+                    padding: "8px 12px",
+                    minWidth: 150,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--io-text-muted)",
+                      marginBottom: 6,
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    FILTER EVENTS
+                  </div>
+                  {(
+                    ["urgent", "high", "low", "diagnostic"] as AlarmPriority[]
+                  ).map((p) => (
+                    <label
+                      key={p}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 12,
+                        cursor: "pointer",
+                        padding: "3px 0",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!hiddenPriorities.has(p)}
+                        onChange={() => togglePriority(p)}
+                      />
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          background: ALARM_PRIORITY_COLORS[p],
+                          transform: "rotate(45deg)",
+                          display: "inline-block",
+                          flexShrink: 0,
+                          borderRadius: 1,
+                        }}
+                      />
+                      <span
+                        style={{
+                          color: "var(--io-text-primary)",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {p}
+                      </span>
+                    </label>
+                  ))}
+                  {hiddenPriorities.size > 0 && (
+                    <div
+                      style={{
+                        borderTop: "1px solid var(--io-border)",
+                        marginTop: 6,
+                        paddingTop: 6,
+                      }}
+                    >
+                      <button
+                        onClick={() => {
+                          setHiddenPriorities(new Set());
+                          setFilterOpen(false);
+                        }}
+                        style={{ ...iconBtnStyle, fontSize: 10, width: "100%" }}
+                      >
+                        Show All
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>,
+              document.body,
+            )}
+        </div>
+      )}
+
       {/* Row 1: always visible */}
       <div style={{ ...barStyle, borderTop: "none" }}>
         {playPauseBtn}
