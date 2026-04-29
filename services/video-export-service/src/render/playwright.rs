@@ -98,7 +98,7 @@ fn decide_page_count(frame_count: usize) -> usize {
     // How many extra pages can we afford beyond the base browser footprint?
     let extra = ((available_mb - MIN_AVAILABLE_MB) / MEM_PER_EXTRA_PAGE_MB) as usize;
     let max_by_memory = (1 + extra).min(HARD_CAP_PAGES);
-    let max_by_frames = (frame_count + MIN_FRAMES_PER_PAGE - 1) / MIN_FRAMES_PER_PAGE;
+    let max_by_frames = frame_count.div_ceil(MIN_FRAMES_PER_PAGE);
 
     let mut count = max_by_memory.min(max_by_frames).max(1);
     if normalized_load > LOAD_THRESHOLD {
@@ -333,6 +333,7 @@ pub async fn render_job(pool: &DbPool, cfg: &Config, job_id: Uuid) -> Result<()>
 // Handles both serial (page_count=1) and multi-page (page_count>1) modes.
 // The worker itself manages tab parallelism; from Rust's perspective it's always
 // one Node.js process. `with_retries` enables the 3-attempt retry policy.
+#[allow(clippy::too_many_arguments)]
 async fn run_export(
     pool: &DbPool,
     job_id: Uuid,
@@ -391,9 +392,9 @@ async fn run_capture_with_retries(
     const BACKOFF: [u64; 3] = [0, 5, 15];
     let mut last_error = String::new();
 
-    for attempt in 0..3usize {
+    for (attempt, &backoff_secs) in BACKOFF.iter().enumerate() {
         if attempt > 0 {
-            tokio::time::sleep(tokio::time::Duration::from_secs(BACKOFF[attempt])).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
             let _ = tokio::fs::remove_file(output_path).await;
         }
         match run_capture_worker(pool, job_id, worker_path, params_path, output_path).await {
