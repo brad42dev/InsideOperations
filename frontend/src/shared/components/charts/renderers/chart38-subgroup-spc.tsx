@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
 import { type ChartConfig } from "../chart-config-types";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 
 interface RendererProps {
@@ -169,15 +169,7 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
   );
   const showWERules = config.extras?.showWERules !== false;
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
-
-  const windowEndMs = isHistorical
-    ? new Date(timeRange.end).getTime()
-    : Date.now();
-  const windowStartMs = isHistorical
-    ? new Date(timeRange.start).getTime()
-    : windowEndMs - durationMinutes * 60 * 1000;
+  const { startMs: windowStartMs, endMs: windowEndMs, isHistorical } = useChartTimeRange(durationMinutes);
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();

@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
 import { type ChartConfig } from "../chart-config-types";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 
 interface RendererProps {
@@ -39,20 +39,14 @@ export default function HeatmapChart({ config }: RendererProps) {
       ? config.extras.calendarYear
       : new Date().getFullYear();
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
+  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const end = new Date(chartEndMs).toISOString();
+  const start =
+    !isHistorical && calendarMode
+      ? new Date(`${calendarYear}-01-01T00:00:00Z`).toISOString()
+      : new Date(chartStartMs).toISOString();
 
-  const end = isHistorical
-    ? new Date(timeRange.end).toISOString()
-    : new Date().toISOString();
-  const start = isHistorical
-    ? new Date(timeRange.start).toISOString()
-    : calendarMode
-      ? // For calendar mode, fetch the entire configured year
-        new Date(`${calendarYear}-01-01T00:00:00Z`).toISOString()
-      : new Date(Date.now() - durationMinutes * 60 * 1000).toISOString();
-
-  // Use full year end for calendar mode
+  // Use full year end for calendar mode in live view
   const queryEnd =
     calendarMode && !isHistorical
       ? new Date(`${calendarYear}-12-31T23:59:59Z`).toISOString()

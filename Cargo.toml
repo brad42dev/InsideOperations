@@ -26,6 +26,7 @@ members = [
     "crates/io-scan",
     "tests/load",
     "services/ctl",
+    "services/video-export-service",
 ]
 
 [workspace.dependencies]

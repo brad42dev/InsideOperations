@@ -15,7 +15,7 @@ import {
   makeSlotLabeler,
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 import { useHighlight } from "../hooks/useHighlight";
 
@@ -117,15 +117,7 @@ export default function ParallelCoordChart({ config }: RendererProps) {
       : 0.4;
   const highlightOutliers = config.extras?.highlightOutliers === true;
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
-
-  const windowEndMs = isHistorical
-    ? new Date(timeRange.end).getTime()
-    : Date.now();
-  const windowStartMs = isHistorical
-    ? new Date(timeRange.start).getTime()
-    : windowEndMs - durationMinutes * 60 * 1000;
+  const { startMs: windowStartMs, endMs: windowEndMs, isHistorical } = useChartTimeRange(durationMinutes);
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();

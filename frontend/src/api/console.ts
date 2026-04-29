@@ -96,6 +96,28 @@ export const consoleApi = {
     return { success: true, data: normalizeWorkspace(result.data) };
   },
 
+  saveWorkspaceSnapshot: async (
+    ws: Omit<WorkspaceLayout, "id">,
+  ): Promise<ApiResult<{ id: string }>> => {
+    const body = {
+      name: ws.name,
+      metadata: {
+        layout: ws.layout,
+        panes: ws.panes,
+        gridItems: ws.gridItems,
+        overflowPanes: ws.overflowPanes,
+        published: false,
+        description: ws.description,
+      },
+    };
+    const result = await api.post<WorkspaceSummary>(
+      "/api/console/workspaces/snapshots",
+      body,
+    );
+    if (!result.success) return result;
+    return { success: true, data: { id: result.data.id } };
+  },
+
   deleteWorkspace: (id: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/console/workspaces/${id}`),
 

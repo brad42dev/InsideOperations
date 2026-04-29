@@ -1,0 +1,9 @@
+{
+  "name": "io-video-capture-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}

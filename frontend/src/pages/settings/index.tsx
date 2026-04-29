@@ -120,6 +120,10 @@ const NAV_GROUPS: NavGroup[] = [
         permission: "system:admin",
       },
       {
+        path: "/settings/my-exports",
+        label: "My Exports",
+      },
+      {
         path: "/settings/bulk-update",
         label: "Bulk Update",
         permission: "system:bulk_update",

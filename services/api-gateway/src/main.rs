@@ -436,6 +436,10 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::console::list_workspaces).post(handlers::console::create_workspace),
         )
         .route(
+            "/api/console/workspaces/snapshots",
+            post(handlers::console::create_workspace_snapshot),
+        )
+        .route(
             "/api/console/workspaces/:id",
             get(handlers::console::get_workspace)
                 .put(handlers::console::update_workspace)
@@ -742,6 +746,19 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/uom/catalog",
             get(|| async { axum::Json(serde_json::json!({ "data": [], "success": true })) }),
         )
+        // Video exports
+        .route(
+            "/api/video-exports",
+            post(handlers::video_exports::create_export).get(handlers::video_exports::list_exports),
+        )
+        .route(
+            "/api/video-exports/:id",
+            get(handlers::video_exports::get_export).delete(handlers::video_exports::cancel_export),
+        )
+        .route(
+            "/api/video-exports/:id/download",
+            get(handlers::video_exports::download_export),
+        )
         // Email service proxy
         .route("/api/email/providers", any(proxy_email))
         .route("/api/email/providers/:id", any(proxy_email))
@@ -1035,7 +1052,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(health.into_router())
         .merge(obs.metrics_router())
         .layer(cors)
-        .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
+        .layer(TimeoutLayer::new(std::time::Duration::from_secs(120)))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB default; upload routes override
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(CatchPanicLayer::new());

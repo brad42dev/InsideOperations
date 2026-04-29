@@ -58,7 +58,7 @@ export default function Chart04StepChart({
   });
 
   // Step charts always force step interpolation regardless of config.interpolation.
-  const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
+  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } = useTimeSeriesBuffer({
     bufferKey,
     pointIds,
     durationMinutes,
@@ -72,6 +72,12 @@ export default function Chart04StepChart({
   const nowSec = Date.now() / 1000;
   xRangeRef.current.min = nowSec - durationMinutes * 60;
   xRangeRef.current.max = nowSec;
+  const xRange = isHistorical
+    ? {
+        min: historicalNowMs / 1000 - durationMinutes * 60,
+        max: historicalNowMs / 1000,
+      }
+    : xRangeRef.current;
 
   // Step chart type — always render as step; MSI in msiMap drives boundary fill
   // in useTimeSeriesBuffer for slow-update tags (GC analyzers etc.)
@@ -169,7 +175,7 @@ export default function Chart04StepChart({
             <TimeSeriesChart
               timestamps={timestamps}
               series={series}
-              xRange={xRangeRef.current}
+              xRange={xRange}
               highlighted={highlighted}
               onSeriesClick={toggle}
               seriesScales={seriesScales}

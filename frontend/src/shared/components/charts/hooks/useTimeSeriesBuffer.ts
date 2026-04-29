@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useWebSocket } from "../../../hooks/useWebSocket";
+import { wsManager } from "../../../hooks/useWebSocket";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
 import { defaultBucketSeconds } from "../chart-aggregate-config";
@@ -79,6 +79,8 @@ export interface UseTimeSeriesBufferResult {
   seriesData: Map<string, (number | null)[]>;
   isFetching: boolean;
   isHistorical: boolean;
+  /** In historical mode: the snapped scrub timestamp used as the window end (ms). 0 in live mode. */
+  historicalNowMs: number;
 }
 
 export function useTimeSeriesBuffer({
@@ -105,10 +107,18 @@ export function useTimeSeriesBuffer({
   }, [bufferKey]);
   const [tick, setTick] = useState(0);
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
+  const { mode: playbackMode, timestamp: scrubTimestamp } = usePlaybackStore();
   const isHistorical = playbackMode === "historical";
 
-  const { values } = useWebSocket(isHistorical ? [] : pointIds);
+  // Snap historicalNowMs to bucket boundaries so the chart window advances at
+  // the same resolution as the data. React Query staleTime:Infinity ensures
+  // each unique snap position is fetched only once.
+  const effectiveBucketMs =
+    (bucketSeconds ?? defaultBucketSeconds(durationMinutes)) * 1_000;
+  const historicalNowMs = isHistorical
+    ? Math.floor(scrubTimestamp / effectiveBucketMs) * effectiveBucketMs
+    : 0;
+  const historicalWindowMs = durationMinutes * 60 * 1_000;
 
   // Trim buffer when duration changes
   useEffect(() => {
@@ -124,22 +134,28 @@ export function useTimeSeriesBuffer({
     if (changed) setTick((t) => t + 1);
   }, [durationMinutes]);
 
-  // Historical fetch
+  // Historical fetch — window is [scrubTs − durationMinutes, scrubTs]
   const { data: historicalData } = useQuery({
     queryKey: [
       "ts-historical",
       pointIds.join(","),
-      timeRange.start,
-      timeRange.end,
+      historicalNowMs,
+      durationMinutes,
+      bucketSeconds,
+      aggregateType,
     ],
     queryFn: async () => {
+      const startMs = historicalNowMs - historicalWindowMs;
+      const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+      const effectiveAgg = aggregateType ?? "avg";
       const results = await Promise.all(
         pointIds.map((id) =>
           pointsApi.history(id, {
-            start: new Date(timeRange.start).toISOString(),
-            end: new Date(timeRange.end).toISOString(),
-            resolution: "auto",
-            limit: 2000,
+            start: new Date(startMs).toISOString(),
+            end: new Date(historicalNowMs).toISOString(),
+            bucket_seconds: effectiveBucket,
+            aggregate_function: effectiveAgg,
+            limit: seedLimit(durationMinutes),
           }),
         ),
       );
@@ -148,21 +164,27 @@ export function useTimeSeriesBuffer({
         if (r.success && r.data?.rows) {
           map.set(
             pointIds[i],
-            r.data.rows.map((row) => ({
-              ts: new Date(row.timestamp).getTime() / 1000,
-              v:
-                typeof row.value === "number"
-                  ? row.value
-                  : typeof row.avg === "number"
-                    ? row.avg
-                    : NaN,
-            })),
+            r.data.rows
+              .map((row) => ({
+                ts: Math.round(new Date(row.timestamp).getTime() / 1000),
+                v:
+                  typeof row.value === "number"
+                    ? row.value
+                    : typeof row.avg === "number"
+                      ? row.avg
+                      : typeof row.min === "number" && typeof row.max === "number"
+                        ? (row.min + row.max) / 2
+                        : NaN,
+              }))
+              .filter((e) => !isNaN(e.ts) && !isNaN(e.v)),
           );
         }
       });
       return map;
     },
-    enabled: isHistorical && pointIds.length > 0,
+    enabled: isHistorical && pointIds.length > 0 && historicalNowMs > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 
   // Clear the buffer synchronously during render when bucket or aggregate changes.
@@ -267,47 +289,81 @@ export function useTimeSeriesBuffer({
     gcTime: 0,
   });
 
-  // Accumulate live WS ticks into buffers
+  // Accumulate live WS ticks into buffers.
+  // Direct wsManager subscription bypasses React state on the hot path — no
+  // setState per message. rAF batches pending updates and fires setTick at
+  // most once per animation frame, preventing interference with SceneRenderer's
+  // own DOM-mutation path.
+  const rafPendingRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingPvsRef = useRef<Map<string, any>>(new Map());
+
   useEffect(() => {
-    if (values.size === 0) return;
-    const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
-    const cutoff = Date.now() / 1000 - durationMinutes * 60;
-    let changed = false;
+    if (isHistorical || pointIds.length === 0) return;
+
+    if (wsManager.getState() === "disconnected") void wsManager.connect();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    values.forEach((pv: any) => {
-      const rawTs = new Date(pv.timestamp).getTime() / 1000;
-      if (isNaN(rawTs)) return;
-      const ts =
-        bucketSec > 1 && interpolation !== "step"
-          ? Math.floor(rawTs / bucketSec) * bucketSec
-          : Math.round(rawTs);
+    const handler = (pv: any) => {
+      pendingPvsRef.current.set(pv.pointId, pv);
+      if (!rafPendingRef.current) {
+        rafPendingRef.current = true;
+        requestAnimationFrame(() => {
+          rafPendingRef.current = false;
+          const pending = new Map(pendingPvsRef.current);
+          pendingPvsRef.current.clear();
+          if (pending.size === 0) return;
 
-      if (lastTs.current.get(pv.pointId) === ts) return;
-      lastTs.current.set(pv.pointId, ts);
+          const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+          const cutoff = Date.now() / 1000 - durationMinutes * 60;
+          let changed = false;
 
-      const buf = buffers.current.get(pv.pointId) ?? [];
-      const last = buf[buf.length - 1];
-      let next: RingEntry[];
-      if (last && last.ts === ts) {
-        next = [...buf.slice(0, -1), { ts, v: pv.value }];
-      } else {
-        next = [...buf, { ts, v: pv.value }];
+          pending.forEach((pv) => {
+            const rawTs = new Date(pv.timestamp).getTime() / 1000;
+            if (isNaN(rawTs)) return;
+            const ts =
+              bucketSec > 1 && interpolation !== "step"
+                ? Math.floor(rawTs / bucketSec) * bucketSec
+                : Math.round(rawTs);
+
+            if (lastTs.current.get(pv.pointId) === ts) return;
+            lastTs.current.set(pv.pointId, ts);
+
+            const buf = buffers.current.get(pv.pointId) ?? [];
+            const last = buf[buf.length - 1];
+            let next: RingEntry[];
+            if (last && last.ts === ts) {
+              next = [...buf.slice(0, -1), { ts, v: pv.value }];
+            } else {
+              next = [...buf, { ts, v: pv.value }];
+            }
+            next = next.filter((e) => e.ts >= cutoff);
+            const cap = maxBuffer(durationMinutes);
+            if (next.length > cap) next = next.slice(next.length - cap);
+            buffers.current.set(pv.pointId, next);
+            changed = true;
+          });
+
+          if (changed) setTick((t) => t + 1);
+        });
       }
-      next = next.filter((e) => e.ts >= cutoff);
-      const cap = maxBuffer(durationMinutes);
-      if (next.length > cap) next = next.slice(next.length - cap);
-      buffers.current.set(pv.pointId, next);
-      changed = true;
-    });
+    };
 
-    if (changed) setTick((t) => t + 1);
+    pointIds.forEach((id) => wsManager.subscribe(id, handler));
+    return () => {
+      pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
+      pendingPvsRef.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values]);
+  }, [isHistorical, pointIds.join(","), bucketSeconds, durationMinutes, interpolation]);
 
   // Build output
-  const sourceMap: Map<string, RingEntry[]> =
-    isHistorical && historicalData ? historicalData : buffers.current;
+  // In historical mode always use the historical query result.
+  // Never fall back to the live ring buffer — its timestamps are from [now-duration, now]
+  // which won't align with the historical x-axis and causes data to render at wrong positions.
+  const sourceMap: Map<string, RingEntry[]> = isHistorical
+    ? (historicalData ?? new Map())
+    : buffers.current;
 
   // Inject window boundary timestamps for step (slow-update) series so the
   // forward-fill can reach both the left and right edges of the chart.
@@ -315,10 +371,10 @@ export function useTimeSeriesBuffer({
     ? pointIds.some((id) => (msiMap.get(id) ?? 0)! >= 5000)
     : false;
   const windowStartTs = isHistorical
-    ? Math.round(timeRange.start / 1000)
+    ? Math.floor((historicalNowMs - historicalWindowMs) / 1000)
     : Math.floor(Date.now() / 1000 - durationMinutes * 60);
   const windowEndTs = isHistorical
-    ? Math.round(timeRange.end / 1000)
+    ? Math.floor(historicalNowMs / 1000)
     : Math.floor(Date.now() / 1000);
 
   const allTs = new Set<number>();
@@ -376,5 +432,6 @@ export function useTimeSeriesBuffer({
     seriesData,
     isFetching: seedQuery.isFetching,
     isHistorical,
+    historicalNowMs,
   };
 }

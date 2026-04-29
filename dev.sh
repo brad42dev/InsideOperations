@@ -23,6 +23,7 @@ SERVICES=(
     "email-service:3008"
     "auth-service:3009"
     "recognition-service:3010"
+    "video-export-service:3011"
 )
 
 PID_DIR="/tmp/io-dev-pids"
@@ -51,7 +52,7 @@ usage() {
     echo "  deploy-front  Build frontend and copy to /opt/io/frontend (nginx serve)"
     echo "  clean         Stop services and clean build artifacts"
     echo "  build-installer   Build a release installer tarball (uses scripts/build-installer.sh)"
-    echo "  health            Check /health/live on all 11 services"
+    echo "  health            Check /health/live on all 12 services"
     echo ""
 }
 

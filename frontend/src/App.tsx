@@ -31,6 +31,7 @@ import { usePointDetailStore } from "./store/pointDetailStore";
 import ToastProvider from "./shared/components/Toast";
 import LoginPage from "./pages/Login";
 import NotFound from "./pages/NotFound";
+const ExportRenderPage = lazy(() => import("./pages/export-render/ExportRenderPage"));
 import ResetPassword from "./pages/ResetPassword";
 import EulaAcceptance from "./pages/EulaAcceptance";
 import EulaGate from "./pages/EulaGate";
@@ -198,6 +199,7 @@ const ReportScheduling = lazy(
   () => import("./pages/settings/ReportScheduling"),
 );
 const ExportPresets = lazy(() => import("./pages/settings/ExportPresets"));
+const SettingsMyExports = lazy(() => import("./pages/settings/MyExports"));
 const EmailSettingsPage = lazy(() => import("./pages/settings/Email"));
 const ImportSettingsPage = lazy(() => import("./pages/settings/Import"));
 const RecognitionPage = lazy(() => import("./pages/settings/Recognition"));
@@ -1213,6 +1215,14 @@ function AppRoutes() {
               }
             />
             <Route
+              path="my-exports"
+              element={
+                <PermissionGuard permission={null}>
+                  <SettingsMyExports />
+                </PermissionGuard>
+              }
+            />
+            <Route
               path="email"
               element={
                 <PermissionGuard permission="email:configure">
@@ -1354,6 +1364,18 @@ function AppRoutes() {
             <PermissionGuard permission="dashboards:read">
               <ErrorBoundary module="Dashboards">
                 <DashboardViewer kiosk />
+              </ErrorBoundary>
+            </PermissionGuard>
+          }
+        />
+
+        {/* Export render — chrome-free route for Playwright capture worker */}
+        <Route
+          path="/export-render"
+          element={
+            <PermissionGuard permission={null}>
+              <ErrorBoundary module="Export Render">
+                <ExportRenderPage />
               </ErrorBoundary>
             </PermissionGuard>
           }

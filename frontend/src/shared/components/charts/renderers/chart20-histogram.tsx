@@ -15,7 +15,7 @@ import {
   makeSlotLabeler,
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 import { useHighlight } from "../hooks/useHighlight";
 import {
@@ -250,15 +250,9 @@ export default function HistogramChart({ config }: RendererProps) {
   const displayMode = (config.extras?.displayMode as string) ?? "histogram";
   const horizontal = config.extras?.orientation === "horizontal";
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
-
-  const end = isHistorical
-    ? new Date(timeRange.end).toISOString()
-    : new Date().toISOString();
-  const start = isHistorical
-    ? new Date(timeRange.start).toISOString()
-    : new Date(Date.now() - durationMinutes * 60 * 1000).toISOString();
+  const { startMs: chartStartMs, endMs: chartEndMs } = useChartTimeRange(durationMinutes);
+  const end = new Date(chartEndMs).toISOString();
+  const start = new Date(chartStartMs).toISOString();
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["history", pointSlot?.pointId, start, end, "histogram"],

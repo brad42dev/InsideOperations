@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { pointsApi } from "../../../../api/points";
 import { type ChartConfig, autoColor } from "../chart-config-types";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 
 interface RendererProps {
   config: ChartConfig;
@@ -61,9 +62,12 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
   const pointIds = seriesSlots.map((s) => s.pointId);
   const durationMinutes = config.durationMinutes ?? 60;
 
-  const nowMs = Date.now();
-  const startMs =
-    Math.floor((nowMs - durationMinutes * 60_000) / 60_000) * 60_000; // truncated to minute for stable query key
+  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  const nowMs = chartEndMs;
+  // Live mode: truncate to minute for stable query key
+  const startMs = isHistorical
+    ? chartStartMs
+    : Math.floor((chartEndMs - durationMinutes * 60_000) / 60_000) * 60_000;
   const startISO = new Date(startMs).toISOString();
   const endISO = new Date(nowMs).toISOString();
 

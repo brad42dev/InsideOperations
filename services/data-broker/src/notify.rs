@@ -126,8 +126,9 @@ pub async fn run_notify_listener(
 
 /// Handle a notification on the `export_complete` channel.
 ///
-/// Payload shape: `{"job_id": "<uuid>"}` (fired by api-gateway/src/handlers/reports.rs).
-/// We look up the requesting user from `report_jobs`, then send a targeted
+/// Payload shape: `{"job_id": "<uuid>", "kind": "data_export"|"video_export", "status": "<status>"}`.
+/// `kind` defaults to `"data_export"` and `status` defaults to `"completed"` for backwards compat.
+/// We look up the requesting user from the appropriate jobs table, then send a targeted
 /// `export_complete` WS message to all of that user's active connections.
 async fn handle_export_complete(
     payload: &str,
@@ -135,14 +136,19 @@ async fn handle_export_complete(
     connections: &DashMap<ClientId, mpsc::Sender<WsServerMessage>>,
     user_connections: &DashMap<Uuid, HashSet<ClientId>>,
 ) {
-    // Parse the notify payload.
-    let job_id: Uuid = match serde_json::from_str::<serde_json::Value>(payload)
-        .ok()
-        .and_then(|v| {
-            v.get("job_id")
-                .and_then(|j| j.as_str())
-                .and_then(|s| s.parse::<Uuid>().ok())
-        }) {
+    let parsed: serde_json::Value = match serde_json::from_str(payload) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(error = %e, payload = %payload, "export_complete NOTIFY payload is not valid JSON — ignoring");
+            return;
+        }
+    };
+
+    let job_id: Uuid = match parsed
+        .get("job_id")
+        .and_then(|j| j.as_str())
+        .and_then(|s| s.parse::<Uuid>().ok())
+    {
         Some(id) => id,
         None => {
             warn!(payload = %payload, "export_complete NOTIFY payload missing or invalid job_id — ignoring");
@@ -150,26 +156,67 @@ async fn handle_export_complete(
         }
     };
 
-    // Look up the user who requested this job.
-    let user_id: Uuid =
-        match sqlx::query_scalar::<_, Uuid>("SELECT requested_by FROM report_jobs WHERE id = $1")
+    let kind = parsed
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("data_export")
+        .to_string();
+
+    let status = parsed
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("completed")
+        .to_string();
+
+    // Look up the user who owns this job, branching on kind.
+    let user_id: Uuid = match kind.as_str() {
+        "video_export" => {
+            match sqlx::query_scalar::<_, Uuid>(
+                "SELECT created_by FROM video_export_jobs WHERE id = $1",
+            )
             .bind(job_id)
             .fetch_optional(db)
             .await
-        {
-            Ok(Some(uid)) => uid,
-            Ok(None) => {
-                warn!(%job_id, "export_complete: no report_jobs row found for job — ignoring");
-                return;
+            {
+                Ok(Some(uid)) => uid,
+                Ok(None) => {
+                    warn!(%job_id, "export_complete: no video_export_jobs row found — ignoring");
+                    return;
+                }
+                Err(e) => {
+                    error!(error = %e, %job_id, "export_complete: video_export_jobs lookup failed");
+                    return;
+                }
             }
-            Err(e) => {
-                error!(error = %e, %job_id, "export_complete: DB lookup failed");
-                return;
+        }
+        _ => {
+            // data_export and anything unrecognised — existing behaviour
+            match sqlx::query_scalar::<_, Uuid>(
+                "SELECT requested_by FROM report_jobs WHERE id = $1",
+            )
+            .bind(job_id)
+            .fetch_optional(db)
+            .await
+            {
+                Ok(Some(uid)) => uid,
+                Ok(None) => {
+                    warn!(%job_id, "export_complete: no report_jobs row found for job — ignoring");
+                    return;
+                }
+                Err(e) => {
+                    error!(error = %e, %job_id, "export_complete: DB lookup failed");
+                    return;
+                }
             }
-        };
+        }
+    };
 
     // Build the WS message.
-    let msg = WsServerMessage::ExportComplete { job_id };
+    let msg = WsServerMessage::ExportComplete {
+        job_id,
+        kind,
+        status,
+    };
 
     // Find all client connections for this user and send.
     let client_ids: Vec<ClientId> = user_connections

@@ -13,7 +13,7 @@ import {
   makeSlotLabeler,
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 import { useHighlight } from "../hooks/useHighlight";
 
@@ -57,15 +57,9 @@ export default function CorrelationMatrixChart({ config }: RendererProps) {
   const showValues = config.extras?.showValues !== false;
   const durationMinutes = config.durationMinutes ?? 60 * 24;
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
-
-  const end = isHistorical
-    ? new Date(timeRange.end).toISOString()
-    : new Date().toISOString();
-  const start = isHistorical
-    ? new Date(timeRange.start).toISOString()
-    : new Date(Date.now() - durationMinutes * 60 * 1000).toISOString();
+  const { startMs: chartStartMs, endMs: chartEndMs } = useChartTimeRange(durationMinutes);
+  const end = new Date(chartEndMs).toISOString();
+  const start = new Date(chartStartMs).toISOString();
 
   const { data: historyBatch, isLoading } = useQuery({
     queryKey: ["history-batch", ...pointIds, start, end, "corr"],

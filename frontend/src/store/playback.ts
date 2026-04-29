@@ -9,6 +9,13 @@ import { create } from "zustand";
 export type PlaybackMode = "live" | "historical";
 export type PlaybackSpeed = 1 | 2 | 4 | 8 | 16 | 32;
 
+export interface ActiveExportJob {
+  id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  framesRendered: number;
+  framesTotal: number | null;
+}
+
 interface PlaybackStore {
   mode: PlaybackMode;
   /** Current playback position as epoch ms (only relevant in historical mode) */
@@ -48,6 +55,10 @@ interface PlaybackStore {
   setLoopEnabled: (enabled: boolean) => void;
   setGlobalTimeRange: (range: { start: string; end: string } | null) => void;
   setGlobalPlaybackTimestamp: (ts: string | null) => void;
+  ccOverlayEnabled: boolean;
+  setCcOverlayEnabled: (v: boolean) => void;
+  activeExportJob: ActiveExportJob | null;
+  setActiveExportJob: (job: ActiveExportJob | null) => void;
 }
 
 function defaultRange() {
@@ -68,6 +79,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   loopEnabled: false,
   globalTimeRange: null,
   globalPlaybackTimestamp: null,
+  ccOverlayEnabled: localStorage.getItem("io_playback_cc") === "1",
 
   setMode: (mode) =>
     set((s) => ({
@@ -89,4 +101,10 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   setGlobalTimeRange: (globalTimeRange) => set({ globalTimeRange }),
   setGlobalPlaybackTimestamp: (globalPlaybackTimestamp) =>
     set({ globalPlaybackTimestamp }),
+  setCcOverlayEnabled: (ccOverlayEnabled) => {
+    localStorage.setItem("io_playback_cc", ccOverlayEnabled ? "1" : "0");
+    set({ ccOverlayEnabled });
+  },
+  activeExportJob: null,
+  setActiveExportJob: (activeExportJob) => set({ activeExportJob }),
 }));

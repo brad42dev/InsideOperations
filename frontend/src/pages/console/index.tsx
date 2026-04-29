@@ -477,7 +477,8 @@ export default function ConsolePage() {
   const [searchParams] = useSearchParams();
   const { setKiosk, isKiosk } = useUiStore();
 
-  const { mode: playbackMode, setMode: setPlaybackMode } = usePlaybackStore();
+  const playbackMode = usePlaybackStore((s) => s.mode);
+  const setPlaybackMode = usePlaybackStore((s) => s.setMode);
   const isHistorical = playbackMode === "historical";
 
   // Track whether this component instance set kiosk to true, so cleanup
@@ -2961,7 +2962,28 @@ export default function ConsolePage() {
           )}
 
           {/* Historical Playback Bar — only shown in historical mode */}
-          {workspaces.length > 0 && isHistorical && <HistoricalPlaybackBar />}
+          {workspaces.length > 0 && isHistorical && (
+            <HistoricalPlaybackBar
+              module="console"
+              graphicId={activeId ?? ""}
+              resolveExportGraphicId={async () => {
+                const { workspaces: ws, activeId: aid } = useWorkspaceStore.getState();
+                const live = ws.find((w) => w.id === aid);
+                if (!live) throw new Error("No active workspace to export");
+                const result = await consoleApi.saveWorkspaceSnapshot({
+                  name: `[export] ${live.name}`,
+                  layout: live.layout,
+                  panes: live.panes,
+                  gridItems: live.gridItems,
+                  overflowPanes: live.overflowPanes,
+                  published: false,
+                  description: live.description,
+                });
+                if (!result.success) throw new Error("Failed to save workspace snapshot");
+                return result.data.id;
+              }}
+            />
+          )}
 
           {/* Status bar */}
           {workspaces.length > 0 && (

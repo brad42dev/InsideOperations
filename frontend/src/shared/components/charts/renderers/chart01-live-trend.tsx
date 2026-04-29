@@ -44,7 +44,7 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
     setMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
+  const { mode: playbackMode } = usePlaybackStore();
   const isHistorical = playbackMode === "historical";
 
   // Fetch per-point MSI metadata once (cached forever — tag hardware doesn't change).
@@ -69,7 +69,7 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
     gcTime: Infinity,
   });
 
-  const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
+  const { timestamps, seriesData, isFetching, historicalNowMs } = useTimeSeriesBuffer({
     bufferKey,
     pointIds,
     durationMinutes,
@@ -90,7 +90,10 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
   liveXRangeRef.current.max = nowSec;
 
   const xRange = isHistorical
-    ? { min: timeRange.start / 1000, max: timeRange.end / 1000 }
+    ? {
+        min: historicalNowMs / 1000 - durationMinutes * 60,
+        max: historicalNowMs / 1000,
+      }
     : liveXRangeRef.current;
 
   const allSeries: Series[] = seriesSlots.map((slot, i) => {

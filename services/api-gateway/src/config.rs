@@ -31,6 +31,8 @@ pub struct Config {
     pub parser_service_url: String,
     /// Base URL of the archive-service (e.g. http://127.0.0.1:3005)
     pub archive_service_url: String,
+    /// Base URL of the video-export-service (e.g. http://127.0.0.1:3011)
+    pub video_export_service_url: String,
     /// Directory where SVG tile pyramids are stored.
     /// Dev default: /tmp/io-tiles  Production: /opt/io/tiles
     pub tile_storage_dir: String,
@@ -86,6 +88,8 @@ impl Config {
                 .unwrap_or_else(|_| "http://127.0.0.1:3004".to_string()),
             archive_service_url: std::env::var("ARCHIVE_SERVICE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:3005".to_string()),
+            video_export_service_url: std::env::var("VIDEO_EXPORT_SERVICE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:3011".to_string()),
             tile_storage_dir: std::env::var("TILE_STORAGE_DIR")
                 .unwrap_or_else(|_| "/tmp/io-tiles".to_string()),
             tile_max_zoom: std::env::var("TILE_MAX_ZOOM")

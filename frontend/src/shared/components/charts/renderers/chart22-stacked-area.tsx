@@ -74,7 +74,7 @@ export default function Chart22StackedArea({
     gcTime: Infinity,
   });
 
-  const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
+  const { timestamps, seriesData, isFetching, isHistorical, historicalNowMs } = useTimeSeriesBuffer({
     bufferKey,
     pointIds,
     durationMinutes,
@@ -128,7 +128,7 @@ export default function Chart22StackedArea({
       },
     );
 
-    const nowMs = Date.now();
+    const nowMs = isHistorical ? historicalNowMs : Date.now();
     const minMs = nowMs - durationMinutes * 60 * 1000;
 
     return {

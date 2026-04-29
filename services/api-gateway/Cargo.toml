@@ -51,6 +51,7 @@ rcgen.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 futures.workspace = true
+tokio-util = { workspace = true, features = ["io"] }
 typst-as-lib = { version = "0.15", optional = true, features = ["typst-kit-fonts", "typst-kit-embed-fonts"] }
 typst-pdf-render = { version = "0.14", package = "typst-pdf", optional = true }
 typst-engine = { version = "0.14", package = "typst", optional = true }

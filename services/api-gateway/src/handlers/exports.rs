@@ -336,7 +336,8 @@ pub async fn create_export(
                     .bind(
                         serde_json::json!({
                             "job_id": job_id,
-                            "type": "data_export"
+                            "kind": "data_export",
+                            "status": "completed",
                         })
                         .to_string(),
                     )
@@ -423,7 +424,8 @@ pub async fn create_export(
                         .bind(
                             serde_json::json!({
                                 "job_id": job_id,
-                                "type": "data_export"
+                                "kind": "data_export",
+                                "status": "completed",
                             })
                             .to_string(),
                         )

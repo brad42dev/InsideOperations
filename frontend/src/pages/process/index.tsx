@@ -2600,7 +2600,7 @@ export default function ProcessPage() {
           )}
 
           {/* Historical Playback Bar (only in historical mode) */}
-          {isHistorical && <HistoricalPlaybackBar />}
+          {isHistorical && <HistoricalPlaybackBar module="process" graphicId={selectedId ?? ""} />}
 
           {/* Status bar — hidden in kiosk mode */}
           {!isKiosk && (

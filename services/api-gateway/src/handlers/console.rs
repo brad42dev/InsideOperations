@@ -207,7 +207,7 @@ pub async fn get_workspace(
         SELECT id, name, metadata, created_at
         FROM design_objects
         WHERE id = $1
-          AND type = 'console_workspace'
+          AND type IN ('console_workspace', 'console_workspace_snapshot')
           AND created_by = $2
         "#,
     )
@@ -513,6 +513,65 @@ pub async fn duplicate_workspace(
 
     let ws = WorkspaceSummary {
         id: row.try_get("id").unwrap_or(new_id),
+        name: row.try_get("name").unwrap_or_default(),
+        metadata: row.try_get("metadata").ok().flatten(),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+    };
+
+    Json(ApiResponse::ok(ws)).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/console/workspaces/snapshots — create a throw-away workspace
+// snapshot at video export submit time. Always mints a fresh UUID and uses
+// type='console_workspace_snapshot' so it is invisible in normal workspace
+// lists. The video export service deletes it after the job reaches a terminal
+// state.
+// ---------------------------------------------------------------------------
+
+pub async fn create_workspace_snapshot(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateWorkspaceBody>,
+) -> impl IntoResponse {
+    let user_id: Uuid = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return IoError::Unauthorized.into_response(),
+    };
+
+    if !check_permission(&claims, "console:video_export") {
+        return IoError::Forbidden("console:video_export permission required".into())
+            .into_response();
+    }
+
+    let metadata = body
+        .metadata
+        .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
+
+    let row = match sqlx::query(
+        r#"
+        INSERT INTO design_objects
+            (id, name, type, svg_data, bindings, metadata, parent_id, created_by)
+        VALUES (gen_random_uuid(), $1, 'console_workspace_snapshot', NULL,
+                '{}'::jsonb, $2, NULL, $3)
+        RETURNING id, name, metadata, created_at
+        "#,
+    )
+    .bind(body.name.trim())
+    .bind(&metadata)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "create_workspace_snapshot insert failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let ws = WorkspaceSummary {
+        id: row.try_get("id").unwrap_or_else(|_| Uuid::new_v4()),
         name: row.try_get("name").unwrap_or_default(),
         metadata: row.try_get("metadata").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),

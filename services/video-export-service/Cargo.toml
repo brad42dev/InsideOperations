@@ -1,0 +1,35 @@
+[package]
+name = "video-export-service"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "video_export_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "video-export-service"
+path = "src/main.rs"
+
+[dependencies]
+metrics.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+dotenvy.workspace = true
+dashmap.workspace = true
+jsonwebtoken.workspace = true
+io-db = { path = "../../crates/io-db" }
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }

@@ -8,7 +8,7 @@ import {
 } from "react";
 import ContextMenu from "../../../shared/components/ContextMenu";
 import { useQuery } from "@tanstack/react-query";
-import { useWebSocket } from "../../../shared/hooks/useWebSocket";
+import { wsManager } from "../../../shared/hooks/useWebSocket";
 import { usePlaybackStore } from "../../../store/playback";
 import TimeSeriesChart, {
   type Series,
@@ -361,8 +361,15 @@ export default function TrendPane({
 
   const [_tick, setTick] = useState(0);
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
+  const { mode: playbackMode, timestamp: scrubTimestamp } = usePlaybackStore();
   const isHistorical = playbackMode === "historical";
+
+  // Anchor historical chart window to the scrub position.
+  const snapMs = Math.min(30_000, durationMinutes * 1_000);
+  const historicalNowMs = isHistorical
+    ? Math.floor(scrubTimestamp / snapMs) * snapMs
+    : 0;
+  const historicalWindowMs = durationMinutes * 60 * 1_000;
 
   const [legendTip, setLegendTip] = useState<{
     meta: PointMeta;
@@ -385,23 +392,28 @@ export default function TrendPane({
   }, []);
 
   const { data: metaMap } = usePointMeta(pointIds);
-  const { values } = useWebSocket(isHistorical ? [] : pointIds);
 
-  const { data: historicalSeries } = useQuery({
+  const { data: historicalSeries, isFetching: historicalFetching } = useQuery({
     queryKey: [
       "trend-historical",
       pointIds.join(","),
-      timeRange.start,
-      timeRange.end,
+      historicalNowMs,
+      durationMinutes,
+      bucketSeconds,
+      aggregateType,
     ],
     queryFn: async () => {
+      const startMs = historicalNowMs - historicalWindowMs;
+      const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+      const effectiveAgg = aggregateType ?? "avg";
       const results = await Promise.all(
         pointIds.map((id) =>
           pointsApi.history(id, {
-            start: new Date(timeRange.start).toISOString(),
-            end: new Date(timeRange.end).toISOString(),
-            resolution: "auto",
-            limit: 2000,
+            start: new Date(startMs).toISOString(),
+            end: new Date(historicalNowMs).toISOString(),
+            bucket_seconds: effectiveBucket,
+            aggregate_function: effectiveAgg,
+            limit: seedLimit(durationMinutes),
           }),
         ),
       );
@@ -410,21 +422,27 @@ export default function TrendPane({
         if (r.success && r.data?.rows) {
           map.set(
             pointIds[i],
-            r.data.rows.map((row) => ({
-              ts: new Date(row.timestamp).getTime() / 1000,
-              v:
-                typeof row.value === "number"
-                  ? row.value
-                  : typeof row.avg === "number"
-                    ? row.avg
-                    : NaN,
-            })),
+            r.data.rows
+              .map((row) => ({
+                ts: Math.round(new Date(row.timestamp).getTime() / 1000),
+                v:
+                  typeof row.value === "number"
+                    ? row.value
+                    : typeof row.avg === "number"
+                      ? row.avg
+                      : typeof row.min === "number" && typeof row.max === "number"
+                        ? (row.min + row.max) / 2
+                        : NaN,
+              }))
+              .filter((e) => !isNaN(e.ts) && !isNaN(e.v)),
           );
         }
       });
       return map;
     },
-    enabled: isHistorical && pointIds.length > 0,
+    enabled: isHistorical && pointIds.length > 0 && historicalNowMs > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 
   const seedQuery = useQuery({
@@ -518,56 +536,81 @@ export default function TrendPane({
     gcTime: 0,
   });
 
-  useEffect(() => {
-    if (values.size === 0) return;
+  // Accumulate live WS ticks into ring buffers.
+  // Direct wsManager subscription — no React setState on the hot path.
+  // rAF batches pending updates so setTick fires at most once per frame,
+  // preventing interference with SceneRenderer's DOM-mutation path.
+  const trendRafPendingRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trendPendingPvsRef = useRef<Map<string, any>>(new Map());
 
-    const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
-    const cutoff = Date.now() / 1000 - durationMinutes * 60;
-    let changed = false;
+  useEffect(() => {
+    if (isHistorical || pointIds.length === 0) return;
+
+    if (wsManager.getState() === "disconnected") void wsManager.connect();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    values.forEach((pv: any) => {
-      const rawTs = new Date(pv.timestamp).getTime() / 1000;
-      if (isNaN(rawTs)) return;
-      const ts =
-        bucketSec > 1
-          ? Math.floor(rawTs / bucketSec) * bucketSec
-          : Math.round(rawTs);
+    const handler = (pv: any) => {
+      trendPendingPvsRef.current.set(pv.pointId, pv);
+      if (!trendRafPendingRef.current) {
+        trendRafPendingRef.current = true;
+        requestAnimationFrame(() => {
+          trendRafPendingRef.current = false;
+          const pending = new Map(trendPendingPvsRef.current);
+          trendPendingPvsRef.current.clear();
+          if (pending.size === 0) return;
 
-      if (lastAppendedTs.current.get(pv.pointId) === ts) return;
+          const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes);
+          const cutoff = Date.now() / 1000 - durationMinutes * 60;
+          let changed = false;
 
-      lastAppendedTs.current.set(pv.pointId, ts);
+          pending.forEach((pv) => {
+            const rawTs = new Date(pv.timestamp).getTime() / 1000;
+            if (isNaN(rawTs)) return;
+            const ts =
+              bucketSec > 1
+                ? Math.floor(rawTs / bucketSec) * bucketSec
+                : Math.round(rawTs);
 
-      const buf = buffers.current.get(pv.pointId) ?? [];
+            if (lastAppendedTs.current.get(pv.pointId) === ts) return;
+            lastAppendedTs.current.set(pv.pointId, ts);
 
-      const last = buf[buf.length - 1];
-      let next: RingBuffer[];
-      if (last && last.ts === ts) {
-        next = [...buf.slice(0, -1), { ts, v: pv.value }];
-      } else {
-        next = [...buf, { ts, v: pv.value }];
+            const buf = buffers.current.get(pv.pointId) ?? [];
+            const last = buf[buf.length - 1];
+            let next: RingBuffer[];
+            if (last && last.ts === ts) {
+              next = [...buf.slice(0, -1), { ts, v: pv.value }];
+            } else {
+              next = [...buf, { ts, v: pv.value }];
+            }
+            next = next.filter((entry) => entry.ts >= cutoff);
+            const cap = maxBuffer(durationMinutes);
+            if (next.length > cap) next = next.slice(next.length - cap);
+            buffers.current.set(pv.pointId, next);
+            changed = true;
+          });
+
+          if (changed) setTick((t) => t + 1);
+        });
       }
+    };
 
-      next = next.filter((entry) => entry.ts >= cutoff);
-
-      const cap = maxBuffer(durationMinutes);
-      if (next.length > cap) next = next.slice(next.length - cap);
-
-      buffers.current.set(pv.pointId, next);
-      changed = true;
-    });
-
-    if (changed) setTick((t) => t + 1);
+    pointIds.forEach((id) => wsManager.subscribe(id, handler));
+    return () => {
+      pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
+      trendPendingPvsRef.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values]);
+  }, [isHistorical, pointIds.join(","), bucketSeconds, durationMinutes]);
 
   // Build chart data (legacy mode only)
   const chartData = (() => {
     if (pointIds.length === 0)
       return { timestamps: [] as number[], series: [] as Series[] };
 
-    const sourceMap: Map<string, RingBuffer[]> =
-      isHistorical && historicalSeries ? historicalSeries : buffers.current;
+    const sourceMap: Map<string, RingBuffer[]> = isHistorical
+      ? (historicalSeries ?? new Map())
+      : buffers.current;
 
     // Inject window boundary timestamps for step series so the forward-fill
     // can reach both edges of the chart. Without these, uPlot has no data
@@ -577,10 +620,10 @@ export default function TrendPane({
       return msi !== null && msi >= 5000;
     });
     const windowStartTs = isHistorical
-      ? Math.round(timeRange.start / 1000)
+      ? Math.floor((historicalNowMs - historicalWindowMs) / 1000)
       : Math.floor(Date.now() / 1000 - durationMinutes * 60);
     const windowEndTs = isHistorical
-      ? Math.round(timeRange.end / 1000)
+      ? Math.floor(historicalNowMs / 1000)
       : Math.floor(Date.now() / 1000);
 
     const allTs = new Set<number>();
@@ -989,7 +1032,7 @@ export default function TrendPane({
 
       {/* Chart */}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {seedQuery.isFetching && (
+        {(seedQuery.isFetching || historicalFetching) && (
           <div
             style={{
               position: "absolute",
@@ -1008,10 +1051,12 @@ export default function TrendPane({
           key={`${config.id}-${durationMinutes}-${showGrid}`}
           timestamps={chartData.timestamps}
           series={chartData.series}
-          xRange={{
-            min: Date.now() / 1000 - durationMinutes * 60,
-            max: Date.now() / 1000,
-          }}
+          xRange={(() => {
+            const maxSec = isHistorical
+              ? historicalNowMs / 1000
+              : Date.now() / 1000;
+            return { min: maxSec - durationMinutes * 60, max: maxSec };
+          })()}
           highlighted={highlighted}
           onSeriesClick={toggleHighlight}
           onClearHighlight={() => setHighlighted(new Set())}

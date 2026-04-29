@@ -247,6 +247,8 @@ function extractTileBindings(doc: GraphicDocument) {
   return out;
 }
 
+const SCENE_RENDERER_STYLE = { width: "100%", height: "100%" } as const;
+
 export default function GraphicPane({
   graphicId,
   paneId,
@@ -908,7 +910,7 @@ export default function GraphicPane({
         sparklineHistories={sparklineHistories ?? undefined}
         onNavigate={onNavigate}
         preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
-        style={{ width: "100%", height: "100%" }}
+        style={SCENE_RENDERER_STYLE}
       />
 
       {/* Marquee selection overlay */}

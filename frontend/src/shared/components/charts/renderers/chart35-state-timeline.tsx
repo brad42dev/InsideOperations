@@ -9,7 +9,7 @@ import { useEffect, useRef, useMemo, useState } from "react";
 import ContextMenu from "../../ContextMenu";
 import { useQuery } from "@tanstack/react-query";
 import { type ChartConfig, makeSlotLabeler } from "../chart-config-types";
-import { usePlaybackStore } from "../../../../store/playback";
+import { useChartTimeRange } from "../../../hooks/useChartTimeRange";
 import { pointsApi } from "../../../../api/points";
 import { usePointMeta } from "../../../../shared/hooks/usePointMeta";
 import {
@@ -107,16 +107,13 @@ export default function StateTimelineChart({ config }: RendererProps) {
     [config.extras?.stateLabels],
   );
 
-  const { mode: playbackMode, timeRange } = usePlaybackStore();
-  const isHistorical = playbackMode === "historical";
-
-  // Truncate live timestamps to nearest minute for stable query keys (prevents refetch on every render)
-  // Round both ends to the minute so the query key is stable between renders
+  const { startMs: chartStartMs, endMs: chartEndMs, isHistorical } = useChartTimeRange(durationMinutes);
+  // Live mode: truncate to minute for stable query keys
   const windowEndMs = isHistorical
-    ? new Date(timeRange.end).getTime()
+    ? chartEndMs
     : Math.floor(Date.now() / 60_000) * 60_000;
   const windowStartMs = isHistorical
-    ? new Date(timeRange.start).getTime()
+    ? chartStartMs
     : windowEndMs - durationMinutes * 60_000;
 
   const end = new Date(windowEndMs).toISOString();

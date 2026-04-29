@@ -22,9 +22,15 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { usePlaybackStore, type PlaybackSpeed } from "../../store/playback";
 import { alarmsApi, type AlarmPriority } from "../../api/alarms";
+import { TimestampOverlay } from "./TimestampOverlay";
+import VideoExportModal from "./VideoExportModal";
+import { videoExportsApi } from "../../api/videoExports";
+import { showToast } from "./Toast";
+import { usePermission } from "../hooks/usePermission";
 
 const SPEEDS: PlaybackSpeed[] = [1, 2, 4, 8, 16, 32];
 
@@ -75,16 +81,26 @@ interface HistoricalPlaybackBarProps {
    *    globalTimeRange in the playback store so all widgets use the same range
    */
   mode?: "playback" | "time-context";
+  /** Which module is hosting this bar — enables the video export button when set */
+  module?: "process" | "console";
+  /** The active graphic/workspace ID to attach to the export job */
+  graphicId?: string;
+  /** Console only: called at export submit time to snapshot the current workspace.
+   *  Returns the snapshot's ID, which is used as graphic_id for the render job. */
+  resolveExportGraphicId?: () => Promise<string>;
 }
 
 export default function HistoricalPlaybackBar({
   mode: barMode = "playback",
+  module,
+  graphicId,
+  resolveExportGraphicId,
 }: HistoricalPlaybackBarProps) {
   if (barMode === "time-context") {
     return <TimeContextBar />;
   }
 
-  return <PlaybackBarInner />;
+  return <PlaybackBarInner module={module} graphicId={graphicId} resolveExportGraphicId={resolveExportGraphicId} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,13 +218,9 @@ function TimeContextBar() {
   function togglePlay() {
     if (tcPlaying) {
       setTcPlaying(false);
-      return;
+    } else {
+      setTcPlaying(true);
     }
-    // If at end of range, restart from beginning
-    if (clampedMs >= rangeEnd) {
-      setGlobalPlaybackTimestamp(new Date(rangeStart).toISOString());
-    }
-    setTcPlaying(true);
   }
 
   // Auto-advance timer
@@ -272,8 +284,6 @@ function TimeContextBar() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalTimeRange]);
-
-  const isAtEnd = clampedMs >= rangeEnd;
 
   return (
     <div
@@ -355,16 +365,10 @@ function TimeContextBar() {
             color: tcPlaying ? "var(--io-accent)" : "var(--io-text-primary)",
             borderColor: tcPlaying ? "var(--io-accent)" : "var(--io-border)",
           }}
-          title={
-            tcPlaying
-              ? "Pause playback"
-              : isAtEnd
-                ? "Replay from start"
-                : "Play"
-          }
+          title={tcPlaying ? "Pause playback" : "Play"}
           aria-label={tcPlaying ? "Pause" : "Play"}
         >
-          {tcPlaying ? "⏸" : isAtEnd ? "↺" : "▶"}
+          {tcPlaying ? "⏸" : "▶"}
         </button>
 
         {/* Timeline scrubber */}
@@ -439,7 +443,15 @@ function TimeContextBar() {
 // PlaybackBarInner — original full scrub bar for Console/Process/Forensics
 // ---------------------------------------------------------------------------
 
-function PlaybackBarInner() {
+function PlaybackBarInner({
+  module,
+  graphicId,
+  resolveExportGraphicId,
+}: {
+  module?: "process" | "console";
+  graphicId?: string;
+  resolveExportGraphicId?: () => Promise<string>;
+}) {
   const {
     mode,
     timestamp,
@@ -450,6 +462,7 @@ function PlaybackBarInner() {
     loopStart,
     loopEnd,
     loopEnabled,
+    ccOverlayEnabled,
     setTimestamp,
     setTimeRange,
     setPlaying,
@@ -458,7 +471,33 @@ function PlaybackBarInner() {
     setLoopStart,
     setLoopEnd,
     setLoopEnabled,
+    setCcOverlayEnabled,
   } = usePlaybackStore();
+
+  const canExportVideo = usePermission(module ? `${module}:video_export` : "__never__");
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const { activeExportJob, setActiveExportJob } = usePlaybackStore();
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    if (!activeExportJob) return;
+    if (activeExportJob.status === 'completed' || activeExportJob.status === 'failed' || activeExportJob.status === 'cancelled') return;
+    const timer = setInterval(async () => {
+      try {
+        const job = await videoExportsApi.get(activeExportJob.id);
+        setActiveExportJob({ id: job.id, status: job.status, framesRendered: job.frames_rendered, framesTotal: job.frames_total });
+        if (job.status === 'failed') {
+          showToast({ title: "Export failed", description: job.error_message ?? "An error occurred during export.", variant: "error" });
+          setActiveExportJob(null);
+        } else if (job.status === 'cancelled') {
+          setActiveExportJob(null);
+        }
+      } catch {
+        // ignore transient polling errors
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [activeExportJob?.id, activeExportJob?.status]);
 
   // Step interval state — default to index 4 (1 minute)
   const [stepIdx, setStepIdx] = useState<number>(4);
@@ -805,7 +844,6 @@ function PlaybackBarInner() {
     </div>
   );
 
-  const atEnd = timestamp >= timeRange.end;
   const atStart = timestamp <= timeRange.start;
 
   const playPauseBtn = (
@@ -815,8 +853,6 @@ function PlaybackBarInner() {
           setPlaying(false);
         } else {
           setReversing(false);
-          // If sitting at the end, rewind to start so play has somewhere to go
-          if (atEnd) setTimestamp(timeRange.start);
           setPlaying(true);
         }
       }}
@@ -830,15 +866,9 @@ function PlaybackBarInner() {
         borderColor:
           isPlaying && !isReversing ? "var(--io-accent)" : "var(--io-border)",
       }}
-      title={
-        isPlaying && !isReversing
-          ? "Pause"
-          : atEnd
-            ? "Replay from start"
-            : "Play"
-      }
+      title={isPlaying && !isReversing ? "Pause" : "Play"}
     >
-      {isPlaying && !isReversing ? "⏸" : atEnd ? "↺" : "▶"}
+      {isPlaying && !isReversing ? "⏸" : "▶"}
     </button>
   );
 
@@ -887,6 +917,128 @@ function PlaybackBarInner() {
         {scrubSlider}
         {!expanded && toPicker}
 
+        {/* CC toggle — only relevant in historical mode */}
+        <button
+          style={{
+            ...iconBtnStyle,
+            color: ccOverlayEnabled
+              ? "var(--io-accent)"
+              : "var(--io-text-muted)",
+            borderColor: ccOverlayEnabled
+              ? "var(--io-accent)"
+              : "var(--io-border)",
+            fontWeight: 700,
+            fontSize: 11,
+            letterSpacing: "0.05em",
+          }}
+          title={ccOverlayEnabled ? "Hide timestamp overlay" : "Show timestamp overlay"}
+          onClick={() => setCcOverlayEnabled(!ccOverlayEnabled)}
+        >
+          CC
+        </button>
+
+        {/* Record / Export button — only when user has permission and module is set */}
+        {canExportVideo && module && mode === "historical" && (
+          <>
+            {activeExportJob ? (
+              activeExportJob.status === "completed" ? (
+                <button
+                  onClick={async () => {
+                    setDownloading(true);
+                    try {
+                      await videoExportsApi.download(activeExportJob.id);
+                      setActiveExportJob(null);
+                    } catch {
+                      showToast({ title: "Download failed", description: "Could not download the video.", variant: "error" });
+                    } finally {
+                      setDownloading(false);
+                    }
+                  }}
+                  disabled={downloading}
+                  style={{
+                    ...iconBtnStyle,
+                    background: "var(--io-accent)",
+                    color: "var(--io-text-on-accent, #fff)",
+                    borderColor: "var(--io-accent)",
+                    fontWeight: 700,
+                    fontSize: 11,
+                    minWidth: 90,
+                    opacity: downloading ? 0.7 : 1,
+                  }}
+                  title="Download your completed video export"
+                >
+                  {downloading ? "Saving…" : "⬇ Download"}
+                </button>
+              ) : (
+                (() => {
+                  const pct = activeExportJob.framesTotal
+                    ? Math.round((activeExportJob.framesRendered / activeExportJob.framesTotal) * 100)
+                    : 0;
+                  const label = activeExportJob.status === "queued" ? "Queued…" : `${pct}%`;
+                  return (
+                    <div
+                      style={{
+                        position: "relative",
+                        overflow: "hidden",
+                        minWidth: 90,
+                        height: 24,
+                        borderRadius: 4,
+                        border: "1px solid var(--io-accent)",
+                        background: "var(--io-surface-secondary)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "default",
+                      }}
+                      title={`Exporting: ${label}`}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: `${pct}%`,
+                          background: "var(--io-accent)",
+                          opacity: 0.4,
+                          transition: "width 0.5s ease",
+                        }}
+                      />
+                      <span style={{ position: "relative", fontSize: 11, fontWeight: 600, color: "var(--io-text-primary)" }}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })()
+              )
+            ) : (
+              <button
+                onClick={() => setExportModalOpen(true)}
+                style={{
+                  ...iconBtnStyle,
+                  color: "var(--io-danger, #e53e3e)",
+                  borderColor: "var(--io-danger, #e53e3e)",
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+                title="Export video of this playback"
+              >
+                ⏺ Export
+              </button>
+            )}
+            <VideoExportModal
+              open={exportModalOpen}
+              onClose={() => setExportModalOpen(false)}
+              onSuccess={(jobId) => {
+                setActiveExportJob({ id: jobId, status: "queued", framesRendered: 0, framesTotal: null });
+              }}
+              module={module}
+              graphicId={graphicId ?? ""}
+              resolveExportGraphicId={resolveExportGraphicId}
+            />
+          </>
+        )}
+
         {/* Speed selector */}
         <select
           value={speed}
@@ -910,6 +1062,15 @@ function PlaybackBarInner() {
           {expanded ? "▼" : "▲"}
         </button>
       </div>
+
+      {/* CC timestamp overlay — portal to body to escape CSS transform stacking contexts */}
+      {ccOverlayEnabled && mode === "historical" &&
+        createPortal(
+          <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9998 }}>
+            <TimestampOverlay timestamp={timestamp} />
+          </div>,
+          document.body,
+        )}
 
       {/* Row 2: expanded transport + step controls */}
       {expanded && (

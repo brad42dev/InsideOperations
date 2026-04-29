@@ -377,23 +377,25 @@ I/O includes basic multi-site support in v1 via a `sites` table and `site_id` on
 
 ### Permission Structure
 
-**118 Fine-Grained Permissions across 15 modules:**
+**121 Fine-Grained Permissions across 15 modules:**
 
-**Console Module (7 permissions):**
+**Console Module (8 permissions):**
 - `console:read` - View console workspaces
 - `console:write` - Create/edit personal workspaces
 - `console:workspace_write` - Create/edit any workspace
 - `console:workspace_publish` - Publish workspaces
 - `console:workspace_delete` - Delete workspaces
 - `console:export` - Export point data from console workspaces
+- `console:video_export` - Export historical playback as a WebM/VP9 video file
 - `console:admin` - Console module administration
 
-**Process Module (6 permissions):**
+**Process Module (7 permissions):**
 - `process:read` - View process views and navigate between them
 - `process:write` - Create/edit process views
 - `process:publish` - Publish process views for other users
 - `process:delete` - Delete process views
 - `process:export` - Export point data from process views
+- `process:video_export` - Export historical playback as a WebM/VP9 video file
 - `process:admin` - Process module administration
 
 **Designer Module (7 permissions):**
@@ -855,6 +857,7 @@ CREATE TABLE audit_log (
 
 ## Change Log
 
+- **v2.4**: Added `process:video_export` and `console:video_export` permissions for historical playback video recording. Console permissions 7→8, Process permissions 6→7. Total permissions 119→121. Granted to: Admin, Shift Supervisor, Operator, Engineer. See docs/plans/video-export-plan.md.
 - **v2.3**: Added `sms:configure` permission (SMS System, 1 permission). SMS Providers moved from Authentication to Notifications group in Settings nav. Total permissions 118 → 119. Default: Admin only (SMS costs money and is more operationally impactful than email).
 - **v2.2**: Renamed `io-crypto` crate references to `io-auth` (3 locations). Crypto functionality (AES-256-GCM encrypt/decrypt, master key handling) is consolidated into the `io-auth` crate per doc 01 v2.1.
 - **v2.1**: Replaced file-based master key (`IO_MASTER_KEY_FILE`) with systemd encrypted credentials (`LoadCredentialEncrypted`). Master key encrypted at rest via TPM2 (if available) or host key. Plaintext key never on disk. Removed `IO_MASTER_KEY_FILE` env var — key delivered via `$CREDENTIALS_DIRECTORY`. Updated key rotation to re-encrypt credential blob. Vault/HSM/KMS remains deferred for Enterprise HA multi-server deployments.

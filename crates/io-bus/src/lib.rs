@@ -402,6 +402,8 @@ pub enum WsServerMessage {
     },
     ExportComplete {
         job_id: Uuid,
+        kind: String,
+        status: String,
     },
     ExportNotification {
         payload: serde_json::Value,

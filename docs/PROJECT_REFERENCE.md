@@ -61,7 +61,8 @@
 ### Infrastructure
 - **Reverse Proxy:** nginx (TLS termination, static file serving)
 - **Process Management:** systemd (production) / `./dev.sh` (development)
-- **Containerization:** Docker Compose (development database only)
+- **Containerization:** Docker Compose (development database + video-export-service)
+- **Video Capture Worker:** Node.js 20 + Playwright 1.44 (Chromium headless), FFmpeg (VP9/WebM encoding)
 
 ---
 
@@ -85,7 +86,7 @@
 | Shifts | Shift management, badge events, presence |
 | Alerts | Human-initiated notifications, muster command center |
 
-### 11 Backend Services
+### 12 Backend Services
 
 | Service | Port | Purpose |
 |---------|------|---------|
@@ -100,6 +101,7 @@
 | Email Service | 3008 | Transactional email, templates, queue, bounce handling |
 | Auth Service | 3009 | Multi-provider auth, MFA, SCIM, API keys |
 | Recognition Service | 3010 | P&ID + DCS symbol recognition (.iomodel inference) |
+| Video Export Service | 3011 | Historical playback video rendering (WebM/VP9); Node.js Playwright capture worker + FFmpeg encoding; Prometheus metrics (video_export_jobs_total, video_export_render_duration_seconds); orphan recovery on startup; hourly file-retention cleanup |
 
 ### 12 Shared Crates
 

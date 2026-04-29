@@ -44,6 +44,10 @@ let port: MessagePort | null = null;
 // Handlers registered by React hooks / components on the main thread
 const stateListeners = new Set<(s: WsConnectionState) => void>();
 const subscribers = new Map<string, Set<PointUpdateHandler>>();
+// Last received value per point — used to seed new subscribers immediately so
+// components that subscribe after another subscriber (e.g. SceneRenderer after
+// TrendPane) get the current value without waiting for the next WS tick.
+const lastValues = new Map<string, PointValue>();
 const staleHandlers = new Set<(id: string, ts: string) => void>();
 const sourceHandlers = new Set<
   (id: string, name: string, online: boolean) => void
@@ -195,17 +199,18 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
         | undefined;
       const points = payload?.points ?? [];
       for (const pt of points) {
+        const update: PointValue = {
+          pointId: pt.id,
+          value: pt.v ?? 0,
+          quality: pt.q ?? "unknown",
+          timestamp: pt.t
+            ? new Date(pt.t).toISOString()
+            : new Date().toISOString(),
+          stale: false,
+        };
+        lastValues.set(pt.id, update);
         const handlers = subscribers.get(pt.id);
         if (handlers) {
-          const update: PointValue = {
-            pointId: pt.id,
-            value: pt.v ?? 0,
-            quality: pt.q ?? "unknown",
-            timestamp: pt.t
-              ? new Date(pt.t).toISOString()
-              : new Date().toISOString(),
-            stale: false,
-          };
           handlers.forEach((fn) => fn(update));
         }
       }
@@ -232,15 +237,16 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
     case "point_fresh": {
       const point_id = msg.point_id as string | undefined;
       if (!point_id) break;
+      const update: PointValue = {
+        pointId: point_id,
+        value: (msg.value as number | undefined) ?? 0,
+        quality: "good",
+        timestamp: (msg.timestamp as string | undefined) ?? "",
+        stale: false,
+      };
+      lastValues.set(point_id, update);
       const handlers = subscribers.get(point_id);
       if (handlers) {
-        const update: PointValue = {
-          pointId: point_id,
-          value: (msg.value as number | undefined) ?? 0,
-          quality: "good",
-          timestamp: (msg.timestamp as string | undefined) ?? "",
-          stale: false,
-        };
         handlers.forEach((fn) => fn(update));
       }
       break;
@@ -265,23 +271,52 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
       const payload = msg.payload as Record<string, unknown> | undefined;
       const job_id = (payload?.job_id ?? msg.job_id) as string | undefined;
       if (!job_id) break;
+      const kind = (payload?.kind as string | undefined) ?? "data_export";
+      const status = (payload?.status as string | undefined) ?? "completed";
+      const errorMessage = payload?.error_message as string | undefined;
       // Dynamically import to avoid pulling in Toast at module load time
       import("../components/Toast").then(({ showToast }) => {
-        import("../../api/reports").then(({ reportsApi }) => {
-          const downloadUrl = reportsApi.getDownloadUrl(job_id);
-          showToast({
-            title: "Your report is ready",
-            description: "Click Download to save the file.",
-            variant: "success",
-            action: {
-              label: "Download",
-              onClick: () => {
-                window.open(downloadUrl, "_blank");
+        if (kind === "video_export") {
+          if (status === "failed") {
+            showToast({
+              title: "Video export failed",
+              description: errorMessage ?? "An error occurred during rendering",
+              variant: "error",
+              duration: 8000,
+            });
+          } else if (status === "completed") {
+            showToast({
+              title: "Your video is ready",
+              description: "Click to download",
+              variant: "success",
+              action: {
+                label: "Download",
+                onClick: () => {
+                  import("../../api/videoExports").then(({ videoExportsApi }) => {
+                    void videoExportsApi.download(job_id);
+                  });
+                },
               },
-            },
-            duration: 10000,
+              duration: 10000,
+            });
+          }
+        } else {
+          import("../../api/reports").then(({ reportsApi }) => {
+            const downloadUrl = reportsApi.getDownloadUrl(job_id);
+            showToast({
+              title: "Your report is ready",
+              description: "Click Download to save the file.",
+              variant: "success",
+              action: {
+                label: "Download",
+                onClick: () => {
+                  window.open(downloadUrl, "_blank");
+                },
+              },
+              duration: 10000,
+            });
           });
-        });
+        }
       });
       break;
     }
@@ -506,6 +541,11 @@ export const wsWorkerConnector = {
       p.postMessage({ type: "subscribe", points: [pointId] });
     }
     subscribers.get(pointId)!.add(handler);
+    // Seed new subscriber with last known value immediately so components that
+    // subscribe after another subscriber (e.g. SceneRenderer after TrendPane)
+    // get the current value without waiting for the next WS tick.
+    const last = lastValues.get(pointId);
+    if (last) handler(last);
   },
 
   unsubscribe(pointId: string, handler: PointUpdateHandler) {
@@ -514,6 +554,7 @@ export const wsWorkerConnector = {
     handlers.delete(handler);
     if (handlers.size === 0) {
       subscribers.delete(pointId);
+      lastValues.delete(pointId);
       const p = getPort();
       p.postMessage({ type: "unsubscribe", points: [pointId] });
     }
