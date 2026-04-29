@@ -53,7 +53,7 @@ async fn test_full_pipeline_with_fake_worker() {
         range_start: now - chrono::Duration::hours(1),
         range_end: now,
         step_ms: 60_000,
-        fps: 10,
+        fps: 10.0,
         width_px: 1280,
         height_px: 720,
         device_pixel_ratio: 1.0,
