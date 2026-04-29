@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo, memo } from "react";
 import { usePointMeta } from "../hooks/usePointMeta";
 import type { PointDetail } from "../../api/points";
 import { resolvePointLabel } from "../utils/resolvePointLabel";
@@ -129,7 +129,7 @@ export interface SceneRendererProps {
 
 // ---- Main renderer ----
 
-export function SceneRenderer({
+export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   document,
   viewport,
   pointValues = new Map(),
@@ -201,6 +201,9 @@ export function SceneRenderer({
   const domRafPendingRef = useRef(false);
   // Last-known PV per point — used to re-apply when alarm state changes independently
   const lastPvRef = useRef<Map<string, WsPointValue>>(new Map());
+  // Last non-empty pointValues map for historical mode — prevents placeholder flash when
+  // the prop is briefly empty (e.g. new scrub position in flight, React re-render cycle).
+  const historicalPvRef = useRef<Map<string, PointValue>>(new Map());
   // Current alarm state per point — merged into PV on each DOM apply
   const alarmStateRef = useRef<Map<string, AlarmStateUpdate>>(new Map());
   // pointId → last client-side receipt timestamp (ms) for staleness detection
@@ -255,9 +258,10 @@ export function SceneRenderer({
     pointMetaMapRef.current = pointMetaMap;
   }, [pointMetaMap]);
 
-  // Build node config map whenever the scene graph changes
-  useEffect(() => {
-    if (!liveSubscribe) return;
+  // Build node config map whenever the scene graph changes.
+  // Runs for both live and historical modes — historical DOM mutation path needs it too.
+  // useLayoutEffect so this runs before the subscription effect's re-apply.
+  useLayoutEffect(() => {
     const map = new Map<string, NodeConfig>();
     function walkForConfigs(nodes: SceneNode[]) {
       for (const n of nodes) {
@@ -305,17 +309,24 @@ export function SceneRenderer({
     }
     walkForConfigs(children);
     nodeConfigMapRef.current = map;
-  }, [document.id, children, liveSubscribe]);
+  }, [document.id, children]);
 
-  // After each render: rebuild pointToElements map from DOM and subscribe to wsManager
-  useEffect(() => {
+  // useLayoutEffect so cleanup+setup runs synchronously before browser paint.
+  // This prevents a one-frame flash of placeholder values whenever shapeMap or
+  // resolvedTagMap change (shapes/tags settling after mount): the re-apply of
+  // lastPvRef corrects the DOM before the browser has a chance to display it.
+  //
+  // wsWorkerConnector.subscribe() seeds new subscribers immediately with the last
+  // known value, so SceneRenderer gets the current value even when another component
+  // (e.g. TrendPane) subscribed to the same points first.
+  useLayoutEffect(() => {
     if (!liveSubscribe || !svgRef.current) return;
 
     if (wsManager.getState() === "disconnected") {
       void wsManager.connect();
     }
 
-    // Query all point-bound elements and build the lookup map
+    // Query all point-bound elements and build the DOM lookup map.
     const map = new Map<string, SVGGElement[]>();
     const elements =
       svgRef.current.querySelectorAll<SVGGElement>("[data-point-id]");
@@ -329,6 +340,23 @@ export function SceneRenderer({
 
     const pointIds = Array.from(map.keys());
     if (pointIds.length === 0) return;
+
+    // Re-apply last-known values immediately so the DOM doesn't show placeholder
+    // values between subscription restarts (e.g. after shapeMap or resolvedTagMap
+    // settle). Without this, each re-subscribe cycle causes a one-tick flash.
+    if (lastPvRef.current.size > 0) {
+      for (const [pid, pv] of lastPvRef.current) {
+        const els = map.get(pid);
+        if (!els) continue;
+        for (const el of els) {
+          const nodeId = el.getAttribute("data-node-id");
+          if (!nodeId) continue;
+          const conf = nodeConfigMapRef.current.get(nodeId);
+          if (!conf) continue;
+          applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMapRef.current);
+        }
+      }
+    }
 
     // Staleness check — run on each rAF tick and periodically via interval.
     // Adds/removes 'io-stale' class on SVG elements for CSS-driven stale styling.
@@ -438,10 +466,84 @@ export function SceneRenderer({
       unsubAlarm();
       clearInterval(staleInterval);
       pendingDomRef.current.clear();
-      lastPvRef.current.clear();
+      // lastPvRef is intentionally NOT cleared here — values are re-applied on
+      // the next subscription run so there is no placeholder flash between
+      // subscription restarts (shapeMap / resolvedTagMap settling after mount).
+      // It is cleared in a separate effect when document.id changes.
       lastUpdateTimestampsRef.current.clear();
     };
-  }, [document.id, children, liveSubscribe, resolvedTagMap, shapeMap]);
+  }, [document.id, liveSubscribe, resolvedTagMap, shapeMap]);
+
+  // Re-apply last-known values after EVERY SceneRenderer render in live mode.
+  // React's reconciliation rewrites DOM attributes to match JSX output (placeholder
+  // values, since pointValues is undefined in live mode) on every re-render.
+  // This useLayoutEffect has no deps so it runs after every commit, synchronously
+  // before browser paint — correcting the DOM before anything is visible.
+  useLayoutEffect(() => {
+    if (!liveSubscribe || lastPvRef.current.size === 0) return;
+    for (const [pid, pv] of lastPvRef.current) {
+      const els = pointToElementsRef.current.get(pid);
+      if (!els) continue;
+      for (const el of els) {
+        const nodeId = el.getAttribute("data-node-id");
+        if (!nodeId) continue;
+        const conf = nodeConfigMapRef.current.get(nodeId);
+        if (!conf) continue;
+        applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMapRef.current);
+      }
+    }
+  });
+
+  // Historical mode: apply pointValues via direct DOM mutation after every render.
+  // In live mode, values bypass React entirely (WS → rAF → applyPointValue).
+  // Historical mode passes values through the pointValues prop, which means any
+  // React re-render with stale/empty pointValues causes a placeholder flash.
+  // This effect mirrors the live-mode approach: apply values via DOM mutation
+  // synchronously before browser paint, so the JSX placeholder state is never seen.
+  //
+  // historicalPvRef is a merged "best-known" map. Each resolved query patches its
+  // entry; unresolved points keep their previous value. This prevents flash when
+  // queries resolve one at a time — elements not yet in pointValues are still
+  // covered by their stale entry in historicalPvRef.
+  useLayoutEffect(() => {
+    if (liveSubscribe || !svgRef.current) return;
+    for (const [k, v] of pointValues) {
+      historicalPvRef.current.set(k, v);
+    }
+    const pvMap = historicalPvRef.current;
+    if (pvMap.size === 0) return;
+    const elements = svgRef.current.querySelectorAll<SVGGElement>("[data-point-id]");
+    for (const el of elements) {
+      const pointId = el.getAttribute("data-point-id");
+      if (!pointId) continue;
+      const pv = pvMap.get(pointId);
+      if (!pv) continue;
+      const nodeId = el.getAttribute("data-node-id");
+      if (!nodeId) continue;
+      const conf = nodeConfigMapRef.current.get(nodeId);
+      if (!conf) continue;
+      // Cast value to WsPointValue — applyPointValue handles null/string values internally
+      applyPointValue(
+        el,
+        conf.displayType,
+        conf.config,
+        pv as unknown as WsPointValue,
+        pointId,
+        pointMetaMapRef.current,
+      );
+    }
+  });
+
+  // Clear stale point-value history when the document itself changes.
+  // useLayoutEffect so this cleanup runs before the subscription setup on the
+  // same render cycle — guaranteeing lastPvRef is empty when the new document's
+  // subscription starts (no stale values re-applied to the incoming document).
+  useLayoutEffect(() => {
+    return () => {
+      lastPvRef.current.clear();
+      historicalPvRef.current = new Map();
+    };
+  }, [document.id]);
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>();
@@ -1100,7 +1202,7 @@ export function SceneRenderer({
       </div>
     </div>
   );
-}
+});
 
 // ---- Helpers ----
 

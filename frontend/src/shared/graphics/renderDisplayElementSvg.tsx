@@ -794,7 +794,7 @@ export function renderAnalogBarSvg(
               {z.label}
             </text>
           ))}
-      {cfg.showPointer && value !== null && (
+      {cfg.showPointer && (
         <>
           <polygon
             data-role="pointer"
@@ -804,6 +804,7 @@ export function renderAnalogBarSvg(
                 ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
                 : DE_COLORS.textSecondary
             }
+            style={{ display: value !== null ? "" : "none" }}
           />
           <line
             data-role="pointer-line"
@@ -817,6 +818,7 @@ export function renderAnalogBarSvg(
                 : DE_COLORS.textSecondary
             }
             strokeWidth={1}
+            style={{ display: value !== null ? "" : "none" }}
           />
         </>
       )}
@@ -835,7 +837,7 @@ export function renderAnalogBarSvg(
             />
           );
         })()}
-      {cfg.showNumericReadout && value !== null && (
+      {cfg.showNumericReadout && (
         <text
           data-role="numeric"
           x={bw / 2}
@@ -848,8 +850,9 @@ export function renderAnalogBarSvg(
               ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary)
               : DE_COLORS.textSecondary
           }
+          style={{ display: value !== null ? "" : "none" }}
         >
-          {value.toFixed(1)}
+          {value !== null ? value.toFixed(1) : ""}
         </text>
       )}
       {cfg.showSignalLine &&
