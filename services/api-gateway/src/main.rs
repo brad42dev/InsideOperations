@@ -759,6 +759,29 @@ async fn main() -> anyhow::Result<()> {
             "/api/video-exports/:id/download",
             get(handlers::video_exports::download_export),
         )
+        // Video streams — static sub-paths (/access, /token) MUST be before parameterised /:id
+        .route(
+            "/api/video-streams",
+            get(handlers::video_streams::list_streams).post(handlers::video_streams::create_stream),
+        )
+        .route(
+            "/api/video-streams/:id/token",
+            get(handlers::video_streams::get_stream_token),
+        )
+        .route(
+            "/api/video-streams/:id/access",
+            get(handlers::video_streams::list_access).post(handlers::video_streams::add_access),
+        )
+        .route(
+            "/api/video-streams/:id/access/:entity_type/:entity_id",
+            delete(handlers::video_streams::remove_access),
+        )
+        .route(
+            "/api/video-streams/:id",
+            get(handlers::video_streams::get_stream)
+                .put(handlers::video_streams::update_stream)
+                .delete(handlers::video_streams::delete_stream),
+        )
         // Email service proxy
         .route("/api/email/providers", any(proxy_email))
         .route("/api/email/providers/:id", any(proxy_email))
