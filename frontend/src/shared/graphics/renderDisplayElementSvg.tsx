@@ -21,6 +21,7 @@ import React from "react";
 import type {
   DisplayElement,
   TextReadoutConfig,
+  TextReadoutArrayConfig,
   AnalogBarConfig,
   FillGaugeConfig,
   SparklineConfig,
@@ -87,6 +88,63 @@ export function formatDesignPlaceholder(fmt: string): string {
   const gMatch = fmt.match(/^%\.(\d+)g/);
   if (gMatch) return "--.--";
   return "---";
+}
+
+/**
+ * Pad a numeric value string so decimal points align across a TRA array.
+ * Non-numeric strings (COMM, ????, discrete labels) are returned unchanged.
+ * Uses non-breaking spaces so monospace SVG text doesn't collapse them.
+ */
+export function decimalPadValue(
+  raw: string,
+  maxIntLen: number,
+  maxFracLen: number,
+): string {
+  if (!/^-?[\d.]/.test(raw)) return raw;
+  const dotIdx = raw.indexOf(".");
+  const intPart = dotIdx >= 0 ? raw.slice(0, dotIdx) : raw;
+  const fracPart = dotIdx >= 0 ? raw.slice(dotIdx + 1) : "";
+  const paddedInt = intPart.padStart(maxIntLen, " ");
+  if (maxFracLen === 0) return paddedInt;
+  if (dotIdx < 0) {
+    // Integer value mixed with decimal values — pad frac slot with spaces
+    return paddedInt + " ".repeat(maxFracLen + 1);
+  }
+  return `${paddedInt}.${fracPart.padEnd(maxFracLen, " ")}`;
+}
+
+/**
+ * Derive stable decimal alignment info from the configured value format string.
+ * Uses conservative integer-digit counts so the layout doesn't break when live
+ * values arrive with more digits than the initial "0" placeholder.
+ * charW: estimated pixel width per character for JetBrains Mono at the given size.
+ */
+export function estimateFormatDecimalInfo(
+  fmt: string,
+  valueFontSize: number,
+): { maxIntLen: number; maxFracLen: number; charW: number } {
+  // 3 integer digits covers typical process values (0–999); the box widens
+  // automatically if the user sets a larger minWidth on the element.
+  const maxIntLen = 3;
+  const charW = Math.ceil(valueFontSize * 0.62);
+
+  if (/^%\.?0?d$|^%d$|^%i$/.test(fmt)) {
+    return { maxIntLen, maxFracLen: 0, charW };
+  }
+  const fMatch = fmt.match(/^%\.(\d+)f/);
+  if (fMatch) {
+    return { maxIntLen, maxFracLen: parseInt(fMatch[1]), charW };
+  }
+  const gMatch = fmt.match(/^%\.(\d+)g/);
+  if (gMatch) {
+    return {
+      maxIntLen,
+      maxFracLen: Math.max(0, parseInt(gMatch[1]) - 1),
+      charW,
+    };
+  }
+  // %auto: produces 0-3 decimal places
+  return { maxIntLen, maxFracLen: 3, charW };
 }
 
 /**
@@ -201,6 +259,14 @@ export interface DisplayElementRenderContext {
   designerMode?: boolean;
   /** Whether we're in preview mode (shows ghosts for inactive alarms) */
   previewMode?: boolean;
+  // Multi-binding arrays for text_readout_array (index 0 mirrors the singular fields above)
+  pvKeys?: string[];
+  pointTags?: string[];
+  pointValues?: (PointValueData | undefined)[];
+  discreteLabels?: (string | null)[];
+  metaUnits?: string[];
+  displayNames?: string[];
+  bindingUnits?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +286,8 @@ export function renderDisplayElementSvg(
   switch (node.displayType) {
     case "text_readout":
       return renderTextReadoutSvg(node, ctx);
+    case "text_readout_array":
+      return renderTextReadoutArraySvg(node, ctx);
     case "alarm_indicator":
       return renderAlarmIndicatorSvg(node, ctx);
     case "digital_status":
@@ -238,19 +306,44 @@ export function renderDisplayElementSvg(
 }
 
 // ---------------------------------------------------------------------------
-// text_readout
+// text_readout \u2014 shared content builder + renderer
 // ---------------------------------------------------------------------------
 
-export function renderTextReadoutSvg(
-  node: DisplayElement,
-  ctx: DisplayElementRenderContext,
-): React.ReactElement {
-  const cfg = node.config as TextReadoutConfig;
-  const pv = ctx.pointValue;
-  const deTransform = ctx.transform;
-  const pvKey = ctx.pvKey;
-  const pointTag = ctx.pointTag;
-
+/**
+ * Builds the visual row elements for a text_readout or text_readout_array item.
+ * Returns the element array, computed width, value-box y-offset, EU state, and
+ * alarm flash class so the caller can assemble the outer <g> with correct attrs.
+ */
+function renderTextReadoutContent(
+  pointTag: string | undefined,
+  displayName: string | undefined,
+  bindingUnit: string | undefined,
+  pv: PointValueData | undefined,
+  discreteLabel: string | null | undefined,
+  metaUnit: string | undefined,
+  cfg: TextReadoutConfig | TextReadoutArrayConfig,
+  opts?: {
+    /** X offset where the value box starts (>0 when an inline label precedes it). */
+    labelXOffset?: number;
+    /** Override computed box width (uniform across TRA items). */
+    fixedValueW?: number;
+    /** Decimal alignment info derived from format string — positions the decimal at a stable x. */
+    decimalPad?: {
+      maxIntLen: number;
+      maxFracLen: number;
+      charW: number;
+    } | null;
+  },
+): {
+  els: React.ReactNode[];
+  w: number;
+  yOff: number;
+  totalH: number;
+  euEnabled: boolean;
+  unitText: string;
+  flashClass: string;
+  isStale: boolean;
+} {
   const alarmPriority = (pv?.alarmPriority ?? null) as 1 | 2 | 3 | 4 | 5 | null;
   const unacked = pv?.unacknowledged ?? false;
   const quality = pv?.quality ?? "good";
@@ -263,8 +356,8 @@ export function renderTextReadoutSvg(
     ? "COMM"
     : isBad
       ? "????"
-      : ctx.discreteLabel !== null && ctx.discreteLabel !== undefined
-        ? ctx.discreteLabel
+      : discreteLabel !== null && discreteLabel !== undefined
+        ? discreteLabel
         : formatValue(pv?.value ?? null, cfg.valueFormat);
   const alarmColor = alarmPriority ? ALARM_COLORS[alarmPriority] : null;
   const boxFill = isCommFail
@@ -281,7 +374,6 @@ export function renderTextReadoutSvg(
   const strokeDash = isStale ? "4 2" : isBad ? "4 2" : undefined;
   const strokeDotted = quality === "uncertain" ? "2 2" : undefined;
   const effectiveDash = strokeDash ?? strokeDotted;
-  const opacity = isStale ? 0.6 : node.opacity;
   const valueColor = isCommFail
     ? DE_COLORS.textMuted
     : isBad
@@ -291,22 +383,27 @@ export function renderTextReadoutSvg(
         : DE_COLORS.textSecondary;
   const flashClass = unacked && alarmColor ? "io-alarm-flash" : "";
 
-  // Row-based layout
   const ROW_H = 16;
   const GAP = 2;
-  const pnEnabled = cfg.pointNameRow?.enabled ?? false;
-  const dnEnabled = cfg.displayNameRow?.enabled ?? false;
-  const unitText = (pv?.units ?? node.binding.unit) || "";
+  const isSingleLine =
+    "singleLine" in cfg && (cfg as TextReadoutArrayConfig).singleLine;
+  const pnEnabled = !isSingleLine && (cfg.pointNameRow?.enabled ?? false);
+  const pnInlineEnabled = isSingleLine && (cfg.pointNameRow?.enabled ?? false);
+  const dnEnabled = !isSingleLine && (cfg.displayNameRow?.enabled ?? false);
+  const dnInlineEnabled =
+    isSingleLine && (cfg.displayNameRow?.enabled ?? false);
+  const unitText = (pv?.units ?? metaUnit ?? bindingUnit) || "";
   const euEnabled = cfg.showUnits && !!unitText && !isCommFail && !isBad;
   const labelRows = (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0);
   const valueBoxH = ROW_H;
   const totalH = labelRows * (ROW_H + GAP) + valueBoxH;
   const euSuffix = euEnabled ? ` ${unitText}` : "";
-  const w = Math.max(
+  const computedW = Math.max(
     cfg.minWidth ?? 40,
     rawValueStr.length * 7 + euSuffix.length * 5 + 8,
   );
-  const textX = Math.round(w / 2);
+  const w = opts?.fixedValueW ?? computedW;
+  const boxX = opts?.labelXOffset ?? 0;
 
   const els: React.ReactNode[] = [];
   let yOff = 0;
@@ -318,7 +415,7 @@ export function renderTextReadoutSvg(
         <rect
           key="pn-bg"
           data-role="pn-bg"
-          x={0}
+          x={boxX}
           y={yOff}
           width={w}
           height={ROW_H}
@@ -331,7 +428,7 @@ export function renderTextReadoutSvg(
       <text
         key="pn"
         data-role="pn"
-        x={w / 2}
+        x={boxX + w / 2}
         y={yOff + ROW_H - 4}
         textAnchor="middle"
         fontFamily="JetBrains Mono"
@@ -339,7 +436,7 @@ export function renderTextReadoutSvg(
         fontWeight={r.fontWeight ?? "normal"}
         fill={r.color || DE_COLORS.textPrimary}
       >
-        {node.binding.pointTag ?? "\u2014"}
+        {pointTag ?? "\u2014"}
       </text>,
     );
     yOff += ROW_H + GAP;
@@ -352,7 +449,7 @@ export function renderTextReadoutSvg(
         <rect
           key="dn-bg"
           data-role="dn-bg"
-          x={0}
+          x={boxX}
           y={yOff}
           width={w}
           height={ROW_H}
@@ -365,7 +462,7 @@ export function renderTextReadoutSvg(
       <text
         key="dn"
         data-role="dn"
-        x={w / 2}
+        x={boxX + w / 2}
         y={yOff + ROW_H - 4}
         textAnchor="middle"
         fontFamily="Inter"
@@ -373,19 +470,43 @@ export function renderTextReadoutSvg(
         fontWeight={r.fontWeight ?? "normal"}
         fill={r.color || DE_COLORS.textMuted}
       >
-        {node.binding.displayName ?? "\u2014"}
+        {displayName ?? "\u2014"}
       </text>,
     );
     yOff += ROW_H + GAP;
   }
 
-  // Value box
+  if (pnInlineEnabled || dnInlineEnabled) {
+    const parts: string[] = [];
+    if (pnInlineEnabled && pointTag) parts.push(pointTag);
+    if (dnInlineEnabled && displayName) parts.push(displayName);
+    if (parts.length > 0) {
+      const r =
+        cfg.pointNameRow ?? ({} as NonNullable<typeof cfg.pointNameRow>);
+      els.push(
+        <text
+          key="label-inline"
+          data-role="pn"
+          x={boxX - 6}
+          y={yOff + ROW_H - 4}
+          textAnchor="end"
+          fontFamily="JetBrains Mono"
+          fontSize={r.fontSize ?? 10}
+          fontWeight={r.fontWeight ?? "normal"}
+          fill={r.color || DE_COLORS.textMuted}
+        >
+          {parts.join(" ")}
+        </text>,
+      );
+    }
+  }
+
   if (cfg.showBox !== false) {
     els.push(
       <rect
         key="box"
         data-role="box"
-        x={0}
+        x={boxX}
         y={yOff}
         width={w}
         height={valueBoxH}
@@ -400,40 +521,103 @@ export function renderTextReadoutSvg(
 
   const vr = cfg.valueRow;
   const er = cfg.euRow;
-  els.push(
-    <text
-      key="value"
-      data-role="value"
-      x={textX}
-      y={yOff + ROW_H - 4}
-      textAnchor="middle"
-      fontFamily="JetBrains Mono"
-      fontSize={vr?.fontSize ?? 11}
-      fontWeight={vr?.fontWeight ?? "normal"}
-      fill={valueColor}
-      style={{ fontVariantNumeric: "tabular-nums" }}
-    >
-      <tspan data-role="v">{rawValueStr}</tspan>
-      {euEnabled && (
-        <tspan
-          data-role="eu"
-          fontFamily="Inter"
-          fontSize={er?.fontSize ?? 9}
-          fill={er?.color || DE_COLORS.textMuted}
-        >
-          {" "}
-          {unitText}
+  const isNumericValue = /^-?[\d.]/.test(rawValueStr);
+
+  if (opts?.decimalPad) {
+    // Two-element decimal-aligned rendering: integer part right-anchored at the
+    // decimal position, fractional+EU part left-anchored at the same x.
+    // Always use this structure when decimalPad is set (even for "---" / "COMM" /
+    // "????" placeholders) so the DOM shape is consistent with the mutation path,
+    // which expects v-int + v-frac and has no fallback to re-render the elements.
+    const { maxIntLen, maxFracLen, charW } = opts.decimalPad;
+    const decimalX = boxX + 6 + maxIntLen * charW;
+    const dotIdx = isNumericValue ? rawValueStr.indexOf(".") : -1;
+    const intPart = dotIdx >= 0 ? rawValueStr.slice(0, dotIdx) : rawValueStr;
+    const fracPart = dotIdx >= 0 ? rawValueStr.slice(dotIdx + 1) : "";
+    const hasFrac = dotIdx >= 0 && maxFracLen > 0;
+
+    els.push(
+      <text
+        key="v-int"
+        data-role="v-int"
+        x={decimalX}
+        y={yOff + ROW_H - 4}
+        textAnchor="end"
+        fontFamily="JetBrains Mono"
+        fontSize={vr?.fontSize ?? 11}
+        fontWeight={vr?.fontWeight ?? "normal"}
+        fill={valueColor}
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        {intPart}
+      </text>,
+    );
+    els.push(
+      <text
+        key="v-frac"
+        data-role="v-frac"
+        x={decimalX}
+        y={yOff + ROW_H - 4}
+        textAnchor="start"
+        fontFamily="JetBrains Mono"
+        fontSize={vr?.fontSize ?? 11}
+        fontWeight={vr?.fontWeight ?? "normal"}
+        fill={valueColor}
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        <tspan data-role="v-frac-content">
+          {hasFrac ? `.${fracPart}` : ""}
         </tspan>
-      )}
-    </text>,
-  );
+        {euEnabled && (
+          <tspan
+            data-role="eu"
+            fontFamily="Inter"
+            fontSize={er?.fontSize ?? 9}
+            fill={er?.color || DE_COLORS.textMuted}
+          >
+            {" "}
+            {unitText}
+          </tspan>
+        )}
+      </text>,
+    );
+  } else {
+    // Standard centered rendering (non-decimal-aligned, or non-numeric value).
+    els.push(
+      <text
+        key="value"
+        data-role="value"
+        x={boxX + Math.round(w / 2)}
+        y={yOff + ROW_H - 4}
+        textAnchor="middle"
+        fontFamily="JetBrains Mono"
+        fontSize={vr?.fontSize ?? 11}
+        fontWeight={vr?.fontWeight ?? "normal"}
+        fill={valueColor}
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        <tspan data-role="v">{rawValueStr}</tspan>
+        {euEnabled && (
+          <tspan
+            data-role="eu"
+            fontFamily="Inter"
+            fontSize={er?.fontSize ?? 9}
+            fill={er?.color || DE_COLORS.textMuted}
+          >
+            {" "}
+            {unitText}
+          </tspan>
+        )}
+      </text>,
+    );
+  }
 
   if (isManual) {
     els.push(
       <text
         key="manual-badge"
         data-role="manual-badge"
-        x={w - 2}
+        x={boxX + w - 2}
         y={yOff + 2}
         textAnchor="end"
         dominantBaseline="hanging"
@@ -447,8 +631,33 @@ export function renderTextReadoutSvg(
     );
   }
 
-  const parentOffset = ctx.parentOffset;
+  return { els, w, yOff, totalH, euEnabled, unitText, flashClass, isStale };
+}
+
+export function renderTextReadoutSvg(
+  node: DisplayElement,
+  ctx: DisplayElementRenderContext,
+): React.ReactElement {
+  const cfg = node.config as TextReadoutConfig;
+  const deTransform = ctx.transform;
+  const pvKey = ctx.pvKey;
+  const pointTag = ctx.pointTag;
+
+  const { els, w, yOff, totalH, euEnabled, unitText, flashClass, isStale } =
+    renderTextReadoutContent(
+      node.binding.pointTag,
+      node.binding.displayName,
+      node.binding.unit,
+      ctx.pointValue,
+      ctx.discreteLabel,
+      ctx.metaUnits?.[0],
+      cfg,
+    );
+
+  const opacity = isStale ? 0.6 : node.opacity;
   const hOff = Math.round(-w / 2);
+  const parentOffset = ctx.parentOffset;
+
   return (
     <g
       key={node.id}
@@ -483,6 +692,154 @@ export function renderTextReadoutSvg(
             />
           );
         })()}
+    </g>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// text_readout_array
+// ---------------------------------------------------------------------------
+
+function renderTextReadoutArraySvg(
+  node: DisplayElement,
+  ctx: DisplayElementRenderContext,
+): React.ReactElement {
+  const cfg = node.config as TextReadoutArrayConfig;
+  const deTransform = ctx.transform;
+  const n = Math.max(1, ctx.pvKeys?.length ?? 1);
+  const gap = cfg.itemSpacing ?? 2;
+  const layout = cfg.arrayLayout ?? "vertical";
+
+  const ROW_H = 16;
+  const ROW_GAP = 2;
+  const singleLine = cfg.singleLine ?? false;
+  const pnRows = !singleLine && (cfg.pointNameRow?.enabled ?? false) ? 1 : 0;
+  const dnRows = !singleLine && (cfg.displayNameRow?.enabled ?? false) ? 1 : 0;
+  const pnInline = singleLine && (cfg.pointNameRow?.enabled ?? false);
+  const dnInline = singleLine && (cfg.displayNameRow?.enabled ?? false);
+  const hasInlineLabel = pnInline || dnInline;
+  const itemRows = 1 + pnRows + dnRows;
+  const itemH = itemRows * ROW_H + (itemRows - 1) * ROW_GAP;
+
+  // --- Pass 1: compute uniform label width and EU width ---
+  // Decimal info is derived from the format string (not current values) so the
+  // layout stays stable when live values arrive with more digits than the startup "0".
+  let maxLabelTextLen = 0;
+  let maxEuTextLen = 0;
+
+  for (let i = 0; i < n; i++) {
+    if (hasInlineLabel) {
+      const tag = ctx.pointTags?.[i] ?? "";
+      const dn = ctx.displayNames?.[i] ?? "";
+      let labelText = "";
+      if (pnInline && tag) labelText = tag;
+      if (dnInline && dn) labelText = labelText ? `${labelText} ${dn}` : dn;
+      maxLabelTextLen = Math.max(maxLabelTextLen, labelText.length);
+    }
+    if (cfg.showUnits) {
+      const unitText =
+        (ctx.pointValues?.[i]?.units ??
+          ctx.metaUnits?.[i] ??
+          ctx.bindingUnits?.[i]) ||
+        "";
+      if (unitText) maxEuTextLen = Math.max(maxEuTextLen, unitText.length + 1);
+    }
+  }
+
+  // Derive stable decimal layout from the configured value format.
+  const valueFontSize = cfg.valueRow?.fontSize ?? 11;
+  const { maxIntLen, maxFracLen, charW } = estimateFormatDecimalInfo(
+    cfg.valueFormat,
+    valueFontSize,
+  );
+
+  // 6px label-gap + maxIntLen*charW puts the decimal anchor; label chars use 6.5px/char estimate.
+  const maxLabelW = hasInlineLabel ? Math.ceil(maxLabelTextLen * 6.5) + 6 : 0;
+  const decimalCharCount = maxIntLen + (maxFracLen > 0 ? 1 + maxFracLen : 0);
+  // 6px left-pad + value + EU + 6px right-pad (matches decimalX = boxX + 6 + maxIntLen*charW)
+  const fixedValueW = Math.max(
+    cfg.minWidth ?? 40,
+    6 + decimalCharCount * charW + maxEuTextLen * 5 + 6,
+  );
+  const effectiveItemW = maxLabelW + fixedValueW;
+  const decimalPad =
+    maxFracLen > 0 || maxIntLen > 0 ? { maxIntLen, maxFracLen, charW } : null;
+
+  const totalW =
+    layout === "vertical" ? effectiveItemW : n * effectiveItemW + (n - 1) * gap;
+  const hOff = Math.round(-totalW / 2);
+
+  // --- Pass 2: render items with computed layout ---
+  const items = Array.from({ length: n }, (_, i) => {
+    const offsetX = layout === "horizontal" ? i * (effectiveItemW + gap) : 0;
+    const offsetY = layout === "vertical" ? i * (itemH + gap) : 0;
+    const pvKey = ctx.pvKeys?.[i];
+    const pointTag = ctx.pointTags?.[i];
+    const pv = ctx.pointValues?.[i];
+    const discreteLabel = ctx.discreteLabels?.[i];
+    const metaUnit = ctx.metaUnits?.[i];
+    const displayName = ctx.displayNames?.[i];
+    const bindingUnit = ctx.bindingUnits?.[i];
+
+    const { els, yOff, euEnabled, unitText, flashClass, isStale } =
+      renderTextReadoutContent(
+        pointTag,
+        displayName,
+        bindingUnit,
+        pv,
+        discreteLabel,
+        metaUnit,
+        cfg,
+        {
+          labelXOffset: maxLabelW,
+          fixedValueW,
+          decimalPad,
+        },
+      );
+
+    const itemLayoutTransform = `translate(${offsetX},${offsetY})`;
+
+    return (
+      <g
+        key={i}
+        className={flashClass || undefined}
+        data-array-index={i}
+        data-point-id={pvKey}
+        data-point-tag={pointTag}
+        data-node-id={node.id}
+        data-display-type="text_readout_array_item"
+        data-value-box-y={String(yOff)}
+        data-eu-unit={euEnabled ? unitText : ""}
+        data-min-width={String(cfg.minWidth ?? 40)}
+        data-fixed-layout={hasInlineLabel ? "true" : undefined}
+        data-label-offset={hasInlineLabel ? String(maxLabelW) : undefined}
+        data-decimal-int-len={decimalPad ? String(maxIntLen) : undefined}
+        data-decimal-frac-len={decimalPad ? String(maxFracLen) : undefined}
+        data-fixed-value-w={String(fixedValueW)}
+        data-base-transform={itemLayoutTransform}
+        transform={itemLayoutTransform}
+        opacity={isStale ? 0.6 : 1}
+      >
+        {els}
+      </g>
+    );
+  });
+
+  return (
+    <g
+      key={node.id}
+      className="io-display-element"
+      data-node-id={node.id}
+      data-display-type="text_readout_array"
+      data-array-layout={layout}
+      data-item-count={n}
+      data-item-gap={gap}
+      data-effective-item-w={String(effectiveItemW)}
+      data-base-transform={deTransform}
+      transform={`${deTransform} translate(${hOff},0)`}
+      opacity={node.opacity}
+    >
+      {items}
     </g>
   );
 }

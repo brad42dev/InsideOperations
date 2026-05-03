@@ -309,7 +309,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
         if (!nodeId) continue;
         const conf = nodeConfigMapRef.current.get(nodeId);
         if (!conf) continue;
-        applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMap);
+        applyPointValue(
+          el,
+          conf.displayType,
+          conf.config,
+          pv,
+          pid,
+          pointMetaMap,
+        );
       }
     }
   }, [pointMetaMap, liveSubscribe]);
@@ -926,7 +933,9 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     // Multi-binding resolution for text_readout_array
     let arrPvKeys: string[] | undefined;
     let arrPointTags: string[] | undefined;
-    let arrPointValues: (import("./renderDisplayElementSvg").PointValueData | undefined)[] | undefined;
+    let arrPointValues:
+      | (import("./renderDisplayElementSvg").PointValueData | undefined)[]
+      | undefined;
     let arrDiscreteLabels: (string | null)[] | undefined;
     let arrMetaUnits: string[] | undefined;
     let arrDisplayNames: string[] | undefined;
@@ -962,12 +971,11 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
                 bMeta.enum_labels,
               )
             : null;
-        const bMetaUnit =
-          bKey ? (pointMetaMap.get(bKey)?.engineering_unit ?? undefined) : undefined;
+        const bMetaUnit = bKey
+          ? (pointMetaMap.get(bKey)?.engineering_unit ?? undefined)
+          : undefined;
         arrPvKeys.push(bKey ?? "");
-        arrPointTags.push(
-          b.pointTag ?? (isTagId ? rawId! : undefined) ?? "",
-        );
+        arrPointTags.push(b.pointTag ?? (isTagId ? rawId! : undefined) ?? "");
         arrPointValues.push(
           bPv
             ? {
@@ -1403,7 +1411,11 @@ function applyTextReadoutLikeMutation(
     typeof value === "number" &&
     !isCommFail &&
     !isBad
-      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      ? resolvePointLabel(
+          value,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
       : null;
 
   const rawValueStr = isCommFail
@@ -1453,11 +1465,15 @@ function applyTextReadoutLikeMutation(
           isNumeric && dotIdx >= 0 ? `.${rawValueStr.slice(dotIdx + 1)}` : "";
       }
       vFracEl.setAttribute("fill", valueColor);
-      const fracEuSpan = vFracEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
+      const fracEuSpan =
+        vFracEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
       if (fracEuSpan) {
         fracEuSpan.style.display = !isCommFail && !isBad ? "" : "none";
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
-        const s = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+        const s = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "tspan",
+        );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
         s.setAttribute("font-size", "9");
@@ -1467,9 +1483,12 @@ function applyTextReadoutLikeMutation(
       }
     } else {
       // Non-numeric value (COMM, ????, discrete label) fell through to centered path.
-      const textElCentered = el.querySelector<SVGTextElement>('[data-role="value"]');
+      const textElCentered = el.querySelector<SVGTextElement>(
+        '[data-role="value"]',
+      );
       if (textElCentered) {
-        const vSpan = textElCentered.querySelector<SVGTSpanElement>('[data-role="v"]');
+        const vSpan =
+          textElCentered.querySelector<SVGTSpanElement>('[data-role="v"]');
         if (vSpan) vSpan.textContent = rawValueStr;
         else textElCentered.textContent = rawValueStr;
         textElCentered.setAttribute("fill", valueColor);
@@ -1499,7 +1518,10 @@ function applyTextReadoutLikeMutation(
       if (euSpan) {
         euSpan.style.display = !isCommFail && !isBad ? "" : "none";
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
-        const s = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+        const s = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "tspan",
+        );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
         s.setAttribute("font-size", "9");
@@ -1543,7 +1565,10 @@ function applyTextReadoutLikeMutation(
           let maxW = 0;
           for (const ig of itemGs) {
             const boxEl = ig.querySelector<SVGRectElement>('[data-role="box"]');
-            maxW = Math.max(maxW, boxEl ? Number(boxEl.getAttribute("width") ?? 0) : newW);
+            maxW = Math.max(
+              maxW,
+              boxEl ? Number(boxEl.getAttribute("width") ?? 0) : newW,
+            );
           }
           const baseTransform = outerG.dataset.baseTransform;
           if (baseTransform) {
