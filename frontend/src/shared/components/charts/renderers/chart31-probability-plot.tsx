@@ -88,8 +88,10 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
 
   const plotDivRef = useRef<HTMLDivElement>(null);
   const [plotError, setPlotError] = useState<string | null>(null);
+  const [insufficientData, setInsufficientData] = useState(false);
 
   useEffect(() => {
+    setInsufficientData(false);
     if (!plotDivRef.current) return;
     if (!histResult?.success) return;
 
@@ -98,7 +100,10 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
       .map((r) => (r.value ?? r.avg ?? null) as number | null)
       .filter((v): v is number => v !== null);
 
-    if (vals.length < 4) return;
+    if (vals.length < 4) {
+      setInsufficientData(true);
+      return;
+    }
 
     const sorted = [...vals].sort((a, b) => a - b);
     const n = sorted.length;
@@ -168,7 +173,7 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
       .then((PlotlyRaw: unknown) => {
         if (cancelled || !plotDivRef.current) return;
         const Plotly = PlotlyRaw as typeof import("plotly.js");
-        Plotly.newPlot(
+        void Plotly.newPlot(
           div,
           traces as import("plotly.js").Data[],
           layout as Partial<import("plotly.js").Layout>,
@@ -176,9 +181,13 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
             responsive: true,
             displayModeBar: false,
           },
-        ).catch((err: unknown) => {
-          if (!cancelled) setPlotError(String(err));
-        });
+        )
+          .then(() => {
+            if (!cancelled) div?.setAttribute("data-chart-ready", "true");
+          })
+          .catch((err: unknown) => {
+            if (!cancelled) setPlotError(String(err));
+          });
       })
       .catch((err: unknown) => {
         if (!cancelled) setPlotError(String(err));
@@ -201,6 +210,7 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -215,9 +225,30 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
     );
   }
 
+  if (insufficientData) {
+    return (
+      <div
+        data-chart-ready="true"
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--io-text-muted)",
+          fontSize: 13,
+          textAlign: "center",
+          padding: "0 20px",
+        }}
+      >
+        Not enough data for a Q-Q plot — at least 4 values required.
+      </div>
+    );
+  }
+
   if (plotError) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",

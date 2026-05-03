@@ -223,6 +223,7 @@ export default function ScorecardTableChart({ config }: RendererProps) {
   if (metricSlots.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -240,6 +241,7 @@ export default function ScorecardTableChart({ config }: RendererProps) {
   if (tableMode === "event_stats") {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -261,10 +263,12 @@ export default function ScorecardTableChart({ config }: RendererProps) {
 
   // --- Scorecard mode ---
 
-  const shortLabel = (pid: string) => (pid.length > 14 ? pid.slice(-14) : pid);
+  const slotName = (slot: (typeof metricSlots)[0]) =>
+    slot.tagname ?? slot.label ?? "Unknown";
 
   return (
     <div
+      data-chart-ready="true"
       style={{ position: "relative", flex: 1, minHeight: 0, overflow: "auto" }}
     >
       {isLoading && (
@@ -285,6 +289,7 @@ export default function ScorecardTableChart({ config }: RendererProps) {
 
       {!isLoading && rows.length === 0 && (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",
@@ -344,9 +349,9 @@ export default function ScorecardTableChart({ config }: RendererProps) {
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
-                  title={slot.pointId}
+                  title={slotName(slot)}
                 >
-                  {shortLabel(slot.pointId)}
+                  {slotName(slot)}
                 </th>
               ))}
             </tr>

@@ -299,6 +299,7 @@ export default function StateTimelineChart({ config }: RendererProps) {
   if (itemSlots.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -318,6 +319,7 @@ export default function StateTimelineChart({ config }: RendererProps) {
   return (
     <div
       ref={containerRef}
+      data-chart-ready="true"
       style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
     >
       {isLoading && (

@@ -7,6 +7,7 @@ import type {
 import { graphicsApi } from "../../api/graphics";
 import ContextMenu from "../../shared/components/ContextMenu";
 import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
+import { useAuthImage } from "../../shared/hooks/useAuthImage";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -293,8 +294,8 @@ function GraphicThumb({
   selected: boolean;
   onClick: () => void;
 }) {
-  const [errored, setErrored] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const blobSrc = useAuthImage(graphicsApi.thumbnailUrl(id));
 
   return (
     <>
@@ -360,7 +361,18 @@ function GraphicThumb({
             justifyContent: "center",
           }}
         >
-          {errored ? (
+          {blobSrc ? (
+            <img
+              src={blobSrc}
+              alt={name}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+          ) : (
             <svg
               width="14"
               height="14"
@@ -372,18 +384,6 @@ function GraphicThumb({
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <path d="M3 9h18M9 21V9" />
             </svg>
-          ) : (
-            <img
-              src={graphicsApi.thumbnailUrl(id)}
-              alt={name}
-              onError={() => setErrored(true)}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
           )}
         </div>
         <span

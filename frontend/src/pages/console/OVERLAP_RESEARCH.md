@@ -37,6 +37,7 @@ If teleportation is unacceptable (user requirement: panels must stay where dropp
 **Source:** `src/core/compactors.ts` and `src/core/layout.ts` in the react-grid-layout GitHub repository.
 
 #### `collides(l1, l2): boolean`
+
 ```typescript
 if (l1 === l2) return false;
 if (l1.x + l1.w <= l2.x) return false;
@@ -45,33 +46,45 @@ if (l1.y + l1.h <= l2.y) return false;
 if (l1.y >= l2.y + l2.h) return false;
 return true;
 ```
+
 Simple AABB test. Touching panels (sharing an edge) do NOT collide.
 
 #### `resolveCompactionCollision(layout, item, moveToCoord, axis)`
+
 ```typescript
-function resolveCompactionCollision(layout, item, moveToCoord, axis, hasStatics?) {
+function resolveCompactionCollision(
+  layout,
+  item,
+  moveToCoord,
+  axis,
+  hasStatics?,
+) {
   const sizeProp = axis === "x" ? "w" : "h";
-  item[axis] += 1;                          // temporarily shift to detect chain
-  const itemIndex = layout.findIndex(l => l.i === item.i);
+  item[axis] += 1; // temporarily shift to detect chain
+  const itemIndex = layout.findIndex((l) => l.i === item.i);
   const layoutHasStatics = hasStatics ?? getStatics(layout).length > 0;
 
   for (let i = itemIndex + 1; i < layout.length; i++) {
     const otherItem = layout[i];
     if (otherItem.static) continue;
-    if (!layoutHasStatics && otherItem.y > item.y + item.h) break;  // early exit if sorted
+    if (!layoutHasStatics && otherItem.y > item.y + item.h) break; // early exit if sorted
     if (collides(item, otherItem)) {
-      resolveCompactionCollision(              // RECURSIVE cascade
-        layout, otherItem,
-        moveToCoord + item[sizeProp],          // push further by item's size
-        axis, layoutHasStatics
+      resolveCompactionCollision(
+        // RECURSIVE cascade
+        layout,
+        otherItem,
+        moveToCoord + item[sizeProp], // push further by item's size
+        axis,
+        layoutHasStatics,
       );
     }
   }
-  item[axis] = moveToCoord;                  // set final position AFTER recursion
+  item[axis] = moveToCoord; // set final position AFTER recursion
 }
 ```
 
 **Key properties of this algorithm:**
+
 - Recursive cascade: item A pushes item B, which pushes item C, etc.
 - The `item[axis] += 1` shift is a temporary probe to detect whether the chain continues.
 - Final positions are set bottom-up (in recursion stack unwind order), so all items are placed correctly.
@@ -81,6 +94,7 @@ function resolveCompactionCollision(layout, item, moveToCoord, axis, hasStatics?
 **Known bug in this algorithm (Issue #766):** The original implementation detected a collision with itself because `itemIndex` was off by one. The v2 fix uses `layout.findIndex(l => l.i === item.i)` which is O(n) but correct.
 
 #### `compactItemVertical(compareWith, l, fullLayout, maxY)`
+
 ```typescript
 // Phase 1: float up until collision
 l.y = Math.min(maxY, l.y);
@@ -97,13 +111,15 @@ l.y = Math.max(l.y, 0);
 ```
 
 **How no-overlap is guaranteed:**
+
 - Phase 1 only moves the item INTO empty space — the while loop stops on first collision.
 - Phase 2 calls `resolveCompactionCollision` which recursively pushes ALL downstream items out of the way before returning.
 - After Phase 2, `l` is positioned at `collision.y + collision.h` (immediately below the blocker), which is always conflict-free because the recursive call already cleared everything below.
 
 #### `verticalCompactor.compact(layout, cols)`
+
 ```typescript
-const compareWith = getStatics(layout);      // statics first, immovable
+const compareWith = getStatics(layout); // statics first, immovable
 let maxY = bottom(compareWith);
 const sorted = sortLayoutItemsByRowCol(layout); // sort by (y, x) reading order
 const out = new Array(layout.length);
@@ -113,7 +129,7 @@ for (let i = 0; i < sorted.length; i++) {
   if (!l.static) {
     l = compactItemVertical(compareWith, l, sorted, maxY);
     maxY = Math.max(maxY, l.y + l.h);
-    compareWith.push(l);                     // add to settled list IMMEDIATELY
+    compareWith.push(l); // add to settled list IMMEDIATELY
   }
   out[layout.indexOf(sorted[i])] = l;
   l.moved = false;
@@ -122,6 +138,7 @@ return out;
 ```
 
 **Why this guarantees zero overlaps:**
+
 1. Items are processed in reading order (top-left first).
 2. After each item is placed, it's added to `compareWith`.
 3. Each subsequent item is placed WITHOUT overlapping any already-placed item.
@@ -132,6 +149,7 @@ return out;
 #### `moveElement()` and `moveElementAwayFromCollision()`
 
 `moveElement` is called during live drag. It:
+
 1. Applies the new position to the moved item.
 2. Finds all collisions.
 3. For each collision, calls `moveElementAwayFromCollision`.
@@ -141,6 +159,7 @@ return out;
 **Important:** In RGL v2, `moveElement` is called on EVERY mouse move event during drag. The resulting layout always has overlaps until `compact()` is called at the end. RGL's design explicitly relies on this: overlap during drag is expected; compact() at gesture end removes them.
 
 #### `moveElementAwayFromCollision()` — isUserAction flag
+
 ```typescript
 if (isUserAction) {
   isUserAction = false;  // Only try up-move once (not recursively)
@@ -187,26 +206,29 @@ No recursion, no collision detection during placement. The tide tracks occupied 
 GridStack's approach is fundamentally different from RGL: it resolves overlaps DURING the gesture (not deferred to gesture end), which makes it more suitable for a layout where you don't want compaction at gesture stop.
 
 #### `moveNode(node, opts): boolean`
+
 Entry point for any movement. Key behavior:
+
 ```typescript
 const collides = this.collideAll(node, nn, opts.skip);
 if (collides.length) {
-  const collide = activeDrag 
-    ? this.directionCollideCoverage(node, opts, collides)  // pick by coverage
+  const collide = activeDrag
+    ? this.directionCollideCoverage(node, opts, collides) // pick by coverage
     : collides[0];
   if (collide) {
     needToMove = !this._fixCollisions(node, nn, collide, opts);
   }
 }
 if (needToMove) Utils.copyPos(node, nn);
-if (opts.pack) this._packNodes();  // gravity pass after every move
+if (opts.pack) this._packNodes(); // gravity pass after every move
 ```
 
 `directionCollideCoverage` selects the collide target based on which colliding item has >50% coverage along the midline of the dragged node. This prevents accidental triggering on items you're barely touching.
 
 #### `_fixCollisions(node, nn, collide, opt): boolean`
+
 ```typescript
-this.sortNodes(-1);  // sort from LAST to FIRST so recursive moves go in right order
+this.sortNodes(-1); // sort from LAST to FIRST so recursive moves go in right order
 
 // Try swap first (for same-size adjacent nodes during drag)
 if (node._moving && !opt.nested && !this.float) {
@@ -221,41 +243,58 @@ if (this._useEntireRowArea(node, nn)) {
 }
 
 let counter = 0;
-while (collide = collide || this.collide(node, area, opt.skip)) {
-  if (counter++ > this.nodes.length * 2) throw new Error("Infinite collide check");
-  
+while ((collide = collide || this.collide(node, area, opt.skip))) {
+  if (counter++ > this.nodes.length * 2)
+    throw new Error("Infinite collide check");
+
   let moved: boolean;
   if (collide.locked || someCondition) {
     // Move the dragged node PAST the locked collider
-    moved = this.moveNode(node, { y: collide.y + collide.h, nested: true, pack: false });
+    moved = this.moveNode(node, {
+      y: collide.y + collide.h,
+      nested: true,
+      pack: false,
+    });
   } else {
     // Move the collider out of the way
-    moved = this.moveNode(collide, { y: nn.y + nn.h, skip: node, nested: true, pack: false });
+    moved = this.moveNode(collide, {
+      y: nn.y + nn.h,
+      skip: node,
+      nested: true,
+      pack: false,
+    });
   }
-  
+
   if (!moved) return didMove;
-  collide = undefined;  // re-detect collision
+  collide = undefined; // re-detect collision
 }
 ```
 
 **Key design decisions:**
-- Infinite loop guard (counter > nodes.length * 2) — if the algorithm runs too long, it throws rather than hanging.
+
+- Infinite loop guard (counter > nodes.length \* 2) — if the algorithm runs too long, it throws rather than hanging.
 - `sortNodes(-1)` before the loop: sorts descending by position so recursive moves of downstream items don't conflict with items already processed.
 - `nested: true` flag prevents recursive `_packNodes()` calls inside the collision resolution — pack is only called once at the top level.
 - `pack: false` during collision resolution, then `pack: true` (via `moveNode`'s default) at the top level only.
 
 #### `swap(a, b): boolean`
+
 ```typescript
 // Swap two nodes if they're same size and adjacent (touching)
 function _doSwap() {
-  const x = b.x, y = b.y;
-  b.x = a.x; b.y = a.y;
+  const x = b.x,
+    y = b.y;
+  b.x = a.x;
+  b.y = a.y;
   if (a.h != b.h) {
-    a.x = x; a.y = b.y + b.h;    // different height: place a below b
+    a.x = x;
+    a.y = b.y + b.h; // different height: place a below b
   } else if (a.w != b.w) {
-    a.x = b.x + b.w; a.y = y;    // different width: place a right of b
+    a.x = b.x + b.w;
+    a.y = y; // different width: place a right of b
   } else {
-    a.x = x; a.y = y;             // same size: simple swap
+    a.x = x;
+    a.y = y; // same size: simple swap
   }
   a._dirty = b._dirty = true;
   return true;
@@ -263,6 +302,7 @@ function _doSwap() {
 ```
 
 Swap conditions (must meet ALL):
+
 - Same width or same height
 - Same x or same y (aligned on one axis)
 - Touching (adjacent, not overlapping)
@@ -270,15 +310,17 @@ Swap conditions (must meet ALL):
 **Why swap is important:** Without swap, dragging a panel over an adjacent same-size panel always pushes it down. Swap makes the interaction feel like they're exchanging positions, which is more intuitive.
 
 #### `_packNodes()` — gravity pass
+
 ```typescript
 // Non-float mode (gravity on):
 this.nodes.forEach((n, i) => {
   if (n.locked) return;
   while (n.y > 0) {
     const newY = i === 0 ? 0 : n.y - 1;
-    const canBeMoved = i === 0 || !this.collide(n, { x: n.x, y: newY, w: n.w, h: n.h });
+    const canBeMoved =
+      i === 0 || !this.collide(n, { x: n.x, y: newY, w: n.w, h: n.h });
     if (!canBeMoved) break;
-    n._dirty = (n.y !== newY);
+    n._dirty = n.y !== newY;
     n.y = newY;
   }
 });
@@ -289,6 +331,7 @@ This is essentially the same as RGL's compactItemVertical: decrement y until col
 **This is NOT the same as a full compact()**: it only moves items UP, one unit at a time, stopping at the first collision. It does not cascade downward.
 
 #### `directionCollideCoverage(node, opts, collides)` — the coverage heuristic
+
 GridStack uses pixel-level drag coordinates (from the DOM event), not just grid coordinates, to determine which colliding node is the "real" target. It measures overlap area percentage and requires >50% coverage along the drag midline before considering a node as a collision target. This prevents spurious collisions when dragging through tight gaps.
 
 **This is not available in custom layout logic** — it's tied to DOM event coordinates. For a custom resolver working with grid coordinates only, this heuristic must be approximated or dropped.
@@ -302,17 +345,19 @@ GridStack uses pixel-level drag coordinates (from the DOM event), not just grid 
 i3 uses a fundamentally different layout model: a tree of containers with percentage-based sizes. Resize is only possible between two ADJACENT siblings in the same parent container.
 
 #### `resize_find_tiling_participants(current, other, direction)`
+
 Walks the tree upward from the focused container until it finds a parent node oriented in the resize direction. Then picks the next/previous sibling as the resize partner.
 
 **Key constraint:** Resize can only happen between exactly two nodes (the focused one and one neighbor). There is no cascade. This is possible because the tree structure guarantees no overlaps by construction — children always fill their parent exactly.
 
 #### `resize_neighboring_cons(first, second, px, ppt): bool`
+
 ```c
 new_first_percent = first->percent + (px / parent_size);
 new_second_percent = second->percent - (px / parent_size);
 
 // Reject if either container would be < 1 pixel
-if (new_first_percent < percent_for_1px(first) || 
+if (new_first_percent < percent_for_1px(first) ||
     new_second_percent < percent_for_1px(second)) {
   return false;
 }
@@ -368,6 +413,7 @@ To place rect (w=4, h=3):
 **Source:** GitHub repository `nomcopter/react-mosaic`.
 
 React Mosaic models the layout as an n-ary tree where:
+
 - Internal nodes are splits (horizontal or vertical) with a `splitPercentage`.
 - Leaf nodes are individual panels.
 
@@ -408,6 +454,7 @@ All "directional push" approaches fail for the same reason:
 7. But now the total area is wrong — panels B and C are at different positions than they would be if we'd considered D's constraint before pushing B.
 
 The fundamental issue is that directional push is a greedy algorithm: it resolves each collision locally without considering downstream constraints. A correct algorithm must either:
+
 - **Be non-greedy** (consider all constraints before moving anything), or
 - **Be monotone** (process items in an order that guarantees each placement is final).
 
@@ -490,7 +537,7 @@ function scanLineCompact(
   pinnedIds: Set<string> = new Set(),
 ): GridItem[] {
   // Step 1: Clone
-  const items = layout.map(it => ({ ...it }));
+  const items = layout.map((it) => ({ ...it }));
 
   // Step 2: Sort — pinned first, then by (y, x) reading order
   const sorted = [...items].sort((a, b) => {
@@ -504,12 +551,15 @@ function scanLineCompact(
   const settled: GridItem[] = [];
 
   // Helper: check if (x, y, w, h) overlaps any settled item
-  function overlapsSettled(x: number, y: number, w: number, h: number): boolean {
+  function overlapsSettled(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ): boolean {
     for (const s of settled) {
-      if (
-        x < s.x + s.w && x + w > s.x &&
-        y < s.y + s.h && y + h > s.y
-      ) return true;
+      if (x < s.x + s.w && x + w > s.x && y < s.y + s.h && y + h > s.y)
+        return true;
     }
     return false;
   }
@@ -531,10 +581,10 @@ function scanLineCompact(
 
     // Filter to valid ranges and sort by distance from original position
     const validYs = [...ys]
-      .filter(y => y >= 0 && y + h <= rows)
+      .filter((y) => y >= 0 && y + h <= rows)
       .sort((a, b) => Math.abs(a - origY) - Math.abs(b - origY));
     const validXs = [...xs]
-      .filter(x => x >= 0 && x + w <= cols)
+      .filter((x) => x >= 0 && x + w <= cols)
       .sort((a, b) => Math.abs(a - origX) - Math.abs(b - origX));
 
     let best: { x: number; y: number } | null = null;
@@ -581,7 +631,8 @@ function scanLineCompact(
     }
 
     // No slot at current size — shrink to minimum
-    const origX = item.x, origY = item.y;
+    const origX = item.x,
+      origY = item.y;
     item.w = minW;
     item.h = minH;
     const minSlot = findNearestSlot(origX, origY, minW, minH);
@@ -626,12 +677,12 @@ function scanLineCompact(
 Set `compactor={verticalCompactor}` on the ReactGridLayout component. This is exactly the scan-line algorithm above, built into RGL. Pros: battle-tested, zero custom code. Cons: always compacts to the top (gravity), which may move panels far from where the user placed them.
 
 ```tsx
-import { verticalCompactor } from 'react-grid-layout/core';
+import { verticalCompactor } from "react-grid-layout/core";
 
 <ReactGridLayout
   compactor={verticalCompactor}
   // ...
-/>
+/>;
 ```
 
 **Option B: Custom compactor using noCompactor + manual finalizeLayout**
@@ -639,20 +690,34 @@ import { verticalCompactor } from 'react-grid-layout/core';
 Use `noCompactor` during drag (no auto-movement), then call `scanLineCompact` manually in `onDragStop`/`onResizeStop`.
 
 ```tsx
-import { noCompactor } from 'react-grid-layout/core';
+import { noCompactor } from "react-grid-layout/core";
 
 <ReactGridLayout
   compactor={noCompactor}
   onDragStop={(layout, oldItem, newItem) => {
-    const resolved = scanLineCompact(layout, COLS, ROWS, MIN_W, MIN_H, pinnedIds);
+    const resolved = scanLineCompact(
+      layout,
+      COLS,
+      ROWS,
+      MIN_W,
+      MIN_H,
+      pinnedIds,
+    );
     setLayout(resolved);
   }}
   onResizeStop={(layout, oldItem, newItem) => {
-    const resolved = scanLineCompact(layout, COLS, ROWS, MIN_W, MIN_H, pinnedIds);
+    const resolved = scanLineCompact(
+      layout,
+      COLS,
+      ROWS,
+      MIN_W,
+      MIN_H,
+      pinnedIds,
+    );
     setLayout(resolved);
   }}
   // ...
-/>
+/>;
 ```
 
 **Option C: GridStack.js approach (push during drag, no compaction at stop)**
@@ -670,6 +735,7 @@ This is harder to get right. GridStack's implementation is ~500 lines of careful
 ### 3.4 Specific Fix for the Current Implementation
 
 The current code has two phases:
+
 1. `resolveCollisions` — called on every resize/drag event (live)
 2. `finalizeLayout` — called at gesture stop
 
@@ -695,46 +761,55 @@ const resolvedLayout = scanLineCompact(
 ## 4. Edge Cases to Handle
 
 ### 4.1 Panel Completely Surrounds Another
+
 When the moved panel grows large enough to surround a smaller panel, the surrounded panel has no adjacent slot. The scan-line algorithm handles this correctly: the surrounded panel gets placed to the right of or below the larger panel (the nearest conflict-free slot).
 
 ### 4.2 All Space Used by Pinned Panels
+
 If pinned panels occupy all available space, non-pinned panels have no valid slot. The fallback chain (full grid scan → emergency 0,0) handles this. In practice, this shouldn't happen if there's a hard cap on how large the moved panel can grow (the `_computeMaxMovedSize` logic in the current implementation is correct for this).
 
 ### 4.3 16 Panels in a 4×4 Grid
+
 At 16 panels each exactly 72×72 units (288/4), the grid is exactly full with no slack. Any resize MUST shrink another panel. The scan-line algorithm handles this: the resized panel is placed, then other panels are placed into the remaining space. The last few panels may be shrunk to MIN size if there's no full-size slot available.
 
 ### 4.4 Minimum Size Violations
+
 The scan-line algorithm can shrink panels to MIN size in Step 4e. This is the correct behavior — better to shrink a panel than to overlap. However, shrinking should be communicated visually (e.g., the panel title bar should indicate it's at minimum size).
 
 ### 4.5 Pinned Panel Changes Position
+
 If a pinned panel's position is changed programmatically (e.g., template switch), `scanLineCompact` must be called with the new pinned positions as the baseline. The current implementation handles this correctly because pinned items are placed first in Step 4a.
 
 ### 4.6 Rapid Consecutive Gestures
+
 If the user drags a second panel before the first gesture's `finalizeLayout` has been applied, the intermediate state may have overlaps. The fix is to snapshot the layout at `onDragStart` (before any movement) and use that snapshot as the baseline for `scanLineCompact` at `onDragStop`. RGL calls `onDragStart` reliably before any `onDrag` events.
 
 ### 4.7 Corner Resize (Simultaneous X and Y Change)
+
 The current implementation uses an `axisHint` to determine whether to resolve horizontally or vertically. For corner resizes, both axes change simultaneously. The scan-line algorithm handles this naturally: it doesn't need an axis hint — it places the resized panel at its new size and finds slots for displaced panels regardless of which axis changed.
 
 ### 4.8 Aspect Ratio Locking
+
 The CLAUDE.md for the console module specifies: "aspect ratio must be preserved on resize." The scan-line algorithm doesn't natively preserve aspect ratios. If the placed slot has different proportions than the original panel, the aspect ratio changes. This must be handled in the RGL resize handler (constrain the resize drag to maintain aspect ratio) before `scanLineCompact` is called — not inside the compaction algorithm.
 
 ### 4.9 Panel Count at Boundary (n=16, minSize=48, grid=288)
+
 Maximum panels: floor(288/48)^2 = 6^2 = 36. So 16 panels at minimum size always fit. But maximum panel size must be constrained: if one panel is 240×288, only one other 48×48 panel fits in the remaining 48×288 strip. The `_computeMaxMovedSize` binary search in the current implementation is the right approach but uses a geometric capacity estimate (not an exact packing count). For the scan-line algorithm, the constraint is naturally enforced: if you resize a panel so large that other panels can't fit, the scan-line algorithm shrinks them to MIN size. The user then sees panels at MIN size (not overlapping), which signals the constraint.
 
 ---
 
 ## 5. Algorithm Comparison Matrix
 
-| Property | Current Implementation | RGL verticalCompactor | scanLineCompact (custom) | GridStack | react-mosaic |
-|---|---|---|---|---|---|
-| Zero-overlap guarantee | No (residual overlaps) | Yes | Yes | Yes | Yes (by model) |
-| Panels move during drag | Yes (complex) | Yes (1 unit at a time) | No | Yes | No |
-| Panels snap at gesture stop | Yes (finalizeLayout) | Yes (compact) | Yes | No | No |
-| Preserves user positions | Best-effort | No (gravity) | Best-effort | Best | N/A (tree) |
-| Complexity | O(n²) per gesture | O(n log n) at stop | O(n²) at stop | O(n²) per move | O(1) resize |
-| n=16 performance | ~256 ops | negligible | ~1024 ops | ~256 ops | 1 op |
-| Code complexity | Very high | ~50 lines | ~100 lines | ~500 lines | Architecture change |
-| Axis hint needed | Yes | No | No | No | No |
+| Property                    | Current Implementation | RGL verticalCompactor  | scanLineCompact (custom) | GridStack      | react-mosaic        |
+| --------------------------- | ---------------------- | ---------------------- | ------------------------ | -------------- | ------------------- |
+| Zero-overlap guarantee      | No (residual overlaps) | Yes                    | Yes                      | Yes            | Yes (by model)      |
+| Panels move during drag     | Yes (complex)          | Yes (1 unit at a time) | No                       | Yes            | No                  |
+| Panels snap at gesture stop | Yes (finalizeLayout)   | Yes (compact)          | Yes                      | No             | No                  |
+| Preserves user positions    | Best-effort            | No (gravity)           | Best-effort              | Best           | N/A (tree)          |
+| Complexity                  | O(n²) per gesture      | O(n log n) at stop     | O(n²) at stop            | O(n²) per move | O(1) resize         |
+| n=16 performance            | ~256 ops               | negligible             | ~1024 ops                | ~256 ops       | 1 op                |
+| Code complexity             | Very high              | ~50 lines              | ~100 lines               | ~500 lines     | Architecture change |
+| Axis hint needed            | Yes                    | No                     | No                       | No             | No                  |
 
 ---
 

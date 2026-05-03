@@ -242,6 +242,7 @@ export default function HeatmapChart({ config }: RendererProps) {
   if (!valueSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -277,6 +278,7 @@ export default function HeatmapChart({ config }: RendererProps) {
       )}
       {!isLoading && displayData.length === 0 && (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",
@@ -290,7 +292,12 @@ export default function HeatmapChart({ config }: RendererProps) {
         </div>
       )}
       {displayData.length > 0 && (
-        <EChart option={option} height={calendarMode ? 200 : 300} />
+        <div
+          data-chart-ready="true"
+          style={{ flex: 1, minHeight: 0, width: "100%", height: "100%" }}
+        >
+          <EChart option={option} height={calendarMode ? 200 : 300} />
+        </div>
       )}
     </div>
   );

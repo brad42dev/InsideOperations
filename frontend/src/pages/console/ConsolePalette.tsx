@@ -21,6 +21,7 @@ import {
 } from "../../store/savedChartsStore";
 import { MicroIcon } from "../../shared/components/charts/ChartTypePicker";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { useAuthImage } from "../../shared/hooks/useAuthImage";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1477,8 +1478,8 @@ function GraphicTile({
   onQuickPlace?: (item: ConsoleDragItem) => void;
 }) {
   const [dragging, setDragging] = useState(false);
-  const [thumbError, setThumbError] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const blobSrc = useAuthImage(thumbUrl);
 
   return (
     <div
@@ -1527,9 +1528,9 @@ function GraphicTile({
           marginBottom: 4,
         }}
       >
-        {!thumbError ? (
+        {blobSrc ? (
           <img
-            src={thumbUrl}
+            src={blobSrc}
             alt={name}
             style={{
               width: "100%",
@@ -1537,7 +1538,6 @@ function GraphicTile({
               objectFit: "cover",
               display: "block",
             }}
-            onError={() => setThumbError(true)}
           />
         ) : (
           <svg

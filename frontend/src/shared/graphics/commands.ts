@@ -14,6 +14,7 @@ import type {
   NavigationLink,
   GraphicExpression,
 } from "../types/graphics";
+import type { ChartConfig } from "../components/charts/chart-config-types";
 
 // ---------------------------------------------------------------------------
 // Command interface
@@ -35,6 +36,20 @@ export interface SceneCommand {
 /** Deep clone using JSON serialization (scene graph is JSON-safe) */
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
+}
+
+/** Recursively assign new IDs to a node and all its descendants. */
+function regenIds(node: SceneNode): SceneNode {
+  const n = { ...node, id: crypto.randomUUID() };
+  if (
+    "children" in n &&
+    Array.isArray((n as { children?: SceneNode[] }).children)
+  ) {
+    (n as { children: SceneNode[] }).children = (
+      n as { children: SceneNode[] }
+    ).children.map(regenIds);
+  }
+  return n;
 }
 
 /** Find a node by ID anywhere in the tree. Returns [node, parent, index] or null. */
@@ -473,8 +488,7 @@ export class DuplicateNodesCommand implements SceneCommand {
     for (const id of this.nodeIds) {
       const idx = d.children.findIndex((n) => n.id === id);
       if (idx >= 0) {
-        const duped = clone(d.children[idx]);
-        duped.id = crypto.randomUUID();
+        const duped = regenIds(clone(d.children[idx]));
         duped.transform.position.x += 20;
         duped.transform.position.y += 20;
         this.newIds.push(duped.id);
@@ -505,8 +519,7 @@ export class PasteNodesCommand implements SceneCommand {
     const d = clone(doc);
     this.pastedIds = [];
     for (const node of this.nodes) {
-      const newNode = clone(node);
-      newNode.id = crypto.randomUUID();
+      const newNode = regenIds(clone(node));
       this.pastedIds.push(newNode.id);
       d.children.push(newNode);
     }
@@ -1551,13 +1564,14 @@ export class ChangeWidgetConfigCommand implements SceneCommand {
   description = "Change Widget";
   constructor(
     private nodeId: NodeId,
-    private newConfig: unknown,
-    private prevConfig: unknown,
+    private newConfig: ChartConfig,
+    private prevConfig: ChartConfig,
   ) {}
 
   execute(doc: GraphicDocument): GraphicDocument {
     return updateNode(clone(doc), this.nodeId, (node) => ({
       ...node,
+      chartType: this.newConfig.chartType,
       config: clone(this.newConfig),
     }));
   }
@@ -1565,6 +1579,7 @@ export class ChangeWidgetConfigCommand implements SceneCommand {
   undo(doc: GraphicDocument): GraphicDocument {
     return updateNode(clone(doc), this.nodeId, (node) => ({
       ...node,
+      chartType: this.prevConfig.chartType,
       config: clone(this.prevConfig),
     }));
   }

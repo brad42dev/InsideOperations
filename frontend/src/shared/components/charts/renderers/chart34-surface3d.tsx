@@ -249,12 +249,16 @@ export default function Chart34Surface3d({ config }: RendererProps) {
         if (cancelled || !plotDivRef.current) return;
         const Plotly = PlotlyRaw as typeof import("plotly.js");
         try {
-          Plotly.newPlot(div, traces, layout, {
+          void Plotly.newPlot(div, traces, layout, {
             responsive: true,
             displayModeBar: false,
-          }).catch((err: unknown) => {
-            if (!cancelled) setPlotError(String(err));
-          });
+          })
+            .then(() => {
+              if (!cancelled) div?.setAttribute("data-chart-ready", "true");
+            })
+            .catch((err: unknown) => {
+              if (!cancelled) setPlotError(String(err));
+            });
         } catch (err: unknown) {
           if (!cancelled) setPlotError(String(err));
         }
@@ -280,6 +284,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
   if (!allPresent) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -297,6 +302,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
   if (insufficientData) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -321,6 +327,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
   if (plotError) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",

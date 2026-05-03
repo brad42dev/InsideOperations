@@ -9,6 +9,7 @@ import { extractPointIds } from "../../shared/graphics/pointExtractor";
 import { useHistoricalValues } from "../../shared/hooks/useHistoricalValues";
 import PointContextMenu from "../../shared/components/PointContextMenu";
 import PointDetailPanel from "../../shared/components/PointDetailPanel";
+import { useAuthImage } from "../../shared/hooks/useAuthImage";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -549,6 +550,9 @@ function AnnotationEvidence({
 function GraphicSnapshotEvidence({ item }: { item: EvidenceItem }) {
   const graphicId = item.config.graphicId as string | undefined;
   const timestampStr = item.config.timestamp as string | undefined;
+  const thumbSrc = useAuthImage(
+    graphicId ? graphicsApi.thumbnailUrl(graphicId) : undefined,
+  );
   const epochMs = timestampStr ? new Date(timestampStr).getTime() : undefined;
 
   const graphicQuery = useQuery({
@@ -635,20 +639,18 @@ function GraphicSnapshotEvidence({ item }: { item: EvidenceItem }) {
           position: "relative",
         }}
       >
-        <img
-          src={graphicsApi.thumbnailUrl(graphicId)}
-          alt={graphic?.name ?? "Graphic snapshot"}
-          style={{
-            width: "100%",
-            display: "block",
-            maxHeight: "240px",
-            objectFit: "contain",
-          }}
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement;
-            el.style.display = "none";
-          }}
-        />
+        {thumbSrc && (
+          <img
+            src={thumbSrc}
+            alt={graphic?.name ?? "Graphic snapshot"}
+            style={{
+              width: "100%",
+              display: "block",
+              maxHeight: "240px",
+              objectFit: "contain",
+            }}
+          />
+        )}
         {timestampStr && (
           <div
             style={{

@@ -118,6 +118,7 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
   if (seriesSlots.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -147,6 +148,7 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
 
   return (
     <div
+      data-chart-ready="true"
       style={{
         flex: 1,
         display: "flex",

@@ -67,6 +67,7 @@ export default function Chart10AnalogBar({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -156,6 +157,7 @@ export default function Chart10AnalogBar({ config }: RendererProps) {
 
   return (
     <div
+      data-chart-ready="true"
       style={{
         flex: 1,
         display: "flex",

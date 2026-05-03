@@ -68,6 +68,32 @@ function alignSeries(
   return result;
 }
 
+/** Align size values to xy-aligned points by nearest timestamp within 5 s tolerance */
+function alignSizeToXY(
+  xyPoints: { x: number; y: number; t: number }[],
+  sizeRows: { timestamp: string; value: number | null }[],
+): (number | null)[] {
+  const valid = sizeRows
+    .filter((r) => r.value !== null)
+    .map((r) => ({ t: new Date(r.timestamp).getTime(), v: r.value as number }))
+    .sort((a, b) => a.t - b.t);
+  if (!valid.length) return xyPoints.map(() => null);
+  return xyPoints.map((p) => {
+    let lo = 0,
+      hi = valid.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (valid[mid].t < p.t) lo = mid + 1;
+      else hi = mid;
+    }
+    let best = valid[lo];
+    if (lo > 0 && Math.abs(valid[lo - 1].t - p.t) < Math.abs(best.t - p.t)) {
+      best = valid[lo - 1];
+    }
+    return Math.abs(best.t - p.t) <= 5000 ? best.v : null;
+  });
+}
+
 /** Compute 2D density matrix: divide X/Y space into binCount×binCount cells */
 function computeDensity(
   points: { x: number; y: number }[],
@@ -121,6 +147,11 @@ export default function XYScatterChart({ config }: RendererProps) {
   const slotLabel = makeSlotLabeler(config);
   const xSlot = config.points.find((p) => p.role === "x");
   const ySlot = config.points.find((p) => p.role === "y");
+  const sizeSlot = config.points.find((p) => p.role === "size") ?? null;
+  const bubbleMode = sizeSlot != null;
+  const [minPx, maxPx] = (config.extras?.bubbleSizeRange as
+    | [number, number]
+    | undefined) ?? [8, 60];
   const { highlighted, toggle } = useHighlight();
   const legendItems: LegendItem[] = [
     ...(xSlot
@@ -128,6 +159,14 @@ export default function XYScatterChart({ config }: RendererProps) {
       : []),
     ...(ySlot
       ? [{ label: slotLabel(ySlot), color: ySlot.color ?? "#F59E0B" }]
+      : []),
+    ...(sizeSlot
+      ? [
+          {
+            label: `Size: ${slotLabel(sizeSlot)}`,
+            color: sizeSlot.color ?? "#A78BFA",
+          },
+        ]
       : []),
   ];
   const durationMinutes = config.durationMinutes ?? 60;
@@ -170,10 +209,23 @@ export default function XYScatterChart({ config }: RendererProps) {
     select: (res) => (res.success ? res.data.rows : []),
   });
 
+  const { data: sizeData, isLoading: sizeLoading } = useQuery({
+    queryKey: ["history", sizeSlot?.pointId, start, end],
+    queryFn: () =>
+      pointsApi.history(sizeSlot!.pointId, { start, end, limit: 5000 }),
+    enabled: queryEnabled && bubbleMode,
+    select: (res) => (res.success ? res.data.rows : []),
+  });
+
   const aligned = useMemo(() => {
     if (!xData || !yData) return [];
     return alignSeries(xData, yData);
   }, [xData, yData]);
+
+  const sizeValuesRaw = useMemo(() => {
+    if (!bubbleMode || !sizeData || !aligned.length) return null;
+    return alignSizeToXY(aligned, sizeData);
+  }, [aligned, sizeData, bubbleMode]);
 
   // Determine whether to use density mode
   const useDensity =
@@ -256,19 +308,39 @@ export default function XYScatterChart({ config }: RendererProps) {
     const tMin = aligned.length ? Math.min(...aligned.map((p) => p.t)) : 0;
     const tMax = aligned.length ? Math.max(...aligned.map((p) => p.t)) : 1;
 
-    const scatterData = aligned.map((p) => {
+    const rawSizeVals = bubbleMode && sizeValuesRaw ? sizeValuesRaw : [];
+    const finiteVals = rawSizeVals.filter(
+      (v): v is number => v !== null && Number.isFinite(v),
+    );
+    const sizeMinVal = finiteVals.length ? Math.min(...finiteVals) : 0;
+    const sizeMaxVal = finiteVals.length ? Math.max(...finiteVals) : 1;
+    const sizeRange = sizeMaxVal - sizeMinVal || 1;
+
+    const scatterData = aligned.map((p, i) => {
       const norm = tMax > tMin ? (p.t - tMin) / (tMax - tMin) : 0;
+      const itemStyle = timeColoring
+        ? { color: `hsl(${(1 - norm) * 220},80%,55%)` }
+        : {
+            color: xSlot?.color ?? "#4A9EFF",
+            opacity:
+              typeof config.extras?.opacity === "number"
+                ? config.extras.opacity
+                : 0.7,
+          };
+      if (bubbleMode) {
+        const rawSize = rawSizeVals[i] ?? sizeMinVal;
+        const clampedSize = Math.max(rawSize, sizeMinVal);
+        const symbolSz =
+          minPx + ((clampedSize - sizeMinVal) / sizeRange) * (maxPx - minPx);
+        return {
+          value: [p.x, p.y, rawSize] as [number, number, number],
+          symbolSize: symbolSz,
+          itemStyle,
+        };
+      }
       return {
         value: [p.x, p.y] as [number, number],
-        itemStyle: timeColoring
-          ? { color: `hsl(${(1 - norm) * 220},80%,55%)` }
-          : {
-              color: xSlot?.color ?? "#4A9EFF",
-              opacity:
-                typeof config.extras?.opacity === "number"
-                  ? config.extras.opacity
-                  : 0.7,
-            },
+        itemStyle,
       };
     });
 
@@ -277,8 +349,13 @@ export default function XYScatterChart({ config }: RendererProps) {
       tooltip: {
         trigger: "item",
         formatter: (params: unknown) => {
-          const p = params as { value: [number, number] };
-          return `X: ${p.value[0].toFixed(3)}<br/>Y: ${p.value[1].toFixed(3)}`;
+          const p = params as { value: number[] };
+          const xStr = `X: ${p.value[0].toFixed(3)}`;
+          const yStr = `Y: ${p.value[1].toFixed(3)}`;
+          if (bubbleMode && sizeSlot && p.value.length > 2) {
+            return `${xStr}<br/>${yStr}<br/>${slotLabel(sizeSlot)}: ${p.value[2].toFixed(3)}`;
+          }
+          return `${xStr}<br/>${yStr}`;
         },
       },
       xAxis: {
@@ -301,8 +378,9 @@ export default function XYScatterChart({ config }: RendererProps) {
         {
           type: "scatter",
           data: scatterData,
-          symbolSize:
-            typeof config.extras?.symbolSize === "number"
+          symbolSize: bubbleMode
+            ? undefined
+            : typeof config.extras?.symbolSize === "number"
               ? config.extras.symbolSize
               : 5,
           emphasis: { itemStyle: { opacity: 1 } },
@@ -332,10 +410,15 @@ export default function XYScatterChart({ config }: RendererProps) {
     config,
     xSlot,
     ySlot,
+    sizeSlot,
     timeColoring,
     useDensity,
     densityResult,
     densityBins,
+    sizeValuesRaw,
+    bubbleMode,
+    minPx,
+    maxPx,
   ]);
 
   const displayOption = useMemo(
@@ -357,6 +440,7 @@ export default function XYScatterChart({ config }: RendererProps) {
   if (!xSlot || !ySlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -371,7 +455,7 @@ export default function XYScatterChart({ config }: RendererProps) {
     );
   }
 
-  const isLoading = xLoading || yLoading;
+  const isLoading = xLoading || yLoading || sizeLoading;
 
   return (
     <ChartLegendLayout
@@ -400,6 +484,7 @@ export default function XYScatterChart({ config }: RendererProps) {
         )}
         {aligned.length === 0 && !isLoading && (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",

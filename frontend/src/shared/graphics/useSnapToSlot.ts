@@ -16,7 +16,7 @@ import { useMemo } from "react";
 import { useSceneStore, useLibraryStore } from "../../store/designer";
 import type { ShapeEntry } from "../../store/designer";
 import type { NodeId, SceneNode, SymbolInstance } from "../types/graphics";
-import { NAMED_SLOT_POSITIONS } from "./anchorSlots";
+import { NAMED_SLOT_POSITIONS, resolveShapeAnchorSlots } from "./anchorSlots";
 
 /** Snap-to-slot attraction radius in canvas units (pixels at zoom=1). */
 const SNAP_RADIUS = 12;
@@ -56,10 +56,10 @@ export function computeSnapTarget(
     ghostTargets: [],
   };
 
-  const anchorSlots = shapeEntry?.sidecar.anchorSlots;
-  if (!anchorSlots) return empty;
+  if (!shapeEntry) return empty;
+  const anchorSlots = resolveShapeAnchorSlots(shapeEntry.sidecar);
 
-  const geo = shapeEntry!.sidecar.geometry;
+  const geo = shapeEntry.sidecar.geometry;
   const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 48;
   const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 48;
   const scaledW = naturalW * (si.transform.scale.x ?? 1);

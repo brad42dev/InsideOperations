@@ -273,6 +273,7 @@ export default function Chart22StackedArea({
         {/* Empty state */}
         {pointIds.length === 0 && (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",
@@ -287,7 +288,7 @@ export default function Chart22StackedArea({
         )}
 
         {pointIds.length > 0 && (
-          <div style={{ flex: 1, minHeight: 0 }}>
+          <div data-chart-ready="true" style={{ flex: 1, minHeight: 0 }}>
             <EChart option={displayOption} onEvents={onEvents} />
           </div>
         )}

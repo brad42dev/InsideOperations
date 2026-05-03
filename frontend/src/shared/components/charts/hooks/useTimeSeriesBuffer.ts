@@ -129,14 +129,30 @@ export function useTimeSeriesBuffer({
       if (hiddenAt === null) return;
       if (Date.now() - hiddenAt > 5_000) {
         void queryClient.invalidateQueries({
-          queryKey: ["ts-seed", bufferKey, pointIds.join(","), durationMinutes, bucketSeconds, aggregateType],
+          queryKey: [
+            "ts-seed",
+            bufferKey,
+            pointIds.join(","),
+            durationMinutes,
+            bucketSeconds,
+            aggregateType,
+          ],
         });
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bufferKey, pointIds.join(","), durationMinutes, bucketSeconds, aggregateType, isHistorical, queryClient]);
+  }, [
+    bufferKey,
+    pointIds.join(","),
+    durationMinutes,
+    bucketSeconds,
+    aggregateType,
+    isHistorical,
+    queryClient,
+  ]);
 
   // Snap historicalNowMs to bucket boundaries so the chart window advances at
   // the same resolution as the data. React Query staleTime:Infinity ensures

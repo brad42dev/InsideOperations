@@ -45,7 +45,10 @@ export default function TreemapChart({ config }: RendererProps) {
         ws !== undefined
           ? ws.value
           : (latestData?.find((r) => r.point_id === slot.pointId)?.value ?? 0);
-      return { name: slot.pointId, value: Math.max(0, val) };
+      return {
+        name: slot.tagname ?? slot.label ?? "Unknown",
+        value: Math.max(0, val),
+      };
     });
 
     const allVals = leafData.map((d) => d.value);
@@ -106,6 +109,7 @@ export default function TreemapChart({ config }: RendererProps) {
   if (pointIds.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -121,7 +125,10 @@ export default function TreemapChart({ config }: RendererProps) {
   }
 
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}>
+    <div
+      data-chart-ready="true"
+      style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
+    >
       {isLoading && (
         <div
           style={{

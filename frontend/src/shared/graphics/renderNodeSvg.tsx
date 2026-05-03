@@ -25,6 +25,7 @@ export {
   renderFillGaugeSvg,
   renderPointNameLabelSvg,
   formatValue,
+  decimalPadValue,
   formatDesignPlaceholder,
   renderAlarmShape,
   deFontToCss,
@@ -1083,91 +1084,37 @@ export function renderStencilSvg(
 // Widget placeholder (designer SVG mode only)
 // ---------------------------------------------------------------------------
 
-const WIDGET_ICONS: Record<string, string> = {
-  trend: "📈",
-  table: "▦",
-  gauge: "⏱",
-  kpi_card: "◈",
-  bar_chart: "📊",
-  pie_chart: "◕",
-  alarm_list: "🔔",
-  muster_point: "📍",
-};
-
 /**
- * Renders the static SVG placeholder used by DesignerCanvas for widget nodes.
- * Does NOT handle the live foreignObject preview or the SceneRenderer HTML
- * overlay — those stay in their respective callers.
+ * Renders a transparent SVG rect for widget nodes in DesignerCanvas.
+ * The rect captures pointer events for the interactionRef FSM (hit-testing,
+ * selection rings, alignment guides). The actual chart renders in the HTML
+ * overlay above the SVG with pointer-events:none so events fall through here.
  */
 export function renderWidgetPlaceholderSvg(
   node: WidgetNode,
   ctx: RenderContext,
 ): React.ReactElement {
-  const { widgetType, width, height, config } = node;
-  const title =
-    ("title" in config ? (config as { title?: string }).title : undefined) ??
-    widgetType.replace(/_/g, " ");
-  const icon = WIDGET_ICONS[widgetType] ?? "▭";
-  const isSmall = width < 80 || height < 50;
-  const w = Math.max(width, 40);
-  const h = Math.max(height, 28);
-
+  const { width, height, id } = node;
   return (
     <g
       transform={ctx.transform}
-      data-node-id={node.id}
+      data-node-id={id}
       data-canvas-x={String(Math.round(node.transform.position.x))}
       data-canvas-y={String(Math.round(node.transform.position.y))}
       opacity={node.opacity}
     >
-      {/* Background */}
       <rect
         x={0}
         y={0}
-        width={w}
-        height={h}
-        fill="var(--io-surface-elevated)"
-        stroke="var(--io-border)"
-        strokeWidth={1}
-        rx={3}
+        width={Math.max(width, 40)}
+        height={Math.max(height, 28)}
+        fill="transparent"
+        stroke="none"
+        data-node-id={id}
+        data-widget="true"
+        data-chart-type={node.chartType}
+        style={{ pointerEvents: "all" }}
       />
-      {/* Title bar */}
-      <rect
-        x={0}
-        y={0}
-        width={w}
-        height={18}
-        fill="rgba(99,102,241,0.12)"
-        rx={3}
-      />
-      <rect x={0} y={14} width={w} height={4} fill="rgba(99,102,241,0.12)" />
-      <text x={6} y={12} fontSize={9} fill="var(--io-accent)" fontWeight={500}>
-        {title}
-      </text>
-      {/* Center icon + type label */}
-      {!isSmall && (
-        <>
-          <text
-            x={w / 2}
-            y={h / 2 + 10}
-            textAnchor="middle"
-            fontSize={22}
-            fill="rgba(99,102,241,0.25)"
-            fontFamily="serif"
-          >
-            {icon}
-          </text>
-          <text
-            x={w / 2}
-            y={h - 6}
-            textAnchor="middle"
-            fontSize={8}
-            fill="var(--io-text-muted)"
-          >
-            {widgetType.replace(/_/g, " ")}
-          </text>
-        </>
-      )}
     </g>
   );
 }

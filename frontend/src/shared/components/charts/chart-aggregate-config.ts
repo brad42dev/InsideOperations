@@ -21,6 +21,7 @@ export const CHART_AGGREGATE_TYPES: Partial<
   17: ["avg", "sum", "count"], // Heatmap
   22: ["sum", "avg", "min", "max", "first", "last"], // Stacked Area
   36: ["avg", "min", "max", "sum", "count", "first", "last"], // Scorecard Table
+  40: ["sum", "avg", "min", "max", "first", "last"], // Accumulated Run
 };
 
 // ---------------------------------------------------------------------------
@@ -30,7 +31,7 @@ export const CHART_AGGREGATE_TYPES: Partial<
 
 export const CHART_HAS_DURATION = new Set<ChartTypeId>([
   1, 2, 3, 4, 5, 13, 14, 16, 17, 19, 20, 22, 24, 25, 26, 29, 30, 31, 35, 36, 37,
-  38, 39,
+  38, 39, 40,
 ]);
 
 // ---------------------------------------------------------------------------

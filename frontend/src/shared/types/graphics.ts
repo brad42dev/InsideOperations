@@ -1,5 +1,10 @@
 // Full file content — write exactly this
 
+import type {
+  ChartConfig,
+  ChartTypeId,
+} from "../components/charts/chart-config-types";
+
 export type NodeId = string; // UUID v7
 
 export interface Point2D {
@@ -156,6 +161,7 @@ export interface SymbolInstance extends SceneNodeBase {
 
 export type DisplayElementType =
   | "text_readout"
+  | "text_readout_array"
   | "analog_bar"
   | "fill_gauge"
   | "sparkline"
@@ -212,6 +218,25 @@ export interface TextReadoutConfig {
     textAlign?: "left" | "center" | "right";
     fontWeight?: "normal" | "bold";
   };
+}
+
+export interface TextReadoutArrayConfig {
+  displayType: "text_readout_array";
+  arrayLayout: "vertical" | "horizontal";
+  singleLine: boolean;
+  additionalBindings?: DisplayElementBinding[];
+  itemSpacing?: number;
+  showBox: boolean;
+  showUnits: boolean;
+  valueFormat: string;
+  minWidth: number;
+  width?: number;
+  height?: number;
+  showSignalLine?: boolean;
+  pointNameRow?: TextReadoutConfig["pointNameRow"];
+  displayNameRow?: TextReadoutConfig["displayNameRow"];
+  valueRow?: TextReadoutConfig["valueRow"];
+  euRow?: TextReadoutConfig["euRow"];
 }
 
 export interface AnalogBarConfig {
@@ -300,6 +325,7 @@ export interface PointNameLabelConfig {
 
 export type DisplayElementConfig =
   | TextReadoutConfig
+  | TextReadoutArrayConfig
   | AnalogBarConfig
   | FillGaugeConfig
   | SparklineConfig
@@ -598,139 +624,21 @@ export interface ImageNode extends SceneNodeBase {
 
 // ---- WidgetNode ----
 
-export type WidgetType =
-  | "trend"
-  | "table"
-  | "gauge"
-  | "kpi_card"
-  | "bar_chart"
-  | "pie_chart"
-  | "alarm_list"
-  | "muster_point";
-
-export interface TrendSeries {
-  binding: PointBinding;
-  label: string;
-  color: string;
-  lineStyle: "solid" | "dashed" | "dotted";
-  lineWidth: number;
-}
-
-export interface TrendWidgetConfig {
-  widgetType: "trend";
-  title: string;
-  series: TrendSeries[];
-  timeRange: {
-    mode: "relative" | "absolute";
-    relativeSeconds?: number;
-    absoluteStart?: string;
-    absoluteEnd?: string;
-  };
-  liveMode: boolean;
-  refreshMs: number;
-  yAxis: {
-    label?: string;
-    autoScale: boolean;
-    min?: number;
-    max?: number;
-    logScale: boolean;
-  };
-  showQuality: boolean;
-  showEvents: boolean;
-}
-
-export interface TableColumn {
-  binding: PointBinding;
-  label: string;
-  width?: number;
-  format?: string;
-}
-
-export interface TableWidgetConfig {
-  widgetType: "table";
-  title: string;
-  columns: TableColumn[];
-  sortBy?: string;
-  sortDirection?: "asc" | "desc";
-  pageSize: number;
-}
-
-export interface GaugeWidgetConfig {
-  widgetType: "gauge";
-  title: string;
-  binding: PointBinding;
-  gaugeStyle: "radial" | "linear";
-  rangeLo: number;
-  rangeHi: number;
-  thresholds?: { value: number; color: string }[];
-  showValue: boolean;
-  valueFormat: string;
-}
-
-export interface KpiCardWidgetConfig {
-  widgetType: "kpi_card";
-  title: string;
-  binding: PointBinding;
-  valueFormat: string;
-  showSparkline: boolean;
-  showTrendArrow: boolean;
-  sparklineMinutes?: number;
-}
-
-export interface BarChartWidgetConfig {
-  widgetType: "bar_chart";
-  title: string;
-  series: { binding: PointBinding; label: string; color: string }[];
-  orientation: "vertical" | "horizontal";
-  showLegend: boolean;
-}
-
-export interface PieChartWidgetConfig {
-  widgetType: "pie_chart";
-  title: string;
-  slices: { binding: PointBinding; label: string; color: string }[];
-  donut: boolean;
-  showLegend: boolean;
-}
-
-export interface AlarmListWidgetConfig {
-  widgetType: "alarm_list";
-  title: string;
-  filterPriority?: number[];
-  filterArea?: string[];
-  maxRows: number;
-  showAcknowledged: boolean;
-}
-
-export interface MusterPointWidgetConfig {
-  widgetType: "muster_point";
-  title: string;
-  musterPointId: string;
-  showHeadcount: boolean;
-  showMissing: boolean;
-}
-
-export type WidgetConfig =
-  | TrendWidgetConfig
-  | TableWidgetConfig
-  | GaugeWidgetConfig
-  | KpiCardWidgetConfig
-  | BarChartWidgetConfig
-  | PieChartWidgetConfig
-  | AlarmListWidgetConfig
-  | MusterPointWidgetConfig;
-
 export interface WidgetNode extends SceneNodeBase {
   type: "widget";
-  widgetType: WidgetType;
+  /** Denormalized from config.chartType — kept on the node for cheap dispatch in the renderer. */
+  chartType: ChartTypeId;
   width: number;
   height: number;
-  config: WidgetConfig;
+  /** Universal chart config — same type used by ChartRenderer everywhere. */
+  config: ChartConfig;
   gridSpan?: { cols: number; rows: number };
   phonePriority?: number;
   /** ID of the dashboard this widget is bound to; undefined when standalone */
   dashboardSourceId?: string;
 }
+
+export type { ChartConfig, ChartTypeId };
 
 // ---- EmbeddedSvgNode ----
 

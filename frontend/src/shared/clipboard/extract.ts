@@ -47,21 +47,37 @@ export function extractPoints(payload: IOClipboardPayload): PortablePointRef[] {
 export function extractPointsFromNodes(nodes: SceneNode[]): PortablePointRef[] {
   const out: PortablePointRef[] = [];
   const seen = new Set<string>();
-  const visit = (n: SceneNode) => {
-    const binding = (
-      n as unknown as {
-        binding?: { pointTag?: string; displayName?: string; unit?: string };
-      }
-    ).binding;
-    if (binding?.pointTag && !seen.has(binding.pointTag)) {
-      seen.add(binding.pointTag);
-      out.push({
-        tagname: binding.pointTag,
-        displayName: binding.displayName,
-        unit: binding.unit,
-      });
+  const addTag = (tag: string, displayName?: string, unit?: string) => {
+    if (!seen.has(tag)) {
+      seen.add(tag);
+      out.push({ tagname: tag, displayName, unit });
     }
-    const children = (n as unknown as { children?: SceneNode[] }).children;
+  };
+  const visit = (n: SceneNode) => {
+    const node = n as unknown as Record<string, unknown>;
+    const binding = node.binding as
+      | { pointTag?: string; displayName?: string; unit?: string }
+      | undefined;
+    if (binding?.pointTag)
+      addTag(binding.pointTag, binding.displayName, binding.unit);
+
+    // text_readout_array: additional bindings each carry their own tag
+    if (node.displayType === "text_readout_array") {
+      const cfg = node.config as
+        | {
+            additionalBindings?: Array<{
+              pointTag?: string;
+              displayName?: string;
+              unit?: string;
+            }>;
+          }
+        | undefined;
+      for (const b of cfg?.additionalBindings ?? []) {
+        if (b.pointTag) addTag(b.pointTag, b.displayName, b.unit);
+      }
+    }
+
+    const children = node.children as SceneNode[] | undefined;
     if (Array.isArray(children)) children.forEach(visit);
   };
   nodes.forEach(visit);

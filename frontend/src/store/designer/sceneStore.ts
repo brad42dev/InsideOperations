@@ -178,6 +178,17 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   version: 0,
 
   loadGraphic(id, doc) {
+    // Guard: a corrupt or empty server record (e.g. bindings={}) will crash the
+    // renderer. Patch in the minimum required fields so the designer opens an
+    // empty canvas instead of throwing.
+    if (!doc.type || !doc.children || !doc.canvas || !doc.layers) {
+      const safe = makeEmptyDocument(
+        (doc as GraphicDocument).metadata?.designMode ?? "graphic",
+        (doc as GraphicDocument).name ?? "Untitled Graphic",
+      );
+      doc = { ...safe, ...doc, children: doc.children ?? [] };
+    }
+
     // Migrate legacy hardcoded background colors to the theme token so
     // graphics respond to theme switching instead of being locked to dark.
     const LEGACY_BG = new Set([
@@ -204,7 +215,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       doc: migratedDoc,
       graphicId: id,
       isDirty: false,
-      designMode: doc.metadata.designMode,
+      designMode: doc.metadata?.designMode ?? "graphic",
       version: 0,
     });
   },

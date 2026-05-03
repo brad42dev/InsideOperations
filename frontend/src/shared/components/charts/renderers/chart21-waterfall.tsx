@@ -209,6 +209,7 @@ export default function WaterfallChart({ config }: RendererProps) {
   if (pointIds.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -231,6 +232,7 @@ export default function WaterfallChart({ config }: RendererProps) {
       onHighlight={toggle}
     >
       <div
+        data-chart-ready="true"
         style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
       >
         {isLoading && (

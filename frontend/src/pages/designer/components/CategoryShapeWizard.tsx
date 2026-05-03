@@ -36,7 +36,10 @@ import {
   DE_CHIP as _SDD_CHIP,
   displayConfigToUserConfig as _displayConfigToUserConfig,
 } from "./ShapeDropDialog";
-import { resolveSlotWithSidecar, resolveShapeAnchorSlots } from "../../../shared/graphics/anchorSlots";
+import {
+  resolveSlotWithSidecar,
+  resolveShapeAnchorSlots,
+} from "../../../shared/graphics/anchorSlots";
 import {
   applyDeSlotOffset,
   dePixelSize,
@@ -47,7 +50,11 @@ import {
 } from "../../../shared/graphics/sidecarCollision";
 import { SceneRenderer } from "../../../shared/graphics/SceneRenderer";
 import { ShapePointSelector, resolvePointBindings } from "./ShapePointSelector";
-import type { ShapeSlotDef, ShapeBindingEntry, AdditionalPointEntry } from "./ShapePointSelector";
+import type {
+  ShapeSlotDef,
+  ShapeBindingEntry,
+  AdditionalPointEntry,
+} from "./ShapePointSelector";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1099,8 +1106,11 @@ export function CategoryShapeWizard({
                     label: p.label,
                     isDefault: p.partId === "body",
                   }));
-                  const traSelected = selectedElements.has("text_readout_array");
-                  const traConfig = traSelected ? elementConfigs["text_readout_array"] : undefined;
+                  const traSelected =
+                    selectedElements.has("text_readout_array");
+                  const traConfig = traSelected
+                    ? elementConfigs["text_readout_array"]
+                    : undefined;
                   const additionalPoints: AdditionalPointEntry[] = traConfig
                     ? (traConfig.additionalBindings ?? []).map((b) => ({
                         pointId: b.pointId ?? "",
@@ -1109,7 +1119,9 @@ export function CategoryShapeWizard({
                         unit: b.unit,
                       }))
                     : [];
-                  const handleAdditionalPointsChange = (pts: AdditionalPointEntry[]) => {
+                  const handleAdditionalPointsChange = (
+                    pts: AdditionalPointEntry[],
+                  ) => {
                     setElementConfigs((prev) => ({
                       ...prev,
                       text_readout_array: {
@@ -1131,9 +1143,15 @@ export function CategoryShapeWizard({
                       bindings={bindings}
                       onChange={setBindings}
                       onOverCapacityChange={setBindingsOverCapacity}
-                      additionalPoints={traSelected ? additionalPoints : undefined}
-                      onAdditionalPointsChange={traSelected ? handleAdditionalPointsChange : undefined}
-                      additionalPointsLabel={traSelected ? "Text Readout Array" : undefined}
+                      additionalPoints={
+                        traSelected ? additionalPoints : undefined
+                      }
+                      onAdditionalPointsChange={
+                        traSelected ? handleAdditionalPointsChange : undefined
+                      }
+                      additionalPointsLabel={
+                        traSelected ? "Text Readout Array" : undefined
+                      }
                     />
                   );
                 })()}

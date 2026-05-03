@@ -118,6 +118,7 @@ export default function GaugeChart({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -133,7 +134,10 @@ export default function GaugeChart({ config }: RendererProps) {
   }
 
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}>
+    <div
+      data-chart-ready="true"
+      style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
+    >
       <EChart option={option} />
     </div>
   );

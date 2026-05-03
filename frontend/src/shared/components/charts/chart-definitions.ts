@@ -39,6 +39,10 @@ export interface ChartDefinition {
   contexts?: ChartContext[];
   /** Which point type categories this chart can render. "any" means unrestricted. */
   acceptedPointTypes: PointTypeCategory[];
+  /** Whether this chart needs at least one point bound to render. Default: true. Content widgets set false. */
+  requiresPoints?: boolean;
+  /** Hide from palette / picker until the renderer lands. Default: undefined (= shown). */
+  available?: boolean;
 }
 
 export const CHART_DEFINITIONS: ChartDefinition[] = [
@@ -1658,6 +1662,357 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     ],
   },
 
+  // ── New chart types (renderers ship in Phase 05d/05e) ──────────────────────
+  {
+    id: 40,
+    name: "Accumulated Run",
+    category: "Production",
+    tier: "mid",
+    library: "ECharts",
+    realTime: true,
+    acceptedPointTypes: ["analog"],
+    description:
+      "Cumulative actual vs. target line over the live window, resetting automatically at shift, day, or week boundaries. The gap between the two lines at any moment shows the exact production surplus or deficit relative to plan — visible at a glance without any calculation.",
+    benefits: [
+      "Real-time plan vs. actual gap visible at every moment of the period",
+      "Configurable reset period (shift/day/week) with automatic boundary reset",
+      "Target can be a live data point (scheduled rate plan) or a constant value",
+      "Deficit trend slope shows whether the gap is closing or widening",
+    ],
+    downsides: [
+      "Requires a target source — either a constant rate or a separate target point",
+      "Resets at period boundaries, so end-of-period gaps are not carried forward",
+    ],
+    usage:
+      "In the Data Points tab, assign the rate or totaliser point as the Actual source and either a constant value or a separate point as the Target. In the Options tab, set the Reset period to match your planning horizon — Shift for daily operations monitoring, Day for weekly production reporting, Week for monthly plan tracking. The chart integrates the actual rate continuously from the reset point and compares it against the accumulated target over the same elapsed time. When the actual line falls below the target line, the gap in engineering units is the production shortfall — operators can immediately calculate the rate increase needed to recover by end of period. Enable the Deficit annotation in Options to display the current gap as a labeled callout on the chart.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Crude Charge Rate vs. Daily Production Plan",
+        description:
+          "Display an accumulated run chart for crude unit charge rate against the daily plan target, resetting at midnight. By 10 AM, if the actual line has fallen 1,200 barrels behind the target line due to a morning startup delay, the operator can immediately see the slope of the deficit and calculate that recovering to plan requires an average rate increase of 400 BPSD for the remaining 14 hours — turning a verbal 'we're behind plan' into a specific actionable rate target.",
+      },
+      {
+        role: "Operations Manager",
+        title: "Shift Production Accountability — Plan vs. Actual Handover",
+        description:
+          "Configure an accumulated run chart resetting at each 12-hour shift boundary and display it on the shift supervisor's workstation alongside the charge rate KPI card. When the outgoing shift closes with the actual line 800 barrels below the target, the specific gap is captured as the shift deficit before the next shift's accumulation begins — providing objective shift-level accountability data for the morning production meeting without manual calculation.",
+      },
+      {
+        role: "Production Planner",
+        title: "Weekly Throughput Accumulation vs. Plan",
+        description:
+          "Set the accumulated run chart to weekly reset and assign the crude unit charge totaliser as the actual value against the weekly plan volume as target. By Wednesday, the slope of the deficit trajectory predicts whether the week will close on plan — a widening gap on day 3 that cannot be recovered by rate increase alone triggers a conversation with trading about custody transfer scheduling before the shortfall affects a delivery commitment.",
+      },
+      {
+        role: "Accounting / Finance",
+        title: "Month-to-Date Production vs. Budget Volume",
+        description:
+          "Run an accumulated run chart at daily reset with the month-to-date production totaliser as actual and the monthly budget volume divided by calendar days as the constant target rate. By day 10, the chart shows whether the facility is on pace to meet its monthly throughput budget — a persistent deficit of more than 2% by mid-month triggers a production recovery plan that finance uses as the basis for the mid-month forecast revision.",
+      },
+    ],
+    available: true,
+  },
+  {
+    id: 41,
+    name: "Status Map",
+    category: "Status",
+    tier: "mid",
+    library: "Custom",
+    realTime: true,
+    acceptedPointTypes: ["any"],
+    description:
+      "2D grid of equipment cells, each colored by the current value of an assigned point against configurable color rules. Designed for fleet-scale monitoring — dozens or hundreds of assets rendered in one compact view with live updates pushed directly to the DOM for minimal overhead.",
+    benefits: [
+      "See the current state of dozens or hundreds of assets simultaneously",
+      "Configurable color rules work for any state model — discrete, boolean, or analog threshold",
+      "Live DOM updates keep the grid current without full React re-renders",
+      "Cell labels show tag name or value alongside the color state",
+    ],
+    downsides: [
+      "Point-in-time only — no temporal context or history",
+      "Color rules require upfront configuration for each asset group",
+    ],
+    usage:
+      "In the Data Points tab, assign one point per cell — each becomes a colored tile in the grid. Cells arrange left-to-right, top-to-bottom in the order they appear on the list; use the drag handles to reorder into logical equipment groupings. In the Options tab, define the Color rules for the value-to-color mapping: for discrete points, map each state value to a color and label (Running=green, Stopped=gray, Tripped=red); for analog points, define threshold bands (0–80%=green, 80–95%=yellow, above 95%=red). Set the Grid columns count to control the tile layout — 4 columns for a wide landscape display, 8–10 for a compact fleet overview. Enable Show values to display the raw value beneath the color in each cell.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Rotating Equipment Fleet — Running/Stopped/Tripped at a Glance",
+        description:
+          "Assign all pumps and compressors across a process unit (30–50 items) to a status map with color rules mapping running state to green, stopped to gray, and tripped to red. A single red tile during a normal shift immediately draws the eye to the tripped equipment before any alarm is acknowledged — the operator navigates directly to the equipment's detail screen from the status map rather than scanning the alarm list.",
+      },
+      {
+        role: "Reliability Engineer",
+        title: "Vibration Health Overview — Fleet-Wide Threshold Map",
+        description:
+          "Assign the vibration severity point for every pump and compressor in the plant to a status map with analog threshold color rules (green below 3 mm/s, yellow 3–7 mm/s, red above 7 mm/s). During an area walkdown review, the map shows which machines are in caution or danger state plant-wide without opening individual trend screens — any yellow or red tile triggers a field check before the next scheduled PM window.",
+      },
+      {
+        role: "Safety Engineer",
+        title: "Fire and Gas Detector Zone Status — Control Room Overview",
+        description:
+          "Assign all fire and gas detector channels across the plant to a status map organized by zone, with color rules mapping Normal to green, Inhibited to yellow, Pre-alarm to orange, and Alarm to red. The map provides a continuous at-a-glance view of the entire fire and gas detection system in one panel — any color other than green on the map prompts immediate investigation of that zone's status without navigating the individual detector records.",
+      },
+      {
+        role: "Controls Engineer",
+        title: "Controller Mode Fleet — Manual Override Visibility",
+        description:
+          "Assign the mode status point for every PID controller in a unit to a status map, coloring Auto green, Cascade blue, Manual yellow, and Out-of-Service gray. During a rate change or startup sequence, any controller left in Manual after the transient stands out as a yellow tile — the engineer can identify and return controllers to Auto or Cascade mode across the entire unit without opening each individual faceplate.",
+      },
+    ],
+    available: true,
+  },
+  // ── Content widgets (renderers ship in Phase 06a–07c) ──────────────────────
+  {
+    id: 50,
+    name: "Text / Markdown",
+    category: "Content",
+    tier: "initial",
+    library: "Custom",
+    realTime: false,
+    acceptedPointTypes: ["any"],
+    description:
+      "Static text block supporting full Markdown formatting — headings, bold, italic, bullet lists, and links. Embeds written context, annotations, or instructions directly inside a graphic or dashboard without requiring an external document.",
+    benefits: [
+      "Embed operating notes, limits, or procedure references directly on the graphic",
+      "Markdown formatting supports structured content — headings, bullets, and emphasis",
+      "No data points required — purely informational",
+    ],
+    downsides: [
+      "Static content only — does not update from live data",
+      "Long text blocks consume screen real estate",
+    ],
+    usage:
+      "Double-click the widget in the Designer to open the text editor. Write plain text or Markdown — use # for headings, ** for bold, and - for bullet lists. Keep annotations concise: the purpose is to add context that a viewer needs without leaving the graphic, not to reproduce a full procedure document. Effective uses include: normal operating ranges for nearby instruments, equipment limits that are not encoded as alarms, brief procedure notes for non-routine operations, or a link to the full SOP in the document management system.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Operating Limits Annotation on Process Graphic",
+        description:
+          "Place a text widget adjacent to a reactor section on the HCU overview graphic listing the normal operating temperature range, high-temperature alarm setpoint, and high-high trip setpoint in a short bullet list. When an operator navigates to the graphic during a temperature excursion, the limits are immediately visible on the same screen without opening a separate document — eliminating a common source of decision delay during abnormal situations.",
+      },
+      {
+        role: "Safety Engineer",
+        title: "Bypass Management Note — Active Inhibit Documentation",
+        description:
+          "Place a text widget on the safety system overview graphic with a bold header 'ACTIVE BYPASS' listing the detector or function currently under inhibit, the bypass reason, the authorizing permit number, and the expected restoration time. The note makes the bypass visible to everyone viewing the graphic and is updated by the safety technician when the bypass state changes — providing a visible reminder that reduces the risk of the bypass being forgotten.",
+      },
+    ],
+    requiresPoints: false,
+    available: true,
+  },
+  {
+    id: 51,
+    name: "Header / Divider",
+    category: "Content",
+    tier: "initial",
+    library: "Custom",
+    realTime: false,
+    acceptedPointTypes: ["any"],
+    description:
+      "Section header with optional subtitle and a horizontal rule divider. Organizes complex graphics and dashboards into clearly labeled sections — operators navigate large displays faster when regions are named rather than requiring spatial memory.",
+    benefits: [
+      "Named sections reduce navigation time on complex multi-section displays",
+      "Consistent visual structure across dashboards improves operator familiarity",
+      "No data points required — purely structural",
+    ],
+    downsides: ["Consumes a horizontal strip of layout space per section"],
+    usage:
+      "Place a Header above each logical section of a large graphic: Reactors, Separation, Compression, Utilities. Enter the section title in the text field and an optional subtitle for additional context. Use the Divider variant as a lighter separator between subsections within the same area. Keep headers short — 2–4 words — so they read at a glance. On a dashboard with 12 or more widgets, headers let a new operator immediately orient to the layout without relying on position memory.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "HCU Overview — Labeled Sections for Multi-Area Navigation",
+        description:
+          "Divide an HCU overview graphic into sections labeled Preheat & Feed, Reactors, High-Pressure Separation, Fractionation, and Recycle Compression. Each section header sits above its cluster of instruments and graphics — an operator responding to an alarm navigates directly to the labeled section rather than scanning the entire graphic for the relevant instruments.",
+      },
+      {
+        role: "Operations Manager",
+        title: "Shift Dashboard — Section Headers for KPI Groups",
+        description:
+          "Organize a shift-level KPI dashboard with headers: Production Rates, Quality Metrics, Energy & Utilities, and Safety & Environment. Each section contains 3–4 KPI cards or bullet charts for that domain. New shift supervisors can orient to the dashboard in under 30 seconds because the information architecture mirrors the shift handover agenda — no legend or orientation training required.",
+      },
+    ],
+    requiresPoints: false,
+    available: true,
+  },
+  {
+    id: 52,
+    name: "Clock / Elapsed",
+    category: "Content",
+    tier: "initial",
+    library: "Custom",
+    realTime: true,
+    acceptedPointTypes: ["any"],
+    description:
+      "Live wall clock in two modes: Wall Clock displays current site time continuously; Elapsed Timer counts up from a configurable start point (a timestamp or a live event trigger). Both are useful in control room displays where operator time awareness is critical — actions and response times are timestamped, so knowing the current time precisely matters.",
+    benefits: [
+      "Wall clock keeps operators oriented to shift time without leaving the graphic",
+      "Elapsed timer tracks time since a specific event — startup, trip, permit activation",
+      "No data points required for wall clock mode",
+    ],
+    downsides: [
+      "Elapsed timer requires manual reset or a trigger point to restart",
+    ],
+    usage:
+      "For Wall Clock mode, simply place the widget — it displays site time from the server clock with no configuration required. For Elapsed Timer mode, in the Options tab set the Start event: either a fixed timestamp (e.g., reactor startup time for this campaign) or a live boolean point that triggers when it transitions to true. The elapsed display counts up in days/hours/minutes from that event. Use the Display format option to choose between compact (H:MM) and verbose (d days h hours) formats based on the expected magnitude of the elapsed time.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Shift Time Reference — Wall Clock on Control Room Displays",
+        description:
+          "Place a wall clock widget in the top corner of each major process graphic displayed on control room monitors. Operators responding to alarms need to timestamp their actions — having the current time visible on the same screen eliminates the need to look away to a wall clock or wristwatch, keeping attention on the process data during an abnormal situation.",
+      },
+      {
+        role: "Process Engineer",
+        title: "Reactor Campaign Elapsed Time — Days Since Last Regeneration",
+        description:
+          "Configure an elapsed timer starting from the most recent catalyst regeneration or activation date, displayed on the HCU reactor overview graphic. The elapsed time in days is the primary input to the catalyst deactivation model — the engineer monitoring WABT can immediately see how far into the campaign the unit is without consulting a separate record, framing every temperature observation in the context of expected catalyst age.",
+      },
+      {
+        role: "Safety Engineer",
+        title: "Hot-Work Permit Duration — Elapsed Timer During Active Permit",
+        description:
+          "Configure an elapsed timer triggered by a permit activation boolean point from the permit management system. Display it on the fire and gas monitoring graphic during a hot-work window so the safety technician can see how long the permit has been active. When the elapsed time approaches the permit expiry window, the display provides a visible reminder to conduct the pre-expiry area check before renewing or closing the permit.",
+      },
+    ],
+    requiresPoints: false,
+    available: true,
+  },
+  {
+    id: 53,
+    name: "Logs Viewer",
+    category: "Content",
+    tier: "initial",
+    library: "Custom",
+    realTime: true,
+    acceptedPointTypes: ["any"],
+    description:
+      "Scrolling live feed of recent alarms, events, or operator log entries. New events appear at the top; the list scrolls as activity continues. Filter by priority, source, or area to focus the feed on what is relevant to the graphic's subject matter.",
+    benefits: [
+      "Live alarm and event feed embedded directly in a process graphic",
+      "Keeps context — the relevant events for this area appear next to its instruments",
+      "Filterable by priority (HH/H/M/L) and source area",
+      "No points required — feeds from the platform alarm and event stream",
+    ],
+    downsides: [
+      "Not for searching history — use the Event Timeline for investigation",
+      "High-alarm areas may scroll too fast to read without priority filtering",
+    ],
+    usage:
+      "In the Options tab, set the Source to Alarms, Events, or Operator Logs. Apply Priority filter to restrict the feed — a process graphic normally shows High and High-High only to avoid drowning the feed in Low and advisory alarms. Apply an Area filter to restrict events to the tags physically associated with this graphic's scope. Set Row count to the number of events to display in the widget's height. The widget auto-scrolls when new events arrive; pause scrolling by hovering the mouse over the list.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Process Graphic Alarm Feed — Area-Filtered Live Events",
+        description:
+          "Embed a Logs Viewer in the HCU overview graphic filtered to High and High-High alarms from the HCU source area. When an operator is navigating the graphic during an upset, the alarm feed in the corner of the same display keeps them aware of new alarm activity in their area without switching to the dedicated alarm workstation — reducing the risk of missing a developing alarm sequence while attending to a previous event.",
+      },
+      {
+        role: "Shift Supervisor",
+        title: "Shift Handover Display — Recent Events Summary",
+        description:
+          "Embed a Logs Viewer on the shift handover dashboard showing all events from the past 2 hours across all areas, filtered to High priority and above. The incoming supervisor sees the recent alarm history for the full unit before the verbal handover begins — arriving prepared to ask specific questions about active alarms rather than spending the first 10 minutes of the shift discovering what happened.",
+      },
+      {
+        role: "Safety Engineer",
+        title: "Fire and Gas Event Feed — Inhibit and Alarm Activity",
+        description:
+          "Embed a Logs Viewer on the fire and gas overview graphic filtered to F&G alarm and inhibit events. Any detector activation, zone inhibit, or inhibit removal appears immediately in the feed alongside the status map — providing both the current state (status map) and the recent activity (log feed) in one view without requiring the safety technician to open a separate alarm system workstation.",
+      },
+    ],
+    requiresPoints: false,
+    available: true,
+  },
+  {
+    id: 54,
+    name: "IFrame / Embed",
+    category: "Content",
+    tier: "initial",
+    library: "Custom",
+    realTime: false,
+    acceptedPointTypes: ["any"],
+    description:
+      "Embeds an external web page or third-party dashboard inside a graphic panel using an HTML iframe. Brings existing web-based tools — document management systems, web-based lab LIMS views, planning system dashboards, or vendor monitoring portals — into the same display context as live process data.",
+    benefits: [
+      "Embed any existing web-based tool alongside process data without rebuilding it",
+      "Reduces screen-switching for workflows that span multiple systems",
+      "Supports auto-refresh interval for periodically updated external pages",
+    ],
+    downsides: [
+      "Subject to Content Security Policy (CSP) frame-src restrictions — external sites that send X-Frame-Options: DENY cannot be embedded",
+      "Heavy external pages may slow the display or consume significant memory",
+      "No data exchange between the embedded page and I/O — it is a visual passthrough only",
+    ],
+    usage:
+      "Enter the target URL in the Options tab. Test the URL first in a browser to confirm it loads and that the site allows framing (check for a blank widget if it does not). Set the Refresh interval if the external page does not auto-update — a 60-second refresh works for web-based reporting pages that publish hourly. Size the widget to give the embedded content adequate viewport — most web pages need at least 800×600 pixels to be usable. For internal tools on the same corporate network, framing is typically allowed; for external vendor portals, confirm with the vendor before deployment.",
+    scenarios: [
+      {
+        role: "Process Engineer",
+        title: "Lab LIMS Results — Embedded Alongside Process Trends",
+        description:
+          "Embed the laboratory information management system (LIMS) sample results page for the crude unit product streams in a panel adjacent to the process trend charts on the unit performance dashboard. When the engineer is analyzing a quality deviation, the lab results for the relevant samples are visible in the same view as the process trends — eliminating the need to context-switch between the I/O interface and the LIMS browser tab during root cause analysis.",
+      },
+      {
+        role: "Production Planner",
+        title:
+          "Planning System Yield Forecast — Embedded in Production Dashboard",
+        description:
+          "Embed the planning system's live yield forecast page in the production planning dashboard alongside the actual accumulated run and real-time throughput displays. The planner sees the model forecast and the actual production data side by side without switching applications — any divergence between planned and actual yield is immediately visible, triggering a model update or a production adjustment conversation before the end of the planning period.",
+      },
+    ],
+    requiresPoints: false,
+    available: true,
+  },
+  {
+    id: 55,
+    name: "Camera Stream",
+    category: "Content",
+    tier: "mid",
+    library: "Custom",
+    realTime: true,
+    acceptedPointTypes: ["any"],
+    description:
+      "Live video feed from a process area camera, embedded directly inside a graphic panel. Streams from cameras configured in the Settings module via RTSP, RTMP, or WebRTC. Provides visual confirmation of field conditions alongside the process data — a single display shows both the instrument reading and what the equipment actually looks like.",
+    benefits: [
+      "Visual confirmation of field conditions alongside live process data",
+      "Reduces unnecessary field trips — verify equipment state from the control room",
+      "Supports incident documentation — video context for a trip or alarm",
+      "Low-latency live feed for time-sensitive abnormal situation management",
+    ],
+    downsides: [
+      "Requires cameras to be configured in Settings → Camera Streams before use",
+      "High-resolution streams consume significant network bandwidth",
+      "Video quality depends on network latency between the camera and the server",
+    ],
+    usage:
+      "Camera streams must be registered in Settings → Camera Streams before they appear as selectable options in this widget. In the Options tab, select the camera from the configured stream list. Set the widget size to at least 320×240 for usable video — larger is better for details like flame appearance, flare burning, or liquid level in an open vessel. For graphic panels displayed on wide monitors, place the camera widget adjacent to the relevant process instrumentation so operators see both simultaneously without panning. Camera streams are only available in Designer graphics, not in console trend panes.",
+    scenarios: [
+      {
+        role: "Operator",
+        title: "Flare Stack Camera — Visual Confirmation of Burning Condition",
+        description:
+          "Embed the flare stack camera stream in the flare management overview graphic alongside the purge gas flow, pilot flame thermocouple, and waste gas flow trend. When the waste gas flow increases during an upset, the operator can immediately verify whether the flare is burning cleanly or producing black smoke — a visual observation that determines whether a regulatory notification is required, without waiting for the HSE engineer to conduct a field observation.",
+      },
+      {
+        role: "Reliability Engineer",
+        title: "Compressor Area Camera — Seal and Lube Oil Visual Check",
+        description:
+          "Embed the compressor bay area camera in the equipment health dashboard for a critical high-pressure compressor alongside its vibration, bearing temperature, and lube oil pressure trends. When a bearing temperature rises into the caution zone, the engineer can observe the compressor area for visible oil leaks, unusual smoke, or seal gas venting without dispatching a field technician for an initial check — reducing the response time from a temperature alert to a visual assessment from 15 minutes to under 1 minute.",
+      },
+      {
+        role: "Safety Engineer",
+        title: "Confined Space Entry Monitor — Control Room Visibility",
+        description:
+          "Embed a portable camera stream (positioned at the confined space entry point) in the permit management graphic for the duration of a confined space entry operation. The entry supervisor in the control room maintains continuous visual contact with the entry team without being physically present at the manway — an additional safety layer that allows immediate radio communication if the camera shows signs of worker distress before a voice communication is made.",
+      },
+    ],
+    requiresPoints: false,
+    contexts: ["designer"],
+    available: true,
+  },
+
   // ── 3D ──────────────────────────────────────────────────────────────────────
   {
     id: 34,
@@ -1712,10 +2067,12 @@ export const CHART_CATEGORIES = [
   "Categorical",
   "Flow / Hierarchy",
   "Industrial",
+  "Production",
+  "Status",
   "Heatmap",
   "Event",
-  "Scheduling",
   "Tabular",
+  "Content",
   "3D",
 ];
 

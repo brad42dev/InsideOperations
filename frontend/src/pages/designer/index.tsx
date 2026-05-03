@@ -2371,7 +2371,10 @@ export default function DesignerPage() {
       }
 
       if (tabAutosaveId) {
-        await graphicsApi.update(tabAutosaveId, { scene_data: sceneDoc });
+        await graphicsApi.update(tabAutosaveId, {
+          name: `__autosave_${tabGraphicId}`,
+          scene_data: sceneDoc,
+        });
       } else {
         const resp = await graphicsApi.create({
           name: `__autosave_${tabGraphicId}`,
@@ -2415,6 +2418,7 @@ export default function DesignerPage() {
           // Create or update the server auto-save graphic
           if (autoSaveIdRef.current) {
             await graphicsApi.update(autoSaveIdRef.current, {
+              name: `__autosave_${activeGraphicId ?? "new"}`,
               scene_data: activeDoc,
             });
           } else {

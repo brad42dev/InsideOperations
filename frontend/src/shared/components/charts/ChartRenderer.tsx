@@ -38,6 +38,7 @@ class ChartErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",
@@ -103,6 +104,18 @@ const RENDERERS = {
   37: lazy(() => import("./renderers/chart37-parallel-coord")),
   38: lazy(() => import("./renderers/chart38-subgroup-spc")),
   39: lazy(() => import("./renderers/chart39-attribute-control")),
+
+  // ── New chart types — uncomment as renderers land ──
+  40: lazy(() => import("./renderers/chart40-accumulated-run")), // Phase 05d
+  41: lazy(() => import("./renderers/chart41-status-map")), // Phase 05e
+
+  // ── Content widgets — uncomment as renderers land ──
+  50: lazy(() => import("./renderers/chart50-text-markdown")), // Phase 06a
+  51: lazy(() => import("./renderers/chart51-header-divider")), // Phase 06a
+  52: lazy(() => import("./renderers/chart52-clock-timer")), // Phase 06b
+  53: lazy(() => import("./renderers/chart53-logs-viewer")), // Phase 06c
+  54: lazy(() => import("./renderers/chart54-iframe-embed")), // Phase 06b
+  55: lazy(() => import("./renderers/chart55-camera-stream")), // Phase 07c
 } as const;
 
 function ChartFallback() {
@@ -125,6 +138,7 @@ function ChartFallback() {
 function UnknownChart({ type }: { type: number }) {
   return (
     <div
+      data-chart-ready="true"
       style={{
         flex: 1,
         display: "flex",

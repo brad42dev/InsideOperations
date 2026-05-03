@@ -357,6 +357,7 @@ export default function Chart25Regression({ config }: RendererProps) {
   if (seriesSlots.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",

@@ -89,8 +89,9 @@ export default function ChartPointSelector({
   const theme = useThemeName();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [dragPointId, setDragPointId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  // Ref holds mutable drag state so mousemove/mouseup closures always see current values.
+  const activeDrag = useRef<{ cleanup: () => void } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
@@ -240,14 +241,66 @@ export default function ChartPointSelector({
     onChange(points.map((p) => (p.slotId === slotId ? { ...p, color } : p)));
   }
 
-  function handleDragStart(pointId: string) {
-    setDragPointId(pointId);
-  }
+  function startDrag(e: React.MouseEvent, pointId: string, tagname: string) {
+    if (e.button !== 0) return;
+    e.preventDefault(); // prevent text selection during drag
 
-  function handleDrop(role: string) {
-    if (dragPointId) assignPoint(role, dragPointId);
-    setDragPointId(null);
-    setDragOverSlot(null);
+    // Floating ghost element that follows the cursor
+    const ghost = document.createElement("div");
+    ghost.textContent = tagname;
+    ghost.style.cssText =
+      "position:fixed;pointer-events:none;z-index:99999;" +
+      `left:${e.clientX + 14}px;top:${e.clientY - 14}px;` +
+      "background:var(--io-surface-elevated);" +
+      "border:1px solid var(--io-accent);border-radius:4px;" +
+      "padding:3px 10px;font-size:13px;color:var(--io-text-primary);" +
+      "box-shadow:0 4px 12px rgba(0,0,0,0.35);white-space:nowrap;" +
+      "cursor:grabbing;";
+    document.body.appendChild(ghost);
+    document.body.style.cursor = "grabbing";
+
+    function hitTestSlot(cx: number, cy: number): string | null {
+      ghost.style.display = "none";
+      const el = document.elementFromPoint(cx, cy);
+      ghost.style.display = "";
+      return (
+        el?.closest<HTMLElement>("[data-drop-slot]")?.dataset.dropSlot ?? null
+      );
+    }
+
+    function onMove(me: MouseEvent) {
+      ghost.style.left = `${me.clientX + 14}px`;
+      ghost.style.top = `${me.clientY - 14}px`;
+      setDragOverSlot(hitTestSlot(me.clientX, me.clientY));
+    }
+
+    function onUp(me: MouseEvent) {
+      cleanup();
+      const role = hitTestSlot(me.clientX, me.clientY);
+      if (role) assignPoint(role, pointId);
+      setDragOverSlot(null);
+    }
+
+    function onKey(ke: KeyboardEvent) {
+      if (ke.key === "Escape") {
+        cleanup();
+        setDragOverSlot(null);
+      }
+    }
+
+    function cleanup() {
+      ghost.remove();
+      document.body.style.cursor = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("keydown", onKey);
+      activeDrag.current = null;
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("keydown", onKey);
+    activeDrag.current = { cleanup };
   }
 
   async function resolvePointId(tagname: string): Promise<string | null> {
@@ -451,8 +504,7 @@ export default function ChartPointSelector({
             return (
               <div
                 key={pt.id}
-                draggable
-                onDragStart={() => handleDragStart(pt.id)}
+                onMouseDown={(e) => startDrag(e, pt.id, pt.tagname)}
                 onContextMenu={(e) => handleContextMenu(e, pt.id)}
                 onDoubleClick={() => {
                   // Double-click: fill first non-full slot in order
@@ -729,14 +781,7 @@ export default function ChartPointSelector({
 
                 {/* ── Drop zone ── */}
                 <div
-                  onDragOver={(e) => {
-                    if (!isFull && !isOverCap) {
-                      e.preventDefault();
-                      setDragOverSlot(slot.id);
-                    }
-                  }}
-                  onDragLeave={() => setDragOverSlot(null)}
-                  onDrop={() => handleDrop(slot.id)}
+                  data-drop-slot={slot.id}
                   style={{
                     border: `1px dashed ${
                       isOverCap

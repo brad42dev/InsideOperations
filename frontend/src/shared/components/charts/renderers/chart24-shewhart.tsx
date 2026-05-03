@@ -177,6 +177,7 @@ export default function Chart24Shewhart({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -224,6 +225,7 @@ export default function Chart24Shewhart({ config }: RendererProps) {
         )}
         {timestamps.length === 0 && !isFetching ? (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",

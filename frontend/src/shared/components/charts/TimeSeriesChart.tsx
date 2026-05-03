@@ -16,6 +16,8 @@ export interface Series {
    * Use for tags whose MinimumSamplingInterval is ≥ 5000 ms (GC analyzers, lab analyzers).
    */
   step?: boolean;
+  /** Canvas line-dash pattern — e.g. [4, 2] for dashed, [4, 4] for dotted-dash. */
+  dash?: number[];
 }
 
 export interface TimeSeriesChartProps {
@@ -57,6 +59,12 @@ export interface TimeSeriesChartProps {
    * when discrete). Falls back to numeric display for values not in the map.
    */
   enumLabels?: Map<string, EnumLabel[]>;
+  /**
+   * Band fills between pairs of series. Each entry specifies `series: [hiIdx, loIdx]`
+   * using 1-based indices into the data array (matching uPlot's convention: data[0] is
+   * timestamps, so series index 1 = first series). Used by chart01 for envelope bands.
+   */
+  bands?: { series: [number, number]; fill: string }[];
 }
 
 const DEFAULT_HEIGHT = 300;
@@ -162,6 +170,7 @@ export default function TimeSeriesChart({
   onClearHighlight,
   showGrid = true,
   enumLabels,
+  bands,
 }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const uplotRef = useRef<uPlot | null>(null);
@@ -257,6 +266,11 @@ export default function TimeSeriesChart({
   // switches between linear and step rendering (paths fn is set at build time).
   const stepKey = series.map((s) => (s.step ? "1" : "0")).join("");
 
+  // Stable key for bands — triggers rebuild when band configuration changes.
+  const bandsKey = bands
+    ? bands.map((b) => `${b.series[0]}-${b.series[1]}:${b.fill}`).join("|")
+    : "";
+
   // Build (or rebuild) the uPlot instance.
   // Re-runs when dimensions, theme, or series count changes.
   useEffect(() => {
@@ -292,6 +306,7 @@ export default function TimeSeriesChart({
         points: { show: false },
         scale: seriesScales ? seriesScales[i].scaleKey : "y",
         ...(s.step && steppedPaths ? { paths: steppedPaths } : {}),
+        ...(s.dash ? { dash: s.dash } : {}),
       })),
     ];
 
@@ -379,6 +394,7 @@ export default function TimeSeriesChart({
       cursor: {
         drag: { x: true, y: false },
       },
+      ...(bands && bands.length > 0 ? { bands } : {}),
       hooks: {
         setCursor: [
           (u) => {
@@ -510,7 +526,10 @@ export default function TimeSeriesChart({
               for (let i = 0; i < srcs.length; i++) {
                 const val = (data[i + 1] as (number | null)[])[nearestIdx];
                 if (val == null) continue;
-                const yPos = u.valToPos(val, "y");
+                const scaleKey = seriesScales
+                  ? (seriesScales[i]?.scaleKey ?? "y")
+                  : "y";
+                const yPos = u.valToPos(val, scaleKey);
                 const dist = Math.abs(yPos - clickY);
                 if (dist < minDist) {
                   minDist = dist;
@@ -539,6 +558,7 @@ export default function TimeSeriesChart({
 
     const u = new uPlot(opts, data, containerRef.current);
     uplotRef.current = u;
+    containerRef.current.setAttribute("data-chart-ready", "true");
 
     // Re-apply highlight state so the rebuilt chart matches the legend after
     // dimension changes (e.g. entering or exiting fullscreen).
@@ -567,16 +587,21 @@ export default function TimeSeriesChart({
     seriesScalesKey,
     enumLabelsKey,
     stepKey,
+    bandsKey,
   ]);
 
   // Update data without rebuilding the chart (hot path — runs on every tick).
+  // Deps: only `timestamps` — its reference changes when new data arrives.
+  // `series` is excluded because callers reconstruct the array on every render
+  // even when data content is unchanged; latestDataRef always has the current
+  // values so setData will use the right data regardless.
   useEffect(() => {
     if (!uplotRef.current) return;
     const data = latestDataRef.current;
     if (data[0].length === 0) return;
     uplotRef.current.setData(data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timestamps, series]);
+  }, [timestamps]);
 
   // Resize when dimensions change but chart already exists
   useEffect(() => {
@@ -631,6 +656,14 @@ export default function TimeSeriesChart({
   }, []);
 
   const showNoData = timestamps.length === 0;
+
+  // Mark ready on first mount for no-data or zero-width states where uPlot never inits.
+  useEffect(() => {
+    queueMicrotask(() =>
+      containerRef.current?.setAttribute("data-chart-ready", "true"),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div

@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
-// ChartConfigPanel — full-screen modal for chart configuration
-// Orchestrates: ChartTypePicker + ChartPointSelector + ChartOptionsForm
-// Rendered as a viewport-level fixed overlay (panes can be very small).
+// ChartConfigPanel — chart configuration UI
+// Two modes:
+//   "modal" (default) — full-screen fixed overlay via createPortal
+//   "embedded" — inline, no chrome, for Designer right panel
 // ---------------------------------------------------------------------------
 
 import { useState, useEffect, useLayoutEffect, useCallback } from "react";
@@ -20,24 +21,65 @@ import {
   type PointTypeCategory,
 } from "./chart-definitions";
 import SaveChartModal from "./SaveChartModal";
+import { makeDefaultChartConfig } from "./chart-defaults";
 
-interface ChartConfigPanelProps {
-  /** Initial config to populate the panel from */
+// ---------------------------------------------------------------------------
+// migrateConfigToType — carry compatible fields when switching chart type
+// ---------------------------------------------------------------------------
+
+function migrateConfigToType(
+  prev: ChartConfig,
+  newType: ChartTypeId,
+): ChartConfig {
+  const fresh = makeDefaultChartConfig(newType);
+  const newSlots = CHART_SLOTS[newType] ?? [];
+  const validRoles = new Set(newSlots.map((s) => s.id));
+  const compatPoints = prev.points.filter((p) => validRoles.has(p.role));
+  return {
+    ...fresh,
+    points: compatPoints,
+    legend: prev.legend ?? fresh.legend,
+    scaling: {
+      ...fresh.scaling,
+      ...prev.scaling,
+      type: prev.scaling?.type ?? "auto",
+    },
+    durationMinutes: prev.durationMinutes ?? fresh.durationMinutes,
+    aggregateType: prev.aggregateType,
+    aggregateSize: prev.aggregateSize,
+    aggregateSizeUnit: prev.aggregateSizeUnit,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface ChartConfigPanelModalProps {
+  mode?: "modal";
   initialConfig: ChartConfig;
   onSave: (config: ChartConfig) => void;
   onClose: () => void;
-  /** Restricts chart type picker to types available in this context. */
   context?: ChartContext;
-  /** Called when the user saves the chart via Save As or Publish. */
   onSaveChart?: (
     config: ChartConfig,
     name: string,
     description: string,
     publish: boolean,
   ) => void;
-  /** Whether the current user can publish charts. */
   canPublish?: boolean;
 }
+
+interface ChartConfigPanelEmbeddedProps {
+  mode: "embedded";
+  value: ChartConfig;
+  onChange: (next: ChartConfig) => void;
+  context?: ChartContext;
+}
+
+type ChartConfigPanelProps =
+  | ChartConfigPanelModalProps
+  | ChartConfigPanelEmbeddedProps;
 
 type Tab = "type" | "points" | "scaling" | "options";
 
@@ -48,24 +90,41 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "options", label: "Options" },
 ];
 
-export default function ChartConfigPanel({
-  initialConfig,
-  onSave,
-  onClose,
-  context,
-  onSaveChart,
-  canPublish,
-}: ChartConfigPanelProps) {
-  const [config, setConfig] = useState<ChartConfig>(() => ({
-    durationMinutes: 60,
-    ...initialConfig,
-  }));
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export default function ChartConfigPanel(props: ChartConfigPanelProps) {
+  const isEmbedded = props.mode === "embedded";
+
+  // Internal config state. In embedded mode this is semi-controlled — initialized
+  // from props.value (via key={node.id} in the parent) and kept in sync on every
+  // change via setConfigAndNotify. The parent debounces onChange into undo commands.
+  const [config, setConfig] = useState<ChartConfig>(() =>
+    isEmbedded
+      ? (props as ChartConfigPanelEmbeddedProps).value
+      : {
+          durationMinutes: 60,
+          ...(props as ChartConfigPanelModalProps).initialConfig,
+        },
+  );
+
   const [tab, setTab] = useState<Tab>("type");
   const [saveModal, setSaveModal] = useState<{ publish: boolean } | null>(null);
 
-  // Fetch real point metadata (including eu_range_low/eu_range_high) for all
-  // configured points. Only needed for the Scaling tab, but cheap enough to
-  // always keep warm. Falls back to slot label if the query hasn't resolved yet.
+  // Update config and notify parent (embedded only)
+  const setConfigAndNotify = useCallback(
+    (next: ChartConfig) => {
+      setConfig(next);
+      if (isEmbedded) {
+        (props as ChartConfigPanelEmbeddedProps).onChange(next);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isEmbedded],
+  );
+
+  // Fetch real point metadata for all configured points.
   const uniquePointIds = [...new Set(config.points.map((p) => p.pointId))];
   const metaQueries = useQueries({
     queries: uniquePointIds.map((id) => ({
@@ -99,8 +158,6 @@ export default function ChartConfigPanel({
     }),
   );
 
-  // Derive the set of point categories from all configured points whose metadata
-  // has resolved. Used to dim incompatible chart types in the Chart Type tab.
   const configuredPointTypes: PointTypeCategory[] | undefined = (() => {
     const resolved = config.points
       .map((p) => pointMeta.get(p.pointId)?.point_category)
@@ -109,16 +166,31 @@ export default function ChartConfigPanel({
     return [...new Set(resolved)] as PointTypeCategory[];
   })();
 
-  // Only show Scaling tab for chart types that have configurable axes
-  const TABS = SCALING_TAB_CHARTS.has(config.chartType)
+  // Derive visible tabs: hide Scaling for charts without configurable axes,
+  // hide Points for content widgets (requiresPoints === false).
+  const def = CHART_DEFINITIONS.find((d) => d.id === config.chartType);
+  let TABS = SCALING_TAB_CHARTS.has(config.chartType)
     ? BASE_TABS
     : BASE_TABS.filter((t) => t.id !== "scaling");
+  if (def?.requiresPoints === false) {
+    TABS = TABS.filter((t) => t.id !== "points");
+  }
 
-  // Measure sidebar width and topbar height live so the panel sits entirely
-  // within the workspace area and never overlaps the top console bar.
+  // If the active tab was filtered out (e.g. switching to a content widget type),
+  // fall back to "type".
+  useEffect(() => {
+    if (!TABS.find((t) => t.id === tab)) {
+      setTab("type");
+    }
+    // Only re-evaluate when the chart type changes (which is what alters TABS).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.chartType]);
+
+  // Measure sidebar/topbar for modal positioning (modal mode only).
   const [sidebarWidth, setSidebarWidth] = useState(0);
   const [topbarHeight, setTopbarHeight] = useState(0);
   useLayoutEffect(() => {
+    if (isEmbedded) return;
     const measure = () => {
       const sidebar = document.querySelector(".sidebar");
       setSidebarWidth(sidebar ? sidebar.getBoundingClientRect().width : 0);
@@ -132,38 +204,37 @@ export default function ChartConfigPanel({
     if (sidebar) ro.observe(sidebar);
     if (header) ro.observe(header);
     return () => ro.disconnect();
-  }, []);
+  }, [isEmbedded]);
 
-  // Close on Escape
+  // Close on Escape (modal mode only).
   useEffect(() => {
+    if (isEmbedded) return;
+    const modalProps = props as ChartConfigPanelModalProps;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") modalProps.onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmbedded]);
 
-  // When chart type changes, reset incompatible points then advance to Data Points tab.
+  // Single-click: migrate config but stay on the type tab so the user can read about it.
   function handleTypeSelect(type: ChartTypeId) {
-    const newSlots = CHART_SLOTS[type];
-    const validRoles = new Set(newSlots.map((s) => s.id));
-    const newDef = CHART_DEFINITIONS.find((d) => d.id === type);
-    const accepted = newDef?.acceptedPointTypes ?? ["any"];
-    const filteredPoints = config.points.filter((p) => {
-      if (!validRoles.has(p.role)) return false;
-      if (accepted.includes("any")) return true;
-      const cat = pointMeta.get(p.pointId)?.point_category ?? "analog";
-      return accepted.includes(cat as PointTypeCategory);
-    });
-    setConfig((c) => ({ ...c, chartType: type, points: filteredPoints }));
-    setTab("points");
+    setConfigAndNotify(migrateConfigToType(config, type));
+  }
+
+  // Double-click (or explicit Next navigation): migrate config and advance to the next tab.
+  function handleTypeCommit(type: ChartTypeId) {
+    setConfigAndNotify(migrateConfigToType(config, type));
+    const nextDef = CHART_DEFINITIONS.find((d) => d.id === type);
+    setTab(nextDef?.requiresPoints === false ? "options" : "points");
   }
 
   function patchConfig(patch: Partial<ChartConfig>) {
-    setConfig((c) => ({ ...c, ...patch }));
+    setConfigAndNotify({ ...config, ...patch });
   }
 
-  const slotDefs = CHART_SLOTS[config.chartType];
+  const slotDefs = CHART_SLOTS[config.chartType] ?? [];
 
   const isOverCapacity = slotDefs.some((slot) => {
     const count = config.points.filter((p) => p.role === slot.id).length;
@@ -172,12 +243,175 @@ export default function ChartConfigPanel({
   });
 
   const handleSave = useCallback(() => {
-    onSave(config);
-    onClose();
-  }, [config, onSave, onClose]);
+    const modalProps = props as ChartConfigPanelModalProps;
+    modalProps.onSave(config);
+    modalProps.onClose();
+  }, [config, props]);
 
-  // Backdrop covers the workspace area only (right of sidebar, below topbar).
-  // Panel is 95% of that area so a sliver of the workspace peeks through.
+  // ---------------------------------------------------------------------------
+  // Shared tab content
+  // ---------------------------------------------------------------------------
+
+  const tabContent = (
+    <div
+      style={{
+        flex: 1,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {tab === "type" && (
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <ChartTypePicker
+            selectedType={config.chartType}
+            onSelect={handleTypeSelect}
+            onCommit={handleTypeCommit}
+            context={props.context}
+            pointTypes={configuredPointTypes}
+          />
+        </div>
+      )}
+
+      {tab === "points" && (
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <ChartPointSelector
+            slotDefs={slotDefs}
+            points={config.points}
+            onChange={(pts) => patchConfig({ points: pts })}
+            acceptedPointTypes={
+              CHART_DEFINITIONS.find((d) => d.id === config.chartType)
+                ?.acceptedPointTypes
+            }
+          />
+        </div>
+      )}
+
+      {tab === "scaling" && (
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+            <ChartScalingTab
+              chartType={config.chartType}
+              config={config}
+              points={config.points}
+              pointMeta={pointMeta}
+              onChange={patchConfig}
+            />
+          </div>
+        </div>
+      )}
+
+      {tab === "options" && (
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: 20,
+              maxWidth: isEmbedded ? undefined : 640,
+            }}
+          >
+            <ChartOptionsForm
+              chartType={config.chartType}
+              config={config}
+              onChange={patchConfig}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Embedded mode — inline render, no modal chrome
+  // ---------------------------------------------------------------------------
+
+  if (isEmbedded) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden",
+        }}
+      >
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface)",
+            flexShrink: 0,
+          }}
+        >
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: "8px 12px",
+                background: "none",
+                border: "none",
+                borderBottom:
+                  tab === t.id
+                    ? "2px solid var(--io-accent)"
+                    : "2px solid transparent",
+                color:
+                  tab === t.id
+                    ? "var(--io-text-primary)"
+                    : "var(--io-text-muted)",
+                fontWeight: tab === t.id ? 600 : 400,
+                fontSize: 12,
+                cursor: "pointer",
+                marginBottom: -1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tabContent}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modal mode — createPortal with full chrome
+  // ---------------------------------------------------------------------------
+
+  const modalProps = props as ChartConfigPanelModalProps;
   const gap = "2.5%";
 
   return createPortal(
@@ -196,12 +430,11 @@ export default function ChartConfigPanel({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) modalProps.onClose();
       }}
       onDoubleClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* Panel — 95% of the workspace area, responsive font size */}
       <div
         style={{
           width: `calc(100% - 2 * ${gap})`,
@@ -216,7 +449,7 @@ export default function ChartConfigPanel({
           fontSize: "clamp(12px, 1.3vw, 18px)",
         }}
       >
-        {/* ── Header ──────────────────────────────────────────────────── */}
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -238,7 +471,7 @@ export default function ChartConfigPanel({
             Configure Chart
           </span>
           <button
-            onClick={onClose}
+            onClick={modalProps.onClose}
             style={{
               background: "none",
               border: "none",
@@ -260,7 +493,7 @@ export default function ChartConfigPanel({
           </button>
         </div>
 
-        {/* ── Tabs ────────────────────────────────────────────────────── */}
+        {/* Tabs */}
         <div
           style={{
             display: "flex",
@@ -296,105 +529,9 @@ export default function ChartConfigPanel({
           ))}
         </div>
 
-        {/* ── Tab content ─────────────────────────────────────────────── */}
-        <div
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {tab === "type" && (
-            <div
-              style={{
-                flex: 1,
-                overflow: "hidden",
-                padding: 20,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <ChartTypePicker
-                selectedType={config.chartType}
-                onSelect={handleTypeSelect}
-                context={context}
-                pointTypes={configuredPointTypes}
-              />
-            </div>
-          )}
+        {tabContent}
 
-          {tab === "points" && (
-            <div
-              style={{
-                flex: 1,
-                overflow: "hidden",
-                padding: 20,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <ChartPointSelector
-                slotDefs={slotDefs}
-                points={config.points}
-                onChange={(pts) => patchConfig({ points: pts })}
-                acceptedPointTypes={
-                  CHART_DEFINITIONS.find((d) => d.id === config.chartType)
-                    ?.acceptedPointTypes
-                }
-              />
-            </div>
-          )}
-
-          {tab === "scaling" && (
-            <div
-              style={{
-                flex: 1,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-                <ChartScalingTab
-                  chartType={config.chartType}
-                  config={config}
-                  points={config.points}
-                  pointMeta={pointMeta}
-                  onChange={patchConfig}
-                />
-              </div>
-            </div>
-          )}
-
-          {tab === "options" && (
-            <div
-              style={{
-                flex: 1,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: "auto",
-                  padding: 20,
-                  maxWidth: 640,
-                }}
-              >
-                <ChartOptionsForm
-                  chartType={config.chartType}
-                  config={config}
-                  onChange={patchConfig}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Footer ──────────────────────────────────────────────────── */}
+        {/* Footer */}
         <div
           style={{
             display: "flex",
@@ -413,10 +550,15 @@ export default function ChartConfigPanel({
               const isCurrent = tab === t.id;
               if (isCurrent) return null;
               const isPrev = TABS.findIndex((x) => x.id === tab) > i;
+              const isNextFromType = tab === "type" && !isPrev;
               return (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() =>
+                    isNextFromType
+                      ? handleTypeCommit(config.chartType)
+                      : setTab(t.id)
+                  }
                   style={{
                     background: "var(--io-surface-secondary)",
                     border: "1px solid var(--io-border)",
@@ -445,7 +587,7 @@ export default function ChartConfigPanel({
                 Too many points — remove excess from Data Points to apply
               </span>
             )}
-            {onSaveChart && (
+            {modalProps.onSaveChart && (
               <button
                 onClick={() => setSaveModal({ publish: false })}
                 title="Save this chart configuration for reuse"
@@ -462,7 +604,7 @@ export default function ChartConfigPanel({
                 Save As…
               </button>
             )}
-            {onSaveChart && canPublish && (
+            {modalProps.onSaveChart && modalProps.canPublish && (
               <button
                 onClick={() => setSaveModal({ publish: true })}
                 title="Save and publish this chart to all users"
@@ -480,7 +622,7 @@ export default function ChartConfigPanel({
               </button>
             )}
             <button
-              onClick={onClose}
+              onClick={modalProps.onClose}
               style={{
                 background: "var(--io-surface-secondary)",
                 border: "1px solid var(--io-border)",
@@ -524,11 +666,16 @@ export default function ChartConfigPanel({
               Apply
             </button>
           </div>
-          {saveModal && onSaveChart && (
+          {saveModal && modalProps.onSaveChart && (
             <SaveChartModal
               publish={saveModal.publish}
               onConfirm={(name, description) => {
-                onSaveChart(config, name, description, saveModal.publish);
+                modalProps.onSaveChart!(
+                  config,
+                  name,
+                  description,
+                  saveModal.publish,
+                );
                 setSaveModal(null);
               }}
               onCancel={() => setSaveModal(null)}

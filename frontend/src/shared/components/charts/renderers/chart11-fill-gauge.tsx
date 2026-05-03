@@ -60,6 +60,7 @@ export default function Chart11FillGauge({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -95,6 +96,7 @@ export default function Chart11FillGauge({ config }: RendererProps) {
 
   return (
     <div
+      data-chart-ready="true"
       style={{
         flex: 1,
         display: "flex",

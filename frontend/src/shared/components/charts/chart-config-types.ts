@@ -42,7 +42,26 @@ export type ChartTypeId =
   | 36 // Scorecard Table / Event Condition Statistics
   | 37 // Parallel Coordinate Plot
   | 38 // X-bar/R + X-bar/S Subgroup SPC
-  | 39; // Attribute Control Chart (p/np/c/u)
+  | 39 // Attribute Control Chart (p/np/c/u)
+  // ── New chart types (Phase 05d/05e) ──
+  | 40 // Accumulated Run / Production vs. Target
+  | 41 // Status Map / Fleet Status Grid
+  | 42 // (reserved)
+  | 43 // (reserved)
+  | 44 // (reserved)
+  | 45 // (reserved)
+  | 46 // (reserved)
+  | 47 // (reserved)
+  | 48 // (reserved)
+  | 49 // (reserved)
+  // ── Content widgets (Phase 06a–07c) ──
+  | 50 // Text / Markdown
+  | 51 // Header / Divider
+  | 52 // Clock / Elapsed Timer
+  | 53 // Logs Viewer
+  | 54 // IFrame / Embed
+  | 55 // Camera Stream
+  | 56; // (reserved for future content widget)
 
 export type AggregateType =
   | "avg"
@@ -91,8 +110,8 @@ export function slotLabel(
   slot: ChartPointSlot,
   labelMode?: "tagname" | "display_name" | "both",
 ): string {
-  const display = slot.label ?? slot.pointId;
-  const tag = slot.tagname ?? display;
+  const display = slot.label ?? slot.tagname ?? "Unknown";
+  const tag = slot.tagname ?? slot.label ?? "Unknown";
   if (labelMode === "tagname") return tag;
   if (labelMode === "both" && tag !== display) return `${tag} — ${display}`;
   return display;
@@ -246,9 +265,54 @@ export function autoColorForTheme(
 // ---------------------------------------------------------------------------
 
 export const CHART_SLOTS: Record<ChartTypeId, SlotDefinition[]> = {
-  1: [{ id: "series", label: "Trend Lines", multi: true, required: true }],
-  2: [{ id: "series", label: "Trend Lines", multi: true, required: true }],
-  3: [{ id: "series", label: "Series", multi: true, required: true }],
+  1: [
+    { id: "series", label: "Trend Lines", multi: true, required: true },
+    {
+      id: "band-high",
+      label: "Band: High Limit",
+      multi: false,
+      required: false,
+    },
+    { id: "band-low", label: "Band: Low Limit", multi: false, required: false },
+    {
+      id: "setpoint",
+      label: "Setpoint (Deviation Mode)",
+      multi: false,
+      required: false,
+    },
+  ],
+  2: [
+    { id: "series", label: "Trend Lines", multi: true, required: true },
+    {
+      id: "band-high",
+      label: "Band: High Limit",
+      multi: false,
+      required: false,
+    },
+    { id: "band-low", label: "Band: Low Limit", multi: false, required: false },
+    {
+      id: "setpoint",
+      label: "Setpoint (Deviation Mode)",
+      multi: false,
+      required: false,
+    },
+  ],
+  3: [
+    { id: "series", label: "Series", multi: true, required: true },
+    {
+      id: "band-high",
+      label: "Band: High Limit",
+      multi: false,
+      required: false,
+    },
+    { id: "band-low", label: "Band: Low Limit", multi: false, required: false },
+    {
+      id: "setpoint",
+      label: "Setpoint (Deviation Mode)",
+      multi: false,
+      required: false,
+    },
+  ],
   4: [{ id: "series", label: "Step Lines", multi: true, required: true }],
   5: [{ id: "series", label: "Bars", multi: true, required: true }],
   6: [{ id: "series", label: "Slices", multi: true, required: true }],
@@ -264,6 +328,12 @@ export const CHART_SLOTS: Record<ChartTypeId, SlotDefinition[]> = {
   13: [
     { id: "x", label: "X Axis", multi: false, required: true },
     { id: "y", label: "Y Axis", multi: false, required: true },
+    {
+      id: "size",
+      label: "Bubble Size (optional)",
+      multi: false,
+      required: false,
+    },
   ],
   14: [{ id: "series", label: "Event Sources", multi: true, required: false }],
   15: [{ id: "series", label: "Columns", multi: true, required: true }],
@@ -341,6 +411,30 @@ export const CHART_SLOTS: Record<ChartTypeId, SlotDefinition[]> = {
       required: false,
     },
   ],
+  // ── New chart types ──────────────────────────────────────────────────────────
+  40: [
+    { id: "actual", label: "Actual", multi: false, required: true },
+    { id: "target", label: "Target", multi: false, required: true },
+  ],
+  41: [
+    { id: "item", label: "Items", multi: true, required: true, maxPoints: 64 },
+  ],
+  42: [],
+  43: [],
+  44: [],
+  45: [],
+  46: [],
+  47: [],
+  48: [],
+  49: [],
+  // ── Content widgets ──────────────────────────────────────────────────────────
+  50: [],
+  51: [],
+  52: [],
+  53: [],
+  54: [],
+  55: [],
+  56: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -360,6 +454,15 @@ export const XY_SCALE_CHARTS = new Set<ChartTypeId>([13, 25]);
 
 /** Charts that support an orientation toggle (vertical ↔ horizontal) */
 export const ORIENTABLE_CHARTS = new Set<ChartTypeId>([5, 18, 19, 20, 21, 23]);
+
+/**
+ * Content widgets — chart types that don't bind to point data and shouldn't
+ * be walked by point extractors. Used by GraphicPane.tsx to skip these when
+ * collecting point IDs to subscribe to.
+ */
+export const CONTENT_WIDGET_IDS: Set<ChartTypeId> = new Set<ChartTypeId>([
+  50, 51, 52, 53, 54, 55, 56,
+]);
 
 // ---------------------------------------------------------------------------
 // Helper: generate a unique slotId for a new point in a multi slot

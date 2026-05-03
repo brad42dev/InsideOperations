@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useQuery, useQueries, useIsFetching } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { graphicsApi } from "../../api/graphics";
 import { pointsApi } from "../../api/points";
 import { SceneRenderer } from "../../shared/graphics/SceneRenderer";
@@ -7,9 +7,9 @@ import type { PointValue } from "../../shared/graphics/SceneRenderer";
 import type {
   ViewportState,
   SceneNode,
-  DisplayElement,
-  SymbolInstance,
+  GraphicDocument,
 } from "../../shared/types/graphics";
+import { extractPointIds } from "../../shared/graphics/pointExtractor";
 import { TimestampOverlay } from "../../shared/components/TimestampOverlay";
 
 interface Props {
@@ -20,25 +20,14 @@ interface Props {
   overlayEnabled: boolean;
 }
 
-function collectPointIds(node: SceneNode, out: Set<string>) {
-  if (node.type === "display_element") {
-    const de = node as DisplayElement;
-    if (de.binding?.pointId) out.add(de.binding.pointId);
-    if (de.binding?.expressionId) out.add(de.binding.expressionId);
+function countWidgetNodes(nodes: SceneNode[]): number {
+  let count = 0;
+  for (const n of nodes) {
+    if (n.type === "widget") count++;
+    const children = (n as { children?: SceneNode[] }).children;
+    if (Array.isArray(children)) count += countWidgetNodes(children);
   }
-  if (node.type === "symbol_instance") {
-    const si = node as SymbolInstance;
-    if (si.stateBinding?.pointId) out.add(si.stateBinding.pointId);
-    if (si.stateBinding?.expressionId) out.add(si.stateBinding.expressionId);
-  }
-  if (
-    "children" in node &&
-    Array.isArray((node as { children?: SceneNode[] }).children)
-  ) {
-    for (const child of (node as { children: SceneNode[] }).children) {
-      collectPointIds(child, out);
-    }
-  }
+  return count;
 }
 
 export function ExportRenderProcess({
@@ -60,9 +49,7 @@ export function ExportRenderProcess({
 
   const pointIds = useMemo(() => {
     if (!graphic?.scene_data) return [] as string[];
-    const ids = new Set<string>();
-    for (const node of graphic.scene_data.children) collectPointIds(node, ids);
-    return Array.from(ids);
+    return Array.from(extractPointIds(graphic.scene_data as GraphicDocument));
   }, [graphic?.scene_data]);
 
   const historicalQueries = useQueries({
@@ -113,37 +100,76 @@ export function ExportRenderProcess({
     return out;
   }, [pointIds, historicalQueries]);
 
-  const isFetching = useIsFetching({ queryKey: ["historical"] });
   const allHistoricalSettled =
     historicalQueries.length === 0 ||
     historicalQueries.every((q) => !q.isPending && !q.isFetching);
 
   const [fontsReady, setFontsReady] = useState(false);
+  const [widgetsReady, setWidgetsReady] = useState(false);
+
+  const widgetCount = useMemo(
+    () =>
+      graphic?.scene_data ? countWidgetNodes(graphic.scene_data.children) : 0,
+    [graphic?.scene_data],
+  );
 
   useEffect(() => {
     void document.fonts.ready.then(() => setFontsReady(true));
   }, []);
 
+  // Wait for all widget chart overlays to signal data-chart-ready.
   useEffect(() => {
-    if (
-      graphicLoaded &&
-      isFetching === 0 &&
-      allHistoricalSettled &&
-      fontsReady
-    ) {
+    if (!graphicLoaded || widgetCount === 0) {
+      setWidgetsReady(true);
+      return;
+    }
+    function check() {
+      const ready = document.querySelectorAll("[data-chart-ready]").length;
+      if (ready >= widgetCount) {
+        setWidgetsReady(true);
+        return true;
+      }
+      return false;
+    }
+    if (check()) return;
+    const observer = new MutationObserver(() => {
+      if (check()) observer.disconnect();
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-chart-ready"],
+      childList: true,
+    });
+    return () => observer.disconnect();
+  }, [graphicLoaded, widgetCount]);
+
+  useEffect(() => {
+    if (graphicLoaded && allHistoricalSettled && fontsReady && widgetsReady) {
       document.body.setAttribute("data-export-ready", "true");
     } else {
       document.body.removeAttribute("data-export-ready");
     }
-  }, [graphicLoaded, isFetching, allHistoricalSettled, fontsReady, snappedTs]);
+  }, [
+    graphicLoaded,
+    allHistoricalSettled,
+    fontsReady,
+    widgetsReady,
+    snappedTs,
+  ]);
 
   const viewport = useMemo((): ViewportState => {
     const canvasW = graphic?.scene_data?.canvas?.width ?? 1920;
     const canvasH = graphic?.scene_data?.canvas?.height ?? 1080;
     const fitZoom = Math.min(width / canvasW, height / canvasH);
+    // Letterbox margins in screen pixels.
+    const marginX = (width - canvasW * fitZoom) / 2;
+    const marginY = (height - canvasH * fitZoom) / 2;
+    // Convert margins to canvas units so canvasToScreen() returns the correct
+    // screen pixel offset (panX negative → canvas origin pushed rightward).
     return {
-      panX: (width - canvasW * fitZoom) / 2,
-      panY: (height - canvasH * fitZoom) / 2,
+      panX: fitZoom > 0 ? -marginX / fitZoom : 0,
+      panY: fitZoom > 0 ? -marginY / fitZoom : 0,
       zoom: fitZoom,
       canvasWidth: canvasW,
       canvasHeight: canvasH,
@@ -162,6 +188,7 @@ export function ExportRenderProcess({
         document={graphic.scene_data}
         viewport={viewport}
         pointValues={pointValues}
+        graphicId={graphicId}
         style={{ position: "absolute", inset: 0 }}
       />
       {overlayEnabled && <TimestampOverlay timestamp={tsParam} />}

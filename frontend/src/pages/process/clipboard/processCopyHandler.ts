@@ -62,6 +62,30 @@ export async function copyProcessSelection(): Promise<void> {
       seenTagnames.add(stateBinding.pointId);
       points.push({ tagname: stateBinding.pointId });
     }
+    // text_readout_array: additional bindings each carry their own tag
+    if (n.displayType === "text_readout_array") {
+      const cfg = n.config as
+        | {
+            additionalBindings?: Array<{
+              pointId?: string;
+              pointTag?: string;
+              displayName?: string;
+              unit?: string;
+            }>;
+          }
+        | undefined;
+      for (const b of cfg?.additionalBindings ?? []) {
+        const tag = b.pointTag ?? b.pointId;
+        if (tag && !seenTagnames.has(tag)) {
+          seenTagnames.add(tag);
+          points.push({
+            tagname: tag,
+            displayName: b.displayName,
+            unit: b.unit,
+          });
+        }
+      }
+    }
     const children = (n.children as SceneNode[] | undefined) ?? [];
     for (const child of children) extractPoints(child);
   }

@@ -284,6 +284,7 @@ export default function ParallelCoordChart({ config }: RendererProps) {
   if (axisSlots.length < 2) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -325,6 +326,7 @@ export default function ParallelCoordChart({ config }: RendererProps) {
         )}
         {!isLoading && buckets.length === 0 && (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",
@@ -337,7 +339,14 @@ export default function ParallelCoordChart({ config }: RendererProps) {
             No data in selected range
           </div>
         )}
-        {buckets.length > 0 && <EChart option={option} />}
+        {buckets.length > 0 && (
+          <div
+            data-chart-ready="true"
+            style={{ flex: 1, minHeight: 0, width: "100%", height: "100%" }}
+          >
+            <EChart option={option} />
+          </div>
+        )}
       </div>
     </ChartLegendLayout>
   );

@@ -50,12 +50,24 @@ export interface ShapeBindingEntry {
   rangeHi?: number;
 }
 
+export interface AdditionalPointEntry {
+  pointId: string;
+  tag: string;
+  displayName?: string;
+  unit?: string;
+}
+
 interface ShapePointSelectorProps {
   slots: ShapeSlotDef[];
   bindings: ShapeBindingEntry[];
   onChange: (bindings: ShapeBindingEntry[]) => void;
   /** Called whenever over-capacity state changes. Parent uses this to block Apply/Place. */
   onOverCapacityChange?: (isOverCapacity: boolean) => void;
+  /** When provided, renders an extra point-list section below the regular slots. */
+  additionalPoints?: AdditionalPointEntry[];
+  onAdditionalPointsChange?: (pts: AdditionalPointEntry[]) => void;
+  /** Section header label for the additional points group (e.g. "Text Readout Array"). */
+  additionalPointsLabel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,11 +79,17 @@ export function ShapePointSelector({
   bindings,
   onChange,
   onOverCapacityChange,
+  additionalPoints,
+  onAdditionalPointsChange,
+  additionalPointsLabel,
 }: ShapePointSelectorProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dragPointId, setDragPointId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const [dragOverAdditionalIdx, setDragOverAdditionalIdx] = useState<
+    number | null
+  >(null);
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
@@ -208,7 +226,19 @@ export function ShapePointSelector({
       const b = bindings.find((b) => b.partKey === s.partId);
       return !b?.pointId;
     });
-    if (target) assignPoint(target.partId, pt);
+    if (target) {
+      assignPoint(target.partId, pt);
+    } else if (onAdditionalPointsChange && additionalPoints !== undefined) {
+      onAdditionalPointsChange([
+        ...additionalPoints,
+        {
+          pointId: pt.id,
+          tag: pt.tagname,
+          displayName: pt.display_name ?? undefined,
+          unit: pt.unit ?? undefined,
+        },
+      ]);
+    }
   }
 
   async function resolvePointMeta(tagname: string): Promise<PointMeta | null> {
@@ -763,6 +793,220 @@ export function ShapePointSelector({
               </div>
             );
           })}
+
+          {additionalPoints !== undefined && (
+            <div>
+              {/* Section header — same accent style as the default slot label */}
+              <div
+                style={{
+                  fontSize: "0.78em",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: 4,
+                  color: "var(--io-accent)",
+                }}
+              >
+                {additionalPointsLabel ?? "Additional Points"}
+              </div>
+
+              {/* One chip per filled binding */}
+              {additionalPoints.map((entry, i) => {
+                const isOver = dragOverAdditionalIdx === i;
+                return (
+                  <div key={i} style={{ marginBottom: 8 }}>
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverAdditionalIdx(i);
+                      }}
+                      onDragLeave={() => setDragOverAdditionalIdx(null)}
+                      onDrop={() => {
+                        setDragOverAdditionalIdx(null);
+                        if (!dragPointId) return;
+                        const pt = allPoints.find((p) => p.id === dragPointId);
+                        if (pt && onAdditionalPointsChange) {
+                          const next = [...additionalPoints];
+                          next[i] = {
+                            pointId: pt.id,
+                            tag: pt.tagname,
+                            displayName: pt.display_name ?? undefined,
+                            unit: pt.unit ?? undefined,
+                          };
+                          onAdditionalPointsChange(next);
+                        }
+                        setDragPointId(null);
+                      }}
+                      style={{
+                        border: `1px dashed ${isOver ? "var(--io-accent)" : "var(--io-border)"}`,
+                        borderRadius: 6,
+                        padding: "6px 8px",
+                        background: isOver
+                          ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
+                          : "var(--io-surface)",
+                        transition: "border-color 0.15s, background 0.15s",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: "0.9em",
+                          background: "var(--io-surface-secondary)",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: 3,
+                          padding: "3px 6px",
+                        }}
+                      >
+                        <span
+                          style={{ flex: 1, overflow: "hidden", minWidth: 0 }}
+                        >
+                          <div
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontFamily: "JetBrains Mono, monospace",
+                              fontSize: "0.95em",
+                            }}
+                          >
+                            {entry.tag}
+                          </div>
+                          {entry.displayName && (
+                            <div
+                              style={{
+                                fontSize: "0.8em",
+                                color: "var(--io-text-muted)",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {entry.displayName}
+                            </div>
+                          )}
+                        </span>
+                        <button
+                          onClick={() =>
+                            onAdditionalPointsChange!(
+                              additionalPoints.filter((_, j) => j !== i),
+                            )
+                          }
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--io-text-muted)",
+                            padding: "0 2px",
+                            fontSize: "1.1em",
+                            lineHeight: 1,
+                            flexShrink: 0,
+                          }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Always-present empty drop zone — drag here to add the next point */}
+              {(() => {
+                const emptyIdx = additionalPoints.length;
+                const isOver = dragOverAdditionalIdx === emptyIdx;
+                return (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverAdditionalIdx(emptyIdx);
+                    }}
+                    onDragLeave={() => setDragOverAdditionalIdx(null)}
+                    onDrop={() => {
+                      setDragOverAdditionalIdx(null);
+                      if (!dragPointId) return;
+                      const pt = allPoints.find((p) => p.id === dragPointId);
+                      if (pt && onAdditionalPointsChange) {
+                        onAdditionalPointsChange([
+                          ...additionalPoints,
+                          {
+                            pointId: pt.id,
+                            tag: pt.tagname,
+                            displayName: pt.display_name ?? undefined,
+                            unit: pt.unit ?? undefined,
+                          },
+                        ]);
+                      }
+                      setDragPointId(null);
+                    }}
+                    style={{
+                      border: `1px dashed ${
+                        isOver
+                          ? "var(--io-accent)"
+                          : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
+                      }`,
+                      borderRadius: 6,
+                      padding: "14px 12px",
+                      background: isOver
+                        ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
+                        : "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))",
+                      transition: "border-color 0.15s, background 0.15s",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 4,
+                        color: isOver
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 22 22"
+                        fill="none"
+                        style={{ opacity: 0.5 }}
+                      >
+                        <rect
+                          x="1"
+                          y="5"
+                          width="20"
+                          height="14"
+                          rx="2"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeDasharray="3 2"
+                        />
+                        <path
+                          d="M11 9v6M8 12l3-3 3 3"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span style={{ fontSize: "0.8em", textAlign: "center" }}>
+                        Drag a point here
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
       {ctxMenu && (

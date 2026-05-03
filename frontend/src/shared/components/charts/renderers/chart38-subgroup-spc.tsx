@@ -428,6 +428,7 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
   if (instrumentSlots.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -445,7 +446,10 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
   const insufficientData = !isLoading && subgroups.length < 2;
 
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}>
+    <div
+      data-chart-ready="true"
+      style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}
+    >
       {isLoading && (
         <div
           style={{
@@ -479,6 +483,7 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
       </div>
       {insufficientData && (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",

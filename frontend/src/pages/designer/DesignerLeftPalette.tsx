@@ -14,10 +14,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { useLibraryStore, useSceneStore } from "../../store/designer";
-import type {
-  DisplayElementType,
-  WidgetType,
-} from "../../shared/types/graphics";
+import type { DisplayElementType } from "../../shared/types/graphics";
+import type { ChartTypeId } from "../../shared/components/charts/chart-config-types";
 import { graphicsApi } from "../../api/graphics";
 import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
 
@@ -318,6 +316,7 @@ const DISPLAY_ELEMENT_TYPES: Array<{
   label: string;
 }> = [
   { type: "text_readout", label: "Text Readout" },
+  { type: "text_readout_array", label: "Text Readout Array" },
   { type: "analog_bar", label: "Analog Bar" },
   { type: "fill_gauge", label: "Fill Gauge" },
   { type: "sparkline", label: "Sparkline" },
@@ -335,6 +334,57 @@ function DisplayElementPreview({
 }) {
   const s = size;
   switch (type) {
+    case "text_readout_array":
+      // Two stacked boxes to distinguish from single text_readout
+      return (
+        <svg
+          width={s}
+          height={Math.round(s * 0.7)}
+          viewBox="0 0 60 30"
+          style={{ pointerEvents: "none" }}
+        >
+          <rect
+            x="0"
+            y="0"
+            width="60"
+            height="13"
+            rx="2"
+            fill="#27272A"
+            stroke="#3F3F46"
+            strokeWidth="1"
+          />
+          <text
+            x="30"
+            y="9"
+            textAnchor="middle"
+            fontFamily="monospace"
+            fontSize="8"
+            fill="#A1A1AA"
+          >
+            123.4
+          </text>
+          <rect
+            x="0"
+            y="17"
+            width="60"
+            height="13"
+            rx="2"
+            fill="#27272A"
+            stroke="#3F3F46"
+            strokeWidth="1"
+          />
+          <text
+            x="30"
+            y="26"
+            textAnchor="middle"
+            fontFamily="monospace"
+            fontSize="8"
+            fill="#A1A1AA"
+          >
+            456.7
+          </text>
+        </svg>
+      );
     case "text_readout":
       // Box with "123.4" value text
       return (
@@ -1685,87 +1735,64 @@ function StencilsSection({ collapsed }: { collapsed: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Widget types (dashboard / report modes)
+// Single "Chart" palette tile — drops a widget with chartType=1 (LiveTrend) as the
+// initial default. The right panel opens on the "Chart Type" tab immediately after
+// drop so the user selects their actual type before configuring data.
 // ---------------------------------------------------------------------------
 
-const WIDGET_TYPES: Array<{ type: WidgetType; label: string; icon: string }> = [
-  { type: "trend", label: "Trend", icon: "∿" },
-  { type: "table", label: "Table", icon: "⊞" },
-  { type: "gauge", label: "Gauge", icon: "◎" },
-  { type: "kpi_card", label: "KPI Card", icon: "#" },
-  { type: "bar_chart", label: "Bar Chart", icon: "▊" },
-  { type: "pie_chart", label: "Pie Chart", icon: "◔" },
-  { type: "alarm_list", label: "Alarm List", icon: "⚠" },
-  { type: "muster_point", label: "Muster Point", icon: "⛺" },
-];
-
-function WidgetTile({
-  type,
-  label,
-  icon,
-  collapsed,
-}: {
-  type: WidgetType;
-  label: string;
-  icon: string;
-  collapsed: boolean;
-}) {
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Only handle left-click drags; right-clicks go to the context menu
-      if (e.button !== 0) return;
-      e.preventDefault();
-      const ghost = document.createElement("div");
-      ghost.id = "io-canvas-drag-ghost";
-      ghost.setAttribute("data-drag-ghost", "true");
-      ghost.style.cssText = [
-        "position:fixed",
-        "pointer-events:none",
-        "z-index:9999",
-        "opacity:0.7",
-        "padding:4px 8px",
-        "background:var(--io-accent)",
-        "color:#09090b",
-        "border-radius:4px",
-        "font-size:11px",
-        "font-weight:600",
-        "transform:translate(-50%,-50%)",
-        `left:${e.clientX}px`,
-        `top:${e.clientY}px`,
-        "display:block",
-        "visibility:visible",
-      ].join(";");
-      ghost.textContent = label;
-      document.body.appendChild(ghost);
-      const onMove = (ev: MouseEvent) => {
-        ghost.style.left = `${ev.clientX}px`;
-        ghost.style.top = `${ev.clientY}px`;
-      };
-      const onUp = (ev: MouseEvent) => {
+function ChartWidgetTile({ collapsed }: { collapsed: boolean }) {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const ghost = document.createElement("div");
+    ghost.id = "io-canvas-drag-ghost";
+    ghost.setAttribute("data-drag-ghost", "true");
+    ghost.style.cssText = [
+      "position:fixed",
+      "pointer-events:none",
+      "z-index:9999",
+      "opacity:0.7",
+      "padding:4px 8px",
+      "background:var(--io-accent)",
+      "color:#09090b",
+      "border-radius:4px",
+      "font-size:11px",
+      "font-weight:600",
+      "transform:translate(-50%,-50%)",
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      "display:block",
+      "visibility:visible",
+    ].join(";");
+    ghost.textContent = "Chart";
+    document.body.appendChild(ghost);
+    const onMove = (ev: MouseEvent) => {
+      ghost.style.left = `${ev.clientX}px`;
+      ghost.style.top = `${ev.clientY}px`;
+    };
+    const onUp = (ev: MouseEvent) => {
+      ghost.remove();
+      document.removeEventListener("mousemove", onMove, true);
+      document.removeEventListener("mouseup", onUp, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.dispatchEvent(
+        new CustomEvent("io:chart-widget-drop", {
+          detail: { chartType: 1 as ChartTypeId, x: ev.clientX, y: ev.clientY },
+        }),
+      );
+    };
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
         ghost.remove();
         document.removeEventListener("mousemove", onMove, true);
         document.removeEventListener("mouseup", onUp, true);
         document.removeEventListener("keydown", onKeyDown, true);
-        document.dispatchEvent(
-          new CustomEvent("io:widget-drop", {
-            detail: { widgetType: type, x: ev.clientX, y: ev.clientY },
-          }),
-        );
-      };
-      const onKeyDown = (ev: KeyboardEvent) => {
-        if (ev.key === "Escape") {
-          ghost.remove();
-          document.removeEventListener("mousemove", onMove, true);
-          document.removeEventListener("mouseup", onUp, true);
-          document.removeEventListener("keydown", onKeyDown, true);
-        }
-      };
-      document.addEventListener("mousemove", onMove, true);
-      document.addEventListener("mouseup", onUp, true);
-      document.addEventListener("keydown", onKeyDown, true);
-    },
-    [type, label],
-  );
+      }
+    };
+    document.addEventListener("mousemove", onMove, true);
+    document.addEventListener("mouseup", onUp, true);
+    document.addEventListener("keydown", onKeyDown, true);
+  }, []);
 
   function handlePlaceAtCenter() {
     const canvasEl = document.querySelector('[data-designer-canvas="true"]');
@@ -1773,35 +1800,21 @@ function WidgetTile({
     const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
     const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
     document.dispatchEvent(
-      new CustomEvent("io:widget-drop", {
-        detail: { widgetType: type, x: cx, y: cy },
+      new CustomEvent("io:chart-widget-drop", {
+        detail: { chartType: 1 as ChartTypeId, x: cx, y: cy },
       }),
     );
   }
 
-  function handleAddToFavorites() {
-    try {
-      const raw = localStorage.getItem("io:palette-favorites") ?? "{}";
-      const favs = JSON.parse(raw) as Record<string, string[]>;
-      if (!favs["widgets"]) favs["widgets"] = [];
-      if (!favs["widgets"].includes(type)) {
-        favs["widgets"].push(type);
-        localStorage.setItem("io:palette-favorites", JSON.stringify(favs));
-      }
-    } catch {
-      // localStorage may be blocked — silently ignore
-    }
-  }
-
-  const size = collapsed ? 32 : 48;
   const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+  const size = collapsed ? 32 : 48;
 
   return (
     <>
       <div
         onMouseDown={handleMouseDown}
         onContextMenu={handleContextMenu}
-        title={label}
+        title="Chart"
         style={{
           display: "flex",
           flexDirection: "column",
@@ -1826,7 +1839,7 @@ function WidgetTile({
           e.currentTarget.style.borderColor = "var(--io-border)";
         }}
       >
-        <span>{icon}</span>
+        <span>▭</span>
         {!collapsed && (
           <span
             style={{
@@ -1836,7 +1849,7 @@ function WidgetTile({
               lineHeight: 1.2,
             }}
           >
-            {label.length > 10 ? label.slice(0, 9) + "…" : label}
+            Chart
           </span>
         )}
       </div>
@@ -1844,10 +1857,7 @@ function WidgetTile({
         <ContextMenu
           x={menuState.x}
           y={menuState.y}
-          items={[
-            { label: "Place at Center", onClick: handlePlaceAtCenter },
-            { label: "Add to Favorites", onClick: handleAddToFavorites },
-          ]}
+          items={[{ label: "Place at Center", onClick: handlePlaceAtCenter }]}
           onClose={closeMenu}
         />
       )}
@@ -1855,37 +1865,33 @@ function WidgetTile({
   );
 }
 
-function WidgetsSection({ collapsed }: { collapsed: boolean }) {
+function ChartWidgetsSection({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          gap: 4,
+          justifyContent: "center",
           padding: "8px 4px",
-          alignItems: "center",
         }}
       >
-        {WIDGET_TYPES.map((w) => (
-          <WidgetTile key={w.type} {...w} collapsed />
-        ))}
+        <ChartWidgetTile collapsed />
       </div>
     );
   }
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 6,
-        padding: 8,
-        flexShrink: 0,
-      }}
-    >
-      {WIDGET_TYPES.map((w) => (
-        <WidgetTile key={w.type} {...w} collapsed={false} />
-      ))}
+    <div style={{ padding: 8 }}>
+      <ChartWidgetTile collapsed={false} />
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: 11,
+          color: "var(--io-text-muted)",
+          lineHeight: 1.4,
+        }}
+      >
+        Drag to canvas, then pick a chart type from the right panel.
+      </div>
     </div>
   );
 }
@@ -2487,11 +2493,11 @@ export default function DesignerLeftPalette({
                 flexShrink: 0,
               }}
             />
-            <WidgetsSection collapsed />
+            <ChartWidgetsSection collapsed />
           </>
         ) : (
           <>
-            <WidgetsSection collapsed />
+            <ChartWidgetsSection collapsed />
             {isReportMode && (
               <>
                 <div
@@ -2619,7 +2625,7 @@ export default function DesignerLeftPalette({
               height={sectionHeights.widgets}
               onHeightChange={(dy) => adjustHeight("widgets", dy)}
             >
-              <WidgetsSection collapsed={false} />
+              <ChartWidgetsSection collapsed={false} />
             </PaletteSection>
 
             {/* Points fills remaining space */}
@@ -2641,7 +2647,7 @@ export default function DesignerLeftPalette({
               height={sectionHeights.widgets}
               onHeightChange={(dy) => adjustHeight("widgets", dy)}
             >
-              <WidgetsSection collapsed={false} />
+              <ChartWidgetsSection collapsed={false} />
             </PaletteSection>
 
             {isReportMode && (

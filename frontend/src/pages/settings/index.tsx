@@ -47,6 +47,16 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    header: "Media",
+    items: [
+      {
+        path: "/settings/camera-streams",
+        label: "Camera Streams",
+        permission: "video_streams:manage",
+      },
+    ],
+  },
+  {
     header: "Data Sources",
     items: [
       {

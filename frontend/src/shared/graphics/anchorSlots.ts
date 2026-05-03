@@ -8,8 +8,14 @@
  * Elements must clear the shape boundary — "right" is at nx=1.2 not nx=1.0.
  */
 
-import type { DisplayElement, SymbolInstance } from "../types/graphics";
+import type {
+  DisplayElement,
+  SymbolInstance,
+  TextReadoutArrayConfig,
+} from "../types/graphics";
 import type { ShapeEntry } from "../../store/designer/libraryStore";
+import type { ShapeSidecar } from "../types/shapes";
+import { applyDeSlotOffset, type DeLayoutHints } from "./sidecarCollision";
 
 /**
  * Returns true when the display element is an inside-fill sidecar:
@@ -27,12 +33,6 @@ export function isInsideFillSidecar(de: DisplayElement): boolean {
   }
   return false;
 }
-
-/** Default position for value-type display elements (below center of shape). */
-export const DEFAULT_VALUE_ANCHOR_POSITION = { nx: 0.5, ny: 1.15 };
-
-/** Default position for alarm indicator (upper-right of shape). */
-export const DEFAULT_ALARM_ANCHOR_POSITION = { nx: 1.1, ny: -0.1 };
 
 /**
  * Canonical normalized positions for named anchor slots.
@@ -67,6 +67,43 @@ export const NAMED_SLOT_POSITIONS: Record<string, { nx: number; ny: number }> =
     "inside-horizontal": { nx: 0.5, ny: 0.5 },
   };
 
+type AnchorSlotsMap = NonNullable<ShapeSidecar["anchorSlots"]>;
+
+const DEFAULT_ANCHOR_SLOTS: AnchorSlotsMap = {
+  PointNameLabel: ["top", "right", "bottom", "left"],
+  AlarmIndicator: ["top-right", "top-left", "bottom-right", "bottom-left"],
+  TextReadout: ["top", "right", "bottom", "left"],
+  AnalogBar: ["right", "left"],
+  FillGauge: ["right", "left"],
+  Sparkline: ["right-top", "right-bottom", "left-top", "left-bottom"],
+  DigitalStatus: ["top", "right", "bottom", "left"],
+};
+
+const VESSEL_ANCHOR_SLOTS: AnchorSlotsMap = {
+  ...DEFAULT_ANCHOR_SLOTS,
+  AnalogBar: ["right", "left", "vessel-interior"],
+  FillGauge: ["vessel-interior", "right", "left"],
+};
+
+/**
+ * Returns the effective anchor slots for a shape. If the sidecar has an
+ * explicit `anchorSlots` field (escape hatch for non-standard shapes), that
+ * wins. Otherwise derived from whether the shape has a vessel interior.
+ *
+ * Always returns a value. TextReadoutArray is NOT included here — it is
+ * mirrored from TextReadout by mirrorTextReadoutSlotsForArray downstream.
+ */
+export function resolveShapeAnchorSlots(
+  sidecar:
+    | Pick<ShapeSidecar, "anchorSlots" | "vesselInteriorPath">
+    | null
+    | undefined,
+): AnchorSlotsMap {
+  if (sidecar?.anchorSlots) return sidecar.anchorSlots;
+  if (sidecar?.vesselInteriorPath) return VESSEL_ANCHOR_SLOTS;
+  return DEFAULT_ANCHOR_SLOTS;
+}
+
 /**
  * Returns the set of slot IDs currently occupied by display element children
  * of the given SymbolInstance.
@@ -80,6 +117,23 @@ export function getOccupiedSlots(si: SymbolInstance): Set<string> {
 }
 
 /**
+ * Returns an anchorSlots record augmented with TextReadoutArray slots derived
+ * from the shape's TextReadout slots. If the sidecar already declares
+ * TextReadoutArray explicitly, the explicit value is kept. If TextReadout
+ * slots are empty or absent, TextReadoutArray is NOT added (some shapes
+ * suppress text readout intentionally).
+ */
+function mirrorTextReadoutSlotsForArray(
+  anchorSlots: Record<string, string[]> | undefined,
+): Record<string, string[]> | undefined {
+  if (!anchorSlots) return anchorSlots;
+  if ("TextReadoutArray" in anchorSlots) return anchorSlots;
+  const trSlots = anchorSlots["TextReadout"];
+  if (!trSlots || trSlots.length === 0) return anchorSlots;
+  return { ...anchorSlots, TextReadoutArray: trSlots };
+}
+
+/**
  * Returns slot targets (canvas-absolute positions) for slots that have no
  * display element child yet. Slots without a NAMED_SLOT_POSITIONS entry are
  * skipped. Returns an empty array when shapeEntry is null or has no anchorSlots.
@@ -88,10 +142,12 @@ export function getEmptySlots(
   si: SymbolInstance,
   shapeEntry: ShapeEntry | null,
 ): Array<{ slotId: string; x: number; y: number }> {
-  const anchorSlots = shapeEntry?.sidecar.anchorSlots;
-  if (!anchorSlots) return [];
+  if (!shapeEntry) return [];
+  const anchorSlots = mirrorTextReadoutSlotsForArray(
+    resolveShapeAnchorSlots(shapeEntry.sidecar),
+  )!;
 
-  const geo = shapeEntry!.sidecar.geometry;
+  const geo = shapeEntry.sidecar.geometry;
   const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 48;
   const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 48;
   const scaledW = naturalW * (si.transform.scale.x ?? 1);
@@ -165,11 +221,9 @@ export function resolveSlotWithSidecar(
   sidecar: SidecarLike | null | undefined,
   bbox: { x: number; y: number; width: number; height: number },
 ): { x: number; y: number } {
-  // TextReadout: use shape-specific valueAnchor when the user chose the default slot
-  if (
-    elementType === "TextReadout" &&
-    (!slotId || slotId === "bottom" || slotId === "right")
-  ) {
+  // TextReadout: use shape-specific valueAnchor only for the default (bottom) slot.
+  // "right" and other named slots use NAMED_SLOT_POSITIONS so the user's choice is honored.
+  if (elementType === "TextReadout" && (!slotId || slotId === "bottom")) {
     const vas = sidecar?.valueAnchors;
     const va =
       vas?.find((a) => a.preferredElement === "text_readout") ?? vas?.[0];
@@ -195,48 +249,54 @@ export function resolveSlotWithSidecar(
 }
 
 /**
- * Resolves an anchor slot position from a sidecar record to absolute coordinates.
+ * Returns a new position if the text_readout_array should re-center on its
+ * anchor slot after the bound point count changes, or null if the user has
+ * moved it away from the slot.
  *
- * Lookup order:
- *  1. sidecar.anchorSlots[slotId] → [nx, ny]
- *  2. sidecar.valueAnchors[0].{nx, ny} (fallback)
- *  3. DEFAULT_VALUE_ANCHOR_POSITION
+ * "Still on slot" = current position matches applyDeSlotOffset(oldHints) within 1px.
  */
-export function resolveAnchorPosition(
-  sidecar: Record<string, unknown>,
-  slotId: string,
-  bbox: { x: number; y: number; width: number; height: number },
-): { x: number; y: number } {
-  const anchorSlots = sidecar.anchorSlots as
-    | Record<string, [number, number]>
-    | undefined;
+export function recenterArrayOnBindingChange(
+  de: DisplayElement,
+  parentSi: SymbolInstance,
+  shapeEntry: ShapeEntry,
+  oldPointCount: number,
+  newPointCount: number,
+): { x: number; y: number } | null {
+  if (!de.slotId) return null;
 
-  let nx: number | undefined;
-  let ny: number | undefined;
+  const geo = shapeEntry.sidecar.geometry;
+  const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 48;
+  const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 48;
+  const scaledW = naturalW * (parentSi.transform.scale.x ?? 1);
+  const scaledH = naturalH * (parentSi.transform.scale.y ?? 1);
+  // DE positions are stored parent-relative, so bbox origin is (0,0) in that space.
+  const bbox = { x: 0, y: 0, width: scaledW, height: scaledH };
 
-  if (anchorSlots) {
-    const slot = anchorSlots[slotId];
-    if (Array.isArray(slot) && slot.length >= 2) {
-      nx = slot[0];
-      ny = slot[1];
-    }
-  }
-
-  if (nx === undefined || ny === undefined) {
-    const valueAnchors = sidecar.valueAnchors as
-      | Array<{ nx: number; ny: number }>
-      | undefined;
-    if (valueAnchors && valueAnchors.length > 0) {
-      nx = valueAnchors[0].nx;
-      ny = valueAnchors[0].ny;
-    } else {
-      nx = DEFAULT_VALUE_ANCHOR_POSITION.nx;
-      ny = DEFAULT_VALUE_ANCHOR_POSITION.ny;
-    }
-  }
-
-  return {
-    x: bbox.x + nx * bbox.width,
-    y: bbox.y + ny * bbox.height,
+  const cfg = de.config as TextReadoutArrayConfig;
+  const hints: DeLayoutHints = {
+    pointCount: oldPointCount,
+    arrayLayout: cfg.arrayLayout,
+    arraySingleLine: cfg.singleLine,
+    itemSpacing: cfg.itemSpacing,
   };
+
+  const slotCenter = resolveNamedSlot(de.slotId, bbox);
+  const oldPos = applyDeSlotOffset(
+    "text_readout_array",
+    de.slotId,
+    slotCenter,
+    hints,
+  );
+
+  const dx = Math.abs(de.transform.position.x - oldPos.x);
+  const dy = Math.abs(de.transform.position.y - oldPos.y);
+  if (dx > 1 || dy > 1) return null;
+
+  const newHints: DeLayoutHints = { ...hints, pointCount: newPointCount };
+  return applyDeSlotOffset(
+    "text_readout_array",
+    de.slotId,
+    slotCenter,
+    newHints,
+  );
 }

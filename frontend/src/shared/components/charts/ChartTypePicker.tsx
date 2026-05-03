@@ -15,7 +15,10 @@ import type { ChartTypeId } from "./chart-config-types";
 
 interface ChartTypePickerProps {
   selectedType: ChartTypeId;
+  /** Single-click: highlight/select without advancing to the next tab. */
   onSelect: (type: ChartTypeId) => void;
+  /** Double-click: select and advance to the next tab. */
+  onCommit?: (type: ChartTypeId) => void;
   /** When provided, hides charts that don't list this context in their `contexts` field. */
   context?: ChartContext;
   /**
@@ -2837,16 +2840,17 @@ const TIER_COLORS: Record<string, string> = {
 export default function ChartTypePicker({
   selectedType,
   onSelect,
+  onCommit,
   context,
   pointTypes,
 }: ChartTypePickerProps) {
   const [hoveredDef, setHoveredDef] = useState<ChartDefinition | null>(null);
 
-  const visibleDefs = context
-    ? CHART_DEFINITIONS.filter(
-        (d) => !d.contexts || d.contexts.includes(context),
-      )
-    : CHART_DEFINITIONS;
+  const visibleDefs = CHART_DEFINITIONS.filter(
+    (d) =>
+      d.available !== false &&
+      (!context || !d.contexts || d.contexts.includes(context)),
+  );
 
   const selectedDef =
     visibleDefs.find((d) => d.id === selectedType) ?? visibleDefs[0];
@@ -2899,6 +2903,7 @@ export default function ChartTypePicker({
                   <button
                     key={def.id}
                     onClick={() => onSelect(def.id)}
+                    onDoubleClick={() => onCommit?.(def.id)}
                     onMouseEnter={() => setHoveredDef(def)}
                     onMouseLeave={() => setHoveredDef(null)}
                     style={{
@@ -2953,256 +2958,286 @@ export default function ChartTypePicker({
       <div
         style={{
           flex: 1,
-          padding: "14px 16px",
-          overflowY: "auto",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          gap: "0.8em",
         }}
       >
-        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-          {/* Thumbnail — 240×160 clip box; inner div scaled 2× from top-left */}
-          <div
-            style={{
-              flexShrink: 0,
-              width: 240,
-              height: 160,
-              border: "1px solid var(--io-border)",
-              borderRadius: 6,
-              overflow: "hidden",
-              background: "var(--io-surface-secondary)",
-              lineHeight: 0,
-            }}
-          >
-            <div style={{ transformOrigin: "top left", transform: "scale(2)" }}>
-              {(THUMBNAILS[previewDef.id] ?? (() => null))()}
-            </div>
-          </div>
-
-          {/* Name + meta */}
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: "0.4em",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.15em",
-                  fontWeight: 600,
-                  color: "var(--io-text-primary)",
-                }}
-              >
-                {previewDef.name}
-              </span>
-              <span
-                style={{
-                  fontSize: "0.75em",
-                  padding: "2px 6px",
-                  borderRadius: 10,
-                  background: TIER_COLORS[previewDef.tier],
-                  color: "#fff",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {getTierLabel(previewDef.tier)}
-              </span>
-              <span
-                style={{ fontSize: "0.75em", color: "var(--io-text-muted)" }}
-              >
-                {previewDef.realTime === true
-                  ? "Live"
-                  : previewDef.realTime === "optional"
-                    ? "Live/Historical"
-                    : "Historical"}
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: "0.95em",
-                color: "var(--io-text-secondary)",
-                margin: 0,
-                lineHeight: 1.6,
-              }}
-            >
-              {previewDef.description}
-            </p>
-          </div>
-        </div>
-
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            flex: 1,
+            padding: "14px 16px",
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
             gap: "0.8em",
           }}
         >
-          {/* Benefits */}
-          <div>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+            {/* Thumbnail — 240×160 clip box; inner div scaled 2× from top-left */}
             <div
               style={{
-                fontSize: "0.8em",
-                fontWeight: 600,
-                color: "#10B981",
-                marginBottom: "0.3em",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
+                flexShrink: 0,
+                width: 240,
+                height: 160,
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                overflow: "hidden",
+                background: "var(--io-surface-secondary)",
+                lineHeight: 0,
               }}
             >
-              Benefits
-            </div>
-            <ul
-              style={{
-                margin: 0,
-                paddingLeft: "1.2em",
-                fontSize: "0.9em",
-                color: "var(--io-text-secondary)",
-                lineHeight: 1.7,
-              }}
-            >
-              {previewDef.benefits.map((b, i) => (
-                <li key={i}>{b}</li>
-              ))}
-            </ul>
-          </div>
-          {/* Downsides */}
-          <div>
-            <div
-              style={{
-                fontSize: "0.8em",
-                fontWeight: 600,
-                color: "#EF4444",
-                marginBottom: "0.3em",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Limitations
-            </div>
-            <ul
-              style={{
-                margin: 0,
-                paddingLeft: "1.2em",
-                fontSize: "0.9em",
-                color: "var(--io-text-secondary)",
-                lineHeight: 1.7,
-              }}
-            >
-              {previewDef.downsides.map((d, i) => (
-                <li key={i}>{d}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        {previewDef.usage && (
-          <div
-            style={{
-              padding: "0.7em 0.9em",
-              background: "var(--io-surface-secondary)",
-              borderRadius: 6,
-              border: "1px solid var(--io-border)",
-              borderLeft: "3px solid var(--io-accent)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "0.8em",
-                fontWeight: 600,
-                color: "var(--io-accent)",
-                marginBottom: "0.25em",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Usage
-            </div>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.9em",
-                color: "var(--io-text-secondary)",
-                lineHeight: 1.6,
-              }}
-            >
-              {previewDef.usage}
-            </p>
-          </div>
-        )}
-
-        {previewDef.scenarios && previewDef.scenarios.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div
-              style={{
-                fontSize: "0.8em",
-                fontWeight: 600,
-                color: "var(--io-accent)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Real-World Scenarios
-            </div>
-            {previewDef.scenarios.map((scenario, i) => (
               <div
-                key={i}
+                style={{ transformOrigin: "top left", transform: "scale(2)" }}
+              >
+                {(THUMBNAILS[previewDef.id] ?? (() => null))()}
+              </div>
+            </div>
+
+            {/* Name + meta */}
+            <div style={{ flex: 1 }}>
+              <div
                 style={{
-                  padding: "0.7em 0.9em",
-                  background: "var(--io-surface-secondary)",
-                  borderRadius: 6,
-                  border: "1px solid var(--io-border)",
                   display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: "0.4em",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    style={{
-                      fontSize: "0.72em",
-                      fontWeight: 600,
-                      color: "var(--io-accent)",
-                      background:
-                        "color-mix(in srgb, var(--io-accent) 12%, transparent)",
-                      border:
-                        "1px solid color-mix(in srgb, var(--io-accent) 30%, transparent)",
-                      borderRadius: 4,
-                      padding: "1px 7px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {scenario.role}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.88em",
-                      fontWeight: 600,
-                      color: "var(--io-text-primary)",
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {scenario.title}
-                  </span>
-                </div>
-                <p
+                <span
                   style={{
-                    margin: 0,
-                    fontSize: "0.88em",
-                    color: "var(--io-text-secondary)",
-                    lineHeight: 1.6,
+                    fontSize: "1.15em",
+                    fontWeight: 600,
+                    color: "var(--io-text-primary)",
                   }}
                 >
-                  {scenario.description}
-                </p>
+                  {previewDef.name}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.75em",
+                    padding: "2px 6px",
+                    borderRadius: 10,
+                    background: TIER_COLORS[previewDef.tier],
+                    color: "#fff",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {getTierLabel(previewDef.tier)}
+                </span>
+                <span
+                  style={{ fontSize: "0.75em", color: "var(--io-text-muted)" }}
+                >
+                  {previewDef.realTime === true
+                    ? "Live"
+                    : previewDef.realTime === "optional"
+                      ? "Live/Historical"
+                      : "Historical"}
+                </span>
               </div>
-            ))}
+              <p
+                style={{
+                  fontSize: "0.95em",
+                  color: "var(--io-text-secondary)",
+                  margin: 0,
+                  lineHeight: 1.6,
+                }}
+              >
+                {previewDef.description}
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.8em",
+            }}
+          >
+            {/* Benefits */}
+            <div>
+              <div
+                style={{
+                  fontSize: "0.8em",
+                  fontWeight: 600,
+                  color: "#10B981",
+                  marginBottom: "0.3em",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Benefits
+              </div>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: "1.2em",
+                  fontSize: "0.9em",
+                  color: "var(--io-text-secondary)",
+                  lineHeight: 1.7,
+                }}
+              >
+                {previewDef.benefits.map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
+            </div>
+            {/* Downsides */}
+            <div>
+              <div
+                style={{
+                  fontSize: "0.8em",
+                  fontWeight: 600,
+                  color: "#EF4444",
+                  marginBottom: "0.3em",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Limitations
+              </div>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: "1.2em",
+                  fontSize: "0.9em",
+                  color: "var(--io-text-secondary)",
+                  lineHeight: 1.7,
+                }}
+              >
+                {previewDef.downsides.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {previewDef.usage && (
+            <div
+              style={{
+                padding: "0.7em 0.9em",
+                background: "var(--io-surface-secondary)",
+                borderRadius: 6,
+                border: "1px solid var(--io-border)",
+                borderLeft: "3px solid var(--io-accent)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.8em",
+                  fontWeight: 600,
+                  color: "var(--io-accent)",
+                  marginBottom: "0.25em",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Usage
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.9em",
+                  color: "var(--io-text-secondary)",
+                  lineHeight: 1.6,
+                }}
+              >
+                {previewDef.usage}
+              </p>
+            </div>
+          )}
+
+          {previewDef.scenarios && previewDef.scenarios.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                style={{
+                  fontSize: "0.8em",
+                  fontWeight: 600,
+                  color: "var(--io-accent)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Real-World Scenarios
+              </div>
+              {previewDef.scenarios.map((scenario, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0.7em 0.9em",
+                    background: "var(--io-surface-secondary)",
+                    borderRadius: 6,
+                    border: "1px solid var(--io-border)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.72em",
+                        fontWeight: 600,
+                        color: "var(--io-accent)",
+                        background:
+                          "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+                        border:
+                          "1px solid color-mix(in srgb, var(--io-accent) 30%, transparent)",
+                        borderRadius: 4,
+                        padding: "1px 7px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {scenario.role}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.88em",
+                        fontWeight: 600,
+                        color: "var(--io-text-primary)",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {scenario.title}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.88em",
+                      color: "var(--io-text-secondary)",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {scenario.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {onCommit && (
+          <div
+            style={{
+              flexShrink: 0,
+              borderTop: "1px solid var(--io-border)",
+              padding: "7px 16px",
+              textAlign: "center",
+              fontSize: "0.78em",
+              color: "var(--io-text-muted)",
+              background: "var(--io-surface-secondary)",
+            }}
+          >
+            Double-click to select and continue &nbsp;·&nbsp; or use the{" "}
+            <strong style={{ fontWeight: 600 }}>Data Points →</strong> button
+            below
           </div>
         )}
       </div>

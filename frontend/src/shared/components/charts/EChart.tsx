@@ -40,7 +40,7 @@ export default function EChart({
 }: EChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
-  const prevOptionJson = useRef<string>("");
+  const prevOptionRef = useRef<echarts.EChartsOption | null>(null);
   const prevEventsRef = useRef<Record<string, (params: unknown) => void>>({});
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
@@ -89,7 +89,7 @@ export default function EChart({
     if (instanceRef.current) {
       instanceRef.current.dispose();
       instanceRef.current = null;
-      prevOptionJson.current = "";
+      prevOptionRef.current = null;
     }
 
     const chart = echarts.init(el, echartsThemeName);
@@ -101,24 +101,30 @@ export default function EChart({
     // the freshly registered theme is the only base — no stale merge state.
     const currentOption = optionRef.current;
     chart.setOption(currentOption, { notMerge: true });
-    prevOptionJson.current = JSON.stringify(currentOption);
+    prevOptionRef.current = currentOption;
+    const onFinished = () => {
+      el.setAttribute("data-chart-ready", "true");
+      chart.off("finished", onFinished);
+    };
+    chart.on("finished", onFinished);
 
     return () => {
       chart.dispose();
       instanceRef.current = null;
       if (chartRef) chartRef.current = null;
-      prevOptionJson.current = "";
+      prevOptionRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [echartsThemeName]);
 
-  // Update option when it changes (JSON-equality guard to avoid infinite loops)
+  // Update option when it changes. Use reference equality — JSON.stringify
+  // silently drops function values (formatter callbacks) and would miss those
+  // changes. Callers wrap options in useMemo so reference changes mean real diffs.
   useEffect(() => {
     const chart = instanceRef.current;
     if (!chart) return;
-    const json = JSON.stringify(option);
-    if (json === prevOptionJson.current) return;
-    prevOptionJson.current = json;
+    if (option === prevOptionRef.current) return;
+    prevOptionRef.current = option;
     chart.setOption(option, { notMerge: false });
   }, [option]);
 

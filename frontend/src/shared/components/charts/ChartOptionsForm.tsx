@@ -3,10 +3,13 @@
 // Renders only the options that make sense for the selected chart type.
 // ---------------------------------------------------------------------------
 
+import { useQuery } from "@tanstack/react-query";
 import type {
   ChartConfig,
   ChartTypeId,
   AggregateType,
+  ChartPointSlot,
+  SlotDefinition,
 } from "./chart-config-types";
 import {
   CHART_AGGREGATE_TYPES,
@@ -14,6 +17,8 @@ import {
   AGGREGATE_LABELS,
   getValidBuckets,
 } from "./chart-aggregate-config";
+import ChartPointSelector from "./ChartPointSelector";
+import { videoStreamsApi } from "../../../api/videoStreams";
 
 interface ChartOptionsFormProps {
   chartType: ChartTypeId;
@@ -464,11 +469,16 @@ function ExtrasFillGauge({
 function ExtrasScatter({
   extras,
   onExtras,
+  sizeBound,
 }: {
   extras: Record<string, unknown>;
   onExtras: (e: Record<string, unknown>) => void;
+  sizeBound?: boolean;
 }) {
   const densityMode = (extras.densityMode as string) ?? "auto";
+  const bubbleRange = (extras.bubbleSizeRange as
+    | [number, number]
+    | undefined) ?? [8, 60];
   return (
     <Section title="Scatter Options">
       <Row label="Show regression line">
@@ -481,18 +491,20 @@ function ExtrasScatter({
           style={checkStyle}
         />
       </Row>
-      <Row label="Symbol size">
-        <input
-          type="number"
-          min={2}
-          max={20}
-          value={(extras.symbolSize as number) ?? 6}
-          onChange={(e) =>
-            onExtras({ ...extras, symbolSize: Number(e.target.value) })
-          }
-          style={inputStyle}
-        />
-      </Row>
+      {!sizeBound && (
+        <Row label="Symbol size">
+          <input
+            type="number"
+            min={2}
+            max={20}
+            value={(extras.symbolSize as number) ?? 6}
+            onChange={(e) =>
+              onExtras({ ...extras, symbolSize: Number(e.target.value) })
+            }
+            style={inputStyle}
+          />
+        </Row>
+      )}
       <Row label="Color by time">
         <input
           type="checkbox"
@@ -540,6 +552,40 @@ function ExtrasScatter({
             style={inputStyle}
           />
         </Row>
+      )}
+      {sizeBound && (
+        <>
+          <Row label="Bubble min size (px)">
+            <input
+              type="number"
+              min={2}
+              max={200}
+              value={bubbleRange[0]}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  bubbleSizeRange: [Number(e.target.value), bubbleRange[1]],
+                })
+              }
+              style={inputStyle}
+            />
+          </Row>
+          <Row label="Bubble max size (px)">
+            <input
+              type="number"
+              min={4}
+              max={200}
+              value={bubbleRange[1]}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  bubbleSizeRange: [bubbleRange[0], Number(e.target.value)],
+                })
+              }
+              style={inputStyle}
+            />
+          </Row>
+        </>
       )}
     </Section>
   );
@@ -1740,6 +1786,19 @@ function ExtrasDataTable({
   extras: Record<string, unknown>;
   onExtras: (e: Record<string, unknown>) => void;
 }) {
+  const pivotMode = (extras.pivotMode as boolean | undefined) ?? false;
+  const pc = (extras.pivotConfig as
+    | {
+        rowField: string;
+        colField: string;
+        valueAggregator: AggregateType;
+      }
+    | undefined) ?? {
+    rowField: "tagname",
+    colField: "hour",
+    valueAggregator: "avg",
+  };
+
   const cols = (extras.columns as string[]) ?? [
     "value",
     "quality",
@@ -1753,54 +1812,147 @@ function ExtrasDataTable({
     onExtras({ ...extras, columns: next });
   };
   return (
-    <Section title="Data Table Options">
-      <Row label="Columns to show">
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {(["value", "quality", "timestamp", "description"] as const).map(
-            (col) => (
-              <label
-                key={col}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: "1em",
-                  cursor: "pointer",
-                }}
+    <>
+      <Section title="Data Table Options">
+        <Row label="Pivot mode">
+          <input
+            type="checkbox"
+            checked={pivotMode}
+            onChange={(e) =>
+              onExtras({
+                ...extras,
+                pivotMode: e.target.checked,
+                pivotConfig: pc,
+              })
+            }
+            style={checkStyle}
+          />
+        </Row>
+        {!pivotMode && (
+          <>
+            <Row label="Columns to show">
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {(
+                  ["value", "quality", "timestamp", "description"] as const
+                ).map((col) => (
+                  <label
+                    key={col}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: "1em",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={cols.includes(col)}
+                      onChange={() => toggleCol(col)}
+                      style={checkStyle}
+                    />
+                    {col.charAt(0).toUpperCase() + col.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </Row>
+            <Row label="Sort order">
+              <select
+                value={(extras.sortOrder as string) ?? "newest"}
+                onChange={(e) =>
+                  onExtras({ ...extras, sortOrder: e.target.value })
+                }
+                style={selectStyle}
               >
-                <input
-                  type="checkbox"
-                  checked={cols.includes(col)}
-                  onChange={() => toggleCol(col)}
-                  style={checkStyle}
-                />
-                {col.charAt(0).toUpperCase() + col.slice(1)}
-              </label>
-            ),
-          )}
-        </div>
-      </Row>
-      <Row label="Sort order">
-        <select
-          value={(extras.sortOrder as string) ?? "newest"}
-          onChange={(e) => onExtras({ ...extras, sortOrder: e.target.value })}
-          style={selectStyle}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </select>
-      </Row>
-      <Row label="Updates">
-        <select
-          value={(extras.refresh as string) ?? "live"}
-          onChange={(e) => onExtras({ ...extras, refresh: e.target.value })}
-          style={selectStyle}
-        >
-          <option value="live">Live updates</option>
-          <option value="manual">Manual refresh</option>
-        </select>
-      </Row>
-    </Section>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </Row>
+            <Row label="Updates">
+              <select
+                value={(extras.refresh as string) ?? "live"}
+                onChange={(e) =>
+                  onExtras({ ...extras, refresh: e.target.value })
+                }
+                style={selectStyle}
+              >
+                <option value="live">Live updates</option>
+                <option value="manual">Manual refresh</option>
+              </select>
+            </Row>
+          </>
+        )}
+      </Section>
+      {pivotMode && (
+        <Section title="Pivot Configuration">
+          <Row label="Row field">
+            <select
+              value={pc.rowField}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  pivotConfig: { ...pc, rowField: e.target.value },
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="tagname">Tag Name</option>
+              <option value="source">Source</option>
+              <option value="category">Category</option>
+            </select>
+          </Row>
+          <Row label="Column field">
+            <select
+              value={pc.colField}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  pivotConfig: { ...pc, colField: e.target.value },
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="hour">Hour of Day</option>
+              <option value="shift">Shift (Day/Night)</option>
+              <option value="day">Date</option>
+            </select>
+          </Row>
+          <Row label="Aggregator">
+            <select
+              value={pc.valueAggregator}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  pivotConfig: {
+                    ...pc,
+                    valueAggregator: e.target.value as AggregateType,
+                  },
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="avg">Average</option>
+              <option value="sum">Sum</option>
+              <option value="last">Last</option>
+              <option value="max">Max</option>
+              <option value="min">Min</option>
+              <option value="count">Count</option>
+            </select>
+          </Row>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              marginTop: 4,
+              lineHeight: 1.4,
+            }}
+          >
+            Cells show the latest value per tag per bucket. Full historical
+            aggregation requires the history API.
+          </div>
+        </Section>
+      )}
+    </>
   );
 }
 
@@ -2228,6 +2380,64 @@ function ExtrasSubgroupSPC({
   );
 }
 
+function ExtrasTrend({
+  extras,
+  onExtras,
+}: {
+  extras: Record<string, unknown>;
+  onExtras: (e: Record<string, unknown>) => void;
+}) {
+  const showBands = (extras.showBands as boolean) ?? false;
+  const deviationMode = (extras.deviationMode as boolean) ?? false;
+  return (
+    <Section title="Trend Options">
+      <Row label="Show band/envelope">
+        <input
+          type="checkbox"
+          checked={showBands}
+          onChange={(e) => onExtras({ ...extras, showBands: e.target.checked })}
+          style={checkStyle}
+        />
+      </Row>
+      {showBands && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+            marginBottom: "0.5em",
+            paddingLeft: 2,
+          }}
+        >
+          Bind High and Low limit points in the Data Points tab.
+        </div>
+      )}
+      <Row label="Deviation mode">
+        <input
+          type="checkbox"
+          checked={deviationMode}
+          onChange={(e) =>
+            onExtras({ ...extras, deviationMode: e.target.checked })
+          }
+          style={checkStyle}
+        />
+      </Row>
+      {deviationMode && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+            marginBottom: "0.5em",
+            paddingLeft: 2,
+          }}
+        >
+          Shows value − setpoint. Bind a Setpoint in the Data Points tab. Single
+          series only.
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function ExtrasAttributeControl({
   extras,
   onExtras,
@@ -2276,6 +2486,314 @@ function ExtrasAttributeControl({
           style={checkStyle}
         />
       </Row>
+    </Section>
+  );
+}
+
+export interface ColorRule {
+  min: number;
+  max: number;
+  color: string;
+  label?: string;
+}
+
+function ExtrasStatusMap({
+  extras,
+  onExtras,
+}: {
+  extras: Record<string, unknown>;
+  onExtras: (e: Record<string, unknown>) => void;
+}) {
+  const cols = (extras.cols as number | undefined) ?? 4;
+  const rules: ColorRule[] = Array.isArray(extras.colorRules)
+    ? (extras.colorRules as ColorRule[])
+    : [];
+
+  function setRules(next: ColorRule[]) {
+    onExtras({ ...extras, colorRules: next });
+  }
+
+  return (
+    <>
+      <Section title="Status Map Options">
+        <Row label="Columns">
+          <input
+            type="number"
+            min={1}
+            max={16}
+            value={cols}
+            onChange={(e) =>
+              onExtras({ ...extras, cols: Number(e.target.value) })
+            }
+            style={inputStyle}
+          />
+        </Row>
+      </Section>
+      <Section title="Color Rules">
+        {rules.length === 0 && (
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              padding: "4px 0",
+            }}
+          >
+            No rules — all cells show default color.
+          </div>
+        )}
+        {rules.map((r, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              gap: 4,
+              marginBottom: 4,
+              alignItems: "center",
+            }}
+          >
+            <input
+              type="number"
+              value={r.min}
+              onChange={(e) => {
+                const next = [...rules];
+                next[i] = { ...next[i], min: Number(e.target.value) };
+                setRules(next);
+              }}
+              style={{ ...inputStyle, width: 56 }}
+              placeholder="min"
+            />
+            <span style={{ color: "var(--io-text-muted)", fontSize: 11 }}>
+              –
+            </span>
+            <input
+              type="number"
+              value={r.max}
+              onChange={(e) => {
+                const next = [...rules];
+                next[i] = { ...next[i], max: Number(e.target.value) };
+                setRules(next);
+              }}
+              style={{ ...inputStyle, width: 56 }}
+              placeholder="max"
+            />
+            <input
+              type="color"
+              value={r.color}
+              onChange={(e) => {
+                const next = [...rules];
+                next[i] = { ...next[i], color: e.target.value };
+                setRules(next);
+              }}
+              style={{
+                width: 32,
+                height: 26,
+                border: "1px solid var(--io-input-border)",
+                borderRadius: 4,
+                cursor: "pointer",
+                background: "none",
+                padding: 1,
+              }}
+            />
+            <input
+              type="text"
+              value={r.label ?? ""}
+              onChange={(e) => {
+                const next = [...rules];
+                next[i] = { ...next[i], label: e.target.value };
+                setRules(next);
+              }}
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="Label"
+            />
+            <button
+              onClick={() => setRules(rules.filter((_, j) => j !== i))}
+              title="Remove rule"
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: 14,
+                lineHeight: 1,
+                padding: "0 4px",
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() =>
+            setRules([
+              ...rules,
+              { min: 0, max: 1, color: "#10B981", label: "" },
+            ])
+          }
+          style={{
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+            background: "none",
+            border: "1px dashed var(--io-border)",
+            borderRadius: 4,
+            cursor: "pointer",
+            padding: "3px 8px",
+            marginTop: 2,
+          }}
+        >
+          + Add rule
+        </button>
+      </Section>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chart 52 — Clock / Elapsed Timer options
+// ---------------------------------------------------------------------------
+
+const CLOCK_START_SLOT: SlotDefinition[] = [
+  { id: "start", label: "Start Time Point", multi: false, required: false },
+];
+
+function ExtrasClockTimer({
+  config,
+  extras,
+  onExtras,
+  onChange,
+}: {
+  config: ChartConfig;
+  extras: Record<string, unknown>;
+  onExtras: (e: Record<string, unknown>) => void;
+  onChange: (patch: Partial<ChartConfig>) => void;
+}) {
+  const mode = (extras.mode as string | undefined) ?? "clock";
+
+  return (
+    <Section title="Clock Options">
+      <Row label="Mode">
+        <select
+          value={mode}
+          onChange={(e) =>
+            onExtras({
+              ...extras,
+              mode: e.target.value as "clock" | "elapsed",
+            })
+          }
+          style={selectStyle}
+        >
+          <option value="clock">Clock (current time)</option>
+          <option value="elapsed">Elapsed (time since event)</option>
+        </select>
+      </Row>
+      <Row label="Format">
+        <input
+          type="text"
+          value={(extras.format as string | undefined) ?? "HH:mm:ss"}
+          onChange={(e) => onExtras({ ...extras, format: e.target.value })}
+          placeholder="HH:mm:ss"
+          style={inputStyle}
+        />
+      </Row>
+      {mode === "clock" && (
+        <Row label="Timezone (IANA)">
+          <input
+            type="text"
+            value={(extras.timezone as string | undefined) ?? ""}
+            onChange={(e) =>
+              onExtras({
+                ...extras,
+                timezone: e.target.value || undefined,
+              })
+            }
+            placeholder="America/New_York (blank = local)"
+            style={inputStyle}
+          />
+        </Row>
+      )}
+      {mode === "elapsed" && (
+        <>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              marginBottom: 6,
+              lineHeight: 1.4,
+            }}
+          >
+            Bind a point whose value is an epoch-ms start timestamp (e.g. a
+            shift start time point).
+          </div>
+          <ChartPointSelector
+            slotDefs={CLOCK_START_SLOT}
+            points={config.points.filter((p) => p.role === "start")}
+            onChange={(pts: ChartPointSlot[]) =>
+              onChange({ points: pts.map((p) => ({ ...p, role: "start" })) })
+            }
+          />
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chart 55 — Camera Stream options
+// ---------------------------------------------------------------------------
+
+function ExtrasCameraStream({
+  extras,
+  onExtras,
+}: {
+  extras: Record<string, unknown>;
+  onExtras: (e: Record<string, unknown>) => void;
+}) {
+  const { data: streams = [] } = useQuery({
+    queryKey: ["video-streams"],
+    queryFn: async () => {
+      const res = await videoStreamsApi.list();
+      return res.success ? res.data : [];
+    },
+  });
+
+  return (
+    <Section title="Camera Stream Options">
+      <Row label="Stream">
+        <select
+          value={(extras.streamId as string | undefined) ?? ""}
+          onChange={(e) => onExtras({ ...extras, streamId: e.target.value })}
+          style={selectStyle}
+        >
+          <option value="">— Select a stream —</option>
+          {streams.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Row label="Aspect Ratio">
+        <select
+          value={(extras.aspectRatio as string | undefined) ?? "16/9"}
+          onChange={(e) => onExtras({ ...extras, aspectRatio: e.target.value })}
+          style={selectStyle}
+        >
+          <option value="16/9">16:9</option>
+          <option value="4/3">4:3</option>
+          <option value="1/1">1:1</option>
+          <option value="21/9">21:9 (ultrawide)</option>
+        </select>
+      </Row>
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--io-text-muted)",
+          marginTop: 4,
+          lineHeight: 1.4,
+        }}
+      >
+        Streams are managed in{" "}
+        <a href="/settings/camera-streams">Settings → Camera Streams</a>.
+      </div>
     </Section>
   );
 }
@@ -2544,7 +3062,11 @@ export default function ChartOptionsForm({
         <ExtrasFillGauge extras={extras} onExtras={onExtras} />
       )}
       {chartType === 13 && (
-        <ExtrasScatter extras={extras} onExtras={onExtras} />
+        <ExtrasScatter
+          extras={extras}
+          onExtras={onExtras}
+          sizeBound={config.points.some((p) => p.role === "size")}
+        />
       )}
       {chartType === 17 && (
         <ExtrasHeatmap extras={extras} onExtras={onExtras} />
@@ -2603,6 +3125,278 @@ export default function ChartOptionsForm({
       )}
       {chartType === 39 && (
         <ExtrasAttributeControl extras={extras} onExtras={onExtras} />
+      )}
+      {(chartType === 1 || chartType === 2 || chartType === 3) && (
+        <ExtrasTrend extras={extras} onExtras={onExtras} />
+      )}
+      {chartType === 40 && (
+        <Section title="Accumulated Run Options">
+          <Row label="Reset Period">
+            <select
+              value={(extras.resetPeriod as string | undefined) ?? "shift"}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  resetPeriod: e.target.value as "shift" | "day" | "week",
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="shift">Shift (06:00 / 18:00)</option>
+              <option value="day">Day (00:00)</option>
+              <option value="week">Week (Mon 00:00)</option>
+            </select>
+          </Row>
+        </Section>
+      )}
+      {chartType === 41 && (
+        <ExtrasStatusMap extras={extras} onExtras={onExtras} />
+      )}
+      {chartType === 50 && (
+        <Section title="Text Options">
+          <Row label="Format">
+            <select
+              value={(extras.format as string | undefined) ?? "plain"}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  format: e.target.value as "plain" | "markdown",
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="plain">Plain Text</option>
+              <option value="markdown">Markdown</option>
+            </select>
+          </Row>
+          <Row label="Text">
+            <textarea
+              value={(extras.text as string | undefined) ?? ""}
+              rows={6}
+              placeholder={
+                (extras.format as string | undefined) === "markdown"
+                  ? "## Markdown supported"
+                  : "Enter text…"
+              }
+              onChange={(e) => onExtras({ ...extras, text: e.target.value })}
+              style={{
+                ...inputStyle,
+                height: "auto",
+                padding: "4px 8px",
+                resize: "vertical",
+                fontFamily: "inherit",
+              }}
+            />
+          </Row>
+          <Row label="Alignment">
+            <select
+              value={(extras.align as string | undefined) ?? "left"}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  align: e.target.value as "left" | "center" | "right",
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </Row>
+          <Row label="Font size (px)">
+            <input
+              type="number"
+              min={8}
+              max={72}
+              value={(extras.fontSize as number | undefined) ?? 13}
+              onChange={(e) =>
+                onExtras({ ...extras, fontSize: Number(e.target.value) })
+              }
+              style={inputStyle}
+            />
+          </Row>
+        </Section>
+      )}
+      {chartType === 51 && (
+        <Section title="Header Options">
+          <Row label="Text">
+            <input
+              type="text"
+              value={(extras.text as string | undefined) ?? "Section"}
+              onChange={(e) => onExtras({ ...extras, text: e.target.value })}
+              style={inputStyle}
+            />
+          </Row>
+          <Row label="Level">
+            <select
+              value={String((extras.level as number | undefined) ?? 2)}
+              onChange={(e) =>
+                onExtras({ ...extras, level: Number(e.target.value) })
+              }
+              style={selectStyle}
+            >
+              <option value="1">Heading 1 (largest)</option>
+              <option value="2">Heading 2</option>
+              <option value="3">Heading 3</option>
+            </select>
+          </Row>
+          <Row label="Color">
+            <input
+              type="color"
+              value={
+                (extras.color as string | undefined)?.startsWith("var(")
+                  ? "#ffffff"
+                  : ((extras.color as string | undefined) ?? "#ffffff")
+              }
+              onChange={(e) => onExtras({ ...extras, color: e.target.value })}
+              style={{ height: 26, cursor: "pointer" }}
+            />
+          </Row>
+          <Row label="Alignment">
+            <select
+              value={(extras.align as string | undefined) ?? "left"}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  align: e.target.value as "left" | "center" | "right",
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </Row>
+        </Section>
+      )}
+      {chartType === 52 && (
+        <ExtrasClockTimer
+          config={config}
+          extras={extras}
+          onExtras={onExtras}
+          onChange={onChange}
+        />
+      )}
+      {chartType === 53 && (
+        <Section title="Logs Viewer Options">
+          <Row label="Source">
+            <select
+              value={(extras.source as string | undefined) ?? "alarms"}
+              onChange={(e) =>
+                onExtras({
+                  ...extras,
+                  source: e.target.value as "alarms" | "events",
+                })
+              }
+              style={selectStyle}
+            >
+              <option value="alarms">Alarms</option>
+              <option value="events">Events</option>
+            </select>
+          </Row>
+          <Row label="Max Rows">
+            <input
+              type="number"
+              min={5}
+              max={500}
+              value={(extras.maxRows as number | undefined) ?? 25}
+              onChange={(e) =>
+                onExtras({ ...extras, maxRows: Number(e.target.value) })
+              }
+              style={inputStyle}
+            />
+          </Row>
+          {((extras.source as string | undefined) ?? "alarms") === "alarms" && (
+            <>
+              <Row label="Filter Priorities">
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  {([1, 2, 3, 4, 5] as const).map((p) => {
+                    const active =
+                      (extras.filterPriority as number[] | undefined) ?? [];
+                    return (
+                      <label
+                        key={p}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={active.includes(p)}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...active, p]
+                              : active.filter((v) => v !== p);
+                            onExtras({
+                              ...extras,
+                              filterPriority: next.length ? next : undefined,
+                            });
+                          }}
+                        />
+                        Priority {p}
+                      </label>
+                    );
+                  })}
+                </div>
+              </Row>
+            </>
+          )}
+          <Row label="Auto-Scroll">
+            <input
+              type="checkbox"
+              checked={(extras.autoScroll as boolean | undefined) ?? true}
+              onChange={(e) =>
+                onExtras({ ...extras, autoScroll: e.target.checked })
+              }
+            />
+          </Row>
+        </Section>
+      )}
+      {chartType === 54 && (
+        <Section title="IFrame Options">
+          <Row label="URL">
+            <input
+              type="text"
+              value={(extras.url as string | undefined) ?? ""}
+              onChange={(e) => onExtras({ ...extras, url: e.target.value })}
+              placeholder="https://example.com/embed"
+              style={inputStyle}
+            />
+          </Row>
+          <Row label="Sandbox">
+            <input
+              type="text"
+              value={
+                (extras.sandbox as string | undefined) ??
+                "allow-scripts allow-same-origin"
+              }
+              onChange={(e) => onExtras({ ...extras, sandbox: e.target.value })}
+              style={inputStyle}
+            />
+          </Row>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              marginTop: 4,
+              lineHeight: 1.4,
+            }}
+          >
+            Production CSP must allow the embedded domain in{" "}
+            <code>frame-src</code>.
+          </div>
+        </Section>
+      )}
+      {chartType === 55 && (
+        <ExtrasCameraStream extras={extras} onExtras={onExtras} />
       )}
     </div>
   );

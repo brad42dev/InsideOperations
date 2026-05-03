@@ -140,6 +140,7 @@ export default function Chart16BatchComparison({ config }: RendererProps) {
   if (batches.length === 0) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           display: "flex",
           flex: 1,
@@ -163,6 +164,7 @@ export default function Chart16BatchComparison({ config }: RendererProps) {
   if (!pointId) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           display: "flex",
           flex: 1,

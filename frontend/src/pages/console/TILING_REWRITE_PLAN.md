@@ -9,10 +9,12 @@
 ## 1. Problem Statement
 
 The current console pane tiling system uses a two-phase approach:
+
 1. `resolveCollisions()` — called on every drag/resize frame (directional push + shrink)
 2. `finalizeLayout()` — called at gesture stop (scan-line placement as safety net)
 
 This fails after 3-4 resizes because:
+
 - `resolveCollisions` is a greedy directional push that commits positions without knowing downstream constraints
 - The intermediate mess it creates leaves `finalizeLayout` with corrupted candidate coordinates
 - The 10-pass cascade loop in Phase 2 of `resolveCollisions` can oscillate without converging
@@ -48,6 +50,7 @@ Gesture STOP   →  Run scanLineCompact(movedPane, snapshot, pinnedIds) once
 ### 3.1 `/home/io/io-dev/io/frontend/src/pages/console/layout-utils.ts`
 
 **Delete the following functions entirely:**
+
 - `resolveCollisions()` — the greedy directional push resolver
 - `_batchPush()` — batch push helper for resolveCollisions
 - `_columnBatchPush()` — column-aware batch push helper
@@ -57,9 +60,11 @@ Gesture STOP   →  Run scanLineCompact(movedPane, snapshot, pinnedIds) once
 - `_computeMaxMovedSize()` — binary search size cap
 
 **Delete the following export:**
+
 - `export type ResizeAxisHint = "x" | "y"` — no longer needed
 
 **Keep the following functions unchanged:**
+
 - `GRID_SCALE`, `GRID_COLS`, `GRID_ROWS`, `MIN_W`, `MIN_H` — constants
 - `defaultSlots()` — preset slot definitions
 - `presetToGridItems()` — maps presets to grid items
@@ -73,6 +78,7 @@ Gesture STOP   →  Run scanLineCompact(movedPane, snapshot, pinnedIds) once
 **Replace `finalizeLayout()` with `scanLineCompact()`:**
 
 The existing `finalizeLayout` scan-line logic is the right idea but lacks the pre-gesture snapshot parameter. The change is:
+
 1. Rename to `scanLineCompact`
 2. Add `movedId: string | null` — the moved pane is treated as a fixed obstacle
 3. Add `preGestureLayout: GridItem[] | null` — seeds each movable pane's starting (x, y) for nearest-slot search
@@ -97,6 +103,7 @@ The existing `finalizeLayout` scan-line logic is the right idea but lacks the pr
 ### 3.3 `/home/io/io-dev/io/frontend/src/test/consoleGrid.test.ts`
 
 **Changes:**
+
 - Existing tests for `presetToGridItems` and `GRID_SCALE` are unchanged
 - Add new test suite for `scanLineCompact` (see section 5.2)
 
@@ -151,7 +158,7 @@ export function scanLineCompact(
   preGestureLayout: GridItem[] | null,
   cols: number = GRID_COLS,
   rows: number = GRID_ROWS,
-): GridItem[]
+): GridItem[];
 ```
 
 ### 4.2 Updated `handleDragStart` / `handleResizeStart`
@@ -164,22 +171,19 @@ const handleDragStart = useCallback(() => {
   preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
 }, []);
 
-const handleResizeStart = useCallback(
-  (_layout, _oldItem, newItem) => {
-    isResizingRef.current = true;
-    preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
-    if (newItem) {
-      resizeStartRef.current = {
-        i: newItem.i,
-        x: newItem.x,
-        y: newItem.y,
-        w: newItem.w,
-        h: newItem.h,
-      };
-    }
-  },
-  [],
-);
+const handleResizeStart = useCallback((_layout, _oldItem, newItem) => {
+  isResizingRef.current = true;
+  preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
+  if (newItem) {
+    resizeStartRef.current = {
+      i: newItem.i,
+      x: newItem.x,
+      y: newItem.y,
+      w: newItem.w,
+      h: newItem.h,
+    };
+  }
+}, []);
 ```
 
 ### 4.3 Updated `handleDragStop` / `handleResizeStop`
@@ -200,7 +204,13 @@ const handleDragStop = useCallback(
     const withNewPos = gridItemsRef.current.map(
       (item): GridItem =>
         item.i === newItem.i
-          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+          ? {
+              i: item.i,
+              x: newItem.x,
+              y: newItem.y,
+              w: newItem.w,
+              h: newItem.h,
+            }
           : item,
     );
 
@@ -230,10 +240,17 @@ const handleDrag = useCallback(
   (_layout, _old, newItem) => {
     if (!newItem) return;
     gestureIdRef.current = newItem.i;
-    const withNewPos = gridItemsRef.current.map((item): GridItem =>
-      item.i === newItem.i
-        ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
-        : item,
+    const withNewPos = gridItemsRef.current.map(
+      (item): GridItem =>
+        item.i === newItem.i
+          ? {
+              i: item.i,
+              x: newItem.x,
+              y: newItem.y,
+              w: newItem.w,
+              h: newItem.h,
+            }
+          : item,
     );
     setPreviewLayout(
       scanLineCompact(
@@ -321,68 +338,77 @@ describe("scanLineCompact", () => {
 ## 6. Implementation Sequence
 
 ### Step 1: Write `scanLineCompact` in `layout-utils.ts`
+
 Add alongside existing code. Do NOT delete old functions yet.  
 **Verify:** New unit tests all pass.
 
 ### Step 2: Wire into `WorkspaceGrid.tsx`
+
 Add `preGestureLayoutRef`, update start/stop/preview handlers, remove `axisHint`, remove cap ghost.  
 **Verify:** Manual browser test — 2x2 drag, 4x4 resize, no overlaps.
 
 ### Step 3: Delete old functions from `layout-utils.ts`
+
 Remove `resolveCollisions`, `_batchPush`, `_columnBatchPush`, `_yieldAway`, `_pushBestEffort`, `_capacityAround`, `_computeMaxMovedSize`, `finalizeLayout`, `ResizeAxisHint`.  
 **Verify:** `tsc --noEmit` clean. All unit tests pass. Zero grep matches for deleted names.
 
 ### Step 4: Playwright UAT
+
 Run Sonnet+Playwright on the 8 verification scenarios from section 8.
 
 ---
 
 ## 7. Edge Cases
 
-| # | Edge Case | Expected Behavior |
-|---|-----------|-------------------|
-| 1 | Moved pane overlaps a pinned pane | Before adding moved to settled, shrink/shift moved to not overlap pinned panes. Pinned always wins. |
-| 2 | Pane resized to 288×288 (full grid) | Other panes shrink to MIN_W×MIN_H. If no gap, emergency fallback places them at (0,0) — degenerate state, prevented in practice by RGL min constraints. |
-| 3 | 16 panes at maximum density (4×4 at 72×72) | Any resize forces displaced panes to MIN size slots. scanLineCompact handles this cleanly. |
-| 4 | Rapid consecutive gestures | `preGestureLayoutRef` is snapshotted from `gridItemsRef.current` at gesture START. Each gesture starts from the previous gesture's resolved state. No race condition. |
-| 5 | Corner resize (both axes change) | No axis hint needed. Moved pane is placed at final (x, y, w, h). All others resolved relative to it. |
-| 6 | Shift+corner aspect ratio lock | AR calculation happens in `handleResizeStop` BEFORE calling `scanLineCompact`. Computed `finalW`/`finalH` are the moved pane's dimensions passed to compact. |
-| 7 | Panel completely surrounded by moved pane | Surrounded pane is displaced to nearest conflict-free slot. `_findNearestSlot` checks edges of settled items for candidate positions. |
-| 8 | All space consumed by pinned panes | Non-pinned panes use emergency fallback at (0,0). Degenerate state — UI should prevent pinning all available space. |
-| 9 | Moved pane dragged partially off-screen | `_clamp` applied to moved pane before placement. Shifted/shrunk to fit within grid bounds. |
-| 10 | Template switch (preset change) | Handled by `reflowPanesToPreset` independently. Preset slots are non-overlapping by construction. |
-| 11 | Workspace locked | All handlers early-return when `locked=true`. No change needed. |
-| 12 | `preGestureLayout` is null (first render) | Fall back to using current positions as "pre-gesture" positions. This is safe — `_findNearestSlot` still finds valid slots. |
+| #   | Edge Case                                  | Expected Behavior                                                                                                                                                     |
+| --- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Moved pane overlaps a pinned pane          | Before adding moved to settled, shrink/shift moved to not overlap pinned panes. Pinned always wins.                                                                   |
+| 2   | Pane resized to 288×288 (full grid)        | Other panes shrink to MIN_W×MIN_H. If no gap, emergency fallback places them at (0,0) — degenerate state, prevented in practice by RGL min constraints.               |
+| 3   | 16 panes at maximum density (4×4 at 72×72) | Any resize forces displaced panes to MIN size slots. scanLineCompact handles this cleanly.                                                                            |
+| 4   | Rapid consecutive gestures                 | `preGestureLayoutRef` is snapshotted from `gridItemsRef.current` at gesture START. Each gesture starts from the previous gesture's resolved state. No race condition. |
+| 5   | Corner resize (both axes change)           | No axis hint needed. Moved pane is placed at final (x, y, w, h). All others resolved relative to it.                                                                  |
+| 6   | Shift+corner aspect ratio lock             | AR calculation happens in `handleResizeStop` BEFORE calling `scanLineCompact`. Computed `finalW`/`finalH` are the moved pane's dimensions passed to compact.          |
+| 7   | Panel completely surrounded by moved pane  | Surrounded pane is displaced to nearest conflict-free slot. `_findNearestSlot` checks edges of settled items for candidate positions.                                 |
+| 8   | All space consumed by pinned panes         | Non-pinned panes use emergency fallback at (0,0). Degenerate state — UI should prevent pinning all available space.                                                   |
+| 9   | Moved pane dragged partially off-screen    | `_clamp` applied to moved pane before placement. Shifted/shrunk to fit within grid bounds.                                                                            |
+| 10  | Template switch (preset change)            | Handled by `reflowPanesToPreset` independently. Preset slots are non-overlapping by construction.                                                                     |
+| 11  | Workspace locked                           | All handlers early-return when `locked=true`. No change needed.                                                                                                       |
+| 12  | `preGestureLayout` is null (first render)  | Fall back to using current positions as "pre-gesture" positions. This is safe — `_findNearestSlot` still finds valid slots.                                           |
 
 ---
 
 ## 8. Verification Scenarios (Playwright UAT)
 
 ### Scenario 1: Basic 2×2 Drag
+
 1. Create workspace with 2×2 layout (4 panes)
 2. Drag pane 0 (top-left) to the right, overlapping pane 1 (top-right)
 3. Release mouse
 4. **Assert:** Zero overlaps. All 4 panes visible. All within grid bounds.
 
 ### Scenario 2: 4×4 East Resize
+
 1. Create workspace with 4×4 layout (16 panes)
 2. Resize pane 0 by dragging east handle to right edge of grid
 3. Release
 4. **Assert:** Zero overlaps. All 16 panes visible. Pane 0 right edge near x=288.
 
 ### Scenario 3: 4×4 South Resize
+
 1. Create workspace with 4×4 layout
 2. Resize pane 0 by dragging south handle to bottom of grid
 3. Release
 4. **Assert:** Zero overlaps. All 16 panes visible. Pane 0 bottom edge near y=288.
 
 ### Scenario 4: 4×4 SE Corner Resize (75% coverage)
+
 1. Create workspace with 4×4 layout
 2. Resize pane 0 SE corner to 216×216
 3. Release
 4. **Assert:** Zero overlaps. Remaining 15 panes packed into L-shaped area. All within bounds.
 
 ### Scenario 5: Pinned Pane Protection
+
 1. Create workspace with 2×2 layout
 2. Pin pane 1 (top-right)
 3. Drag pane 0 to overlap pane 1's position
@@ -390,6 +416,7 @@ Run Sonnet+Playwright on the 8 verification scenarios from section 8.
 5. **Assert:** Pane 1 has NOT moved. Zero overlaps. Pane 0 displaced around pane 1.
 
 ### Scenario 6: Sequential Resize Stability (CRITICAL)
+
 1. Create workspace with 3×3 layout (9 panes)
 2. Resize pane 0 east → release → **assert zero overlaps**
 3. Resize pane 0 south → release → **assert zero overlaps**
@@ -399,12 +426,14 @@ Run Sonnet+Playwright on the 8 verification scenarios from section 8.
 7. **Assert:** Zero overlaps after EVERY gesture. This is the critical regression test.
 
 ### Scenario 7: Drag to Bottom-Right Corner
+
 1. Create workspace with 2×2 layout
 2. Drag pane 0 to bottom-right area (overlapping pane 3)
 3. Release
 4. **Assert:** Zero overlaps. No pane off-screen.
 
 ### Scenario 8: 16-Pane Stress Test
+
 1. Create workspace with 4×4 layout (16 panes, each 72×72)
 2. Resize pane 0 east to x=216 (triple width)
 3. Release
@@ -413,6 +442,7 @@ Run Sonnet+Playwright on the 8 verification scenarios from section 8.
 ### Pass/Fail Criteria
 
 For each scenario, verify:
+
 1. **Zero overlaps:** For every pair (i, j): `AABB_overlap(i, j) === false`
 2. **All in bounds:** Every pane has `x >= 0, y >= 0, x+w <= gridW, y+h <= gridH`
 3. **Min size:** Every pane has `w >= MIN_W_px, h >= MIN_H_px` (pixel equivalents)
@@ -439,7 +469,7 @@ Paste this prompt verbatim in a fresh context to start the implementation:
 
 ---
 
-```
+````
 Read these two files completely before starting any work:
 
   Plan:     /home/io/io-dev/io/frontend/src/pages/console/TILING_REWRITE_PLAN.md
@@ -476,7 +506,7 @@ export function scanLineCompact(
   cols: number = GRID_COLS,
   rows: number = GRID_ROWS,
 ): GridItem[]
-```
+````
 
 Algorithm (must follow this exactly):
 
@@ -500,22 +530,23 @@ Algorithm (must follow this exactly):
 
 7. For each pane in `movable`:
    a. Set `pane.x = preMap[pane.id].x`, `pane.y = preMap[pane.id].y`.
-      Keep `pane.w` and `pane.h` from the current layout (clamped to MIN and grid bounds).
+   Keep `pane.w` and `pane.h` from the current layout (clamped to MIN and grid bounds).
    b. If `_overlapsAnySettled(pane.x, pane.y, pane.w, pane.h, settled)` is false:
-      add to settled, continue.
+   add to settled, continue.
    c. Call `_findNearestSlot(pane.x, pane.y, pane.w, pane.h, settled, cols, rows)`.
-      If a slot is found: set pane.(x,y) to the slot, add to settled, continue.
+   If a slot is found: set pane.(x,y) to the slot, add to settled, continue.
    d. Shrink `pane.w = MIN_W`, `pane.h = MIN_H`. Retry `_findNearestSlot`.
-      If found: set pane.(x,y), add to settled, continue.
+   If found: set pane.(x,y), add to settled, continue.
    e. Emergency fallback: scan `ty` from 0 to `rows - MIN_H` in steps of `MIN_H`,
-      inner loop `tx` from 0 to `cols - MIN_W` in steps of `MIN_W`. Place pane at
-      first `(tx, ty)` where `_overlapsAnySettled` is false. If nothing found (should
-      not happen), place at `(0, 0)`. Add to settled.
+   inner loop `tx` from 0 to `cols - MIN_W` in steps of `MIN_W`. Place pane at
+   first `(tx, ty)` where `_overlapsAnySettled` is false. If nothing found (should
+   not happen), place at `(0, 0)`. Add to settled.
 
 8. Return items in their ORIGINAL input order (not the settled order).
    The `items` array was cloned and mutated in place — return it.
 
 Reuse these existing private helpers (already correct in the file):
+
 - `_overlapsAnySettled(x, y, w, h, settled)` — already implemented
 - `_findNearestSlot(origX, origY, w, h, settled, cols, rows)` — already implemented
 - `_clamp(item, cols, rows)` — already implemented
@@ -538,16 +569,25 @@ Replace all gesture handling to use `scanLineCompact`. Exact changes:
 4. `handleResizeStart`: add the same snapshot line.
 
 5. `handleDragStop`: replace the `finalizeLayout(resolveCollisions(...))` block with:
+
    ```typescript
    const preGesture = preGestureLayoutRef.current;
    preGestureLayoutRef.current = null;
-   const withNewPos = gridItemsRef.current.map((item): GridItem =>
-     item.i === newItem.i
-       ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
-       : item,
+   const withNewPos = gridItemsRef.current.map(
+     (item): GridItem =>
+       item.i === newItem.i
+         ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+         : item,
    );
    onGridLayoutChange(
-     scanLineCompact(withNewPos, newItem.i, pinnedIds, preGesture, GRID_COLS, GRID_ROWS),
+     scanLineCompact(
+       withNewPos,
+       newItem.i,
+       pinnedIds,
+       preGesture,
+       GRID_COLS,
+       GRID_ROWS,
+     ),
    );
    ```
 
@@ -568,6 +608,7 @@ Replace all gesture handling to use `scanLineCompact`. Exact changes:
 ## Step 3 — Delete old code from layout-utils.ts
 
 After WorkspaceGrid.tsx is wired and working, delete:
+
 - `resolveCollisions` function and its JSDoc/type export (`ResizeAxisHint`)
 - `_batchPush`
 - `_columnBatchPush`
@@ -578,12 +619,14 @@ After WorkspaceGrid.tsx is wired and working, delete:
 - `finalizeLayout`
 
 Verify with grep:
+
 ```
 grep -r "resolveCollisions\|finalizeLayout\|ResizeAxisHint\|_batchPush\|_columnBatchPush\|_yieldAway\|_pushBestEffort\|_capacityAround\|_computeMaxMovedSize" \
   /home/io/io-dev/io/frontend/src/pages/console/ \
   --include="*.ts" --include="*.tsx" \
   | grep -v "OVERLAP_RESEARCH\|TILING_REWRITE"
 ```
+
 Must return zero results.
 
 ---
@@ -595,6 +638,7 @@ Add to `/home/io/io-dev/io/frontend/src/test/consoleGrid.test.ts`:
 Import `scanLineCompact`, `MIN_W`, `MIN_H` from layout-utils.
 
 Write a `describe("scanLineCompact", ...)` block with these tests:
+
 - Returns unchanged layout when no overlaps exist
 - 2×2 drag: dragging top-left over top-right → zero overlaps in result
 - 4×4 resize east to grid edge → zero overlaps, all 16 panes present
@@ -662,12 +706,13 @@ Assert: pane 1 bounding rect unchanged, zero overlaps.
 
 **Scenario 6 — Sequential stability (CRITICAL):**
 Layout: 3×3. Perform in order, asserting zero overlaps after EACH release:
-  - Resize pane 0 east (wider)
-  - Resize pane 0 south (taller)
-  - Resize pane 0 east again
-  - Shrink pane 0 east back
-  - Shrink pane 0 south back
-Assert: zero overlaps after every single gesture.
+
+- Resize pane 0 east (wider)
+- Resize pane 0 south (taller)
+- Resize pane 0 east again
+- Shrink pane 0 east back
+- Shrink pane 0 south back
+  Assert: zero overlaps after every single gesture.
 
 **Scenario 7 — Drag to bottom-right:**
 Layout: 2×2. Drag pane 0 to bottom-right area. Release.
@@ -678,11 +723,12 @@ Layout: 4×4. Resize pane 0 east to ~3× original width. Release.
 Assert: zero overlaps, all 16 panes visible.
 
 **How to measure overlaps in Playwright:**
+
 ```javascript
 const overlaps = await page.evaluate(() => {
-  const grid = document.querySelector('.react-grid-layout');
+  const grid = document.querySelector(".react-grid-layout");
   const gridRect = grid.getBoundingClientRect();
-  const panes = [...grid.querySelectorAll('.react-grid-item')].map(el => {
+  const panes = [...grid.querySelectorAll(".react-grid-item")].map((el) => {
     const r = el.getBoundingClientRect();
     return {
       x: r.left - gridRect.left,
@@ -694,9 +740,10 @@ const overlaps = await page.evaluate(() => {
   const pairs = [];
   for (let i = 0; i < panes.length; i++) {
     for (let j = i + 1; j < panes.length; j++) {
-      const a = panes[i], b = panes[j];
-      const dw = Math.min(a.x+a.w, b.x+b.w) - Math.max(a.x, b.x);
-      const dh = Math.min(a.y+a.h, b.y+b.h) - Math.max(a.y, b.y);
+      const a = panes[i],
+        b = panes[j];
+      const dw = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const dh = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
       if (dw > 1 && dh > 1) pairs.push([i, j, dw, dh]); // >1px tolerance for borders
     }
   }
@@ -706,8 +753,12 @@ expect(overlaps).toHaveLength(0);
 ```
 
 Pass criteria for EVERY scenario:
+
 - `overlaps.length === 0`
 - Every pane has `x >= 0, y >= 0, x+w <= gridRect.width, y+h <= gridRect.height`
 - Every pane has `w >= 1, h >= 1` (non-zero size)
 - Pane count is unchanged
+
+```
+
 ```

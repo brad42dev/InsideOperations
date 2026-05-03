@@ -144,6 +144,7 @@ export interface ShapeSidecar {
       | "PointNameLabel"
       | "AlarmIndicator"
       | "TextReadout"
+      | "TextReadoutArray"
       | "AnalogBar"
       | "FillGauge"
       | "Sparkline"

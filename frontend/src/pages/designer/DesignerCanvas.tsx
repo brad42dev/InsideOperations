@@ -544,8 +544,11 @@ export function getNodeBounds(node: SceneNode): {
         const singleLine = aCfg.singleLine ?? false;
         const pnEnabled = aCfg.pointNameRow?.enabled ?? false;
         const dnEnabled = aCfg.displayNameRow?.enabled ?? false;
-        const itemRows = singleLine ? 1 : 1 + (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0);
-        const ROW_H = 16, ROW_GAP = 2;
+        const itemRows = singleLine
+          ? 1
+          : 1 + (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0);
+        const ROW_H = 16,
+          ROW_GAP = 2;
         const itemH = itemRows * ROW_H + (itemRows - 1) * ROW_GAP;
         const itemW = aCfg.minWidth ?? 40;
         if (layout === "vertical") {
@@ -2870,7 +2873,7 @@ export default function DesignerCanvas({
         ]),
       ),
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapeConfigNodeId]);
 
   // Save-as-stencil dialog — holds the selected nodes to save
@@ -5247,20 +5250,39 @@ export default function DesignerCanvas({
                   break;
                 case "text_readout_array": {
                   const aCfg = cfg as TextReadoutArrayConfig;
-                  const n = Math.max(1, 1 + (aCfg.additionalBindings?.length ?? 0));
+                  const n = Math.max(
+                    1,
+                    1 + (aCfg.additionalBindings?.length ?? 0),
+                  );
                   const layout = aCfg.arrayLayout ?? "vertical";
                   const singleLine = aCfg.singleLine ?? false;
-                  const pnRows = !singleLine && (aCfg.pointNameRow?.enabled ?? false) ? 1 : 0;
-                  const dnRows = !singleLine && (aCfg.displayNameRow?.enabled ?? false) ? 1 : 0;
+                  const pnRows =
+                    !singleLine && (aCfg.pointNameRow?.enabled ?? false)
+                      ? 1
+                      : 0;
+                  const dnRows =
+                    !singleLine && (aCfg.displayNameRow?.enabled ?? false)
+                      ? 1
+                      : 0;
                   const itemRows = 1 + pnRows + dnRows;
                   const itemH = itemRows * 16 + (itemRows - 1) * 2;
                   const itemW = aCfg.minWidth ?? 40;
                   let newSpacing: number;
                   if (layout === "vertical") {
-                    newSpacing = n > 1 ? Math.max(-(itemH - 1), (finalH - n * itemH) / (n - 1)) : 0;
-                    newCfg = { ...aCfg, itemSpacing: Math.round(newSpacing), minWidth: Math.max(40, finalW) };
+                    newSpacing =
+                      n > 1
+                        ? Math.max(-(itemH - 1), (finalH - n * itemH) / (n - 1))
+                        : 0;
+                    newCfg = {
+                      ...aCfg,
+                      itemSpacing: Math.round(newSpacing),
+                      minWidth: Math.max(40, finalW),
+                    };
                   } else {
-                    newSpacing = n > 1 ? Math.max(-(itemW - 1), (finalW - n * itemW) / (n - 1)) : 0;
+                    newSpacing =
+                      n > 1
+                        ? Math.max(-(itemW - 1), (finalW - n * itemW) / (n - 1))
+                        : 0;
                     newCfg = { ...aCfg, itemSpacing: Math.round(newSpacing) };
                   }
                   break;
@@ -6778,17 +6800,34 @@ export default function DesignerCanvas({
       switch (cat) {
         case "KPI":
         case "Gauge":
-          defaultW = 160; defaultH = 120; break;
+          defaultW = 160;
+          defaultH = 120;
+          break;
         case "Content":
-          if (chartType === 51) { defaultW = 320; defaultH = 48; }
-          else if (chartType === 52) { defaultW = 180; defaultH = 80; }
-          else if (chartType === 50) { defaultW = 240; defaultH = 120; }
-          else if (chartType === 54) { defaultW = 480; defaultH = 320; }
-          else if (chartType === 55) { defaultW = 480; defaultH = 320; }
-          else { defaultW = 320; defaultH = 200; }
+          if (chartType === 51) {
+            defaultW = 320;
+            defaultH = 48;
+          } else if (chartType === 52) {
+            defaultW = 180;
+            defaultH = 80;
+          } else if (chartType === 50) {
+            defaultW = 240;
+            defaultH = 120;
+          } else if (chartType === 54) {
+            defaultW = 480;
+            defaultH = 320;
+          } else if (chartType === 55) {
+            defaultW = 480;
+            defaultH = 320;
+          } else {
+            defaultW = 320;
+            defaultH = 200;
+          }
           break;
         case "Status":
-          defaultW = 400; defaultH = 240; break;
+          defaultW = 400;
+          defaultH = 240;
+          break;
       }
 
       let cx: number;
@@ -6797,8 +6836,11 @@ export default function DesignerCanvas({
       if (mode === "dashboard") {
         const COLS = 12;
         const ROW_H =
-          (currentDoc.metadata as Record<string, unknown> & { rowHeight?: number })
-            .rowHeight ?? 80;
+          (
+            currentDoc.metadata as Record<string, unknown> & {
+              rowHeight?: number;
+            }
+          ).rowHeight ?? 80;
         const colW = currentDoc.canvas.width / COLS;
         const col = Math.max(0, Math.min(COLS - 1, Math.round(rawX / colW)));
         const row = Math.max(0, Math.round(rawY / ROW_H));
@@ -8309,7 +8351,11 @@ export default function DesignerCanvas({
               <ChartConfigPanel
                 initialConfig={pendingChartDrop.initialConfig}
                 onSave={(config) => {
-                  placeChartWidget(config, pendingChartDrop.rawX, pendingChartDrop.rawY);
+                  placeChartWidget(
+                    config,
+                    pendingChartDrop.rawX,
+                    pendingChartDrop.rawY,
+                  );
                   setPendingChartDrop(null);
                 }}
                 onClose={() => setPendingChartDrop(null)}

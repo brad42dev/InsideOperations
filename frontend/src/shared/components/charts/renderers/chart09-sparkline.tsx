@@ -38,6 +38,7 @@ export default function Chart09Sparkline({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -55,6 +56,7 @@ export default function Chart09Sparkline({ config }: RendererProps) {
   if (buf.length < 2) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -86,6 +88,7 @@ export default function Chart09Sparkline({ config }: RendererProps) {
 
   return (
     <svg
+      data-chart-ready="true"
       width="100%"
       height="100%"
       viewBox={`0 0 ${W} ${H}`}

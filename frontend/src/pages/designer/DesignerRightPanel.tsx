@@ -25,16 +25,17 @@ import type {
   GraphicDocument,
   NavigationLink,
   WidgetNode,
-  WidgetConfig,
   DisplayElementType,
   DisplayElementConfig,
   TextReadoutConfig,
+  TextReadoutArrayConfig,
   AnalogBarConfig,
   FillGaugeConfig,
   SparklineConfig,
   DigitalStatusConfig,
   PointNameLabelConfig,
   DisplayElementFontFamily,
+  DisplayElementBinding,
   ImageNode,
   EmbeddedSvgNode,
   Group,
@@ -56,13 +57,18 @@ import {
   AddDisplayElementCommand,
   RemoveDisplayElementCommand,
   HideDisplayElementCommand,
-  ChangeWidgetConfigCommand,
   AlignNodesCommand,
   DistributeNodesCommand,
   DeleteNodesCommand,
   GroupNodesCommand,
   ReorderNodeCommand,
+  ChangeWidgetConfigCommand,
+  CompoundCommand,
+  MoveNodesCommand,
 } from "../../shared/graphics/commands";
+import { recenterArrayOnBindingChange } from "../../shared/graphics/anchorSlots";
+import ChartConfigPanel from "../../shared/components/charts/ChartConfigPanel";
+import type { ChartConfig } from "../../shared/components/charts/chart-config-types";
 import type {
   SceneCommand,
   AlignmentType,
@@ -164,6 +170,28 @@ function findNodeById(doc: GraphicDocument, id: NodeId): SceneNode | null {
     return null;
   }
   return search(doc.children);
+}
+
+function findParentSymbol(
+  doc: GraphicDocument,
+  childId: NodeId,
+): SymbolInstance | null {
+  function search(nodes: SceneNode[]): SymbolInstance | null {
+    for (const n of nodes) {
+      if (n.type === "symbol_instance") {
+        const si = n as SymbolInstance;
+        for (const child of si.children) {
+          if (child.id === childId) return si;
+        }
+      }
+      if ("children" in n && Array.isArray(n.children)) {
+        const found = search(n.children as SceneNode[]);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return search(doc.children as SceneNode[]);
 }
 
 // ---------------------------------------------------------------------------
@@ -2929,49 +2957,68 @@ function WidgetLayoutExtras({
   );
 }
 
-const WIDGET_TYPE_OPTIONS = [
-  { value: "trend", label: "Trend" },
-  { value: "table", label: "Table" },
-  { value: "gauge", label: "Gauge" },
-  { value: "kpi_card", label: "KPI Card" },
-  { value: "bar_chart", label: "Bar Chart" },
-  { value: "pie_chart", label: "Pie Chart" },
-  { value: "alarm_list", label: "Alarm List" },
-  { value: "muster_point", label: "Muster Point" },
-];
-
+// Chart updates after user pauses for 250ms (flush-only debounce — no transient
+// preview so we don't mutate the scene store outside of commands).
 function WidgetContentTab({ node }: { node: WidgetNode }) {
   const executeCmd = useExecuteCmd();
-  function patchConfig(patch: Partial<WidgetConfig>) {
-    const newConfig = { ...node.config, ...patch } as WidgetConfig;
-    executeCmd(new ChangeWidgetConfigCommand(node.id, newConfig, node.config));
-  }
-  const title = (node.config as { title?: string }).title ?? "";
+  const startConfigRef = useRef<ChartConfig>(node.config);
+  const pendingRef = useRef<ChartConfig | null>(null);
+  const flushTimerRef = useRef<number | null>(null);
 
+  // Reset debounce baseline when a different node is selected.
+  useEffect(() => {
+    startConfigRef.current = node.config;
+    pendingRef.current = null;
+    if (flushTimerRef.current != null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, [node.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const flush = useCallback(() => {
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    flushTimerRef.current = null;
+    if (!pending) return;
+    if (JSON.stringify(pending) === JSON.stringify(startConfigRef.current))
+      return;
+    executeCmd(
+      new ChangeWidgetConfigCommand(node.id, pending, startConfigRef.current),
+    );
+    startConfigRef.current = pending;
+  }, [node.id, executeCmd]);
+
+  // Flush pending change when unmounting or when flush changes (node switch).
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current != null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      flush();
+    };
+  }, [flush]);
+
+  const handleChange = useCallback(
+    (next: ChartConfig) => {
+      pendingRef.current = next;
+      if (flushTimerRef.current != null)
+        window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = window.setTimeout(flush, 250);
+    },
+    [flush],
+  );
+
+  // key={node.id} remounts ChartConfigPanel when a different widget is selected,
+  // resetting its internal tab and config state from the new node.config.
   return (
-    <div style={{ padding: "0 12px" }}>
-      <Field label="Widget Type">
-        <SelectInput
-          value={node.widgetType}
-          onChange={() => {
-            /* type change not supported here — drag new widget */
-          }}
-          options={WIDGET_TYPE_OPTIONS}
-        />
-      </Field>
-      <Field label="Title">
-        <input
-          type="text"
-          key={node.id}
-          defaultValue={title}
-          onBlur={(e) =>
-            patchConfig({ title: e.target.value } as Partial<WidgetConfig>)
-          }
-          style={inputStyle}
-          placeholder="Widget title…"
-        />
-      </Field>
-    </div>
+    <ChartConfigPanel
+      key={node.id}
+      mode="embedded"
+      value={node.config}
+      onChange={handleChange}
+      context="designer"
+    />
   );
 }
 
@@ -3238,6 +3285,7 @@ const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "text_readout", label: "Text Readout" },
+  { value: "text_readout_array", label: "Text Readout Array" },
   { value: "analog_bar", label: "Analog Bar" },
   { value: "fill_gauge", label: "Fill Gauge" },
   { value: "sparkline", label: "Sparkline" },
@@ -3303,6 +3351,18 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
       return {
         displayType: "point_name_label",
         style: "hierarchy" as const,
+      };
+    case "text_readout_array":
+      return {
+        displayType: "text_readout_array",
+        arrayLayout: "vertical",
+        singleLine: false,
+        additionalBindings: [],
+        itemSpacing: 2,
+        showBox: true,
+        showUnits: true,
+        valueFormat: "%.2f",
+        minWidth: 40,
       };
   }
 }
@@ -3647,6 +3707,430 @@ function TextReadoutFields({
 }
 
 // ---------------------------------------------------------------------------
+// TextReadoutArrayFields — layout, spacing, typography rows, additional bindings
+// ---------------------------------------------------------------------------
+
+function TextReadoutArrayFields({
+  node,
+  executeCmd,
+}: {
+  node: DisplayElement;
+  executeCmd: (cmd: SceneCommand) => void;
+}) {
+  const cfg = node.config as TextReadoutArrayConfig;
+  const [pnOpen, setPnOpen] = useState(cfg.pointNameRow?.enabled ?? false);
+  const [dnOpen, setDnOpen] = useState(cfg.displayNameRow?.enabled ?? false);
+  const [vOpen, setVOpen] = useState(true);
+
+  const doc = useSceneStore((s) => s.doc);
+  const getShape = useLibraryStore((s) => s.getShape);
+
+  function patch(p: Partial<TextReadoutArrayConfig>) {
+    executeCmd(
+      new ChangeDisplayElementConfigCommand(
+        node.id,
+        { ...node.config, ...p } as DisplayElementConfig,
+        node.config,
+      ),
+    );
+  }
+
+  const pnRow = cfg.pointNameRow ?? {
+    enabled: false,
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 10,
+    color: "var(--io-text-primary)",
+    showBackground: false,
+  };
+  const dnRow = cfg.displayNameRow ?? {
+    enabled: false,
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 9,
+    color: "var(--io-text-secondary)",
+    showBackground: false,
+  };
+  const vRow = cfg.valueRow ?? {
+    fontFamily: "JetBrains Mono" as DisplayElementFontFamily,
+    fontSize: 11,
+    showBackground: true,
+  };
+
+  const additionalBindings: DisplayElementBinding[] =
+    cfg.additionalBindings ?? [];
+
+  function setAdditionalBindings(bindings: DisplayElementBinding[]) {
+    const newConfig = {
+      ...node.config,
+      additionalBindings: bindings,
+    } as DisplayElementConfig;
+    const configCmd = new ChangeDisplayElementConfigCommand(
+      node.id,
+      newConfig,
+      node.config,
+    );
+
+    const newPos =
+      doc && node.slotId
+        ? (() => {
+            const parentSi = findParentSymbol(doc, node.id);
+            if (!parentSi) return null;
+            const shapeEntry = getShape(parentSi.shapeRef.shapeId);
+            if (!shapeEntry) return null;
+            const oldCount = 1 + (cfg.additionalBindings?.length ?? 0);
+            const newCount = 1 + bindings.length;
+            return recenterArrayOnBindingChange(
+              node,
+              parentSi,
+              shapeEntry,
+              oldCount,
+              newCount,
+            );
+          })()
+        : null;
+
+    if (newPos) {
+      const delta = {
+        x: newPos.x - node.transform.position.x,
+        y: newPos.y - node.transform.position.y,
+      };
+      const moveCmd = new MoveNodesCommand(
+        [node.id],
+        delta,
+        new Map([[node.id, node.transform]]),
+      );
+      executeCmd(new CompoundCommand("Bind Array Point", [configCmd, moveCmd]));
+    } else {
+      executeCmd(configCmd);
+    }
+  }
+
+  return (
+    <>
+      <Field label="Layout">
+        <div style={{ display: "flex", gap: 4 }}>
+          {(["vertical", "horizontal"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => patch({ arrayLayout: v })}
+              style={{
+                flex: 1,
+                padding: "3px 0",
+                fontSize: 11,
+                cursor: "pointer",
+                border: `1px solid ${(cfg.arrayLayout ?? "vertical") === v ? "var(--io-accent)" : "var(--io-border)"}`,
+                borderRadius: "var(--io-radius)",
+                background:
+                  (cfg.arrayLayout ?? "vertical") === v
+                    ? "color-mix(in srgb, var(--io-accent) 15%, transparent)"
+                    : "transparent",
+                color:
+                  (cfg.arrayLayout ?? "vertical") === v
+                    ? "var(--io-accent)"
+                    : "var(--io-text-muted)",
+              }}
+            >
+              {v[0]!.toUpperCase() + v.slice(1)}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Single Line">
+        <input
+          type="checkbox"
+          checked={cfg.singleLine ?? false}
+          onChange={(e) => patch({ singleLine: e.target.checked })}
+          style={{ cursor: "pointer" }}
+        />
+      </Field>
+      <Field label="Item Spacing">
+        <NumberInput
+          value={cfg.itemSpacing ?? 2}
+          min={-30}
+          max={60}
+          step={1}
+          onChange={(v) => patch({ itemSpacing: v })}
+        />
+      </Field>
+      <Field label="Value Format">
+        <input
+          type="text"
+          defaultValue={cfg.valueFormat ?? "%.2f"}
+          onBlur={(e) => patch({ valueFormat: e.target.value })}
+          style={inputStyle}
+          placeholder="%.2f"
+        />
+      </Field>
+
+      <RowSection
+        title="Point Name Row"
+        open={pnOpen}
+        onToggleOpen={() => setPnOpen((o) => !o)}
+        enabledCheck={
+          <input
+            type="checkbox"
+            checked={pnRow.enabled}
+            title="Enable row"
+            onChange={(e) =>
+              patch({ pointNameRow: { ...pnRow, enabled: e.target.checked } })
+            }
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer", marginRight: 4 }}
+          />
+        }
+      >
+        <Field label="Font">
+          <SelectInput
+            value={pnRow.fontFamily}
+            onChange={(v) =>
+              patch({
+                pointNameRow: {
+                  ...pnRow,
+                  fontFamily: v as DisplayElementFontFamily,
+                },
+              })
+            }
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput
+            value={pnRow.fontSize}
+            min={6}
+            max={32}
+            onChange={(v) => patch({ pointNameRow: { ...pnRow, fontSize: v } })}
+          />
+        </Field>
+        <Field label="Color">
+          <ThemedColorSelect
+            value={pnRow.color}
+            defaultValue="var(--io-text-primary)"
+            onChange={(v) => patch({ pointNameRow: { ...pnRow, color: v } })}
+          />
+        </Field>
+        <Field label="Bold">
+          <input
+            type="checkbox"
+            checked={pnRow.fontWeight === "bold"}
+            onChange={(e) =>
+              patch({
+                pointNameRow: {
+                  ...pnRow,
+                  fontWeight: e.target.checked ? "bold" : "normal",
+                },
+              })
+            }
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+
+      <RowSection
+        title="Display Name Row"
+        open={dnOpen}
+        onToggleOpen={() => setDnOpen((o) => !o)}
+        enabledCheck={
+          <input
+            type="checkbox"
+            checked={dnRow.enabled}
+            title="Enable row"
+            onChange={(e) =>
+              patch({ displayNameRow: { ...dnRow, enabled: e.target.checked } })
+            }
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer", marginRight: 4 }}
+          />
+        }
+      >
+        <Field label="Font">
+          <SelectInput
+            value={dnRow.fontFamily}
+            onChange={(v) =>
+              patch({
+                displayNameRow: {
+                  ...dnRow,
+                  fontFamily: v as DisplayElementFontFamily,
+                },
+              })
+            }
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput
+            value={dnRow.fontSize}
+            min={6}
+            max={32}
+            onChange={(v) =>
+              patch({ displayNameRow: { ...dnRow, fontSize: v } })
+            }
+          />
+        </Field>
+        <Field label="Color">
+          <ThemedColorSelect
+            value={dnRow.color}
+            defaultValue="var(--io-text-secondary)"
+            onChange={(v) => patch({ displayNameRow: { ...dnRow, color: v } })}
+          />
+        </Field>
+        <Field label="Bold">
+          <input
+            type="checkbox"
+            checked={dnRow.fontWeight === "bold"}
+            onChange={(e) =>
+              patch({
+                displayNameRow: {
+                  ...dnRow,
+                  fontWeight: e.target.checked ? "bold" : "normal",
+                },
+              })
+            }
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+
+      <RowSection
+        title="Value + EU Row"
+        open={vOpen}
+        onToggleOpen={() => setVOpen((o) => !o)}
+      >
+        <Field label="Font">
+          <SelectInput
+            value={vRow.fontFamily}
+            onChange={(v) =>
+              patch({
+                valueRow: {
+                  ...vRow,
+                  fontFamily: v as DisplayElementFontFamily,
+                },
+              })
+            }
+            options={FONT_OPTIONS}
+          />
+        </Field>
+        <Field label="Size">
+          <NumberInput
+            value={vRow.fontSize}
+            min={6}
+            max={32}
+            onChange={(v) => patch({ valueRow: { ...vRow, fontSize: v } })}
+          />
+        </Field>
+        <Field label="Background">
+          <input
+            type="checkbox"
+            checked={vRow.showBackground}
+            onChange={(e) =>
+              patch({ valueRow: { ...vRow, showBackground: e.target.checked } })
+            }
+            style={{ cursor: "pointer" }}
+          />
+        </Field>
+      </RowSection>
+
+      <div
+        style={{
+          marginTop: 10,
+          paddingTop: 8,
+          borderTop: "1px solid var(--io-border)",
+        }}
+      >
+        <FieldLabel>Additional Points</FieldLabel>
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--io-text-muted)",
+            marginBottom: 6,
+          }}
+        >
+          Point 0 is the primary binding above. Add points 1–N here.
+        </div>
+        {additionalBindings.map((b, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              marginBottom: 4,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                color: "var(--io-text-muted)",
+                minWidth: 16,
+                fontFamily: "JetBrains Mono, monospace",
+              }}
+            >
+              {i + 1}
+            </span>
+            <input
+              type="text"
+              key={`ab-${i}-${b.pointTag ?? b.pointId ?? ""}`}
+              defaultValue={b.pointTag ?? b.pointId ?? ""}
+              onBlur={(e) => {
+                const val = e.target.value.trim();
+                const isUuid =
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    val,
+                  );
+                const newB: DisplayElementBinding = val
+                  ? isUuid
+                    ? { pointId: val }
+                    : { pointTag: val }
+                  : {};
+                const next = [...additionalBindings];
+                next[i] = newB;
+                setAdditionalBindings(next);
+              }}
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="e.g. 25-AI-1402"
+            />
+            <PointResolutionIndicator pointId={b.pointTag ?? b.pointId} />
+            <button
+              onClick={() => {
+                const next = additionalBindings.filter((_, j) => j !== i);
+                setAdditionalBindings(next);
+              }}
+              title="Remove"
+              style={{
+                background: "transparent",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: 11,
+                padding: "1px 6px",
+                lineHeight: 1.4,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => setAdditionalBindings([...additionalBindings, {}])}
+          style={{
+            marginTop: 4,
+            width: "100%",
+            padding: "4px 0",
+            fontSize: 11,
+            cursor: "pointer",
+            border: "1px dashed var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            background: "transparent",
+            color: "var(--io-text-muted)",
+          }}
+        >
+          + Add Point
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PointNameLabelFields — static text toggle + style + font controls
 // ---------------------------------------------------------------------------
 
@@ -3761,6 +4245,8 @@ function DisplayElementTypeFields({
   switch (node.displayType) {
     case "text_readout":
       return <TextReadoutFields node={node} executeCmd={executeCmd} />;
+    case "text_readout_array":
+      return <TextReadoutArrayFields node={node} executeCmd={executeCmd} />;
     case "point_name_label":
       return <PointNameLabelFields node={node} executeCmd={executeCmd} />;
     case "analog_bar": {
@@ -5183,6 +5669,19 @@ export default function DesignerRightPanel({
       setActiveTab("multi");
     }
   }, [selectedIds.join(",")]);
+
+  // Open a specific tab after widget placement
+  useEffect(() => {
+    function onOpenConfig(e: Event) {
+      const ce = e as CustomEvent<{ nodeId: string; tab: string }>;
+      if (ce.detail.tab === "content") {
+        setActiveTab("content");
+      }
+    }
+    document.addEventListener("io:designer-open-config", onOpenConfig);
+    return () =>
+      document.removeEventListener("io:designer-open-config", onOpenConfig);
+  }, []);
 
   if (collapsed) {
     return (

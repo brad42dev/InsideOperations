@@ -205,6 +205,7 @@ const SettingsMyExports = lazy(() => import("./pages/settings/MyExports"));
 const EmailSettingsPage = lazy(() => import("./pages/settings/Email"));
 const ImportSettingsPage = lazy(() => import("./pages/settings/Import"));
 const RecognitionPage = lazy(() => import("./pages/settings/Recognition"));
+const CameraStreamsPage = lazy(() => import("./pages/settings/CameraStreams"));
 const AuthProvidersPage = lazy(() => import("./pages/settings/AuthProviders"));
 const MfaSettingsPage = lazy(() => import("./pages/settings/MfaSettings"));
 const ScimTokensPage = lazy(() => import("./pages/settings/ScimTokens"));
@@ -1328,6 +1329,14 @@ function AppRoutes() {
               element={
                 <PermissionGuard permission="settings:admin">
                   <RecognitionPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="camera-streams"
+              element={
+                <PermissionGuard permission="video_streams:manage">
+                  <CameraStreamsPage />
                 </PermissionGuard>
               }
             />

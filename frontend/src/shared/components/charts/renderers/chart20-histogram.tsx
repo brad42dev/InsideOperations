@@ -393,6 +393,7 @@ export default function HistogramChart({ config }: RendererProps) {
   if (!pointSlot) {
     return (
       <div
+        data-chart-ready="true"
         style={{
           flex: 1,
           display: "flex",
@@ -411,6 +412,7 @@ export default function HistogramChart({ config }: RendererProps) {
     if (isLoading) {
       return (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",
@@ -427,6 +429,7 @@ export default function HistogramChart({ config }: RendererProps) {
     if (vals.length < 4) {
       return (
         <div
+          data-chart-ready="true"
           style={{
             flex: 1,
             display: "flex",
@@ -487,6 +490,7 @@ export default function HistogramChart({ config }: RendererProps) {
         )}
         {!isLoading && labels.length === 0 && (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",
@@ -500,7 +504,10 @@ export default function HistogramChart({ config }: RendererProps) {
           </div>
         )}
         {labels.length > 0 && (
-          <div style={{ position: "relative", height: "100%" }}>
+          <div
+            data-chart-ready="true"
+            style={{ position: "relative", height: "100%" }}
+          >
             <EChart option={histogramOption} onEvents={onEvents} />
             {cpk && (
               <div

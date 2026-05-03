@@ -10,13 +10,18 @@
 import React, { useState, useEffect } from "react";
 import { useLibraryStore } from "../../../store/designer";
 import type { ShapeSidecar } from "../../../shared/types/shapes";
+import { resolveShapeAnchorSlots } from "../../../shared/graphics/anchorSlots";
 import type {
   DisplayElementType,
   DisplayElementConfig,
   DisplayElementFontFamily,
 } from "../../../shared/types/graphics";
 import { ShapePointSelector, resolvePointBindings } from "./ShapePointSelector";
-import type { ShapeSlotDef, ShapeBindingEntry } from "./ShapePointSelector";
+import type {
+  ShapeSlotDef,
+  ShapeBindingEntry,
+  AdditionalPointEntry,
+} from "./ShapePointSelector";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -75,6 +80,18 @@ export interface DisplayElementUserConfig {
   // Digital status
   normalStates?: string[];
   abnormalPriority?: number;
+  // text_readout / text_readout_array passthrough (not shown in wizard UI; preserved on round-trip)
+  showSignalLine?: boolean;
+  arrayLayout?: "vertical" | "horizontal";
+  arraySingleLine?: boolean;
+  additionalBindings?: Array<{
+    pointId?: string;
+    pointTag?: string;
+    displayName?: string;
+    unit?: string;
+  }>;
+  itemSpacing?: number;
+  arrayMinWidth?: number;
 }
 
 export interface PlacedShapeConfig {
@@ -200,6 +217,7 @@ export function displayConfigToUserConfig(
         ),
         showBox: dc.showBox,
         decimalPlaces: parseDecimalPlaces(dc.valueFormat),
+        showSignalLine: dc.showSignalLine,
       };
     case "analog_bar":
       return {
@@ -238,6 +256,53 @@ export function displayConfigToUserConfig(
       return {
         labelStyle: dc.style,
         labelText: dc.staticText,
+      };
+    case "text_readout_array":
+      return {
+        showPointName: dc.pointNameRow?.enabled ?? false,
+        pointNameFont:
+          fontFamilyToString(dc.pointNameRow?.fontFamily) ??
+          "JetBrains Mono, monospace",
+        pointNameFontSize: dc.pointNameRow?.fontSize ?? 10,
+        pointNameJustify: dc.pointNameRow?.textAlign ?? "center",
+        pointNameStyle: colorAndWeightToStyle(
+          dc.pointNameRow?.color,
+          dc.pointNameRow?.fontWeight,
+        ),
+        showDisplayName: dc.displayNameRow?.enabled ?? false,
+        displayNameFont:
+          fontFamilyToString(dc.displayNameRow?.fontFamily) ??
+          "Inter, sans-serif",
+        displayNameFontSize: dc.displayNameRow?.fontSize ?? 12,
+        displayNameJustify: dc.displayNameRow?.textAlign ?? "center",
+        displayNameStyle: colorAndWeightToStyle(
+          dc.displayNameRow?.color,
+          dc.displayNameRow?.fontWeight,
+        ),
+        showUnits: dc.showUnits,
+        euFont:
+          fontFamilyToString(dc.euRow?.fontFamily) ??
+          "JetBrains Mono, monospace",
+        euFontSize: dc.euRow?.fontSize ?? 12,
+        euJustify: dc.euRow?.textAlign ?? "center",
+        euStyle: colorAndWeightToStyle(dc.euRow?.color, dc.euRow?.fontWeight),
+        valueFont:
+          fontFamilyToString(dc.valueRow?.fontFamily) ??
+          "JetBrains Mono, monospace",
+        valueFontSize: dc.valueRow?.fontSize ?? 14,
+        valueJustify: dc.valueRow?.textAlign ?? "center",
+        valueStyle: colorAndWeightToStyle(
+          dc.valueRow?.color,
+          dc.valueRow?.fontWeight,
+        ),
+        showBox: dc.showBox,
+        decimalPlaces: parseDecimalPlaces(dc.valueFormat),
+        arrayLayout: dc.arrayLayout,
+        arraySingleLine: dc.singleLine,
+        additionalBindings: dc.additionalBindings,
+        itemSpacing: dc.itemSpacing,
+        arrayMinWidth: dc.minWidth,
+        showSignalLine: dc.showSignalLine,
       };
   }
 }
@@ -286,8 +351,6 @@ export function userConfigToDisplayConfig(
           fontWeight: valStyle.fontWeight,
           textAlign: uc.valueJustify ?? "center",
           showBackground: false,
-          // EU style stored separately — euRow not in TextReadoutConfig yet, but euStyle/euJustify
-          // are carried in DisplayElementUserConfig for future use
         },
         euRow: {
           fontFamily: stringToFontFamily(uc.euFont),
@@ -296,6 +359,7 @@ export function userConfigToDisplayConfig(
           fontWeight: euStyle.fontWeight,
           textAlign: uc.euJustify ?? "center",
         },
+        showSignalLine: uc.showSignalLine ?? false,
       };
     }
     case "analog_bar":
@@ -350,6 +414,57 @@ export function userConfigToDisplayConfig(
         style: uc.labelStyle ?? "hierarchy",
         staticText: uc.labelText || undefined,
       };
+    case "text_readout_array": {
+      const pnStyle = styleToColorAndWeight(uc.pointNameStyle as TextStyle);
+      const dnStyle = styleToColorAndWeight(uc.displayNameStyle as TextStyle);
+      const euStyle = styleToColorAndWeight(uc.euStyle as TextStyle);
+      const valStyle = styleToColorAndWeight(uc.valueStyle as TextStyle);
+      return {
+        displayType: "text_readout_array",
+        arrayLayout: uc.arrayLayout ?? "vertical",
+        singleLine: uc.arraySingleLine ?? false,
+        additionalBindings: uc.additionalBindings ?? [],
+        itemSpacing: uc.itemSpacing ?? 2,
+        showBox: uc.showBox ?? true,
+        showUnits: uc.showUnits ?? true,
+        valueFormat: `%.${uc.decimalPlaces ?? 2}f`,
+        minWidth: uc.arrayMinWidth ?? 40,
+        pointNameRow: {
+          enabled: uc.showPointName ?? false,
+          fontFamily: stringToFontFamily(uc.pointNameFont),
+          fontSize: uc.pointNameFontSize ?? 10,
+          color: pnStyle.color,
+          fontWeight: pnStyle.fontWeight,
+          textAlign: uc.pointNameJustify ?? "center",
+          showBackground: false,
+        },
+        displayNameRow: {
+          enabled: uc.showDisplayName ?? false,
+          fontFamily: stringToFontFamily(uc.displayNameFont),
+          fontSize: uc.displayNameFontSize ?? 12,
+          color: dnStyle.color,
+          fontWeight: dnStyle.fontWeight,
+          textAlign: uc.displayNameJustify ?? "center",
+          showBackground: false,
+        },
+        valueRow: {
+          fontFamily: stringToFontFamily(uc.valueFont),
+          fontSize: uc.valueFontSize ?? 14,
+          color: valStyle.color,
+          fontWeight: valStyle.fontWeight,
+          textAlign: uc.valueJustify ?? "center",
+          showBackground: false,
+        },
+        euRow: {
+          fontFamily: stringToFontFamily(uc.euFont),
+          fontSize: uc.euFontSize ?? 12,
+          color: euStyle.color,
+          fontWeight: euStyle.fontWeight,
+          textAlign: uc.euJustify ?? "center",
+        },
+        showSignalLine: uc.showSignalLine ?? false,
+      };
+    }
   }
 }
 
@@ -359,6 +474,7 @@ export function userConfigToDisplayConfig(
 
 const ALL_ELEMENTS: Array<{ id: DisplayElementType; label: string }> = [
   { id: "text_readout", label: "Text Readout" },
+  { id: "text_readout_array", label: "Text Readout Array" },
   { id: "alarm_indicator", label: "Alarm Indicator" },
   { id: "analog_bar", label: "Analog Bar" },
   { id: "fill_gauge", label: "Fill Gauge" },
@@ -369,6 +485,7 @@ const ALL_ELEMENTS: Array<{ id: DisplayElementType; label: string }> = [
 
 export const DE_SIDECAR_KEY: Record<string, string> = {
   text_readout: "TextReadout",
+  text_readout_array: "TextReadoutArray",
   alarm_indicator: "AlarmIndicator",
   analog_bar: "AnalogBar",
   fill_gauge: "FillGauge",
@@ -379,6 +496,7 @@ export const DE_SIDECAR_KEY: Record<string, string> = {
 
 export const DE_FALLBACK_SLOT: Record<string, string> = {
   TextReadout: "bottom",
+  TextReadoutArray: "right",
   AlarmIndicator: "top-right",
   AnalogBar: "right",
   // Vessel/tank shapes declare "vessel-interior" in their own defaultSlots JSON.
@@ -392,6 +510,7 @@ export const DE_FALLBACK_SLOT: Record<string, string> = {
 
 export const DE_FALLBACK_SLOTS_LIST: Record<string, string[]> = {
   TextReadout: ["top", "right", "bottom", "left"],
+  TextReadoutArray: ["top", "right", "bottom", "left"],
   AlarmIndicator: ["top-right", "top-left", "bottom-right", "bottom-left"],
   AnalogBar: ["right", "left"],
   FillGauge: ["vessel-interior", "right", "left"],
@@ -402,6 +521,7 @@ export const DE_FALLBACK_SLOTS_LIST: Record<string, string[]> = {
 
 export const DE_CHIP: Record<string, { abbr: string; color: string }> = {
   text_readout: { abbr: "TR", color: "#3b82f6" },
+  text_readout_array: { abbr: "TA", color: "#8b5cf6" },
   alarm_indicator: { abbr: "AI", color: "#ef4444" },
   analog_bar: { abbr: "AB", color: "#22c55e" },
   fill_gauge: { abbr: "FG", color: "#06b6d4" },
@@ -474,6 +594,12 @@ export function makeDefaultElementConfig(
       return { normalStates: [], abnormalPriority: 3 };
     case "point_name_label":
       return { labelText: bodyBinding?.tag || "", labelStyle: "hierarchy" };
+    case "text_readout_array":
+      return {
+        showUnits: Boolean(bodyBinding?.unit),
+        showBox: true,
+        decimalPlaces: 2,
+      };
     default:
       return {};
   }
@@ -536,6 +662,7 @@ export function DEConfigPanel({
 
   const names: Partial<Record<DisplayElementType, string>> = {
     text_readout: "Text Readout",
+    text_readout_array: "Text Readout Array",
     analog_bar: "Analog Bar",
     fill_gauge: "Fill Gauge",
     sparkline: "Sparkline",
@@ -588,8 +715,10 @@ export function DEConfigPanel({
         {names[elementType] ?? elementType}
       </div>
 
-      {elementType === "text_readout" &&
+      {(elementType === "text_readout" ||
+        elementType === "text_readout_array") &&
         (() => {
+          const isArray = elementType === "text_readout_array";
           const fontOpts = (
             <>
               <option value="JetBrains Mono, monospace">JetBrains Mono</option>
@@ -730,6 +859,30 @@ export function DEConfigPanel({
           );
           return (
             <>
+              {isArray && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 16,
+                    alignItems: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <span style={{ ...lbl, marginBottom: 0 }}>Layout</span>
+                  {(["vertical", "horizontal"] as const).map((v) => (
+                    <label key={v} style={row}>
+                      <input
+                        type="radio"
+                        name="tra-layout"
+                        checked={(config.arrayLayout ?? "vertical") === v}
+                        onChange={() => onChange({ arrayLayout: v })}
+                        style={{ accentColor: "var(--io-accent)" }}
+                      />
+                      {v[0]!.toUpperCase() + v.slice(1)}
+                    </label>
+                  ))}
+                </div>
+              )}
               {/* Show Point Name */}
               <div
                 style={{
@@ -887,6 +1040,19 @@ export function DEConfigPanel({
                   />{" "}
                   Show box
                 </label>
+                {isArray && (
+                  <label style={row}>
+                    <input
+                      type="checkbox"
+                      checked={config.arraySingleLine ?? false}
+                      onChange={(e) =>
+                        onChange({ arraySingleLine: e.target.checked })
+                      }
+                      style={{ accentColor: "var(--io-accent)" }}
+                    />{" "}
+                    Single line
+                  </label>
+                )}
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ ...lbl, marginBottom: 0 }}>Decimals</span>
                   <select
@@ -1978,10 +2144,11 @@ export function ShapeDropDialog({
                           }
                           availableSlots={
                             (
-                              sidecar?.anchorSlots as
-                                | Record<string, string[]>
-                                | undefined
-                            )?.[DE_SIDECAR_KEY[focusedElement]!] ??
+                              resolveShapeAnchorSlots(sidecar) as Record<
+                                string,
+                                string[]
+                              >
+                            )[DE_SIDECAR_KEY[focusedElement]!] ??
                             DE_FALLBACK_SLOTS_LIST[
                               DE_SIDECAR_KEY[focusedElement]!
                             ] ?? ["bottom"]
@@ -2024,14 +2191,54 @@ export function ShapeDropDialog({
             })()}
 
           {/* Step 3 — Point Bindings */}
-          {step === 3 && (
-            <ShapePointSelector
-              slots={slotDefs}
-              bindings={bindings}
-              onChange={setBindings}
-              onOverCapacityChange={setBindingsOverCapacity}
-            />
-          )}
+          {step === 3 &&
+            (() => {
+              const traSelected = selectedElements.has("text_readout_array");
+              const traConfig = traSelected
+                ? elementConfigs["text_readout_array"]
+                : undefined;
+              const additionalPoints: AdditionalPointEntry[] = traConfig
+                ? (traConfig.additionalBindings ?? []).map((b) => ({
+                    pointId: b.pointId ?? "",
+                    tag: b.pointTag ?? b.pointId ?? "",
+                    displayName: b.displayName,
+                    unit: b.unit,
+                  }))
+                : [];
+              const handleAdditionalPointsChange = (
+                pts: AdditionalPointEntry[],
+              ) => {
+                setElementConfigs((prev) => ({
+                  ...prev,
+                  text_readout_array: {
+                    ...(prev["text_readout_array"] ?? {}),
+                    additionalBindings: pts
+                      .filter((p) => p.tag)
+                      .map((p) => ({
+                        pointId: p.pointId || undefined,
+                        pointTag: p.tag,
+                        displayName: p.displayName,
+                        unit: p.unit,
+                      })),
+                  },
+                }));
+              };
+              return (
+                <ShapePointSelector
+                  slots={slotDefs}
+                  bindings={bindings}
+                  onChange={setBindings}
+                  onOverCapacityChange={setBindingsOverCapacity}
+                  additionalPoints={traSelected ? additionalPoints : undefined}
+                  onAdditionalPointsChange={
+                    traSelected ? handleAdditionalPointsChange : undefined
+                  }
+                  additionalPointsLabel={
+                    traSelected ? "Text Readout Array" : undefined
+                  }
+                />
+              );
+            })()}
         </div>
 
         {/* ── Footer ── */}

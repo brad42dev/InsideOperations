@@ -139,7 +139,7 @@ function AlarmShape({
           textAnchor="middle"
           fontSize={22}
           fontWeight={700}
-          fill="#fff"
+          fill="#1F2937"
         >
           i
         </text>
@@ -176,7 +176,7 @@ export default function Chart12AlarmIndicator({ config }: RendererProps) {
   const unacknowledged = worst !== "normal";
 
   if (worst === "normal") {
-    return <div style={{ flex: 1, minHeight: 0 }} />;
+    return <div data-chart-ready="true" style={{ flex: 1, minHeight: 0 }} />;
   }
 
   const levelLabels: Record<Exclude<AlarmLevel, "normal">, string> = {
@@ -188,6 +188,7 @@ export default function Chart12AlarmIndicator({ config }: RendererProps) {
 
   return (
     <div
+      data-chart-ready="true"
       style={{
         flex: 1,
         display: "flex",

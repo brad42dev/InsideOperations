@@ -6,6 +6,7 @@ export type SidecarKey =
   | "AlarmIndicator"
   | "DigitalStatus"
   | "TextReadout"
+  | "TextReadoutArray"
   | "PointNameLabel"
   | "FillGauge"
   | "Sparkline"
@@ -15,6 +16,7 @@ export const DE_TO_SIDECAR_KEY: Record<DisplayElementType, SidecarKey> = {
   alarm_indicator: "AlarmIndicator",
   digital_status: "DigitalStatus",
   text_readout: "TextReadout",
+  text_readout_array: "TextReadoutArray",
   point_name_label: "PointNameLabel",
   fill_gauge: "FillGauge",
   sparkline: "Sparkline",
@@ -42,6 +44,7 @@ export const SIDECAR_CANONICAL_SIZE: Record<
   AlarmIndicator: { w: 24, h: 18 },
   DigitalStatus: { w: 40, h: 22 },
   TextReadout: { w: 40, h: 16 },
+  TextReadoutArray: { w: 40, h: 52 }, // 3-item vertical default: 3*16 + 2*2
   PointNameLabel: { w: 80, h: 12 },
   FillGauge: { w: 22, h: 90 },
   Sparkline: { w: 110, h: 18 },
@@ -53,11 +56,12 @@ export const SIDECAR_CANONICAL_SIZE: Record<
 export const SIDECAR_PRIORITY: Record<SidecarKey, number> = {
   AlarmIndicator: 0,
   TextReadout: 1,
-  DigitalStatus: 2,
-  PointNameLabel: 3,
-  FillGauge: 4,
-  AnalogBar: 5,
-  Sparkline: 6,
+  TextReadoutArray: 2,
+  DigitalStatus: 3,
+  PointNameLabel: 4,
+  FillGauge: 5,
+  AnalogBar: 6,
+  Sparkline: 7,
 };
 
 // ─── Layout-relevant config fields ────────────────────────────────────────────
@@ -72,6 +76,11 @@ export interface DeLayoutHints {
   barWidth?: number;
   sparkWidth?: number;
   sparkHeight?: number;
+  pointCount?: number;
+  arrayLayout?: "vertical" | "horizontal";
+  arraySingleLine?: boolean;
+  itemSpacing?: number;
+  arrayMinWidth?: number;
 }
 
 // ─── Pixel size ───────────────────────────────────────────────────────────────
@@ -90,6 +99,22 @@ export function dePixelSize(
       const rows =
         1 + (cfg?.showPointName ? 1 : 0) + (cfg?.showDisplayName ? 1 : 0);
       return { w: 40, h: rows * 16 + (rows - 1) * 2 };
+    }
+    case "text_readout_array": {
+      const n = Math.max(1, cfg?.pointCount ?? 1);
+      const gap = cfg?.itemSpacing ?? 2;
+      const singleLine = cfg?.arraySingleLine ?? false;
+      const layout = cfg?.arrayLayout ?? "vertical";
+      const itemRows = singleLine
+        ? 1
+        : 1 + (cfg?.showPointName ? 1 : 0) + (cfg?.showDisplayName ? 1 : 0);
+      const itemH = itemRows * 16 + (itemRows - 1) * 2;
+      const itemW = cfg?.arrayMinWidth ?? 40;
+      if (layout === "vertical") {
+        return { w: itemW, h: n * itemH + (n - 1) * gap };
+      } else {
+        return { w: n * itemW + (n - 1) * gap, h: itemH };
+      }
     }
     case "fill_gauge":
       return { w: cfg?.barWidth ?? 22, h: cfg?.barHeight ?? 90 };
@@ -136,10 +161,22 @@ export function applyDeSlotOffset(
 
   switch (dt) {
     case "text_readout": {
-      const { h } = dePixelSize(dt, cfg);
+      const { w, h } = dePixelSize(dt, cfg);
       if (isTop) y -= h;
       if (isVert) y -= h / 2;
-      if (isLeft) x -= 40; // pos.x is h-centre; pull right edge to slot line
+      // pos.x is the horizontal centre (renderer applies hOff = -w/2).
+      // Right slot: shift centre right by w/2 so left edge starts at slot line.
+      // Left slot: shift centre left by w/2 so right edge ends at slot line.
+      if (isRight) x += w / 2;
+      if (isLeft) x -= w / 2;
+      break;
+    }
+    case "text_readout_array": {
+      const { w, h } = dePixelSize(dt, cfg);
+      if (isTop) y -= h;
+      if (isVert) y -= h / 2;
+      if (isRight) x += w / 2;
+      if (isLeft) x -= w / 2;
       break;
     }
     case "alarm_indicator":
@@ -236,7 +273,7 @@ function makeBBox(
   if (dt === "alarm_indicator") {
     return { x: x - w / 2, y: y - h / 2, r: x + w / 2, b: y + h / 2 };
   }
-  if (dt === "text_readout") {
+  if (dt === "text_readout" || dt === "text_readout_array") {
     // pos.x is horizontal centre, pos.y is top edge
     return { x: x - w / 2, y, r: x + w / 2, b: y + h };
   }

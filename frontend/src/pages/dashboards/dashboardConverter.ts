@@ -3,10 +3,11 @@ import type {
   GraphicDocument,
   LayerDefinition,
   Transform,
-  WidgetConfig,
   WidgetNode,
-  WidgetType,
 } from "../../shared/types/graphics";
+import type { ChartTypeId } from "../../shared/components/charts/chart-config-types";
+import { makeDefaultChartConfig } from "../../shared/components/charts/chart-defaults";
+import type { LegacyDashboardWidgetType } from "./legacy-widget-types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -21,7 +22,7 @@ const MIN_CANVAS_H = 1080;
 // Widget type mapping
 // ---------------------------------------------------------------------------
 
-const WIDGET_TYPE_MAP: Record<string, WidgetType> = {
+const WIDGET_TYPE_MAP: Record<string, LegacyDashboardWidgetType> = {
   trend: "trend",
   chart: "trend",
   timeseries: "trend",
@@ -41,97 +42,34 @@ const WIDGET_TYPE_MAP: Record<string, WidgetType> = {
   muster: "muster_point",
 };
 
-function mapWidgetType(legacyType: string): WidgetType {
-  return WIDGET_TYPE_MAP[legacyType.toLowerCase()] ?? "kpi_card";
-}
+// Maps legacy string widget types to numeric ChartTypeId placeholders.
+// Phase 04 will wire this up properly when the palette is rebuilt.
+const LEGACY_TYPE_TO_CHART_ID: Record<LegacyDashboardWidgetType, ChartTypeId> =
+  {
+    trend: 1,
+    table: 15,
+    gauge: 8,
+    kpi_card: 7,
+    bar_chart: 5,
+    pie_chart: 6,
+    alarm_list: 12,
+    muster_point: 7, // no native equivalent — placeholder KPI card
+  };
 
-// ---------------------------------------------------------------------------
-// Minimal widget config builders
-// ---------------------------------------------------------------------------
-
-function buildWidgetConfig(
-  legacyType: string,
-  legacyConfig: Record<string, unknown>,
-): WidgetConfig {
-  const widgetType = mapWidgetType(legacyType);
-  const title =
-    typeof legacyConfig.title === "string" ? legacyConfig.title : "";
-
-  switch (widgetType) {
-    case "trend":
-      return {
-        widgetType: "trend",
-        title,
-        series: [],
-        timeRange: { mode: "relative", relativeSeconds: 3600 },
-        liveMode: true,
-        refreshMs: 5000,
-        yAxis: { autoScale: true, logScale: false },
-        showQuality: false,
-        showEvents: false,
-      };
-    case "table":
-      return {
-        widgetType: "table",
-        title,
-        columns: [],
-        pageSize: 20,
-      };
-    case "gauge":
-      return {
-        widgetType: "gauge",
-        title,
-        binding: {},
-        gaugeStyle: "radial",
-        rangeLo: 0,
-        rangeHi: 100,
-        showValue: true,
-        valueFormat: ".2f",
-      };
-    case "bar_chart":
-      return {
-        widgetType: "bar_chart",
-        title,
-        series: [],
-        orientation: "vertical",
-        showLegend: true,
-      };
-    case "pie_chart":
-      return {
-        widgetType: "pie_chart",
-        title,
-        slices: [],
-        donut: false,
-        showLegend: true,
-      };
-    case "alarm_list":
-      return {
-        widgetType: "alarm_list",
-        title,
-        maxRows: 50,
-        showAcknowledged: false,
-      };
-    case "muster_point":
-      return {
-        widgetType: "muster_point",
-        title,
-        musterPointId:
-          typeof legacyConfig.musterPointId === "string"
-            ? legacyConfig.musterPointId
-            : "",
-        showHeadcount: true,
-        showMissing: true,
-      };
-    default:
-      return {
-        widgetType: "kpi_card",
-        title,
-        binding: {},
-        valueFormat: ".2f",
-        showSparkline: false,
-        showTrendArrow: false,
-      };
+function mapChartTypeId(legacyType: string): ChartTypeId {
+  const wt = WIDGET_TYPE_MAP[legacyType.toLowerCase()];
+  if (!wt) {
+    console.warn(
+      `dashboardConverter: unknown legacy widget type "${legacyType}", falling back to kpi_card`,
+    );
+    return LEGACY_TYPE_TO_CHART_ID["kpi_card"];
   }
+  if (wt === "muster_point") {
+    console.warn(
+      `dashboardConverter: muster_point has no native chart equivalent, using kpi_card placeholder`,
+    );
+  }
+  return LEGACY_TYPE_TO_CHART_ID[wt];
 }
 
 // ---------------------------------------------------------------------------
@@ -181,21 +119,24 @@ export function convertDashboardToGraphicDocument(
     order: 0,
   };
 
-  const children: WidgetNode[] = widgets.map((w) => ({
-    id: w.id,
-    type: "widget" as const,
-    name: w.type,
-    transform: identityTransform(w.x * GRID_PX, w.y * GRID_PX),
-    visible: true,
-    locked: false,
-    opacity: 1,
-    layerId,
-    widgetType: mapWidgetType(w.type),
-    width: w.w * GRID_PX,
-    height: w.h * GRID_PX,
-    config: buildWidgetConfig(w.type, w.config),
-    gridSpan: { cols: w.w, rows: w.h },
-  }));
+  const children: WidgetNode[] = widgets.map((w) => {
+    const chartType = mapChartTypeId(w.type);
+    return {
+      id: w.id,
+      type: "widget" as const,
+      name: w.type,
+      transform: identityTransform(w.x * GRID_PX, w.y * GRID_PX),
+      visible: true,
+      locked: false,
+      opacity: 1,
+      layerId,
+      chartType,
+      width: w.w * GRID_PX,
+      height: w.h * GRID_PX,
+      config: makeDefaultChartConfig(chartType),
+      gridSpan: { cols: w.w, rows: w.h },
+    };
+  });
 
   const doc: GraphicDocument = {
     id: crypto.randomUUID(),

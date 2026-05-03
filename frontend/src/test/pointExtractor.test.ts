@@ -282,6 +282,61 @@ describe("extractPointIds — AlarmIndicator additionalBindings", () => {
   });
 });
 
+describe("extractPointIds — TextReadoutArray additionalBindings", () => {
+  it("collects primary binding and all additional bindings", () => {
+    const de: DisplayElement = {
+      id: "de-1",
+      type: "display_element",
+      ...baseNode,
+      displayType: "text_readout_array",
+      binding: { pointId: "ARRAY-PRIMARY" },
+      config: {
+        displayType: "text_readout_array",
+        arrayLayout: "vertical",
+        singleLine: false,
+        showBox: true,
+        showUnits: false,
+        valueFormat: "%.2f",
+        minWidth: 60,
+        additionalBindings: [
+          { pointId: "ARRAY-EXTRA-1" },
+          { pointId: "ARRAY-EXTRA-2" },
+          { pointId: undefined }, // should be skipped
+        ],
+      },
+    };
+    const doc = makeDoc([de]);
+    const ids = extractPointIds(doc);
+    expect(ids.has("ARRAY-PRIMARY")).toBe(true);
+    expect(ids.has("ARRAY-EXTRA-1")).toBe(true);
+    expect(ids.has("ARRAY-EXTRA-2")).toBe(true);
+    expect(ids.size).toBe(3);
+  });
+
+  it("works when additionalBindings is absent", () => {
+    const de: DisplayElement = {
+      id: "de-1",
+      type: "display_element",
+      ...baseNode,
+      displayType: "text_readout_array",
+      binding: { pointId: "SOLO" },
+      config: {
+        displayType: "text_readout_array",
+        arrayLayout: "vertical",
+        singleLine: false,
+        showBox: true,
+        showUnits: false,
+        valueFormat: "%.2f",
+        minWidth: 60,
+      },
+    };
+    const doc = makeDoc([de]);
+    const ids = extractPointIds(doc);
+    expect(ids.has("SOLO")).toBe(true);
+    expect(ids.size).toBe(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // extractViewportPointIds — viewport culling
 // ---------------------------------------------------------------------------
@@ -316,5 +371,58 @@ describe("extractViewportPointIds — viewport culling", () => {
     // This test verifies that nodes without bounds are NOT culled
     const ids = extractViewportPointIds(doc, viewport, 200);
     expect(ids.has("FAR-POINT")).toBe(true);
+  });
+
+  it("collects TextReadoutArray additionalBindings", () => {
+    const de: DisplayElement = {
+      id: "de-1",
+      type: "display_element",
+      ...baseNode,
+      displayType: "text_readout_array",
+      binding: { pointId: "VPORT-PRIMARY" },
+      config: {
+        displayType: "text_readout_array",
+        arrayLayout: "vertical",
+        singleLine: false,
+        showBox: true,
+        showUnits: false,
+        valueFormat: "%.2f",
+        minWidth: 60,
+        additionalBindings: [
+          { pointId: "VPORT-EXTRA-1" },
+          { pointId: "VPORT-EXTRA-2" },
+        ],
+      },
+    };
+    const doc = makeDoc([de]);
+    const viewport = { x: 0, y: 0, width: 1920, height: 1080 };
+    const ids = extractViewportPointIds(doc, viewport);
+    expect(ids.has("VPORT-PRIMARY")).toBe(true);
+    expect(ids.has("VPORT-EXTRA-1")).toBe(true);
+    expect(ids.has("VPORT-EXTRA-2")).toBe(true);
+  });
+
+  it("collects AlarmIndicator additionalBindings", () => {
+    const de: DisplayElement = {
+      id: "de-1",
+      type: "display_element",
+      ...baseNode,
+      displayType: "alarm_indicator",
+      binding: { pointId: "AL-MAIN" },
+      config: {
+        displayType: "alarm_indicator",
+        mode: "multi",
+        additionalBindings: [
+          { pointId: "AL-EXTRA-1" },
+          { pointId: "AL-EXTRA-2" },
+        ],
+      },
+    };
+    const doc = makeDoc([de]);
+    const viewport = { x: 0, y: 0, width: 1920, height: 1080 };
+    const ids = extractViewportPointIds(doc, viewport);
+    expect(ids.has("AL-MAIN")).toBe(true);
+    expect(ids.has("AL-EXTRA-1")).toBe(true);
+    expect(ids.has("AL-EXTRA-2")).toBe(true);
   });
 });

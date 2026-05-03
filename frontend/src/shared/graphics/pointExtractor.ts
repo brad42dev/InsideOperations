@@ -3,14 +3,11 @@ import type {
   SceneNode,
   DisplayElement,
   WidgetNode,
-  WidgetConfig,
-  TrendWidgetConfig,
-  TableWidgetConfig,
-  BarChartWidgetConfig,
-  PieChartWidgetConfig,
   AnalogBarConfig,
   AlarmIndicatorConfig,
+  TextReadoutArrayConfig,
 } from "../types/graphics";
+import { CONTENT_WIDGET_IDS } from "../components/charts/chart-config-types";
 
 /**
  * Walk the entire scene graph and collect all point IDs that need
@@ -26,15 +23,25 @@ export function extractPointIds(root: GraphicDocument): Set<string> {
       if (de.binding?.pointId) pointIds.add(de.binding.pointId);
 
       // Analog bar setpoint
-      if (de.config.displayType === "analog_bar") {
+      if (de.displayType === "analog_bar") {
         const cfg = de.config as AnalogBarConfig;
         if (cfg.setpointBinding?.pointId)
           pointIds.add(cfg.setpointBinding.pointId);
       }
 
       // Alarm indicator multi-bindings
-      if (de.config.displayType === "alarm_indicator") {
+      if (de.displayType === "alarm_indicator") {
         const cfg = de.config as AlarmIndicatorConfig;
+        if (cfg.additionalBindings) {
+          for (const b of cfg.additionalBindings) {
+            if (b.pointId) pointIds.add(b.pointId);
+          }
+        }
+      }
+
+      // Text readout array multi-bindings
+      if (de.displayType === "text_readout_array") {
+        const cfg = de.config as TextReadoutArrayConfig;
         if (cfg.additionalBindings) {
           for (const b of cfg.additionalBindings) {
             if (b.pointId) pointIds.add(b.pointId);
@@ -50,7 +57,7 @@ export function extractPointIds(root: GraphicDocument): Set<string> {
 
     // Widget point references
     if (node.type === "widget") {
-      extractWidgetPointIds((node as WidgetNode).config, pointIds);
+      extractWidgetPointIds(node as WidgetNode, pointIds);
     }
 
     // Recurse into children
@@ -71,35 +78,10 @@ export function extractPointIds(root: GraphicDocument): Set<string> {
   return pointIds;
 }
 
-function extractWidgetPointIds(
-  config: WidgetConfig,
-  pointIds: Set<string>,
-): void {
-  switch (config.widgetType) {
-    case "trend":
-      for (const s of (config as TrendWidgetConfig).series)
-        if (s.binding.pointId) pointIds.add(s.binding.pointId);
-      break;
-    case "table":
-      for (const c of (config as TableWidgetConfig).columns)
-        if (c.binding.pointId) pointIds.add(c.binding.pointId);
-      break;
-    case "gauge":
-    case "kpi_card":
-      if ((config as { binding?: { pointId?: string } }).binding?.pointId)
-        pointIds.add(
-          (config as { binding: { pointId: string } }).binding.pointId,
-        );
-      break;
-    case "bar_chart":
-      for (const s of (config as BarChartWidgetConfig).series)
-        if (s.binding.pointId) pointIds.add(s.binding.pointId);
-      break;
-    case "pie_chart":
-      for (const s of (config as PieChartWidgetConfig).slices)
-        if (s.binding.pointId) pointIds.add(s.binding.pointId);
-      break;
-    // alarm_list and muster_point have no direct point bindings
+function extractWidgetPointIds(node: WidgetNode, pointIds: Set<string>): void {
+  if (CONTENT_WIDGET_IDS.has(node.chartType)) return;
+  for (const slot of node.config.points) {
+    if (slot.pointId) pointIds.add(slot.pointId);
   }
 }
 
@@ -191,6 +173,18 @@ export function extractViewportPointIds(
     if (node.type === "display_element") {
       const de = node as DisplayElement;
       if (de.binding?.pointId) pointIds.add(de.binding.pointId);
+      if (de.displayType === "alarm_indicator") {
+        const cfg = de.config as AlarmIndicatorConfig;
+        for (const b of cfg.additionalBindings ?? []) {
+          if (b.pointId) pointIds.add(b.pointId);
+        }
+      }
+      if (de.displayType === "text_readout_array") {
+        const cfg = de.config as TextReadoutArrayConfig;
+        for (const b of cfg.additionalBindings ?? []) {
+          if (b.pointId) pointIds.add(b.pointId);
+        }
+      }
     }
     if (node.type === "symbol_instance" && node.stateBinding?.pointId) {
       pointIds.add(node.stateBinding.pointId);

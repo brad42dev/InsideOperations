@@ -158,6 +158,7 @@ export default function Chart04StepChart({
         {/* Empty state */}
         {pointIds.length === 0 && (
           <div
+            data-chart-ready="true"
             style={{
               flex: 1,
               display: "flex",

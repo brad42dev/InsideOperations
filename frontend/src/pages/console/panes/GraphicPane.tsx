@@ -1,4 +1,11 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import {
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useNodeMarquee } from "../../../shared/hooks/useNodeMarquee";
 import { useNodeClick } from "../../../shared/hooks/useNodeClick";
@@ -34,7 +41,13 @@ import PointDetailPanel from "../../../shared/components/PointDetailPanel";
 import type {
   SceneNode,
   GraphicDocument,
+  DisplayElement,
+  WidgetNode,
+  ViewportState,
+  AlarmIndicatorConfig,
+  TextReadoutArrayConfig,
 } from "../../../shared/types/graphics";
+import { CONTENT_WIDGET_IDS } from "../../../shared/components/charts/chart-config-types";
 
 // ── Tooltip state shape ──────────────────────────────────────────────────────
 
@@ -140,6 +153,29 @@ function extractPointIds(nodes: SceneNode[]): string[] {
         if (s.binding?.expressionId) ids.add(s.binding.expressionId);
       }
     }
+    if (n.type === "display_element") {
+      const de = n as DisplayElement;
+      if (de.displayType === "text_readout_array") {
+        const cfg = de.config as TextReadoutArrayConfig;
+        for (const b of cfg.additionalBindings ?? []) {
+          if (b.pointId) ids.add(b.pointId);
+        }
+      }
+      if (de.displayType === "alarm_indicator") {
+        const cfg = de.config as AlarmIndicatorConfig;
+        for (const b of cfg.additionalBindings ?? []) {
+          if (b.pointId) ids.add(b.pointId);
+        }
+      }
+    }
+    if (n.type === "widget") {
+      const wn = n as WidgetNode;
+      if (!CONTENT_WIDGET_IDS.has(wn.chartType)) {
+        for (const slot of wn.config.points ?? []) {
+          if (slot.pointId) ids.add(slot.pointId);
+        }
+      }
+    }
     if ("children" in n && Array.isArray(n.children)) {
       for (const child of n.children) walk(child as SceneNode);
     }
@@ -159,6 +195,19 @@ function extractTagBindings(nodes: SceneNode[]): string[] {
         tags.add(b.pointTag);
       } else if (b.pointId && !UUID_RE.test(b.pointId)) {
         tags.add(b.pointId);
+      }
+    }
+    if (n.type === "display_element") {
+      const de = n as DisplayElement;
+      if (de.displayType === "text_readout_array") {
+        const cfg = de.config as TextReadoutArrayConfig;
+        for (const b of cfg.additionalBindings ?? []) {
+          if (b.pointTag) {
+            tags.add(b.pointTag);
+          } else if (b.pointId && !UUID_RE.test(b.pointId)) {
+            tags.add(b.pointId);
+          }
+        }
       }
     }
     if (n.type === "symbol_instance" && "stateBinding" in n) {
@@ -516,6 +565,59 @@ export default function GraphicPane({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ── Widget overlay viewport — tracks pane pixel size so chart widgets align
+  // with the SVG content (which is scaled by the SVG viewBox).
+  const [containerSize, setContainerSize] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+
+  // Synchronous seed before first paint — prevents a one-frame misposition of
+  // widget overlays that would occur if we waited for the ResizeObserver callback.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    if (width > 0 && height > 0) setContainerSize({ w: width, h: height });
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      setContainerSize({
+        w: entry.contentRect.width,
+        h: entry.contentRect.height,
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const widgetViewport = useMemo((): ViewportState | undefined => {
+    if (!containerSize || !data?.scene_data?.canvas) return undefined;
+    const canvasW = data.scene_data.canvas.width ?? 1920;
+    const canvasH = data.scene_data.canvas.height ?? 1080;
+    const zoom = Math.min(containerSize.w / canvasW, containerSize.h / canvasH);
+    // Encode letterbox centering as panX/panY so the SVG g-transform and
+    // canvasToScreen() both agree: canvas origin maps to (marginX, marginY) in
+    // screen pixels, matching what preserveAspectRatio="xMidYMid meet" produced
+    // before the viewport was wired up.
+    const marginX = (containerSize.w - canvasW * zoom) / 2;
+    const marginY = (containerSize.h - canvasH * zoom) / 2;
+    return {
+      panX: zoom > 0 ? -marginX / zoom : 0,
+      panY: zoom > 0 ? -marginY / zoom : 0,
+      zoom,
+      canvasWidth: canvasW,
+      canvasHeight: canvasH,
+      screenWidth: containerSize.w,
+      screenHeight: containerSize.h,
+    };
+  }, [containerSize, data?.scene_data?.canvas]);
+
   // ── Scene-node selection — canonical Mode A behavior ─────────────────────────
   // Pattern defined in docs/decisions/selection-behavior.md.
   // Do not inline pointer logic here — use useNodeMarquee / useNodeClick instead.
@@ -774,28 +876,14 @@ export default function GraphicPane({
     [marquee, nodeClick],
   );
 
-  if (isLoading) {
+  // Loading / error states render inside containerRef so the ref is always
+  // attached from mount — the useLayoutEffect seed and ResizeObserver both
+  // run once with [] deps and need containerRef.current to be set on first
+  // mount, before the async query resolves.
+  if (isLoading || isError || !data) {
     return (
       <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--io-surface-primary)",
-          color: "var(--io-text-muted)",
-          fontSize: 13,
-        }}
-      >
-        Loading…
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <div
+        ref={containerRef}
         style={{
           width: "100%",
           height: "100%",
@@ -809,7 +897,11 @@ export default function GraphicPane({
           textAlign: "center",
         }}
       >
-        {error instanceof Error ? error.message : "Failed to load graphic"}
+        {isLoading
+          ? "Loading…"
+          : error instanceof Error
+            ? error.message
+            : "Failed to load graphic"}
       </div>
     );
   }
@@ -818,6 +910,7 @@ export default function GraphicPane({
   if (isPhone) {
     return (
       <div
+        ref={containerRef}
         style={{
           width: "100%",
           height: "100%",
@@ -910,6 +1003,8 @@ export default function GraphicPane({
         sparklineHistories={sparklineHistories ?? undefined}
         onNavigate={onNavigate}
         preserveAspectRatio={preserveAspectRatio ? "xMidYMid meet" : "none"}
+        graphicId={graphicId}
+        viewport={widgetViewport}
         style={SCENE_RENDERER_STYLE}
       />
 
