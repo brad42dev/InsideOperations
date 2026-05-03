@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { wsManager } from "../../../hooks/useWebSocket";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
@@ -94,6 +94,7 @@ export function useTimeSeriesBuffer({
 }: UseTimeSeriesBufferOptions): UseTimeSeriesBufferResult {
   const buffers = useRef(getBuffers(bufferKey));
   const lastTs = useRef(getLastTs(bufferKey));
+  const queryClient = useQueryClient();
 
   // Clean up module-scope maps when this pane unmounts (prevents unbounded growth
   // when operators add/remove panes over a long session).
@@ -105,10 +106,37 @@ export function useTimeSeriesBuffer({
     // bufferKey is stable (pane ID) — intentionally empty-ish dep array
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bufferKey]);
+
   const [tick, setTick] = useState(0);
 
   const { mode: playbackMode, timestamp: scrubTimestamp } = usePlaybackStore();
   const isHistorical = playbackMode === "historical";
+
+  // On tab resume after OS sleep, invalidate the seed query so the gap between
+  // the last pre-sleep reading and now gets backfilled. staleTime:Infinity means
+  // the query never refetches on its own; visibilitychange is the only trigger.
+  // Threshold of 5 s filters out normal tab-switching.
+  const hiddenAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isHistorical) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (hiddenAt === null) return;
+      if (Date.now() - hiddenAt > 5_000) {
+        void queryClient.invalidateQueries({
+          queryKey: ["ts-seed", bufferKey, pointIds.join(","), durationMinutes, bucketSeconds, aggregateType],
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bufferKey, pointIds.join(","), durationMinutes, bucketSeconds, aggregateType, isHistorical, queryClient]);
 
   // Snap historicalNowMs to bucket boundaries so the chart window advances at
   // the same resolution as the data. React Query staleTime:Infinity ensures

@@ -36,7 +36,7 @@ import {
   DE_CHIP as _SDD_CHIP,
   displayConfigToUserConfig as _displayConfigToUserConfig,
 } from "./ShapeDropDialog";
-import { resolveSlotWithSidecar } from "../../../shared/graphics/anchorSlots";
+import { resolveSlotWithSidecar, resolveShapeAnchorSlots } from "../../../shared/graphics/anchorSlots";
 import {
   applyDeSlotOffset,
   dePixelSize,
@@ -47,7 +47,7 @@ import {
 } from "../../../shared/graphics/sidecarCollision";
 import { SceneRenderer } from "../../../shared/graphics/SceneRenderer";
 import { ShapePointSelector, resolvePointBindings } from "./ShapePointSelector";
-import type { ShapeSlotDef, ShapeBindingEntry } from "./ShapePointSelector";
+import type { ShapeSlotDef, ShapeBindingEntry, AdditionalPointEntry } from "./ShapePointSelector";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,6 +138,7 @@ function deriveAddonGroups(sidecar: ShapeSidecar | null): AddonGroup[] {
 
 const ALL_DISPLAY_ELEMENTS: Array<{ id: DisplayElementType; label: string }> = [
   { id: "text_readout", label: "Text Readout" },
+  { id: "text_readout_array", label: "Text Readout Array" },
   { id: "alarm_indicator", label: "Alarm Indicator" },
   { id: "analog_bar", label: "Analog Bar" },
   { id: "fill_gauge", label: "Fill Gauge" },
@@ -433,7 +434,7 @@ function buildPreviewDocument(
         minY = Math.min(minY, pos.y - dh / 2 - 4);
         maxX = Math.max(maxX, pos.x + dw / 2 + 4);
         maxY = Math.max(maxY, pos.y + dh / 2 + 4);
-      } else if (dt === "text_readout") {
+      } else if (dt === "text_readout" || dt === "text_readout_array") {
         minX = Math.min(minX, pos.x - dw / 2 - 4);
         minY = Math.min(minY, pos.y - 4);
         maxX = Math.max(maxX, pos.x + dw / 2 + 4);
@@ -825,7 +826,12 @@ export function CategoryShapeWizard({
   return (
     <div
       style={overlayStyle}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => {
+        e.stopPropagation();
         if (e.target === e.currentTarget) onCancel();
       }}
     >
@@ -1093,12 +1099,41 @@ export function CategoryShapeWizard({
                     label: p.label,
                     isDefault: p.partId === "body",
                   }));
+                  const traSelected = selectedElements.has("text_readout_array");
+                  const traConfig = traSelected ? elementConfigs["text_readout_array"] : undefined;
+                  const additionalPoints: AdditionalPointEntry[] = traConfig
+                    ? (traConfig.additionalBindings ?? []).map((b) => ({
+                        pointId: b.pointId ?? "",
+                        tag: b.pointTag ?? b.pointId ?? "",
+                        displayName: b.displayName,
+                        unit: b.unit,
+                      }))
+                    : [];
+                  const handleAdditionalPointsChange = (pts: AdditionalPointEntry[]) => {
+                    setElementConfigs((prev) => ({
+                      ...prev,
+                      text_readout_array: {
+                        ...(prev["text_readout_array"] ?? {}),
+                        additionalBindings: pts
+                          .filter((p) => p.tag)
+                          .map((p) => ({
+                            pointId: p.pointId || undefined,
+                            pointTag: p.tag,
+                            displayName: p.displayName,
+                            unit: p.unit,
+                          })),
+                      },
+                    }));
+                  };
                   return (
                     <ShapePointSelector
                       slots={slotDefs}
                       bindings={bindings}
                       onChange={setBindings}
                       onOverCapacityChange={setBindingsOverCapacity}
+                      additionalPoints={traSelected ? additionalPoints : undefined}
+                      onAdditionalPointsChange={traSelected ? handleAdditionalPointsChange : undefined}
+                      additionalPointsLabel={traSelected ? "Text Readout Array" : undefined}
                     />
                   );
                 })()}
@@ -1214,10 +1249,11 @@ export function CategoryShapeWizard({
                               }
                               availableSlots={
                                 (
-                                  sidecar?.anchorSlots as
-                                    | Record<string, string[]>
-                                    | undefined
-                                )?.[DE_SIDECAR_KEY[focusedElement]!] ??
+                                  resolveShapeAnchorSlots(sidecar) as Record<
+                                    string,
+                                    string[]
+                                  >
+                                )[DE_SIDECAR_KEY[focusedElement]!] ??
                                 DE_FALLBACK_SLOTS_LIST[
                                   DE_SIDECAR_KEY[focusedElement]!
                                 ] ?? ["bottom"]

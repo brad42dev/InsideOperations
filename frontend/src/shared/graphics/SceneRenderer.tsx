@@ -26,6 +26,7 @@ import type {
   ViewportState,
   LayerDefinition,
   TextReadoutConfig,
+  TextReadoutArrayConfig,
   AnalogBarConfig,
   FillGaugeConfig,
   SparklineConfig,
@@ -65,6 +66,7 @@ import {
   type SymbolInstanceRenderContext,
   type GroupRenderContext,
 } from "./renderNodeSvg";
+import ChartRenderer from "../components/charts/ChartRenderer";
 
 // ---- Point value types received from WebSocket ----
 
@@ -124,6 +126,8 @@ export interface SceneRendererProps {
    * Currently affects: alarm_indicator (shown as ghost placeholder instead of hidden).
    */
   previewMode?: boolean;
+  /** ID of the graphic document — used to scope widget chart buffer keys. Required when widgets are present. */
+  graphicId?: string;
   /**
    * Per-node overlay hook. Called after rendering each node. DesignerCanvas uses this
    * to inject selection highlights, resize handles, and rotation handles without
@@ -151,6 +155,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   forceLod,
   previewMode = false,
   renderNodeOverlay,
+  graphicId,
   className,
   style,
 }: SceneRendererProps) {
@@ -229,6 +234,20 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           const de = n as DisplayElement;
           if (de.binding.pointId && UUID_RE_OUTER.test(de.binding.pointId))
             ids.push(de.binding.pointId);
+          if (de.displayType === "text_readout_array") {
+            const cfg = de.config as TextReadoutArrayConfig;
+            for (const b of cfg.additionalBindings ?? []) {
+              if (b.pointId && UUID_RE_OUTER.test(b.pointId)) {
+                ids.push(b.pointId);
+              } else {
+                const tag = b.pointTag ?? b.pointId;
+                if (tag) {
+                  const resolved = resolvedTagMap.get(tag);
+                  if (resolved) ids.push(resolved);
+                }
+              }
+            }
+          }
         }
         if (n.type === "symbol_instance") {
           const si = n as SymbolInstance;
@@ -241,6 +260,20 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
             const de = child as DisplayElement;
             if (de.binding?.pointId && UUID_RE_OUTER.test(de.binding.pointId))
               ids.push(de.binding.pointId);
+            if (de.displayType === "text_readout_array") {
+              const cfg = de.config as TextReadoutArrayConfig;
+              for (const b of cfg.additionalBindings ?? []) {
+                if (b.pointId && UUID_RE_OUTER.test(b.pointId)) {
+                  ids.push(b.pointId);
+                } else {
+                  const tag = b.pointTag ?? b.pointId;
+                  if (tag) {
+                    const resolved = resolvedTagMap.get(tag);
+                    if (resolved) ids.push(resolved);
+                  }
+                }
+              }
+            }
           }
         }
         if (
@@ -255,7 +288,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     walkForPointIds(children);
     return [...new Set(ids)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document.id, children]);
+  }, [document.id, children, resolvedTagMap]);
 
   // Fetch and cache PointDetail (including enum_labels) for all bound points.
   const pointMetaMap = usePointMeta(allPointIds);
@@ -264,7 +297,22 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   const pointMetaMapRef = useRef<Map<string, PointDetail>>(new Map());
   useEffect(() => {
     pointMetaMapRef.current = pointMetaMap;
-  }, [pointMetaMap]);
+    // Re-apply last-known values so EU spans appear as soon as meta loads,
+    // without waiting for the next WS tick.
+    if (!liveSubscribe || lastPvRef.current.size === 0) return;
+    const map = pointToElementsRef.current;
+    for (const [pid, pv] of lastPvRef.current) {
+      const els = map.get(pid);
+      if (!els) continue;
+      for (const el of els) {
+        const nodeId = el.getAttribute("data-node-id");
+        if (!nodeId) continue;
+        const conf = nodeConfigMapRef.current.get(nodeId);
+        if (!conf) continue;
+        applyPointValue(el, conf.displayType, conf.config, pv, pid, pointMetaMap);
+      }
+    }
+  }, [pointMetaMap, liveSubscribe]);
 
   // Build node config map whenever the scene graph changes.
   // Runs for both live and historical modes — historical DOM mutation path needs it too.
@@ -487,7 +535,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
       // It is cleared in a separate effect when document.id changes.
       lastUpdateTimestampsRef.current.clear();
     };
-  }, [document.id, liveSubscribe, resolvedTagMap, shapeMap]);
+  }, [document.id, document.children, liveSubscribe, resolvedTagMap, shapeMap]);
 
   // Re-apply last-known values after EVERY SceneRenderer render in live mode.
   // React's reconciliation rewrites DOM attributes to match JSX output (placeholder
@@ -703,6 +751,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           // Also handle legacy graphics where a tag name was saved into pointId by mistake
           else if (de.binding.pointId && !UUID_RE.test(de.binding.pointId))
             tags.push(de.binding.pointId);
+          if (de.displayType === "text_readout_array") {
+            const cfg = de.config as TextReadoutArrayConfig;
+            for (const b of cfg.additionalBindings ?? []) {
+              if (b.pointTag) tags.push(b.pointTag);
+              else if (b.pointId && !UUID_RE.test(b.pointId))
+                tags.push(b.pointId);
+            }
+          }
         }
         if (n.type === "symbol_instance") {
           const si = n as SymbolInstance;
@@ -712,6 +768,17 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
             !UUID_RE.test(si.stateBinding.pointId)
           )
             tags.push(si.stateBinding.pointId);
+          for (const child of si.children) {
+            const de = child as DisplayElement;
+            if (de.displayType === "text_readout_array") {
+              const cfg = de.config as TextReadoutArrayConfig;
+              for (const b of cfg.additionalBindings ?? []) {
+                if (b.pointTag) tags.push(b.pointTag);
+                else if (b.pointId && !UUID_RE.test(b.pointId))
+                  tags.push(b.pointId);
+              }
+            }
+          }
         }
         if ("children" in n && Array.isArray(n.children))
           collectTags(n.children as SceneNode[]);
@@ -856,6 +923,71 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
       ? (pointMetaMap.get(pvKey)?.engineering_unit ?? undefined)
       : undefined;
 
+    // Multi-binding resolution for text_readout_array
+    let arrPvKeys: string[] | undefined;
+    let arrPointTags: string[] | undefined;
+    let arrPointValues: (import("./renderDisplayElementSvg").PointValueData | undefined)[] | undefined;
+    let arrDiscreteLabels: (string | null)[] | undefined;
+    let arrMetaUnits: string[] | undefined;
+    let arrDisplayNames: string[] | undefined;
+    let arrBindingUnits: string[] | undefined;
+
+    if (node.displayType === "text_readout_array") {
+      const arrayCfg = node.config as TextReadoutArrayConfig;
+      const allBindings = [...(arrayCfg.additionalBindings ?? [])];
+      arrPvKeys = [];
+      arrPointTags = [];
+      arrPointValues = [];
+      arrDiscreteLabels = [];
+      arrMetaUnits = [];
+      arrDisplayNames = [];
+      arrBindingUnits = [];
+      for (const b of allBindings) {
+        const rawId = b.pointId;
+        const isTagId = rawId && !UUID_RE.test(rawId);
+        const bKey =
+          (rawId && !isTagId ? rawId : undefined) ??
+          (b.pointTag ? resolvedTagMap.get(b.pointTag) : undefined) ??
+          (isTagId ? resolvedTagMap.get(rawId!) : undefined) ??
+          b.expressionId;
+        const bPv = bKey ? pointValues.get(bKey) : undefined;
+        const bMeta = bKey ? pointMetaMapRef.current.get(bKey) : undefined;
+        const bDiscreteLabel =
+          bMeta &&
+          bMeta.point_category !== "analog" &&
+          typeof bPv?.value === "number"
+            ? resolvePointLabel(
+                bPv.value,
+                bMeta.point_category,
+                bMeta.enum_labels,
+              )
+            : null;
+        const bMetaUnit =
+          bKey ? (pointMetaMap.get(bKey)?.engineering_unit ?? undefined) : undefined;
+        arrPvKeys.push(bKey ?? "");
+        arrPointTags.push(
+          b.pointTag ?? (isTagId ? rawId! : undefined) ?? "",
+        );
+        arrPointValues.push(
+          bPv
+            ? {
+                value: bPv.value,
+                quality: bPv.quality,
+                stale: bPv.stale,
+                manual: bPv.manual,
+                units: bPv.units ?? bMetaUnit ?? undefined,
+                alarmPriority: bPv.alarmPriority,
+                unacknowledged: bPv.unacknowledged,
+              }
+            : undefined,
+        );
+        arrDiscreteLabels.push(bDiscreteLabel);
+        arrMetaUnits.push(bMetaUnit ?? "");
+        arrDisplayNames.push(b.displayName ?? "");
+        arrBindingUnits.push(b.unit ?? "");
+      }
+    }
+
     // Resolve setpoint value (for analog_bar)
     let setpointValue: number | null = null;
     if (node.displayType === "analog_bar") {
@@ -900,6 +1032,13 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
       previewMode,
       parentScaleX,
       pointCategory: meta?.point_category,
+      pvKeys: arrPvKeys,
+      pointTags: arrPointTags,
+      pointValues: arrPointValues,
+      discreteLabels: arrDiscreteLabels,
+      metaUnits: arrMetaUnits,
+      displayNames: arrDisplayNames,
+      bindingUnits: arrBindingUnits,
     };
 
     return renderDisplayElementSvg(node, deCtx);
@@ -1106,7 +1245,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           width: "100%",
           height: "100%",
         }}
-        viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+        viewBox={`0 0 ${vp.screenWidth} ${vp.screenHeight}`}
         preserveAspectRatio={preserveAspectRatio}
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -1196,29 +1335,33 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
       >
         {widgetNodes.map((node) => {
           const screenPos = canvasToScreen(node.transform.position, vp);
-          const w = node.width * vp.zoom;
-          const h = node.height * vp.zoom;
+          const bufferKey = `graphic:${graphicId ?? "unknown"}:widget:${node.id}`;
           return (
             <div
               key={node.id}
+              data-node-id={node.id}
+              data-widget-chart-type={node.chartType}
               style={{
                 position: "absolute",
                 left: screenPos.x,
                 top: screenPos.y,
-                width: w,
-                height: h,
-                pointerEvents: "auto",
+                // Natural canvas size + CSS scale matches SVG shape behaviour:
+                // content renders at 1:1 canvas pixels so charts look correct
+                // at any graphic zoom level or browser window size.
+                width: node.width,
+                height: node.height,
+                transform: `scale(${vp.zoom})`,
+                transformOrigin: "top left",
+                pointerEvents: designerMode ? "none" : "auto",
                 background: "var(--io-surface-elevated)",
                 border: "1px solid var(--io-border)",
                 borderRadius: 4,
+                overflow: "hidden",
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--io-text-muted)",
-                fontSize: 12,
+                flexDirection: "column",
               }}
             >
-              {node.widgetType}
+              <ChartRenderer config={node.config} bufferKey={bufferKey} />
             </div>
           );
         })}
@@ -1233,6 +1376,232 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
 // Called from the rAF drain loop — no React involved.
 // Updates SVG child elements in-place using data-role attributes as anchors.
 
+// Shared mutation logic for text_readout and text_readout_array_item.
+// Array item <g>s carry data-display-type="text_readout_array_item"; they share
+// the same box/label DOM structure but skip the outer centering transform step
+// (the parent array <g> handles centering for the whole array).
+function applyTextReadoutLikeMutation(
+  el: SVGGElement,
+  cfg: TextReadoutConfig | TextReadoutArrayConfig,
+  pv: WsPointValue,
+  pointId: string | undefined,
+  metaMap: Map<string, PointDetail> | undefined,
+): void {
+  const value = pv.value;
+  const quality = pv.quality;
+  const isStale = pv.stale ?? false;
+  const isCommFail = quality === "comm_fail";
+  const isBad = quality === "bad" && !isCommFail;
+  const isUncertain = quality === "uncertain";
+  const isManual = pv.manual ?? false;
+
+  const pointMeta = pointId ? metaMap?.get(pointId) : undefined;
+  const metaUnit = (pointMeta?.engineering_unit ?? "") as string;
+  const discreteLabel =
+    pointMeta &&
+    pointMeta.point_category !== "analog" &&
+    typeof value === "number" &&
+    !isCommFail &&
+    !isBad
+      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      : null;
+
+  const rawValueStr = isCommFail
+    ? "COMM"
+    : isBad
+      ? "????"
+      : discreteLabel !== null
+        ? discreteLabel
+        : formatValue(value, cfg.valueFormat);
+  const valueColor = isCommFail
+    ? DE_COLORS.textMuted
+    : isBad
+      ? ALARM_COLORS[1]
+      : DE_COLORS.textSecondary;
+
+  const minW = parseInt(el.dataset.minWidth ?? "40", 10);
+  const isFixedLayout = el.dataset.fixedLayout === "true";
+
+  const boxFill = isCommFail
+    ? DE_COLORS.displayZoneInactive
+    : DE_COLORS.surfaceElevated;
+  const boxStroke = isBad
+    ? ALARM_COLORS[1]
+    : isCommFail
+      ? DE_COLORS.borderStrong
+      : DE_COLORS.border;
+  const strokeDash = isBad || isStale ? "4 2" : isUncertain ? "2 2" : "";
+  const strokeWidth = isBad || isCommFail ? "2" : "1";
+  const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
+
+  if (isFixedLayout) {
+    // Fixed-layout TRA items use two text elements for decimal alignment.
+    // Positions are set at initial render — only update content and colors.
+    const vIntEl = el.querySelector<SVGTextElement>('[data-role="v-int"]');
+    const vFracEl = el.querySelector<SVGTextElement>('[data-role="v-frac"]');
+    if (vIntEl && vFracEl) {
+      const isNumeric = /^-?[\d.]/.test(rawValueStr);
+      const dotIdx = rawValueStr.indexOf(".");
+      vIntEl.textContent =
+        isNumeric && dotIdx >= 0 ? rawValueStr.slice(0, dotIdx) : rawValueStr;
+      vIntEl.setAttribute("fill", valueColor);
+      const vFracContent = vFracEl.querySelector<SVGTSpanElement>(
+        '[data-role="v-frac-content"]',
+      );
+      if (vFracContent) {
+        vFracContent.textContent =
+          isNumeric && dotIdx >= 0 ? `.${rawValueStr.slice(dotIdx + 1)}` : "";
+      }
+      vFracEl.setAttribute("fill", valueColor);
+      const fracEuSpan = vFracEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
+      if (fracEuSpan) {
+        fracEuSpan.style.display = !isCommFail && !isBad ? "" : "none";
+      } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
+        const s = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+        s.setAttribute("data-role", "eu");
+        s.setAttribute("font-family", "Inter");
+        s.setAttribute("font-size", "9");
+        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.textContent = ` ${metaUnit}`;
+        vFracEl.appendChild(s);
+      }
+    } else {
+      // Non-numeric value (COMM, ????, discrete label) fell through to centered path.
+      const textElCentered = el.querySelector<SVGTextElement>('[data-role="value"]');
+      if (textElCentered) {
+        const vSpan = textElCentered.querySelector<SVGTSpanElement>('[data-role="v"]');
+        if (vSpan) vSpan.textContent = rawValueStr;
+        else textElCentered.textContent = rawValueStr;
+        textElCentered.setAttribute("fill", valueColor);
+      }
+    }
+    // Box width is pre-computed and uniform — only update colors.
+    if (rectEl) {
+      rectEl.setAttribute("fill", boxFill);
+      rectEl.setAttribute("stroke", boxStroke);
+      rectEl.setAttribute("stroke-width", strokeWidth);
+      if (strokeDash) {
+        rectEl.setAttribute("stroke-dasharray", strokeDash);
+      } else {
+        rectEl.removeAttribute("stroke-dasharray");
+      }
+    }
+  } else {
+    // Dynamic-width path: measure rendered text and resize box to fit.
+    const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
+    if (textEl) {
+      const vSpan = textEl.querySelector<SVGTSpanElement>('[data-role="v"]');
+      if (vSpan) vSpan.textContent = rawValueStr;
+      else textEl.textContent = rawValueStr;
+      textEl.setAttribute("fill", valueColor);
+
+      const euSpan = textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
+      if (euSpan) {
+        euSpan.style.display = !isCommFail && !isBad ? "" : "none";
+      } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
+        const s = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+        s.setAttribute("data-role", "eu");
+        s.setAttribute("font-family", "Inter");
+        s.setAttribute("font-size", "9");
+        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.textContent = ` ${metaUnit}`;
+        textEl.appendChild(s);
+      }
+
+      const measured = textEl.getComputedTextLength();
+      const newW = Math.max(minW, Math.ceil(measured) + 12);
+      textEl.setAttribute("x", String(Math.round(newW / 2)));
+
+      if (rectEl) {
+        rectEl.setAttribute("width", String(newW));
+        rectEl.setAttribute("fill", boxFill);
+        rectEl.setAttribute("stroke", boxStroke);
+        rectEl.setAttribute("stroke-width", strokeWidth);
+        if (strokeDash) {
+          rectEl.setAttribute("stroke-dasharray", strokeDash);
+        } else {
+          rectEl.removeAttribute("stroke-dasharray");
+        }
+      }
+
+      const pnEl = el.querySelector<SVGTextElement>('[data-role="pn"]');
+      if (pnEl) pnEl.setAttribute("x", String(Math.round(newW / 2)));
+      const pnBgEl = el.querySelector<SVGRectElement>('[data-role="pn-bg"]');
+      if (pnBgEl) pnBgEl.setAttribute("width", String(newW));
+      const dnEl = el.querySelector<SVGTextElement>('[data-role="dn"]');
+      if (dnEl) dnEl.setAttribute("x", String(Math.round(newW / 2)));
+      const dnBgEl = el.querySelector<SVGRectElement>('[data-role="dn-bg"]');
+      if (dnBgEl) dnBgEl.setAttribute("width", String(newW));
+
+      // Re-center on the anchor slot.
+      if (el.dataset.displayType === "text_readout_array_item") {
+        const outerG = el.parentElement as SVGGElement | null;
+        if (outerG?.dataset.displayType === "text_readout_array") {
+          const itemGs = outerG.querySelectorAll<SVGGElement>(
+            '[data-display-type="text_readout_array_item"]',
+          );
+          let maxW = 0;
+          for (const ig of itemGs) {
+            const boxEl = ig.querySelector<SVGRectElement>('[data-role="box"]');
+            maxW = Math.max(maxW, boxEl ? Number(boxEl.getAttribute("width") ?? 0) : newW);
+          }
+          const baseTransform = outerG.dataset.baseTransform;
+          if (baseTransform) {
+            const arrayLayout = outerG.dataset.arrayLayout ?? "vertical";
+            const itemCount = Number(outerG.dataset.itemCount ?? 1);
+            const itemGap = Number(outerG.dataset.itemGap ?? 2);
+            const totalW =
+              arrayLayout === "horizontal"
+                ? itemCount * maxW + (itemCount - 1) * itemGap
+                : maxW;
+            outerG.setAttribute(
+              "transform",
+              `${baseTransform} translate(${Math.round(-totalW / 2)},0)`,
+            );
+          }
+        }
+      } else {
+        const baseTransform = el.dataset.baseTransform;
+        if (baseTransform) {
+          el.setAttribute(
+            "transform",
+            `${baseTransform} translate(${Math.round(-newW / 2)},0)`,
+          );
+        }
+      }
+    }
+  }
+
+  el.style.opacity = isStale ? "0.6" : "";
+
+  let badge = el.querySelector<SVGTextElement>('[data-role="manual-badge"]');
+  if (isManual) {
+    if (!badge) {
+      badge = window.document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "text",
+      );
+      badge.setAttribute("data-role", "manual-badge");
+      badge.setAttribute("text-anchor", "end");
+      badge.setAttribute("dominant-baseline", "hanging");
+      badge.setAttribute("font-family", "Inter");
+      badge.setAttribute("font-size", "7");
+      badge.setAttribute("font-weight", "700");
+      badge.setAttribute("fill", DE_COLORS.manualBadge);
+      el.appendChild(badge);
+    }
+    const boxRectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
+    const w = boxRectEl ? Number(boxRectEl.getAttribute("width") ?? 60) : 60;
+    const boxY = Number(el.getAttribute("data-value-box-y") ?? 0);
+    badge.setAttribute("x", String(w - 2));
+    badge.setAttribute("y", String(boxY + 2));
+    badge.textContent = "M";
+    badge.style.display = "";
+  } else if (badge) {
+    badge.style.display = "none";
+  }
+}
+
 function applyPointValue(
   el: SVGGElement,
   displayType: string,
@@ -1243,7 +1612,6 @@ function applyPointValue(
 ): void {
   const value = pv.value;
   const quality = pv.quality;
-  const isStale = pv.stale ?? false;
   const isCommFail = quality === "comm_fail";
   const isBad = quality === "bad" && !isCommFail;
 
@@ -1263,132 +1631,32 @@ function applyPointValue(
         )
       : null;
 
-  switch (displayType) {
+  // Per-item array <g>s carry data-display-type="text_readout_array_item" while
+  // nodeConfigMap has "text_readout_array" — dispatch on the DOM attribute.
+  const effectiveType = el.dataset.displayType ?? displayType;
+
+  switch (effectiveType) {
     case "text_readout": {
-      const cfg = config as TextReadoutConfig;
-      const isUncertain = quality === "uncertain";
-      const isManual = pv.manual ?? false;
-
-      // Value text — use discrete label when available, else numeric format
-      const rawValueStr = isCommFail
-        ? "COMM"
-        : isBad
-          ? "????"
-          : discreteLabel !== null
-            ? discreteLabel
-            : formatValue(value, cfg.valueFormat);
-      const valueColor = isCommFail
-        ? DE_COLORS.textMuted
-        : isBad
-          ? ALARM_COLORS[1]
-          : DE_COLORS.textSecondary;
-
-      // Recalculate box width so the combined "value EU" string stays centered.
-      // The React render sizes the box from the placeholder value; when the live
-      // value arrives with a different character count the box must resize too.
-      const minW = parseInt(el.dataset.minWidth ?? "40", 10);
-
-      const textEl = el.querySelector<SVGTextElement>('[data-role="value"]');
-      if (textEl) {
-        // 1. Update value text content
-        const vSpan = textEl.querySelector<SVGTSpanElement>('[data-role="v"]');
-        if (vSpan) {
-          vSpan.textContent = rawValueStr;
-        } else {
-          textEl.textContent = rawValueStr;
-        }
-        textEl.setAttribute("fill", valueColor);
-
-        // 2. Show/hide EU tspan based on comm/bad state
-        const euSpan =
-          textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
-        if (euSpan) {
-          euSpan.style.display = !isCommFail && !isBad ? "" : "none";
-        }
-
-        // 3. Measure actual rendered width — exact, no font estimation needed
-        const measured = textEl.getComputedTextLength();
-        const newW = Math.max(minW, Math.ceil(measured) + 12); // 6px padding each side
-        textEl.setAttribute("x", String(Math.round(newW / 2)));
-
-        // 4. Resize the box rect
-        const boxFill = isCommFail
-          ? DE_COLORS.displayZoneInactive
-          : DE_COLORS.surfaceElevated;
-        const boxStroke = isBad
-          ? ALARM_COLORS[1]
-          : isCommFail
-            ? DE_COLORS.borderStrong
-            : DE_COLORS.border;
-        const strokeDash = isBad || isStale ? "4 2" : isUncertain ? "2 2" : "";
-        const strokeWidth = isBad || isCommFail ? "2" : "1";
-        const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
-        if (rectEl) {
-          rectEl.setAttribute("width", String(newW));
-          rectEl.setAttribute("fill", boxFill);
-          rectEl.setAttribute("stroke", boxStroke);
-          rectEl.setAttribute("stroke-width", strokeWidth);
-          if (strokeDash) {
-            rectEl.setAttribute("stroke-dasharray", strokeDash);
-          } else {
-            rectEl.removeAttribute("stroke-dasharray");
-          }
-        }
-
-        // 5. Re-center label rows (PointName / DisplayName) on the new box width
-        const pnEl = el.querySelector<SVGTextElement>('[data-role="pn"]');
-        if (pnEl) pnEl.setAttribute("x", String(Math.round(newW / 2)));
-        const pnBgEl = el.querySelector<SVGRectElement>('[data-role="pn-bg"]');
-        if (pnBgEl) pnBgEl.setAttribute("width", String(newW));
-        const dnEl = el.querySelector<SVGTextElement>('[data-role="dn"]');
-        if (dnEl) dnEl.setAttribute("x", String(Math.round(newW / 2)));
-        const dnBgEl = el.querySelector<SVGRectElement>('[data-role="dn-bg"]');
-        if (dnBgEl) dnBgEl.setAttribute("width", String(newW));
-
-        // 6. Re-center the box on the shape slot
-        const baseTransform = el.dataset.baseTransform;
-        if (baseTransform) {
-          el.setAttribute(
-            "transform",
-            `${baseTransform} translate(${Math.round(-newW / 2)},0)`,
-          );
-        }
-      }
-
-      // Opacity (stale = 60%)
-      el.style.opacity = isStale ? "0.6" : "";
-
-      // Manual badge — find or create; y offset from value box top (data-value-box-y)
-      let badge = el.querySelector<SVGTextElement>(
-        '[data-role="manual-badge"]',
+      applyTextReadoutLikeMutation(
+        el,
+        config as TextReadoutConfig,
+        pv,
+        pointId,
+        metaMap,
       );
-      if (isManual) {
-        if (!badge) {
-          badge = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text",
-          );
-          badge.setAttribute("data-role", "manual-badge");
-          badge.setAttribute("text-anchor", "end");
-          badge.setAttribute("dominant-baseline", "hanging");
-          badge.setAttribute("font-family", "Inter");
-          badge.setAttribute("font-size", "7");
-          badge.setAttribute("font-weight", "700");
-          badge.setAttribute("fill", DE_COLORS.manualBadge);
-          el.appendChild(badge);
-        }
-        const boxRectEl = el.querySelector<SVGRectElement>('[data-role="box"]');
-        const w = boxRectEl
-          ? Number(boxRectEl.getAttribute("width") ?? 60)
-          : 60;
-        const boxY = Number(el.getAttribute("data-value-box-y") ?? 0);
-        badge.setAttribute("x", String(w - 2));
-        badge.setAttribute("y", String(boxY + 2));
-        badge.textContent = "M";
-        badge.style.display = "";
-      } else if (badge) {
-        badge.style.display = "none";
-      }
+      break;
+    }
+
+    case "text_readout_array_item": {
+      // config is the parent array node's TextReadoutArrayConfig (looked up by
+      // the caller via data-node-id, which points to the parent array node).
+      applyTextReadoutLikeMutation(
+        el,
+        config as TextReadoutArrayConfig,
+        pv,
+        pointId,
+        metaMap,
+      );
       break;
     }
 

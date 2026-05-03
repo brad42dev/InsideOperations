@@ -97,6 +97,15 @@ DB: `postgresql://io:io_password@localhost:5432/io_dev`
 
 ---
 
+## Point Identity — Non-Negotiable
+
+Point data uses UUID as the **internal** primary key for performance (16-byte FK in billions of history rows). UUIDs must never leak into user-facing frontend code.
+
+- **Frontend never uses a raw UUID as a point identifier.** All point bindings carry `pointTag` (tagname) or `pointId` (UUID only after resolution). Resolution happens through `resolvedTagMap` in `SceneRenderer` and the `POST /api/points/resolve-tags` endpoint. There is no fallback path that skips resolution.
+- **If tag resolution fails, show an error/offline state.** Never silently bind a UUID directly to a DOM element or WS subscription.
+- **`data-point-id` attributes on SVG elements** contain resolved UUIDs (the WS wire format is UUID-keyed for performance). This is correct — the DOM mutation path is the one place UUIDs are intentionally used. Everywhere above that layer uses tagnames.
+- **UUID internal, tagname external** — this is a deliberate architectural decision. Do not add new frontend API calls that take or display a raw UUID. If you need to reference a point from user-facing code, use tagname + source_id.
+
 ## Known Gotchas
 
 - **`point_meta.tagname`** — no underscore. The field is `tagname`, not `tag_name`. API always returns `tagname`.

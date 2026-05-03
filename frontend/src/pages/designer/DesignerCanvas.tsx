@@ -17,6 +17,8 @@ import React, {
   useCallback,
   useState,
   useMemo,
+  lazy,
+  Suspense,
 } from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import {
@@ -46,14 +48,13 @@ import type {
   Annotation,
   Transform,
   WidgetNode,
-  WidgetType,
-  WidgetConfig,
   PointBinding,
   DisplayElementType,
   DisplayElementConfig,
   FillGaugeConfig,
   AnalogBarConfig,
   TextReadoutConfig,
+  TextReadoutArrayConfig,
   PointNameLabelConfig,
 } from "../../shared/types/graphics";
 import {
@@ -101,6 +102,7 @@ import {
   resolveNamedSlot,
   resolveSlotWithSidecar,
   isInsideFillSidecar,
+  resolveShapeAnchorSlots,
 } from "../../shared/graphics/anchorSlots";
 import {
   applyDeSlotOffset,
@@ -154,6 +156,14 @@ import {
 import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { createDesignerPasteTarget } from "./clipboard/designerPasteTarget";
 import { copyDesignerSelection } from "./clipboard/designerCopyHandler";
+import type { ChartTypeId } from "../../shared/components/charts/chart-config-types";
+import { makeDefaultChartConfig } from "../../shared/components/charts/chart-defaults";
+import type { ChartConfig } from "../../shared/components/charts/chart-config-types";
+const ChartConfigPanel = lazy(
+  () => import("../../shared/components/charts/ChartConfigPanel"),
+);
+import { CHART_DEFINITIONS } from "../../shared/components/charts/chart-definitions";
+import ChartRenderer from "../../shared/components/charts/ChartRenderer";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -525,6 +535,24 @@ export function getNodeBounds(node: SceneNode): {
         // Design preview width tracks content: "AUTO" (bound) → 36px, "—" → 18px.
         const stateText = de.binding.pointId ? "AUTO" : "—";
         return { x, y, w: stateText.length * 6 + 12, h: 20 };
+      }
+      case "text_readout_array": {
+        const aCfg = cfg as TextReadoutArrayConfig;
+        const n = Math.max(1, 1 + (aCfg.additionalBindings?.length ?? 0));
+        const gap = aCfg.itemSpacing ?? 2;
+        const layout = aCfg.arrayLayout ?? "vertical";
+        const singleLine = aCfg.singleLine ?? false;
+        const pnEnabled = aCfg.pointNameRow?.enabled ?? false;
+        const dnEnabled = aCfg.displayNameRow?.enabled ?? false;
+        const itemRows = singleLine ? 1 : 1 + (pnEnabled ? 1 : 0) + (dnEnabled ? 1 : 0);
+        const ROW_H = 16, ROW_GAP = 2;
+        const itemH = itemRows * ROW_H + (itemRows - 1) * ROW_GAP;
+        const itemW = aCfg.minWidth ?? 40;
+        if (layout === "vertical") {
+          return { x, y, w: itemW, h: n * itemH + (n - 1) * gap };
+        } else {
+          return { x, y, w: n * itemW + (n - 1) * gap, h: itemH };
+        }
       }
       case "point_name_label": {
         const fs = (cfg as PointNameLabelConfig).fontSize ?? 10;
@@ -964,6 +992,20 @@ function DisplayElementRenderer({
         previewMode: true,
       };
       return renderDisplayElementSvg(de, fgCtx);
+    }
+    case "text_readout_array": {
+      const aCfg = cfg as TextReadoutArrayConfig;
+      const n = Math.max(1, 1 + (aCfg.additionalBindings?.length ?? 0));
+      const placeholderValue = { value: 0, quality: "Good" as const };
+      const arrayCtx: DisplayElementRenderContext = {
+        transform: tx,
+        pvKeys: Array.from({ length: n }, (_, i) => `preview-${i}`),
+        pointTags: Array.from({ length: n }, (_, i) => `TAG.${i + 1}`),
+        pointValues: Array.from({ length: n }, () => placeholderValue),
+        designerMode: true,
+        previewMode: true,
+      };
+      return renderDisplayElementSvg(de, arrayCtx);
     }
     case "sparkline": {
       const sW = "sparkWidth" in cfg ? (cfg.sparkWidth as number) : 110;
@@ -2729,6 +2771,14 @@ export default function DesignerCanvas({
     parentPointId: string;
   } | null>(null);
 
+  // Chart Widget Drop — opened when the Chart tile is dragged from the palette.
+  // Node is NOT created until the user saves the config modal.
+  const [pendingChartDrop, setPendingChartDrop] = useState<{
+    rawX: number;
+    rawY: number;
+    initialConfig: ChartConfig;
+  } | null>(null);
+
   // Shape Drop Dialog — opened when a specific shape tile is dragged from the palette
   const [dropPending, setDropPending] = useState<{
     shapeId: string;
@@ -2783,15 +2833,24 @@ export default function DesignerCanvas({
   );
   const [shapeConfigJumpToPoint, setShapeConfigJumpToPoint] = useState(false);
 
+  // docRef must be declared before shapeConfigInitialConfig so it can be read
+  // inside the memo without a temporal dead zone. The duplicate declaration
+  // below (line ~2904) is removed; this one is the canonical location.
+  const docRef = useRef(doc);
+  docRef.current = doc;
+
   // Stable memoized initial config for CategoryShapeWizard — recomputed only
-  // when the configured node's identity or the doc changes, NOT on every render.
-  // Without this, the inline object literal changes reference every render and
-  // re-triggers the wizard's shape-loading useEffect, resetting the form state.
+  // when the configured node's identity changes, NOT on every doc update.
+  // Uses docRef.current to read the document at open-time without making `doc`
+  // a dependency; after the wizard opens the snapshot is frozen so user edits
+  // in the form are never reset by unrelated doc updates.
   const shapeConfigInitialConfig = useMemo(() => {
-    if (!shapeConfigNodeId || !doc) return undefined;
-    const configNode = doc.children.find((n) => n.id === shapeConfigNodeId) as
-      | SymbolInstance
-      | undefined;
+    if (!shapeConfigNodeId) return undefined;
+    const currentDoc = docRef.current;
+    if (!currentDoc) return undefined;
+    const configNode = currentDoc.children.find(
+      (n) => n.id === shapeConfigNodeId,
+    ) as SymbolInstance | undefined;
     if (!configNode) return undefined;
     return {
       bindings: [
@@ -2811,7 +2870,8 @@ export default function DesignerCanvas({
         ]),
       ),
     };
-  }, [shapeConfigNodeId, doc]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeConfigNodeId]);
 
   // Save-as-stencil dialog — holds the selected nodes to save
   const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null);
@@ -2849,8 +2909,6 @@ export default function DesignerCanvas({
 
   // Track currently selected IDs in a ref for use inside event handlers
   // (avoids stale closures in mouse handlers)
-  const docRef = useRef(doc);
-  docRef.current = doc;
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
   const toolRef = useRef(activeTool);
@@ -5104,14 +5162,10 @@ export default function DesignerCanvas({
                     ]),
                   );
                 } else {
-                  // External sidecar: scale position only to maintain relative placement.
-                  const newChildT: Transform = {
-                    ...childT,
-                    position: newChildPos,
-                  };
-                  childCmds.push(
-                    new ResizeNodeCommand(child.id, newChildT, childT),
-                  );
+                  // External sidecar: buildExteriorSidecarTransform multiplies
+                  // childPos by parentScale, so the canvas position already scales
+                  // proportionally when parentScale changes. Do NOT also scale the
+                  // stored position — that would double-apply the scale factor.
                 }
               }
               return new CompoundCommand("Resize", [siCmd, ...childCmds]);
@@ -5157,6 +5211,7 @@ export default function DesignerCanvas({
               const cfg = de.config;
               const MINS: Record<string, [number, number]> = {
                 text_readout: [40, 16],
+                text_readout_array: [40, 16],
                 analog_bar: [10, 30],
                 fill_gauge: [10, 30],
                 sparkline: [40, 10],
@@ -5190,6 +5245,26 @@ export default function DesignerCanvas({
                 case "digital_status":
                   newCfg = { ...cfg, width: finalW, height: finalH };
                   break;
+                case "text_readout_array": {
+                  const aCfg = cfg as TextReadoutArrayConfig;
+                  const n = Math.max(1, 1 + (aCfg.additionalBindings?.length ?? 0));
+                  const layout = aCfg.arrayLayout ?? "vertical";
+                  const singleLine = aCfg.singleLine ?? false;
+                  const pnRows = !singleLine && (aCfg.pointNameRow?.enabled ?? false) ? 1 : 0;
+                  const dnRows = !singleLine && (aCfg.displayNameRow?.enabled ?? false) ? 1 : 0;
+                  const itemRows = 1 + pnRows + dnRows;
+                  const itemH = itemRows * 16 + (itemRows - 1) * 2;
+                  const itemW = aCfg.minWidth ?? 40;
+                  let newSpacing: number;
+                  if (layout === "vertical") {
+                    newSpacing = n > 1 ? Math.max(-(itemH - 1), (finalH - n * itemH) / (n - 1)) : 0;
+                    newCfg = { ...aCfg, itemSpacing: Math.round(newSpacing), minWidth: Math.max(40, finalW) };
+                  } else {
+                    newSpacing = n > 1 ? Math.max(-(itemW - 1), (finalW - n * itemW) / (n - 1)) : 0;
+                    newCfg = { ...aCfg, itemSpacing: Math.round(newSpacing) };
+                  }
+                  break;
+                }
                 default:
                   newCfg = cfg;
               }
@@ -6687,36 +6762,43 @@ export default function DesignerCanvas({
     return () => document.removeEventListener("io:stencil-drop", onStencilDrop);
   }, [snap]);
 
-  // Handle widget drops from left palette (dashboard / report modes)
-  useEffect(() => {
-    function onWidgetDrop(e: Event) {
-      const ce = e as CustomEvent<{
-        widgetType: WidgetType;
-        x: number;
-        y: number;
-      }>;
-      const rect = getRect();
-      if (!rect || !docRef.current) return;
-      const vp = viewportRef.current;
-      const rawX = (ce.detail.x - rect.left - vp.panX) / vp.zoom;
-      const rawY = (ce.detail.y - rect.top - vp.panY) / vp.zoom;
-
-      // In dashboard mode, snap to 12-column grid (spec §11.2)
+  // Place a configured chart widget onto the canvas. Called after the user
+  // saves the ChartConfigPanel modal that opens on palette drop.
+  const placeChartWidget = useCallback(
+    (config: ChartConfig, rawX: number, rawY: number) => {
+      if (!docRef.current) return;
       const currentDoc = docRef.current;
       const mode = useSceneStore.getState().designMode;
+
+      const chartType = config.chartType;
+      const def = CHART_DEFINITIONS.find((d) => d.id === chartType);
+      const cat = def?.category ?? "Time-Series";
+      let defaultW = 360;
+      let defaultH = 220;
+      switch (cat) {
+        case "KPI":
+        case "Gauge":
+          defaultW = 160; defaultH = 120; break;
+        case "Content":
+          if (chartType === 51) { defaultW = 320; defaultH = 48; }
+          else if (chartType === 52) { defaultW = 180; defaultH = 80; }
+          else if (chartType === 50) { defaultW = 240; defaultH = 120; }
+          else if (chartType === 54) { defaultW = 480; defaultH = 320; }
+          else if (chartType === 55) { defaultW = 480; defaultH = 320; }
+          else { defaultW = 320; defaultH = 200; }
+          break;
+        case "Status":
+          defaultW = 400; defaultH = 240; break;
+      }
+
       let cx: number;
       let cy: number;
-      let defaultW = 320;
-      let defaultH = 200;
       let gridSpan: { cols: number; rows: number } | undefined;
       if (mode === "dashboard") {
         const COLS = 12;
         const ROW_H =
-          (
-            currentDoc.metadata as Record<string, unknown> & {
-              rowHeight?: number;
-            }
-          ).rowHeight ?? 80;
+          (currentDoc.metadata as Record<string, unknown> & { rowHeight?: number })
+            .rowHeight ?? 80;
         const colW = currentDoc.canvas.width / COLS;
         const col = Math.max(0, Math.min(COLS - 1, Math.round(rawX / colW)));
         const row = Math.max(0, Math.round(rawY / ROW_H));
@@ -6732,92 +6814,11 @@ export default function DesignerCanvas({
         cy = snap(rawY);
       }
 
-      const wt = ce.detail.widgetType;
-      const defaultLabel = wt
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-
-      const nullBinding: PointBinding = {};
-      const defaultConfig: WidgetConfig = (() => {
-        switch (wt) {
-          case "trend":
-            return {
-              widgetType: "trend",
-              title: defaultLabel,
-              series: [],
-              timeRange: { mode: "relative", relativeSeconds: 3600 },
-              liveMode: true,
-              refreshMs: 5000,
-              yAxis: { autoScale: true, logScale: false },
-              showQuality: false,
-              showEvents: false,
-            } satisfies WidgetConfig;
-          case "table":
-            return {
-              widgetType: "table",
-              title: defaultLabel,
-              columns: [],
-              pageSize: 20,
-            } satisfies WidgetConfig;
-          case "gauge":
-            return {
-              widgetType: "gauge",
-              title: defaultLabel,
-              binding: nullBinding,
-              gaugeStyle: "radial",
-              rangeLo: 0,
-              rangeHi: 100,
-              showValue: true,
-              valueFormat: "#.##",
-            } satisfies WidgetConfig;
-          case "kpi_card":
-            return {
-              widgetType: "kpi_card",
-              title: defaultLabel,
-              binding: nullBinding,
-              valueFormat: "#.##",
-              showSparkline: true,
-              showTrendArrow: true,
-            } satisfies WidgetConfig;
-          case "bar_chart":
-            return {
-              widgetType: "bar_chart",
-              title: defaultLabel,
-              series: [],
-              orientation: "vertical",
-              showLegend: true,
-            } satisfies WidgetConfig;
-          case "pie_chart":
-            return {
-              widgetType: "pie_chart",
-              title: defaultLabel,
-              slices: [],
-              donut: false,
-              showLegend: true,
-            } satisfies WidgetConfig;
-          case "alarm_list":
-            return {
-              widgetType: "alarm_list",
-              title: defaultLabel,
-              maxRows: 50,
-              showAcknowledged: false,
-            } satisfies WidgetConfig;
-          case "muster_point":
-            return {
-              widgetType: "muster_point",
-              title: defaultLabel,
-              musterPointId: "",
-              showHeadcount: true,
-              showMissing: true,
-            } satisfies WidgetConfig;
-        }
-      })();
-
       const node: WidgetNode = {
         id: crypto.randomUUID(),
         type: "widget",
-        widgetType: wt,
-        name: defaultLabel,
+        chartType,
+        name: def?.name ?? `Chart ${chartType}`,
         transform: {
           position: { x: cx, y: cy },
           rotation: 0,
@@ -6830,16 +6831,39 @@ export default function DesignerCanvas({
         width: defaultW,
         height: defaultH,
         ...(gridSpan ? { gridSpan } : {}),
-        config: defaultConfig,
+        config,
       };
       executeCmd(new AddNodeCommand(node, null));
       selectedIdsRef.current = new Set([node.id]);
       useUiStore.getState().setSelectedNodes([node.id]);
+    },
+    [snap, executeCmd],
+  );
+
+  // Handle widget drops from left palette — show config modal first, place on save
+  useEffect(() => {
+    function onChartWidgetDrop(e: Event) {
+      const ce = e as CustomEvent<{
+        chartType: ChartTypeId;
+        x: number;
+        y: number;
+      }>;
+      const rect = getRect();
+      if (!rect || !docRef.current) return;
+      const vp = viewportRef.current;
+      const rawX = (ce.detail.x - rect.left - vp.panX) / vp.zoom;
+      const rawY = (ce.detail.y - rect.top - vp.panY) / vp.zoom;
+      setPendingChartDrop({
+        rawX,
+        rawY,
+        initialConfig: makeDefaultChartConfig(ce.detail.chartType),
+      });
     }
 
-    document.addEventListener("io:widget-drop", onWidgetDrop);
-    return () => document.removeEventListener("io:widget-drop", onWidgetDrop);
-  }, [snap]);
+    document.addEventListener("io:chart-widget-drop", onChartWidgetDrop);
+    return () =>
+      document.removeEventListener("io:chart-widget-drop", onChartWidgetDrop);
+  }, []);
 
   // Handle display-element drops from left palette (graphic mode)
   useEffect(() => {
@@ -6910,6 +6934,18 @@ export default function DesignerCanvas({
             };
           case "point_name_label":
             return { displayType: "point_name_label", style: "hierarchy" };
+          case "text_readout_array":
+            return {
+              displayType: "text_readout_array",
+              arrayLayout: "vertical",
+              singleLine: false,
+              additionalBindings: [],
+              itemSpacing: 2,
+              showBox: true,
+              showUnits: true,
+              valueFormat: "%.2f",
+              minWidth: 40,
+            };
         }
       })();
 
@@ -7786,6 +7822,67 @@ export default function DesignerCanvas({
             </g>
           </svg>
 
+          {/* Widget chart HTML overlay — charts render here with pointer-events:none
+              so events fall through to the transparent SVG rects for hit-testing. */}
+          {doc &&
+            (() => {
+              const widgets: WidgetNode[] = [];
+              function collectWidgets(nodes: SceneNode[]): void {
+                for (const n of nodes) {
+                  if (n.type === "widget") widgets.push(n as WidgetNode);
+                  if ("children" in n && Array.isArray(n.children))
+                    collectWidgets(n.children as SceneNode[]);
+                }
+              }
+              collectWidgets(
+                groupSubTabNodeId
+                  ? (() => {
+                      const g = doc.children.find(
+                        (n) => n.id === groupSubTabNodeId,
+                      );
+                      return g && "children" in g
+                        ? (g as import("../../shared/types/graphics").Group)
+                            .children
+                        : [];
+                    })()
+                  : doc.children,
+              );
+              return widgets.map((node) => {
+                const sx = panX + node.transform.position.x * zoom;
+                const sy = panY + node.transform.position.y * zoom;
+                const bufferKey = `graphic:${doc.id}:widget:${node.id}`;
+                return (
+                  <div
+                    key={node.id}
+                    data-node-id={node.id}
+                    data-widget-chart-type={node.chartType}
+                    style={{
+                      position: "absolute",
+                      left: sx,
+                      top: sy,
+                      // Render at natural canvas size and scale visually — this
+                      // matches SVG shape behaviour: content renders at 1:1 canvas
+                      // pixels so the chart looks identical to how it appears in
+                      // the console regardless of designer zoom level.
+                      width: node.width,
+                      height: node.height,
+                      transform: `scale(${zoom})`,
+                      transformOrigin: "top left",
+                      pointerEvents: "none",
+                      background: "var(--io-surface-elevated)",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: 4,
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <ChartRenderer config={node.config} bufferKey={bufferKey} />
+                  </div>
+                );
+              });
+            })()}
+
           {/* Test mode overlay — only rendered while PLAYING (not paused).
               When paused the overlay is gone entirely so the canvas is fully
               visible and editable. Resuming re-mounts a fresh SceneRenderer
@@ -7820,6 +7917,7 @@ export default function DesignerCanvas({
                         document={doc}
                         liveSubscribe={true}
                         preserveAspectRatio="none"
+                        graphicId={doc.id}
                         style={{
                           width: "100%",
                           height: "100%",
@@ -8205,6 +8303,21 @@ export default function DesignerCanvas({
               );
             })()}
 
+          {/* Chart Widget config modal — opens on palette drop, places node on save */}
+          {pendingChartDrop && (
+            <Suspense fallback={null}>
+              <ChartConfigPanel
+                initialConfig={pendingChartDrop.initialConfig}
+                onSave={(config) => {
+                  placeChartWidget(config, pendingChartDrop.rawX, pendingChartDrop.rawY);
+                  setPendingChartDrop(null);
+                }}
+                onClose={() => setPendingChartDrop(null)}
+                context="designer"
+              />
+            </Suspense>
+          )}
+
           {/* Save as Stencil dialog */}
           {stencilNodes && (
             <SaveAsStencilDialog
@@ -8525,6 +8638,7 @@ export default function DesignerCanvas({
                 // Map snake_case DisplayElementType → PascalCase sidecar key
                 const DE_SIDECAR_KEY: Record<string, string> = {
                   text_readout: "TextReadout",
+                  text_readout_array: "TextReadoutArray",
                   alarm_indicator: "AlarmIndicator",
                   analog_bar: "AnalogBar",
                   fill_gauge: "FillGauge",
@@ -8534,6 +8648,7 @@ export default function DesignerCanvas({
                 };
                 const DE_DEFAULT_SLOTS: Record<string, string> = {
                   TextReadout: "bottom",
+                  TextReadoutArray: "right",
                   AlarmIndicator: "top-right",
                   AnalogBar: "right",
                   FillGauge: "left",
@@ -8752,6 +8867,7 @@ export default function DesignerCanvas({
 
                     const GHOST_SIDECAR_KEY: Record<string, string> = {
                       text_readout: "TextReadout",
+                      text_readout_array: "TextReadoutArray",
                       alarm_indicator: "AlarmIndicator",
                       analog_bar: "AnalogBar",
                       fill_gauge: "FillGauge",
@@ -8761,6 +8877,7 @@ export default function DesignerCanvas({
                     };
                     const GHOST_DE_SLOTS: Record<string, string> = {
                       TextReadout: "bottom",
+                      TextReadoutArray: "right",
                       AlarmIndicator: "top-right",
                       AnalogBar: "right",
                       FillGauge: "left",
@@ -8987,6 +9104,7 @@ export default function DesignerCanvas({
                       {};
                     const EDIT_SIDECAR_KEY: Record<string, string> = {
                       text_readout: "TextReadout",
+                      text_readout_array: "TextReadoutArray",
                       alarm_indicator: "AlarmIndicator",
                       analog_bar: "AnalogBar",
                       fill_gauge: "FillGauge",
@@ -8996,6 +9114,7 @@ export default function DesignerCanvas({
                     };
                     const EDIT_DE_SLOTS: Record<string, string> = {
                       TextReadout: "bottom",
+                      TextReadoutArray: "right",
                       AlarmIndicator: "top-right",
                       AnalogBar: "right",
                       FillGauge: "left",
@@ -9150,7 +9269,9 @@ export default function DesignerCanvas({
               const shapeEntry = useLibraryStore
                 .getState()
                 .getShape(si.shapeRef.shapeId);
-              const anchorSlots = shapeEntry?.sidecar.anchorSlots;
+              const anchorSlots = shapeEntry
+                ? resolveShapeAnchorSlots(shapeEntry.sidecar)
+                : null;
               const DE_KEY_MAP: Array<{
                 key: string;
                 label: string;
@@ -9809,6 +9930,18 @@ function makeDefaultDisplayConfig(
       };
     case "point_name_label":
       return { displayType: "point_name_label", style: "hierarchy" };
+    case "text_readout_array":
+      return {
+        displayType: "text_readout_array",
+        arrayLayout: "vertical",
+        singleLine: false,
+        additionalBindings: [],
+        itemSpacing: 2,
+        showBox: true,
+        showUnits: true,
+        valueFormat: "%.2f",
+        minWidth: 40,
+      };
   }
 }
 
@@ -10052,6 +10185,7 @@ function DesignerContextMenuContent({
   // Display-element sidecar helpers (used by Hide, Reset, Snap To, Move To, Remove items)
   const DE_SIDECAR_KEY: Record<string, string> = {
     text_readout: "TextReadout",
+    text_readout_array: "TextReadoutArray",
     alarm_indicator: "AlarmIndicator",
     analog_bar: "AnalogBar",
     fill_gauge: "FillGauge",
@@ -11093,10 +11227,12 @@ function DesignerContextMenuContent({
                     <ContextMenuPrimitive.Portal>
                       <ContextMenuPrimitive.SubContent style={subContentStyle}>
                         {(() => {
-                          const anchorSlots =
-                            (deSidecar?.anchorSlots as
-                              | Record<string, string[]>
-                              | undefined) ?? {};
+                          const anchorSlots = deSidecar
+                            ? (resolveShapeAnchorSlots(deSidecar) as Record<
+                                string,
+                                string[]
+                              >)
+                            : {};
                           const validSlots: string[] =
                             anchorSlots[deSidecarKey] ?? [];
                           const geo = deSidecar?.geometry;
