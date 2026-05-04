@@ -22,3 +22,4 @@ pub mod shifts;
 pub mod system;
 pub mod user_preferences;
 pub mod video_exports;
+pub mod video_streams;

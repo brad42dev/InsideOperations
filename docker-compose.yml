@@ -25,6 +25,17 @@ services:
       retries: 5
       start_period: 30s
 
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: io-go2rtc
+    restart: unless-stopped
+    # host network gives go2rtc direct access to RTSP/UDP camera streams on the LAN
+    # without complex port mapping. If the deployment requires bridge networking,
+    # remove network_mode and expose ports 1984 (API/WebRTC) and 8554 (RTSP) explicitly.
+    network_mode: host
+    volumes:
+      - ./go2rtc/go2rtc.yaml:/config/go2rtc.yaml
+
   video-export-service:
     build:
       context: .

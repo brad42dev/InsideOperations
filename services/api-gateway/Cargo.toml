@@ -56,6 +56,9 @@ typst-as-lib = { version = "0.15", optional = true, features = ["typst-kit-fonts
 typst-pdf-render = { version = "0.14", package = "typst-pdf", optional = true }
 typst-engine = { version = "0.14", package = "typst", optional = true }
 
+[build-dependencies]
+serde_json = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }

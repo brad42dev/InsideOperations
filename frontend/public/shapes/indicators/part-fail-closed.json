@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "part-fail-closed",
   "version": "1.0",
-  "display_name": "Fail Position \u2014 Closed (FC)",
+  "display_name": "Fail Position — Closed (FC)",
   "category": "indicators",
   "subcategory": "fail-indicator",
   "tags": [
@@ -37,8 +37,16 @@
     "viewBox": "0 0 20 34",
     "width": 6,
     "height": 10,
-    "bodyBase": { "x": 3, "y": 5 },
-    "selectionBounds": { "x": 0, "y": 0, "w": 6, "h": 10 }
+    "bodyBase": {
+      "x": 3,
+      "y": 5
+    },
+    "selectionBounds": {
+      "x": 0,
+      "y": 0,
+      "w": 6,
+      "h": 10
+    }
   },
   "connections": [],
   "textZones": [],
@@ -46,46 +54,6 @@
   "alarmAnchor": null,
   "states": {},
   "addons": [],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left"
-    ],
-    "FillGauge": [
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

@@ -465,30 +465,24 @@ pub async fn update_graphic(
     }
 
     let bindings_for_index = body.bindings.clone();
-    let bindings = body
-        .bindings
-        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
-    let metadata = body
-        .metadata
-        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
     let row = match sqlx::query(
         r#"
         UPDATE design_objects
         SET
             name      = $1,
-            svg_data  = $2,
-            bindings  = $3,
-            metadata  = $4,
-            parent_id = $5
+            svg_data  = COALESCE($2, svg_data),
+            bindings  = COALESCE($3, bindings),
+            metadata  = COALESCE($4, metadata),
+            parent_id = COALESCE($5, parent_id)
         WHERE id = $6
         RETURNING id, name, type, svg_data, bindings, metadata, parent_id, created_at, created_by
         "#,
     )
     .bind(&body.name)
     .bind(&body.svg_data)
-    .bind(&bindings)
-    .bind(&metadata)
+    .bind(&body.bindings)
+    .bind(&body.metadata)
     .bind(body.parent_id)
     .bind(id)
     .fetch_optional(&state.db)

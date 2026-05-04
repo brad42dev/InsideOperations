@@ -94,12 +94,36 @@
     "oos": "io-oos"
   },
   "compositeAttachments": [
-    { "forPart": "fail-open",        "x": 36.5, "y": -8.5 },
-    { "forPart": "fail-open-left",   "x": 11.5, "y": -8.5 },
-    { "forPart": "fail-closed",      "x": 36.5, "y": -8.5 },
-    { "forPart": "fail-closed-left", "x": 11.5, "y": -8.5 },
-    { "forPart": "fail-last",        "x": 36.5, "y": -8.5 },
-    { "forPart": "fail-last-left",   "x": 11.5, "y": -8.5 }
+    {
+      "forPart": "fail-open",
+      "x": 36.5,
+      "y": -8.5
+    },
+    {
+      "forPart": "fail-open-left",
+      "x": 11.5,
+      "y": -8.5
+    },
+    {
+      "forPart": "fail-closed",
+      "x": 36.5,
+      "y": -8.5
+    },
+    {
+      "forPart": "fail-closed-left",
+      "x": 11.5,
+      "y": -8.5
+    },
+    {
+      "forPart": "fail-last",
+      "x": 36.5,
+      "y": -8.5
+    },
+    {
+      "forPart": "fail-last-left",
+      "x": 11.5,
+      "y": -8.5
+    }
   ],
   "addons": [
     {
@@ -112,7 +136,7 @@
     {
       "id": "fail-open-left",
       "file": "part-fail-open.svg",
-      "label": "Fail Open (FO) \u2014 Left",
+      "label": "Fail Open (FO) — Left",
       "group": "fail-indicator",
       "exclusive": true
     },
@@ -126,7 +150,7 @@
     {
       "id": "fail-closed-left",
       "file": "part-fail-closed.svg",
-      "label": "Fail Closed (FC) \u2014 Left",
+      "label": "Fail Closed (FC) — Left",
       "group": "fail-indicator",
       "exclusive": true
     },
@@ -140,51 +164,11 @@
     {
       "id": "fail-last-left",
       "file": "part-fail-last.svg",
-      "label": "Fail Last (FL) \u2014 Left",
+      "label": "Fail Last (FL) — Left",
       "group": "fail-indicator",
       "exclusive": true
     }
   ],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left"
-    ],
-    "FillGauge": [
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

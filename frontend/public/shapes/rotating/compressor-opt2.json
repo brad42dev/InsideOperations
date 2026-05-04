@@ -35,7 +35,12 @@
     "viewBox": "0 0 50 48",
     "width": 50,
     "height": 48,
-    "selectionBounds": { "x": 3, "y": 0, "w": 42, "h": 44 }
+    "selectionBounds": {
+      "x": 3,
+      "y": 0,
+      "w": 42,
+      "h": 44
+    }
   },
   "connections": [
     {
@@ -82,46 +87,6 @@
     "oos": "io-oos"
   },
   "addons": [],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left"
-    ],
-    "FillGauge": [
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

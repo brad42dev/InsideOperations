@@ -2842,6 +2842,23 @@ export default function DesignerCanvas({
   const docRef = useRef(doc);
   docRef.current = doc;
 
+  function findSymbolNodeDeep(
+    nodes: SceneNode[],
+    id: NodeId,
+  ): SymbolInstance | undefined {
+    for (const n of nodes) {
+      if (n.id === id) return n as SymbolInstance;
+      if ("children" in n && Array.isArray((n as Group).children)) {
+        const found = findSymbolNodeDeep(
+          (n as Group).children as SceneNode[],
+          id,
+        );
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+
   // Stable memoized initial config for CategoryShapeWizard — recomputed only
   // when the configured node's identity changes, NOT on every doc update.
   // Uses docRef.current to read the document at open-time without making `doc`
@@ -2851,9 +2868,7 @@ export default function DesignerCanvas({
     if (!shapeConfigNodeId) return undefined;
     const currentDoc = docRef.current;
     if (!currentDoc) return undefined;
-    const configNode = currentDoc.children.find(
-      (n) => n.id === shapeConfigNodeId,
-    ) as SymbolInstance | undefined;
+    const configNode = findSymbolNodeDeep(currentDoc.children, shapeConfigNodeId);
     if (!configNode) return undefined;
     return {
       bindings: [
@@ -9093,9 +9108,9 @@ export default function DesignerCanvas({
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
             (() => {
-              const configNode = docRef.current?.children.find(
-                (n) => n.id === shapeConfigNodeId,
-              ) as SymbolInstance | undefined;
+              const configNode = docRef.current
+                ? findSymbolNodeDeep(docRef.current.children, shapeConfigNodeId)
+                : undefined;
               const configShapeId = configNode?.shapeRef.shapeId ?? "";
               const configCategoryId =
                 useLibraryStore
@@ -9121,9 +9136,10 @@ export default function DesignerCanvas({
                       setShapeConfigJumpToPoint(false);
                       return;
                     }
-                    const node = docRef.current.children.find(
-                      (n) => n.id === shapeConfigNodeId,
-                    ) as SymbolInstance | undefined;
+                    const node = findSymbolNodeDeep(
+                      docRef.current.children,
+                      shapeConfigNodeId,
+                    );
                     if (!node) {
                       setShapeConfigNodeId(null);
                       setShapeConfigJumpToPoint(false);

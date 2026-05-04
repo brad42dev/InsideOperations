@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "column-distillation-narrow-packed",
   "version": "1.0",
-  "display_name": "Column \u2014 Narrow Packed",
+  "display_name": "Column — Narrow Packed",
   "category": "columns",
   "subcategory": "distillation",
   "tags": [
@@ -118,48 +118,6 @@
       "exclusive": true
     }
   ],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left",
-      "vessel-interior"
-    ],
-    "FillGauge": [
-      "vessel-interior",
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "right",

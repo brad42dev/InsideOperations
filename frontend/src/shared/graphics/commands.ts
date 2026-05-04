@@ -35,6 +35,7 @@ export interface SceneCommand {
 
 /** Deep clone using JSON serialization (scene graph is JSON-safe) */
 function clone<T>(v: T): T {
+  if (v === undefined) return undefined as T;
   return JSON.parse(JSON.stringify(v));
 }
 

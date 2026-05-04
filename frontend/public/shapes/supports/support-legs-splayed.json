@@ -43,7 +43,12 @@
       "x": 0,
       "y": 2
     },
-    "selectionBounds": { "x": 9, "y": 1, "w": 52, "h": 19 }
+    "selectionBounds": {
+      "x": 9,
+      "y": 1,
+      "w": 52,
+      "h": 19
+    }
   },
   "connections": [],
   "textZones": [],
@@ -51,46 +56,6 @@
   "alarmAnchor": null,
   "states": {},
   "addons": [],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left"
-    ],
-    "FillGauge": [
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

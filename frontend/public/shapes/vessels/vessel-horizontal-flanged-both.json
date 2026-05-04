@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "vessel-horizontal-flanged-both",
   "version": "1.0",
-  "display_name": "Vessel \u2014 Horizontal Flanged Both",
+  "display_name": "Vessel — Horizontal Flanged Both",
   "category": "vessels",
   "subcategory": "horizontal",
   "tags": [
@@ -127,48 +127,6 @@
       "exclusive": true
     }
   ],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left",
-      "vessel-interior"
-    ],
-    "FillGauge": [
-      "vessel-interior",
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

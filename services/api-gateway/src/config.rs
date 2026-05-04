@@ -51,6 +51,10 @@ pub struct Config {
     /// Days before certificate expiry at which to trigger renewal.
     /// Default: 30
     pub cert_renew_days: i64,
+    /// Base URL of the go2rtc relay sidecar (e.g. http://127.0.0.1:1984).
+    /// To use a remote go2rtc instance, set GO2RTC_URL to its base URL — that is
+    /// the only change required; nothing else assumes localhost.
+    pub go2rtc_url: String,
 }
 
 impl Config {
@@ -107,6 +111,8 @@ impl Config {
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
                 .unwrap_or(30),
+            go2rtc_url: std::env::var("GO2RTC_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:1984".to_string()),
         })
     }
 }

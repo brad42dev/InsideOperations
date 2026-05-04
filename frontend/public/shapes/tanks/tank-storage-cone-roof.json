@@ -2,7 +2,7 @@
   "$schema": "io-shape-v1",
   "shape_id": "tank-storage-cone-roof",
   "version": "1.0",
-  "display_name": "Tank \u2014 Cone Roof",
+  "display_name": "Tank — Cone Roof",
   "category": "tanks",
   "subcategory": "storage",
   "tags": [
@@ -141,48 +141,6 @@
       "exclusive": true
     }
   ],
-  "anchorSlots": {
-    "PointNameLabel": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AlarmIndicator": [
-      "top-right",
-      "top-left",
-      "bottom-right",
-      "bottom-left"
-    ],
-    "TextReadout": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ],
-    "AnalogBar": [
-      "right",
-      "left",
-      "vessel-interior"
-    ],
-    "FillGauge": [
-      "vessel-interior",
-      "right",
-      "left"
-    ],
-    "Sparkline": [
-      "right-top",
-      "right-bottom",
-      "left-top",
-      "left-bottom"
-    ],
-    "DigitalStatus": [
-      "top",
-      "right",
-      "bottom",
-      "left"
-    ]
-  },
   "defaultSlots": {
     "AlarmIndicator": "top-right",
     "TextReadout": "bottom",

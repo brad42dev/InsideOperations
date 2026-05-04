@@ -295,10 +295,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   // Store in a ref so the rAF DOM-mutation callback can access the latest map
   // without capturing a stale closure.
   const pointMetaMapRef = useRef<Map<string, PointDetail>>(new Map());
-  useEffect(() => {
+  // Synchronous assignment before browser paint so the no-deps re-apply layout
+  // effect below always reads the current render's pointMetaMap (not the previous).
+  useLayoutEffect(() => {
     pointMetaMapRef.current = pointMetaMap;
-    // Re-apply last-known values so EU spans appear as soon as meta loads,
-    // without waiting for the next WS tick.
+  }, [pointMetaMap]);
+  // Post-paint catch-up: re-apply live values after meta loads so EU text
+  // appears without waiting for the next WS tick.
+  useEffect(() => {
     if (!liveSubscribe || lastPvRef.current.size === 0) return;
     const map = pointToElementsRef.current;
     for (const [pid, pv] of lastPvRef.current) {
@@ -1469,6 +1473,8 @@ function applyTextReadoutLikeMutation(
         vFracEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
       if (fracEuSpan) {
         fracEuSpan.style.display = !isCommFail && !isBad ? "" : "none";
+        if (!isCommFail && !isBad && metaUnit)
+          fracEuSpan.textContent = ` ${metaUnit}`;
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
         const s = document.createElementNS(
           "http://www.w3.org/2000/svg",
@@ -1476,8 +1482,8 @@ function applyTextReadoutLikeMutation(
         );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
-        s.setAttribute("font-size", "9");
-        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.setAttribute("font-size", String(cfg.euRow?.fontSize ?? 9));
+        s.setAttribute("fill", cfg.euRow?.color || DE_COLORS.textMuted);
         s.textContent = ` ${metaUnit}`;
         vFracEl.appendChild(s);
       }
@@ -1517,6 +1523,8 @@ function applyTextReadoutLikeMutation(
       const euSpan = textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
       if (euSpan) {
         euSpan.style.display = !isCommFail && !isBad ? "" : "none";
+        if (!isCommFail && !isBad && metaUnit)
+          euSpan.textContent = ` ${metaUnit}`;
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
         const s = document.createElementNS(
           "http://www.w3.org/2000/svg",
@@ -1524,8 +1532,8 @@ function applyTextReadoutLikeMutation(
         );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
-        s.setAttribute("font-size", "9");
-        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.setAttribute("font-size", String(cfg.euRow?.fontSize ?? 9));
+        s.setAttribute("fill", cfg.euRow?.color || DE_COLORS.textMuted);
         s.textContent = ` ${metaUnit}`;
         textEl.appendChild(s);
       }
