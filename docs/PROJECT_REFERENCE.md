@@ -29,6 +29,7 @@
 - **OPC UA:** async-opcua 0.17
 - **HTTP Client:** reqwest 0.12 (rustls-tls)
 - **Misc:** zip 2, aes-gcm 0.10, sha2, hmac, dashmap 6, rhai 1.19, sd-notify 0.4
+- **Schema Validation:** jsonschema 0.28 (MIT) — validates sidecar JSON against io-shape-v1.schema.json at startup; HTTP 422 pattern for future wizard endpoint
 
 > **Note:** `instant-acme` was planned for ACME/Let's Encrypt but is NOT in the codebase. Certificate management uses `rcgen` + `x509-parser` for self-signed only.
 

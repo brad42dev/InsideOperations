@@ -2806,6 +2806,7 @@ export default function DesignerCanvas({
   } | null>(null);
   const ghostPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const ghostImgRef = useRef<HTMLImageElement>(null);
+  const [ghostBlobUrl, setGhostBlobUrl] = useState<string | null>(null);
 
   // ── Place mode — two-phase paste placement ─────────────────────────────────
   // Phase 1 "floating": a bounding-box ghost follows the cursor; single click anchors it.
@@ -6736,6 +6737,23 @@ export default function DesignerCanvas({
     return () => window.removeEventListener("keydown", onKey);
   }, [ghostPlacement]);
 
+  // Blob URL for ghost placement image — created from libraryStore cache, revoked on cleanup
+  useEffect(() => {
+    if (!ghostPlacement) {
+      setGhostBlobUrl(null);
+      return;
+    }
+    const svgStr = useLibraryStore.getState().cache.get(ghostPlacement.shapeId)?.svg;
+    if (!svgStr) {
+      setGhostBlobUrl(null);
+      return;
+    }
+    const blob = new Blob([svgStr], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    setGhostBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [ghostPlacement?.shapeId]);
+
   // Enter place mode when paste target dispatches the event
   useEffect(() => {
     function onEnterPlaceMode(e: Event) {
@@ -9086,7 +9104,7 @@ export default function DesignerCanvas({
                 >
                   <img
                     ref={ghostImgRef}
-                    src={`/shapes/${ghostPlacement.categoryId}/${ghostPlacement.shapeId}.svg`}
+                    src={ghostBlobUrl ?? ""}
                     alt=""
                     style={{
                       position: "fixed",

@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type { GraphicDocument, GraphicSummary } from "../shared/types/graphics";
+import { shapeCache } from "../shared/graphics/shapeCache";
 
 export interface DesignObjectSummary extends GraphicSummary {}
 
@@ -91,6 +92,17 @@ export const graphicsApi = {
       shape_ids: shapeIds,
     }),
 
+  /** Fetch the shape library catalog from the database */
+  shapesIndex: () =>
+    api.get<{
+      shapes: Array<{
+        id: string;
+        category: string;
+        label: string;
+        subcategory?: string;
+      }>;
+    }>("/api/v1/shapes"),
+
   /** Get a graphic's thumbnail URL */
   thumbnailUrl: (id: string) => `/api/v1/design-objects/${id}/thumbnail.png`,
 
@@ -163,10 +175,13 @@ export const graphicsApi = {
    * Library shapes (source=library) are read-only.
    * Sidecar metadata is preserved — only the visual geometry changes.
    */
-  reimportShapeSvg: (shapeId: string, svgContent: string) =>
-    api.put<{
+  reimportShapeSvg: async (shapeId: string, svgContent: string) => {
+    const result = await api.put<{
       data: { viewBoxChanged: boolean; oldViewBox: string; newViewBox: string };
-    }>(`/api/v1/shapes/${shapeId}/svg`, { svg_content: svgContent }),
+    }>(`/api/v1/shapes/${shapeId}/svg`, { svg_content: svgContent });
+    if (result.success) shapeCache.delete(shapeId);
+    return result;
+  },
 
   /**
    * Resolve point tag names to their internal UUIDs.
@@ -274,7 +289,11 @@ export const graphicsApi = {
    * Delete a user-created custom shape by its design_objects UUID.
    * Only user shapes (source=user) can be deleted; library shapes are immutable.
    */
-  deleteUserShape: (id: string) => api.delete(`/api/v1/shapes/user/${id}`),
+  deleteUserShape: async (id: string) => {
+    const result = await api.delete(`/api/v1/shapes/user/${id}`);
+    if (result.success) shapeCache.clear();
+    return result;
+  },
 
   /** Export a graphic as a .iographic ZIP (returns Blob) */
   exportIographic: async (id: string, description?: string): Promise<Blob> => {

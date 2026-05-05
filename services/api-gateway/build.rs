@@ -4,10 +4,14 @@ use std::path::Path;
 
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let shapes_root = Path::new(&manifest_dir).join("../../frontend/public/shapes");
+    let shapes_root = Path::new(&manifest_dir).join("../../frontend/shapes-source");
 
     // Tell Cargo to rerun this script if any shape file changes
     println!("cargo:rerun-if-changed={}", shapes_root.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        shapes_root.join("_schema/io-shape-v1.schema.json").display()
+    );
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_path = Path::new(&out_dir).join("shape_seeds.rs");

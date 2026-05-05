@@ -1219,6 +1219,29 @@ Support parts (skirt, legs, saddles) do not have their own binding sections and 
 
 ---
 
+## compositeAttachments — forPart Matching Semantics
+
+The `forPart` string on a `compositeAttachments` entry determines which addon a given attachment point applies to. The runtime (`renderNodeSvg.tsx`) uses this two-step algorithm:
+
+1. **Exact ID match (first):** Check if `forPart` matches any addon's `id` field exactly.
+   Example: `forPart: "fail-open"` matches `addons[].id == "fail-open"`.
+
+2. **Group name fallback:** If no ID match, check if `forPart` matches any addon's `group` field.
+   Example: `forPart: "agitator"` matches any addon where `group == "agitator"`.
+
+**Rule:** Never use the same string as both an addon `id` on one shape and a `group` name on a different shape — ID-first matching would shadow the group-based match.
+
+**Examples:**
+
+| forPart value | Match type | Applies to |
+|---|---|---|
+| `"actuator"` | group match | any addon where `group == "actuator"` |
+| `"fail-open"` | ID match | the addon with `id == "fail-open"` specifically |
+| `"agitator"` | group match | any addon where `group == "agitator"` |
+| `"support"` | group match | any addon where `group == "support"` |
+
+---
+
 ## Designer Keyboard Behavior
 
 ### Selection Model

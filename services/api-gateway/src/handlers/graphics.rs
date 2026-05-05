@@ -1,6 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Multipart, Path, Query, State},
-    response::IntoResponse,
+    http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
@@ -1305,8 +1307,9 @@ pub struct BatchIdsBody {
 pub async fn batch_shapes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    req_headers: axum::http::HeaderMap,
     Json(body): Json<BatchShapesBody>,
-) -> impl IntoResponse {
+) -> Response {
     if !check_permission(&claims, "process:read") && !check_permission(&claims, "console:read") {
         return IoError::Forbidden("process:read or console:read permission required".into())
             .into_response();
@@ -1320,8 +1323,7 @@ pub async fn batch_shapes(
         r#"
         SELECT metadata->>'shape_id' as shape_id, svg_data, metadata
         FROM design_objects
-        WHERE metadata->>'source' = 'library'
-          AND metadata->>'shape_id' = ANY($1)
+        WHERE metadata->>'shape_id' = ANY($1)
           AND type IN ('shape', 'shape_part')
         "#,
     )
@@ -1348,17 +1350,115 @@ pub async fn batch_shapes(
                 .and_then(|m| m.get("sidecar"))
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
+            let sidecar_hash_val = metadata
+                .as_ref()
+                .and_then(|m| m.get("sidecar_hash"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let svg_hash_val = metadata
+                .as_ref()
+                .and_then(|m| m.get("svg_hash"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             result.insert(
                 sid,
                 serde_json::json!({
                     "svg": svg,
                     "sidecar": sidecar,
+                    "sidecar_hash": sidecar_hash_val,
+                    "svg_hash": svg_hash_val,
                 }),
             );
         }
     }
 
-    Json(ApiResponse::ok(JsonValue::Object(result))).into_response()
+    // Compute ETag from result content
+    use std::hash::{Hash, Hasher};
+    let result_str =
+        serde_json::to_string(&JsonValue::Object(result.clone())).unwrap_or_default();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    result_str.hash(&mut hasher);
+    let etag = format!("\"{}\"", hasher.finish());
+
+    // Return 304 if client already has this content
+    let client_etag = req_headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if client_etag == etag {
+        return Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .body(Body::empty())
+            .unwrap();
+    }
+
+    let mut response = Json(ApiResponse::ok(JsonValue::Object(result))).into_response();
+    response.headers_mut().insert(
+        header::ETAG,
+        HeaderValue::from_str(&etag).expect("etag is valid ascii"),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=300"),
+    );
+    response
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/shapes — shape library catalog (mirrors /shapes/index.json)
+// ---------------------------------------------------------------------------
+pub async fn list_library_shapes(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "process:read") && !check_permission(&claims, "console:read") {
+        return IoError::Forbidden("process:read or console:read permission required".into())
+            .into_response();
+    }
+
+    let rows = match sqlx::query(
+        r#"
+        SELECT
+            metadata->>'shape_id'              AS shape_id,
+            metadata->>'display_name'           AS display_name,
+            metadata->>'category'               AS category,
+            metadata->'sidecar'->>'subcategory' AS subcategory
+        FROM design_objects
+        WHERE type IN ('shape', 'shape_part')
+          AND metadata->>'source' = 'library'
+        ORDER BY metadata->>'category', metadata->>'shape_id'
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "list_library_shapes query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let shapes: Vec<serde_json::Value> = rows
+        .iter()
+        .filter_map(|row| {
+            let id: Option<String> = row.try_get("shape_id").ok().flatten();
+            let label: Option<String> = row.try_get("display_name").ok().flatten();
+            let category: Option<String> = row.try_get("category").ok().flatten();
+            let subcategory: Option<String> = row.try_get("subcategory").ok().flatten();
+            match (id, label, category) {
+                (Some(id), Some(label), Some(category)) => Some(serde_json::json!({
+                    "id": id,
+                    "label": label,
+                    "category": category,
+                    "subcategory": subcategory,
+                })),
+                _ => None,
+            }
+        })
+        .collect();
+
+    Json(ApiResponse::ok(serde_json::json!({ "shapes": shapes }))).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1713,7 +1813,7 @@ pub async fn list_user_shapes(
             created_at,
             created_by
         FROM design_objects
-        WHERE type IN ('shape', 'symbol')
+        WHERE type IN ('shape', 'shape_part')
           AND metadata->>'source' = 'user'
         ORDER BY name ASC
         "#,
@@ -1880,16 +1980,27 @@ pub async fn upload_user_shape(
     // Generate a user-scoped shape_id to avoid collisions with library IDs
     let shape_id = format!(".custom.{}", Uuid::new_v4().simple());
 
+    let view_box =
+        extract_viewbox_from_svg(svg.as_str()).unwrap_or_else(|| "0 0 100 100".to_string());
+
+    let sidecar_value = serde_json::json!({
+        "geometry": {
+            "viewBox": &view_box
+        }
+    });
+    let computed_sidecar_hash = crate::shape_hash::sidecar_hash(&sidecar_value);
+    let computed_svg_hash = crate::shape_hash::svg_hash(&svg);
+
     let metadata = serde_json::json!({
         "shape_id": shape_id,
         "source": "user",
+        "display_name": &name,
         "category": category,
         "schema": "io-shape-v1",
-        "sidecar": {
-            "geometry": {
-                "viewBox": "0 0 100 100"
-            }
-        }
+        "view_box": &view_box,
+        "sidecar": sidecar_value,
+        "sidecar_hash": computed_sidecar_hash,
+        "svg_hash": computed_svg_hash,
     });
 
     let id = Uuid::new_v4();
@@ -1926,6 +2037,175 @@ pub async fn upload_user_shape(
 }
 
 // ---------------------------------------------------------------------------
+// GET  /api/v1/shapes/:shape_id/svg — export raw SVG for any shape
+// PUT  /api/v1/shapes/:shape_id/svg — replace user shape SVG (preserve sidecar)
+// ---------------------------------------------------------------------------
+
+fn extract_viewbox_from_svg(svg: &str) -> Option<String> {
+    // Match viewBox="..." or viewBox='...'
+    for prefix in ["viewBox=\"", "viewBox='"] {
+        if let Some(start) = svg.find(prefix) {
+            let rest = &svg[start + prefix.len()..];
+            let quote_char = if prefix.ends_with('"') { '"' } else { '\'' };
+            if let Some(end) = rest.find(quote_char) {
+                let vb = rest[..end].trim().to_string();
+                if !vb.is_empty() {
+                    return Some(vb);
+                }
+            }
+        }
+    }
+    None
+}
+
+pub async fn export_shape_svg(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(shape_id): Path<String>,
+) -> Response {
+    if !check_permission(&claims, "process:read")
+        && !check_permission(&claims, "console:read")
+        && !check_permission(&claims, "designer:read")
+    {
+        return IoError::Forbidden(
+            "process:read, console:read, or designer:read permission required".into(),
+        )
+        .into_response();
+    }
+
+    let row = match sqlx::query(
+        r#"
+        SELECT svg_data
+        FROM design_objects
+        WHERE metadata->>'shape_id' = $1
+          AND type IN ('shape', 'shape_part')
+        LIMIT 1
+        "#,
+    )
+    .bind(&shape_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Shape '{}' not found", shape_id)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, shape_id = %shape_id, "export_shape_svg query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let svg: Option<String> = row.try_get("svg_data").ok().flatten();
+    match svg {
+        Some(s) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "image/svg+xml")
+            .body(Body::from(s))
+            .unwrap(),
+        None => IoError::NotFound(format!("Shape '{}' has no SVG data", shape_id)).into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReimportShapeSvgBody {
+    pub svg_content: String,
+}
+
+pub async fn reimport_shape_svg(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(shape_id): Path<String>,
+    Json(body): Json<ReimportShapeSvgBody>,
+) -> Response {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    if !body.svg_content.contains("<svg") {
+        return IoError::BadRequest("svg_content does not appear to be an SVG".into())
+            .into_response();
+    }
+
+    // Security scan
+    if let Err(e) = file_scan::check_upload(body.svg_content.as_bytes(), "shape.svg") {
+        return e.into_response();
+    }
+
+    let row = match sqlx::query(
+        r#"
+        SELECT id, metadata->>'source' as source,
+               metadata->'sidecar'->'geometry'->>'viewBox' as old_viewbox
+        FROM design_objects
+        WHERE metadata->>'shape_id' = $1
+          AND type IN ('shape', 'shape_part')
+        LIMIT 1
+        "#,
+    )
+    .bind(&shape_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Shape '{}' not found", shape_id)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, shape_id = %shape_id, "reimport_shape_svg lookup failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let source: Option<String> = row.try_get("source").ok().flatten();
+    if source.as_deref() != Some("user") {
+        return IoError::Forbidden("Cannot modify built-in library shapes".into()).into_response();
+    }
+
+    let row_id: Uuid = row.try_get("id").unwrap();
+    let old_viewbox: String = row
+        .try_get("old_viewbox")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "0 0 100 100".to_string());
+    let new_viewbox =
+        extract_viewbox_from_svg(&body.svg_content).unwrap_or_else(|| old_viewbox.clone());
+    let viewbox_changed = new_viewbox != old_viewbox;
+
+    let new_svg_hash = crate::shape_hash::svg_hash(&body.svg_content);
+
+    match sqlx::query(
+        r#"
+        UPDATE design_objects
+        SET svg_data    = $1,
+            metadata    = jsonb_set(
+                              jsonb_set(metadata, '{sidecar,geometry,viewBox}', to_jsonb($2::text)),
+                              '{svg_hash}', to_jsonb($4::text)
+                          ),
+            updated_at  = NOW()
+        WHERE id = $3
+        "#,
+    )
+    .bind(&body.svg_content)
+    .bind(&new_viewbox)
+    .bind(row_id)
+    .bind(&new_svg_hash)
+    .execute(&state.db)
+    .await
+    {
+        Ok(_) => Json(ApiResponse::ok(serde_json::json!({
+            "viewBoxChanged": viewbox_changed,
+            "oldViewBox": old_viewbox,
+            "newViewBox": new_viewbox,
+        })))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, shape_id = %shape_id, "reimport_shape_svg update failed");
+            IoError::Database(e).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DELETE /api/v1/shapes/user/:id — delete a user-created custom shape
 // ---------------------------------------------------------------------------
 
@@ -1944,7 +2224,7 @@ pub async fn delete_user_shape(
         SELECT id, metadata->>'source' as source
         FROM design_objects
         WHERE id = $1
-          AND type IN ('shape', 'symbol')
+          AND type IN ('shape', 'shape_part')
         "#,
     )
     .bind(id)

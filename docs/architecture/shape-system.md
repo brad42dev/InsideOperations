@@ -73,7 +73,7 @@ For user shapes, `shape_id` is `.custom.{uuid}` and `source` is `'user'`.
 
 ### Sidecar schema
 
-`frontend/public/shapes/_schema/io-shape-v1.schema.json` (or DB equivalent after full migration) is the canonical schema. Key top-level fields:
+`frontend/shapes-source/_schema/io-shape-v1.schema.json` is the canonical schema. Key top-level fields:
 
 - `geometry` — viewBox, width, height
 - `variants` — named SVG file options (opt1/opt2/etc.)
@@ -109,18 +109,22 @@ Response: { "valve-control": { "svg": "...", "sidecar": {...} }, ... }
 
 **`GET /api/v1/shapes`** — shape catalog for the designer palette (id, category, label, subcategory for all shapes).
 
+**`GET /api/v1/shapes/:shape_id/svg`** — export a single shape's raw SVG. Available for library and user shapes. Auth: `process:read`, `console:read`, or `designer:read`.
+
+**`PUT /api/v1/shapes/:shape_id/svg`** — replace a user shape's SVG content; sidecar metadata is preserved, but the sidecar `geometry.viewBox` is updated from the new SVG's `viewBox` attribute. Library shapes are immutable (returns 403). Auth: `designer:write`.
+
 ---
 
 ## Bootstrap / Initial Seed
 
-Library shapes are embedded in the `api-gateway` binary at compile time via `build.rs`, which reads `frontend/public/shapes/` and generates `shape_seeds.rs`. At startup, `seed_shape_library()` inserts shapes that do not yet exist in the DB (**insert-if-not-exists only — never overwrites existing rows**).
+Library shapes are embedded in the `api-gateway` binary at compile time via `build.rs`, which reads `frontend/shapes-source/` and generates `shape_seeds.rs`. At startup, `seed_shape_library()` inserts shapes that do not yet exist in the DB (**insert-if-not-exists only — never overwrites existing rows**).
 
 This means:
 - Fresh environment: shapes seeded automatically from the binary.
-- Existing environment: startup is a no-op.
-- Orphaned old IDs (legacy shapes no longer on disk): deleted on startup if not in the current shape set.
+- Existing environment: startup is a no-op (insert-if-not-exists, nothing overwritten).
+- Orphaned old IDs: **not deleted by default.** Set `IO_SEED_ORPHAN_CLEANUP=1` to delete library shapes whose IDs are not in the current binary. This flag is safe to run once after a shape rename/removal, then leave unset. Do not enable it permanently — SQL migrations may add library shapes before the next binary release and the cleanup would delete them.
 
-After the full migration (all phases complete), `frontend/public/shapes/*.json` files are deleted from the web bundle. The SVG files may be kept temporarily for palette thumbnails, or replaced by blob URLs generated from the DB-served SVG strings.
+Shape source files live in `frontend/shapes-source/` — Vite does not serve this directory, so no shape files reach the browser. The source files remain on disk for `build.rs` and as the authoring source for new shapes.
 
 ---
 
@@ -129,9 +133,9 @@ After the full migration (all phases complete), `frontend/public/shapes/*.json` 
 Library shapes are **not** updated by editing files and redeploying. After initial seed, the DB owns them.
 
 **Adding a new library shape:**
-1. Author the SVG + sidecar JSON in `frontend/public/shapes/{category}/`
+1. Author the SVG + sidecar JSON in `frontend/shapes-source/{category}/`
 2. Run `./dev.sh shapes import` — reads the file, upserts into DB
-3. The file can then be committed to the repo as an authoring artifact or left off disk
+3. Commit the file to the repo as the authoring source
 
 **Updating an existing library shape:**
 1. Write a SQL migration: `UPDATE design_objects SET svg_data = '...', metadata = '...' WHERE metadata->>'shape_id' = 'valve-control' AND metadata->>'source' = 'library'`
@@ -188,7 +192,7 @@ These shapes live in the DB with `source='user'`. They are deployment-specific (
 
 ## What Does Not Exist at Runtime (After Full Migration)
 
-- `frontend/public/shapes/*.json` — sidecar JSON files removed from web bundle
-- `frontend/public/shapes/index.json` — shape catalog removed; served from `GET /api/v1/shapes`
+- `frontend/public/shapes/` — moved to `frontend/shapes-source/`; Vite does not serve shape files
+- Shape catalog — served from `GET /api/v1/shapes` instead of `index.json`
 - Static file fallback path in `shapeCache.ts` — removed
 - Any `<img src="/shapes/...">` references — replaced with blob URLs from DB-served SVG strings

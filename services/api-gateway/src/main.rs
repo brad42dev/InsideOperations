@@ -26,6 +26,7 @@ mod mw;
 mod proxy;
 mod report_generator;
 mod seed_shapes;
+mod shape_hash;
 mod state;
 mod tiles;
 mod tls;
@@ -352,7 +353,11 @@ async fn main() -> anyhow::Result<()> {
             "/api/graphics/:id/points",
             get(handlers::graphics::get_graphic_points),
         )
-        // Batch shape / stencil loaders
+        // Shape library catalog + batch loaders
+        .route(
+            "/api/v1/shapes",
+            get(handlers::graphics::list_library_shapes),
+        )
         .route(
             "/api/v1/shapes/batch",
             post(handlers::graphics::batch_shapes),
@@ -369,6 +374,12 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/v1/shapes/user/:id",
             delete(handlers::graphics::delete_user_shape),
+        )
+        // Per-shape SVG export + re-import — parameterised, registered after static paths
+        .route(
+            "/api/v1/shapes/:shape_id/svg",
+            get(handlers::graphics::export_shape_svg)
+                .put(handlers::graphics::reimport_shape_svg),
         )
         // iographic analyze + commit — static paths MUST be before parameterised /:id routes
         .route(

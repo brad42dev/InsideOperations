@@ -81,7 +81,7 @@ No further action required for this phase. Skip to Phase 4 (the next phase that 
 Complete. Database verified — no graphics reference shape IDs that don't exist on disk.
 
 ### Rationale for keeping in plan
-Documents the SQL diagnostic for future use if shape ID drift is suspected. Re-run the queries in `docs/plans/_archive/preflight-queries.sql` (if archived) or copy from git history `git log --all -- docs/plans/mainplan.md` if needed.
+Documents the SQL diagnostic for future use if shape ID drift is suspected. The preflight queries are in the git history of the old `docs/plans/mainplan.md` (commit before `0bd92b03`).
 
 No further action required.
 
@@ -1021,28 +1021,60 @@ if (svgStr) {
 ```
 If it is React JSX, use `<ShapeThumbnail shapeId={ghostPlacement.shapeId} size={48} />`.
 
-### After all 5 replacements: delete the shape files
+### After all 5 replacements: delete shape files from the web bundle
+
+Delete only the files that Vite serves to browsers. Keep the directory and files on disk — they are
+still needed by `build.rs` at compile time (it panics if the directory is missing) and as the
+authoring source for new library shapes.
 
 ```bash
-find /home/io/io-dev/io/frontend/public/shapes -type f -delete
-rmdir /home/io/io-dev/io/frontend/public/shapes 2>/dev/null || true
+# Remove JSON files from the web bundle only — SVGs were already removed in Phase 10.
+# The actual files stay in the repo; we exclude them from Vite's public dir.
 ```
 
-The `build.rs` `rerun-if-changed` directive for the shapes directory will need updating if the
-directory is removed. Change it to `rerun-if-changed=../../frontend/public/shapes` (Cargo
-silently ignores a non-existent path in `rerun-if-changed`, but document the change).
-The shape files are still embedded in the binary via `build.rs` at compile time — removing them
-from disk after the build does not affect the running service.
+**Vite exclusion approach:** Rather than deleting files, add a Vite config that excludes
+`public/shapes/` from the dev server and production build. In `frontend/vite.config.ts`,
+the `publicDir` option controls what Vite copies to the build output. Options:
 
-> **NOTE — possible architectural issue:** Removing `frontend/public/shapes/` entirely from disk means there is no longer an authoring source for shape files. To add a new library shape under the new model, the disk files must be temporarily restored, the new shape added, the binary rebuilt (so `build.rs` picks it up), and `./dev.sh shapes import` run to push it into the DB on existing deployments. Consider keeping the directory in the repo (gitignored from the web bundle build but present on disk) so authoring remains straightforward. Flag this in Phase 13's review.
+1. **Move shapes out of `public/`** — rename `frontend/public/shapes/` to `frontend/shapes-source/`
+   and update `build.rs` to read from the new path. Nothing in `public/` = nothing served.
+2. **Custom Vite plugin** — a small plugin that filters `public/shapes/` from the copy step.
+
+Option 1 is simpler and makes the intent explicit: shape source files live in `frontend/shapes-source/`,
+the web bundle has no shape files, and `build.rs` reads from the new location.
+
+Update `build.rs` line 7 to point to the new path:
+```rust
+let shapes_root = Path::new(&manifest_dir).join("../../frontend/shapes-source");
+```
+
+Rename the directory:
+```bash
+mv /home/io/io-dev/io/frontend/public/shapes /home/io/io-dev/io/frontend/shapes-source
+```
+
+After this:
+- `build.rs` still works (reads from `frontend/shapes-source/`)
+- Vite serves nothing under `/shapes/` (directory gone from `public/`)
+- Shape authoring workflow is unchanged (edit files in `shapes-source/`, rebuild)
+- `./dev.sh shapes import` still works for pushing to DB on existing deployments
 
 ### Verification
 ```bash
 cd frontend && pnpm build
 # Must succeed with no TypeScript errors
 
-find /home/io/io-dev/io/frontend/public/shapes -type f 2>/dev/null | wc -l
-# Must be 0
+# Confirm shapes-source exists and has files (build.rs reads from here)
+find /home/io/io-dev/io/frontend/shapes-source -name "*.json" | wc -l
+# Should be 85+
+
+# Confirm public/shapes is gone (nothing served to browsers)
+ls /home/io/io-dev/io/frontend/public/shapes 2>&1
+# Should error: No such file or directory
+
+# Confirm build.rs still works
+BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/13/include" cargo build -p api-gateway 2>&1 | grep "warning=Shape seeds"
+# Must output: warning: Shape seeds generated: 85
 ```
 
 Manual checks:
@@ -1055,7 +1087,9 @@ Manual checks:
 
 ### Rollback
 ```bash
-git checkout HEAD -- frontend/public/shapes/
+mv /home/io/io-dev/io/frontend/shapes-source /home/io/io-dev/io/frontend/public/shapes
+# Revert build.rs path change
+git checkout HEAD -- services/api-gateway/build.rs
 git checkout HEAD -- frontend/src/pages/designer/DesignerLeftPalette.tsx
 git checkout HEAD -- frontend/src/pages/designer/components/CategoryShapeWizard.tsx
 git checkout HEAD -- frontend/src/pages/designer/DesignerCanvas.tsx
@@ -1198,7 +1232,7 @@ N/A — documentation only.
 | Shape cache (Phases 10, 12) | `frontend/src/shared/graphics/shapeCache.ts` |
 | Library palette store (Phase 8) | `frontend/src/store/designer/libraryStore.ts` |
 | API client for shapes | `frontend/src/api/graphics.ts:88-95` |
-| Shape disk files (deleted in Phase 11) | `frontend/public/shapes/` |
+| Shape source files (moved in Phase 11) | `frontend/shapes-source/` (was `frontend/public/shapes/`) |
 | img src call sites (Phase 11) | `DesignerLeftPalette.tsx:990,1040`, `CategoryShapeWizard.tsx:204,281`, `DesignerCanvas.tsx:9089` |
 | ShapeThumbnail component (Phase 11) | `frontend/src/pages/designer/components/ShapeThumbnail.tsx` |
 | Snapshot file (Phase 4 creates, Phase 9 hooks) | `services/api-gateway/shapes-snapshot.json` |

@@ -18,6 +18,7 @@ import type { DisplayElementType } from "../../shared/types/graphics";
 import type { ChartTypeId } from "../../shared/components/charts/chart-config-types";
 import { graphicsApi } from "../../api/graphics";
 import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
+import { ShapeThumbnail } from "./components/ShapeThumbnail";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -986,14 +987,7 @@ function EquipmentCategoryTile({
           overflow: "hidden",
         }}
       >
-        <img
-          src={`/shapes/${id}/${defaultId}.svg`}
-          alt={label}
-          style={{ maxWidth: 28, maxHeight: 28, objectFit: "contain" }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+        <ShapeThumbnail shapeId={defaultId} size={28} />
       </button>
     );
   }
@@ -1036,14 +1030,7 @@ function EquipmentCategoryTile({
           overflow: "hidden",
         }}
       >
-        <img
-          src={`/shapes/${id}/${defaultId}.svg`}
-          alt={label}
-          style={{ maxWidth: 48, maxHeight: 40, objectFit: "contain" }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+        <ShapeThumbnail shapeId={defaultId} size={44} />
       </div>
       <span
         style={{

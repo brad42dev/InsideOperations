@@ -658,6 +658,15 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     return [...new Set(ids)];
   }, []);
 
+  const batchShapesFetch = useCallback(
+    async (ids: string[]): Promise<Record<string, ShapeData>> => {
+      const res = await graphicsApi.batchShapes(ids);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data as unknown as Record<string, ShapeData>;
+    },
+    [],
+  );
+
   // Fetch shapes on mount / document change — two phases:
   // 1. Fetch base shapes; 2. derive part shape IDs from base sidecars and fetch those.
   useEffect(() => {
@@ -665,10 +674,8 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     if (baseIds.length === 0) return;
     let cancelled = false;
 
-    // Always load from public static files (canonical source, always current).
-    // The DB-backed batchShapes API can return stale sidecars that lack `addons`/
-    // `compositeAttachments`, which breaks composable part resolution in Phase 2.
-    fetchShapes(baseIds)
+    // Fetch shapes from DB via the batch endpoint — DB is the sole source of truth.
+    fetchShapes(baseIds, batchShapesFetch)
       .then(async (baseMap) => {
         if (cancelled) return;
         // Phase 2: walk symbol_instance nodes, look up each composable part's addon
@@ -700,7 +707,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           if (!cancelled) setShapeMap(baseMap);
           return;
         }
-        const partMap = await fetchShapes(uniquePartIds);
+        const partMap = await fetchShapes(uniquePartIds, batchShapesFetch);
         if (!cancelled) setShapeMap(new Map([...baseMap, ...partMap]));
       })
       .catch(console.error);
@@ -708,7 +715,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     return () => {
       cancelled = true;
     };
-  }, [document.id, children, collectBaseShapeIds]);
+  }, [document.id, children, collectBaseShapeIds, batchShapesFetch]);
 
   // Collect stencil IDs and fetch their SVG on mount / document change
   useEffect(() => {
