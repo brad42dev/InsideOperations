@@ -10,7 +10,9 @@ fn main() {
     println!("cargo:rerun-if-changed={}", shapes_root.display());
     println!(
         "cargo:rerun-if-changed={}",
-        shapes_root.join("_schema/io-shape-v1.schema.json").display()
+        shapes_root
+            .join("_schema/io-shape-v1.schema.json")
+            .display()
     );
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -37,17 +39,23 @@ fn main() {
         for shape_entry in fs::read_dir(&cat_path).unwrap() {
             let shape_entry = shape_entry.unwrap();
             let shape_path = shape_entry.path();
-            let ext = shape_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let ext = shape_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
             if ext != "json" {
                 continue;
             }
 
-            let stem = shape_path.file_stem().unwrap().to_str().unwrap().to_string();
+            let stem = shape_path
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
 
-            let sidecar =
-                fs::read_to_string(&shape_path).unwrap_or_else(|e| {
-                    panic!("Cannot read {}: {}", shape_path.display(), e)
-                });
+            let sidecar = fs::read_to_string(&shape_path)
+                .unwrap_or_else(|e| panic!("Cannot read {}: {}", shape_path.display(), e));
 
             // Determine SVG filename from sidecar (variants.options first entry, or {stem}.svg)
             let svg_filename = determine_svg_filename(&sidecar, &stem);
@@ -61,9 +69,8 @@ fn main() {
                 );
             }
 
-            let svg = fs::read_to_string(&svg_path).unwrap_or_else(|e| {
-                panic!("Cannot read {}: {}", svg_path.display(), e)
-            });
+            let svg = fs::read_to_string(&svg_path)
+                .unwrap_or_else(|e| panic!("Cannot read {}: {}", svg_path.display(), e));
 
             entries.push((stem, category.clone(), svg, sidecar));
         }
@@ -90,11 +97,36 @@ fn main() {
         };
         writeln!(output, "        ShapeSeed {{").unwrap();
         // Use Debug formatting ("{:?}") which produces a valid escaped Rust string literal
-        writeln!(output, "            shape_id: {},", format_args!("{:?}", shape_id)).unwrap();
-        writeln!(output, "            category: {},", format_args!("{:?}", category)).unwrap();
-        writeln!(output, "            shape_type: {},", format_args!("{:?}", shape_type)).unwrap();
-        writeln!(output, "            svg_data: {},", format_args!("{:?}", svg)).unwrap();
-        writeln!(output, "            sidecar: {},", format_args!("{:?}", sidecar)).unwrap();
+        writeln!(
+            output,
+            "            shape_id: {},",
+            format_args!("{:?}", shape_id)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "            category: {},",
+            format_args!("{:?}", category)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "            shape_type: {},",
+            format_args!("{:?}", shape_type)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "            svg_data: {},",
+            format_args!("{:?}", svg)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "            sidecar: {},",
+            format_args!("{:?}", sidecar)
+        )
+        .unwrap();
         writeln!(output, "        }},").unwrap();
     }
 

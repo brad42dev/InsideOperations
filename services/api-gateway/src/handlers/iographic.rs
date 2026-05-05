@@ -1314,8 +1314,7 @@ pub async fn export_graphic(
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            let shape_meta: Option<serde_json::Value> =
-                row.try_get("metadata").ok().flatten();
+            let shape_meta: Option<serde_json::Value> = row.try_get("metadata").ok().flatten();
             let shape_sidecar = shape_meta
                 .as_ref()
                 .and_then(|m| m.get("sidecar"))
@@ -1810,13 +1809,12 @@ async fn upsert_imported_shape(
     created_by: Option<uuid::Uuid>,
 ) -> String {
     let base_id = format!("{}.imported", original_id);
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM design_objects WHERE metadata->>'shape_id' = $1",
-    )
-    .bind(&base_id)
-    .fetch_one(db)
-    .await
-    .unwrap_or(0);
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM design_objects WHERE metadata->>'shape_id' = $1")
+            .bind(&base_id)
+            .fetch_one(db)
+            .await
+            .unwrap_or(0);
 
     let final_id = if count == 0 {
         base_id
@@ -1824,8 +1822,7 @@ async fn upsert_imported_shape(
         format!(
             "{}.imported.{}",
             original_id,
-            &hash_entry.sidecar_hash
-                [..8.min(hash_entry.sidecar_hash.len())]
+            &hash_entry.sidecar_hash[..8.min(hash_entry.sidecar_hash.len())]
         )
     };
 
@@ -1936,14 +1933,9 @@ async fn import_full_shapes(
     for hash_entry in &manifest.shape_hashes {
         let shape_id = &hash_entry.shape_id;
 
-        let svg = read_zip_string(
-            &mut archive,
-            &format!("shapes/{}/shape.svg", shape_id),
-        );
-        let sidecar_str = read_zip_string(
-            &mut archive,
-            &format!("shapes/{}/sidecar.json", shape_id),
-        );
+        let svg = read_zip_string(&mut archive, &format!("shapes/{}/shape.svg", shape_id));
+        let sidecar_str =
+            read_zip_string(&mut archive, &format!("shapes/{}/sidecar.json", shape_id));
 
         if svg.is_none() {
             id_map.insert(shape_id.clone(), shape_id.clone());
@@ -1982,15 +1974,9 @@ async fn import_full_shapes(
                 if hashes_match {
                     id_map.insert(shape_id.clone(), shape_id.clone());
                 } else if source == "library" {
-                    let new_id = upsert_imported_shape(
-                        db,
-                        shape_id,
-                        &svg,
-                        &sidecar,
-                        hash_entry,
-                        created_by,
-                    )
-                    .await;
+                    let new_id =
+                        upsert_imported_shape(db, shape_id, &svg, &sidecar, hash_entry, created_by)
+                            .await;
                     id_map.insert(shape_id.clone(), new_id);
                 } else {
                     overwrite_user_shape(db, shape_id, &svg, &sidecar, hash_entry).await;
@@ -1998,15 +1984,9 @@ async fn import_full_shapes(
                 }
             }
             None => {
-                let new_id = upsert_imported_shape(
-                    db,
-                    shape_id,
-                    &svg,
-                    &sidecar,
-                    hash_entry,
-                    created_by,
-                )
-                .await;
+                let new_id =
+                    upsert_imported_shape(db, shape_id, &svg, &sidecar, hash_entry, created_by)
+                        .await;
                 id_map.insert(shape_id.clone(), new_id);
             }
         }
@@ -2330,7 +2310,10 @@ pub async fn analyze_iographic(
             }
         };
 
-        let manifest_hash = manifest.shape_hashes.iter().find(|h| h.shape_id == *shape_id);
+        let manifest_hash = manifest
+            .shape_hashes
+            .iter()
+            .find(|h| h.shape_id == *shape_id);
         let hash_status = match (manifest_hash, &db_row) {
             (Some(mh), Some(row)) if !mh.sidecar_hash.is_empty() => {
                 let db_sh: String = row.try_get("sidecar_hash").unwrap_or_default();

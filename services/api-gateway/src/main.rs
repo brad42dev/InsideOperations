@@ -378,8 +378,7 @@ async fn main() -> anyhow::Result<()> {
         // Per-shape SVG export + re-import — parameterised, registered after static paths
         .route(
             "/api/v1/shapes/:shape_id/svg",
-            get(handlers::graphics::export_shape_svg)
-                .put(handlers::graphics::reimport_shape_svg),
+            get(handlers::graphics::export_shape_svg).put(handlers::graphics::reimport_shape_svg),
         )
         // iographic analyze + commit — static paths MUST be before parameterised /:id routes
         .route(

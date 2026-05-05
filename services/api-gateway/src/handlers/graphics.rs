@@ -1374,8 +1374,7 @@ pub async fn batch_shapes(
 
     // Compute ETag from result content
     use std::hash::{Hash, Hasher};
-    let result_str =
-        serde_json::to_string(&JsonValue::Object(result.clone())).unwrap_or_default();
+    let result_str = serde_json::to_string(&JsonValue::Object(result.clone())).unwrap_or_default();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     result_str.hash(&mut hasher);
     let etag = format!("\"{}\"", hasher.finish());
