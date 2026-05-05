@@ -162,11 +162,14 @@ export interface TabStore {
   findGroupTab(groupNodeId: string): DesignerTab | null;
 
   /** Stamp a tab as a preview tab and record its autosave metadata. */
-  setTabPreviewMeta(tabId: string, meta: {
-    previewSourceId?: string;
-    previewAutosaveId?: string;
-    previewIdbKey?: string;
-  }): void;
+  setTabPreviewMeta(
+    tabId: string,
+    meta: {
+      previewSourceId?: string;
+      previewAutosaveId?: string;
+      previewIdbKey?: string;
+    },
+  ): void;
 
   /** Clear the preview flag and metadata (called after a successful save). */
   clearTabPreviewMeta(tabId: string): void;

@@ -184,7 +184,9 @@ async function fetchIndexOnce(): Promise<ShapeIndexItem[]> {
         if (!res.success)
           throw new Error(`GET /api/v1/shapes failed: ${res.error.message}`);
         if (!Array.isArray(res.data.shapes)) {
-          throw new Error('/api/v1/shapes: "shapes" is missing or not an array');
+          throw new Error(
+            '/api/v1/shapes: "shapes" is missing or not an array',
+          );
         }
         return res.data.shapes.map((s) => ({
           id: s.id,

@@ -2869,7 +2869,10 @@ export default function DesignerCanvas({
     if (!shapeConfigNodeId) return undefined;
     const currentDoc = docRef.current;
     if (!currentDoc) return undefined;
-    const configNode = findSymbolNodeDeep(currentDoc.children, shapeConfigNodeId);
+    const configNode = findSymbolNodeDeep(
+      currentDoc.children,
+      shapeConfigNodeId,
+    );
     if (!configNode) return undefined;
     return {
       bindings: [
@@ -6743,7 +6746,9 @@ export default function DesignerCanvas({
       setGhostBlobUrl(null);
       return;
     }
-    const svgStr = useLibraryStore.getState().cache.get(ghostPlacement.shapeId)?.svg;
+    const svgStr = useLibraryStore
+      .getState()
+      .cache.get(ghostPlacement.shapeId)?.svg;
     if (!svgStr) {
       setGhostBlobUrl(null);
       return;

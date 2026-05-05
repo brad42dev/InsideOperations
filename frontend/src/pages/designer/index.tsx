@@ -1134,7 +1134,12 @@ export default function DesignerPage() {
         void useLibraryStore.getState().loadShapes(recShapeIds);
       }
     },
-    [graphicId, tabStoreOpenTab, tabStoreSetPreviewMeta, historyRestoreFromSnapshots],
+    [
+      graphicId,
+      tabStoreOpenTab,
+      tabStoreSetPreviewMeta,
+      historyRestoreFromSnapshots,
+    ],
   );
 
   // -------------------------------------------------------------------------
@@ -1296,9 +1301,12 @@ export default function DesignerPage() {
       if (currentId && lockHeldRef.current === false) return;
 
       // Preview tabs require explicit confirmation before overwriting the canonical graphic
-      if (useTabStore.getState().tabs.find(
-        (t) => t.id === useTabStore.getState().activeTabId
-      )?.isPreview) {
+      if (
+        useTabStore
+          .getState()
+          .tabs.find((t) => t.id === useTabStore.getState().activeTabId)
+          ?.isPreview
+      ) {
         setShowPreviewSaveConfirm(true);
         return;
       }
@@ -1471,20 +1479,24 @@ export default function DesignerPage() {
 
   const handlePreviewSaveConfirmed = useCallback(async () => {
     setShowPreviewSaveConfirm(false);
-    const currentActiveTab = useTabStore.getState().tabs.find(
-      (t) => t.id === useTabStore.getState().activeTabId,
-    );
-    if (!currentActiveTab?.isPreview || !currentActiveTab.previewSourceId) return;
+    const currentActiveTab = useTabStore
+      .getState()
+      .tabs.find((t) => t.id === useTabStore.getState().activeTabId);
+    if (!currentActiveTab?.isPreview || !currentActiveTab.previewSourceId)
+      return;
 
     const doc = useSceneStore.getState().doc;
     if (!doc) return;
 
     setIsSaving(true);
     try {
-      const result = await graphicsApi.update(currentActiveTab.previewSourceId, {
-        name: doc.name ?? "Untitled",
-        scene_data: doc,
-      });
+      const result = await graphicsApi.update(
+        currentActiveTab.previewSourceId,
+        {
+          name: doc.name ?? "Untitled",
+          scene_data: doc,
+        },
+      );
       if (result.success) {
         void cleanupAutosave(
           currentActiveTab.previewAutosaveId ?? null,
@@ -1498,7 +1510,11 @@ export default function DesignerPage() {
         );
         markClean();
         historyMarkClean();
-        showToast({ title: "Graphic saved", variant: "success", duration: 3000 });
+        showToast({
+          title: "Graphic saved",
+          variant: "success",
+          duration: 3000,
+        });
         navigate(`/designer/graphics/${currentActiveTab.previewSourceId}/edit`);
       } else {
         showToast({ title: "Save failed", variant: "error" });
@@ -2890,7 +2906,10 @@ export default function DesignerPage() {
               <button
                 onClick={() => {
                   // Discard — delete both the server row and the IDB record
-                  void cleanupAutosave(crashRecovery.autosaveId, crashRecovery.id);
+                  void cleanupAutosave(
+                    crashRecovery.autosaveId,
+                    crashRecovery.id,
+                  );
                   setCrashRecovery(null);
                 }}
                 style={{
@@ -3084,7 +3103,8 @@ export default function DesignerPage() {
         <div
           style={{
             background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
-            borderBottom: "1px solid color-mix(in srgb, var(--io-accent) 40%, transparent)",
+            borderBottom:
+              "1px solid color-mix(in srgb, var(--io-accent) 40%, transparent)",
             padding: "6px 16px",
             display: "flex",
             alignItems: "center",
@@ -3098,7 +3118,8 @@ export default function DesignerPage() {
             Recovered changes
           </span>
           <span style={{ color: "var(--io-text-secondary)" }}>
-            Click Save to overwrite the current version, or rename then Save As to keep both.
+            Click Save to overwrite the current version, or rename then Save As
+            to keep both.
           </span>
         </div>
       )}
@@ -3194,7 +3215,9 @@ export default function DesignerPage() {
                 : discardTab.graphicId;
               const autosaveHint = discardTab.isPreview
                 ? (discardTab.previewAutosaveId ?? null)
-                : (isActive ? autoSaveIdRef.current : null);
+                : isActive
+                  ? autoSaveIdRef.current
+                  : null;
               void cleanupAutosave(autosaveHint, idbKey);
             }
             setTabClosePrompt(null);

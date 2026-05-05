@@ -7,7 +7,11 @@ interface ShapeThumbnailProps {
   style?: React.CSSProperties;
 }
 
-export function ShapeThumbnail({ shapeId, size = 40, style }: ShapeThumbnailProps) {
+export function ShapeThumbnail({
+  shapeId,
+  size = 40,
+  style,
+}: ShapeThumbnailProps) {
   const entry = useLibraryStore((s) => s.cache.get(shapeId));
   const loadShape = useLibraryStore((s) => s.loadShape);
 
@@ -28,14 +32,22 @@ export function ShapeThumbnail({ shapeId, size = 40, style }: ShapeThumbnailProp
   }, [blobUrl]);
 
   if (!blobUrl) {
-    return <div style={{ width: size, height: size, flexShrink: 0, ...style }} />;
+    return (
+      <div style={{ width: size, height: size, flexShrink: 0, ...style }} />
+    );
   }
 
   return (
     <img
       src={blobUrl}
       alt=""
-      style={{ width: size, height: size, objectFit: "contain", flexShrink: 0, ...style }}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        flexShrink: 0,
+        ...style,
+      }}
     />
   );
 }

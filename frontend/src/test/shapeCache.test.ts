@@ -129,7 +129,9 @@ describe("fetchShapes", () => {
   it("returns cached shapes without calling batchFetch", async () => {
     shapeCache.set("cached-1", makeShape("cached-1"));
     shapeCache.set("cached-2", makeShape("cached-2"));
-    const batchFetch = vi.fn(async (_ids: string[]): Promise<Record<string, ShapeData>> => ({}));
+    const batchFetch = vi.fn(
+      async (_ids: string[]): Promise<Record<string, ShapeData>> => ({}),
+    );
 
     const result = await fetchShapes(["cached-1", "cached-2"], batchFetch);
 
