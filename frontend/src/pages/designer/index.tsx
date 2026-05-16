@@ -1379,6 +1379,9 @@ export default function DesignerPage() {
               tabStoreSetGraphicId(activeTabId, resp.data.id, docName);
             }
           }
+          // Update URL from /designer/graphics/new → /designer/graphics/:id/edit
+          // so useParams() returns the real ID and version history / lock flow work correctly.
+          navigate(`/designer/graphics/${resp.data.id}/edit`, { replace: true });
         }
         markClean();
         historyMarkClean();
@@ -1476,7 +1479,7 @@ export default function DesignerPage() {
         setIsSaving(false);
       }
     },
-    [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId],
+    [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId, navigate],
   );
 
   /** Stable callback for UI-initiated saves (toolbar, menu) — opens the save confirm dialog. */
