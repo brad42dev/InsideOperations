@@ -1,7 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { graphicsApi } from "../../api/graphics";
+import { savedChartsApi } from "../../api/savedCharts";
+import type { ChartConfig } from "../../shared/components/charts/chart-config-types";
 import { AdminToggle } from "../../shared/components/AdminToggle";
+import { VersionRecoveryDialog } from "../../shared/components/versioning/VersionRecoveryDialog";
+import type { ChartVersionContent } from "../../shared/types/versioning";
 import { useAdminToggleStore } from "../../store/adminToggleStore";
 import type { WorkspaceLayout } from "./types";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
@@ -1184,6 +1188,7 @@ function ChartsSection({
 }) {
   const [dragging, setDragging] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const [versionHistoryChartId, setVersionHistoryChartId] = useState<string | null>(null);
   const {
     charts,
     publishChart,
@@ -1196,6 +1201,15 @@ function ChartsSection({
   } = useSavedChartsStore();
   const canPublish = usePermission("console:workspace_publish");
   const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
+  const handleLoadChartVersion = useCallback((content: ChartVersionContent | unknown) => {
+    const vc = content as ChartVersionContent;
+    if (!vc?.config || !versionHistoryChartId) return;
+    const chartId = versionHistoryChartId;
+    void savedChartsApi.update(chartId, { config: vc.config as ChartConfig }).then((r) => {
+      if (r.success) void fetchCharts({ allUsers: showAllUsers });
+    });
+  }, [versionHistoryChartId, fetchCharts, showAllUsers]);
 
   useEffect(() => {
     if (!initialized) void fetchCharts({ allUsers: showAllUsers });
@@ -1344,6 +1358,7 @@ function ChartsSection({
                   }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
+                  onVersionHistory={() => setVersionHistoryChartId(chart.id)}
                 />
               ))}
             </>
@@ -1377,11 +1392,22 @@ function ChartsSection({
                   }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
+                  onVersionHistory={() => setVersionHistoryChartId(chart.id)}
                 />
               ))}
             </>
           )}
         </>
+      )}
+      {versionHistoryChartId && (
+        <VersionRecoveryDialog
+          open={!!versionHistoryChartId}
+          onClose={() => setVersionHistoryChartId(null)}
+          objectType="chart"
+          objectId={versionHistoryChartId}
+          objectName={charts.find((c) => c.id === versionHistoryChartId)?.name}
+          onLoadVersion={handleLoadChartVersion}
+        />
       )}
     </div>
   );
@@ -1394,6 +1420,7 @@ function SavedChartRow({
   onQuickPlace,
   onPublish,
   onDelete,
+  onVersionHistory,
 }: {
   chart: SavedChart;
   canPublish: boolean;
@@ -1401,18 +1428,19 @@ function SavedChartRow({
   onQuickPlace: () => void;
   onPublish: (published: boolean) => void;
   onDelete: () => void;
+  onVersionHistory: () => void;
 }) {
   const [hovering, setHovering] = useState(false);
   const { menuState, handleContextMenu, closeMenu } = useContextMenu();
 
   const menuItems = [
     { label: "Place in Active Pane", onClick: onQuickPlace },
+    { label: "Version History", onClick: onVersionHistory, divider: true },
     ...(canPublish
       ? [
           {
             label: chart.published ? "Unpublish" : "Publish",
             onClick: () => onPublish(!chart.published),
-            divider: true,
           },
         ]
       : []),

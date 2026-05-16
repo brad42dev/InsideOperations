@@ -138,7 +138,7 @@ export function VersionRecoveryDialog({
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 1049,
+          zIndex: 3100,
           background: "rgba(0,0,0,0.25)",
         }}
         onClick={onClose}
@@ -153,7 +153,7 @@ export function VersionRecoveryDialog({
           bottom: 0,
           width: 900,
           maxWidth: "calc(100vw - 32px)",
-          zIndex: 1050,
+          zIndex: 3101,
           background: "var(--io-surface-elevated)",
           borderLeft: "1px solid var(--io-border)",
           display: "flex",
