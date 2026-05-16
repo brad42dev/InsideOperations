@@ -47,6 +47,8 @@ import DesignerRightPanel from "./DesignerRightPanel";
 import DesignerCanvas, { getNodeBounds } from "./DesignerCanvas";
 import DesignerTabBar from "./DesignerTabBar";
 import VersionHistoryDialog from "./components/VersionHistoryDialog";
+import { PublishConfirmDialog } from "../../shared/components/versioning";
+import { SaveConfirmDialog } from "../../shared/components/versioning/SaveConfirmDialog";
 import ValidateBindingsDialog from "./components/ValidateBindingsDialog";
 import IographicImportWizard from "./components/IographicImportWizard";
 import IographicExportDialog from "./components/IographicExportDialog";
@@ -988,7 +990,9 @@ export default function DesignerPage() {
   } | null>(null);
 
   // Dialogs
+  const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showValidateBindings, setShowValidateBindings] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -1284,7 +1288,7 @@ export default function DesignerPage() {
         lockHeldRef.current = false;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [graphicId]);
 
   // -------------------------------------------------------------------------
@@ -1292,7 +1296,10 @@ export default function DesignerPage() {
   // -------------------------------------------------------------------------
 
   const handleSave = useCallback(
-    async ({ explicit = false }: { explicit?: boolean } = {}) => {
+    async ({
+      explicit = false,
+      label,
+    }: { explicit?: boolean; label?: string } = {}) => {
       const currentDoc = useSceneStore.getState().doc;
       const currentId = useSceneStore.getState().graphicId;
       // For new (unsaved) documents there is no lock yet — allow save.
@@ -1319,6 +1326,7 @@ export default function DesignerPage() {
           const result = await graphicsApi.update(currentId, {
             name: docName,
             scene_data: currentDoc,
+            ...(label !== undefined ? { label } : {}),
           });
           if (!result.success) {
             console.error(
@@ -1471,10 +1479,10 @@ export default function DesignerPage() {
     [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId],
   );
 
-  /** Stable callback for UI-initiated saves (toolbar, menu) — marks explicit for toast warnings. */
+  /** Stable callback for UI-initiated saves (toolbar, menu) — opens the save confirm dialog. */
   const handleExplicitSave = useCallback(
-    () => handleSave({ explicit: true }),
-    [handleSave],
+    () => setShowSaveConfirmDialog(true),
+    [],
   );
 
   const handlePreviewSaveConfirmed = useCallback(async () => {
@@ -1651,33 +1659,26 @@ export default function DesignerPage() {
   // Publish — create permanent version snapshot
   // -------------------------------------------------------------------------
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(async (label?: string) => {
     const currentId = useSceneStore.getState().graphicId;
-    // Block publish only if another user explicitly holds the lock (lockState is set)
     if (!currentId || isPublishing) return;
-    if (
-      !window.confirm(
-        "Publish this graphic? This creates a permanent, immutable snapshot that cannot be deleted.",
-      )
-    )
-      return;
 
     setIsPublishing(true);
     try {
-      // Save first to ensure the snapshot captures the latest content
-      await handleSave();
+      await handleSave({ explicit: true, label });
       const result = await graphicsApi.publishGraphic(currentId);
       if (result.success) {
-        // Show brief success indication via the version history panel
-        setShowVersionHistory(true);
+        showToast({ title: "Graphic published", variant: "success", duration: 3000 });
       } else {
-        console.error(
-          "[DesignerPage] Publish failed:",
-          (result as { error: { message: string } }).error?.message,
-        );
+        showToast({
+          title: "Publish failed",
+          description: (result as { error: { message: string } }).error?.message ?? "Unknown error",
+          variant: "error",
+        });
       }
     } catch (err) {
       console.error("[DesignerPage] Publish failed:", err);
+      showToast({ title: "Publish failed", variant: "error" });
     } finally {
       setIsPublishing(false);
     }
@@ -2165,7 +2166,7 @@ export default function DesignerPage() {
       } else {
         doClose();
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+       
     },
     [
       tabStoreCloseTab,
@@ -2287,12 +2288,12 @@ export default function DesignerPage() {
     function handler(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        handleSave({ explicit: true });
+        setShowSaveConfirmDialog(true);
       }
     }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleSave]);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Tab keyboard shortcuts: Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1-9
@@ -2682,7 +2683,7 @@ export default function DesignerPage() {
       idbRef.current = null;
       autoSaveIdRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [graphicId, isNew]);
 
   // -------------------------------------------------------------------------
@@ -3133,6 +3134,16 @@ export default function DesignerPage() {
         onRestore={handleRestoreVersion}
       />
 
+      <PublishConfirmDialog
+        open={showPublishConfirm}
+        onOpenChange={setShowPublishConfirm}
+        objectName={doc?.name ?? "Untitled"}
+        onConfirm={({ label }) => {
+          setShowPublishConfirm(false);
+          void handlePublish(label);
+        }}
+      />
+
       {/* Validate bindings dialog */}
       <ValidateBindingsDialog
         open={showValidateBindings}
@@ -3228,6 +3239,17 @@ export default function DesignerPage() {
         />
       )}
 
+      {/* Save with version label confirmation */}
+      <SaveConfirmDialog
+        open={showSaveConfirmDialog}
+        onOpenChange={setShowSaveConfirmDialog}
+        objectName={doc?.name ?? undefined}
+        onConfirm={({ label }) => {
+          setShowSaveConfirmDialog(false);
+          void handleSave({ explicit: true, label });
+        }}
+      />
+
       {/* Preview tab save confirmation */}
       <ConfirmDialog
         open={showPreviewSaveConfirm}
@@ -3254,7 +3276,7 @@ export default function DesignerPage() {
       <DesignerToolbar
         onSave={handleExplicitSave}
         isSaving={isSaving}
-        onPublish={canPublish ? handlePublish : undefined}
+        onPublish={canPublish ? () => setShowPublishConfirm(true) : undefined}
         isPublishing={isPublishing}
         onShowVersionHistory={() => setShowVersionHistory(true)}
         onValidateBindings={handleValidateBindings}

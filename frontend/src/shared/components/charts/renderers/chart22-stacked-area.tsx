@@ -219,6 +219,9 @@ export default function Chart22StackedArea({
     showGrid,
     durationMinutes,
     msiMap,
+    slotLabel,
+    historicalNowMs,
+    isHistorical,
   ]);
 
   const displayOption = useMemo(

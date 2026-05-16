@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 import type {
   DesignObjectSummary,
   GraphicHierarchyNode,
@@ -201,45 +203,65 @@ function NavigationTree({
   selectedId: string | null;
   onSelectView: (id: string, name: string) => void;
 }) {
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["graphics", "hierarchy"],
-    queryFn: () => graphicsApi.getHierarchy(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["graphics", "hierarchy", showAllUsers],
+    queryFn: () => graphicsApi.getHierarchy({ includeAllUsers: showAllUsers }),
+    staleTime: 5 * 60 * 1000,
   });
 
   const nodes: GraphicHierarchyNode[] =
     data && data.success && data.data.tree ? data.data.tree : [];
 
+  const toggleBar = (
+    <div style={{ padding: "4px 10px 2px" }}>
+      <AdminToggle
+        label="All users"
+        checked={showAllUsers}
+        onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+        title="Show all users' graphics"
+      />
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div
-        style={{
-          padding: "8px 12px",
-          fontSize: 11,
-          color: "var(--io-text-muted)",
-        }}
-      >
-        Loading…
+      <div>
+        {toggleBar}
+        <div
+          style={{
+            padding: "8px 12px",
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+          }}
+        >
+          Loading…
+        </div>
       </div>
     );
   }
 
   if (nodes.length === 0) {
     return (
-      <div
-        style={{
-          padding: "8px 12px",
-          fontSize: 11,
-          color: "var(--io-text-muted)",
-        }}
-      >
-        No views available
+      <div>
+        {toggleBar}
+        <div
+          style={{
+            padding: "8px 12px",
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+          }}
+        >
+          No views available
+        </div>
       </div>
     );
   }
 
   return (
     <div style={{ padding: "4px 0" }}>
+      {toggleBar}
       {nodes.map((node) => (
         <TreeNode
           key={node.id}

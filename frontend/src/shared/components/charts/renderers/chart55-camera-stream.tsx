@@ -201,7 +201,7 @@ export default function Chart55CameraStream({ config }: RendererProps) {
       window.clearTimeout(overallTimeout);
       cleanup();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [streamId]);
 
   // Error state: containerRef is in the DOM but declareWinner was never called.

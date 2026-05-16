@@ -2,7 +2,7 @@
 
 Canonical design reference for the universal save / publish / version history system across all saveable objects in I/O.
 
-**Status:** Design complete. Implementation not started.
+**Status:** Implemented.
 
 ---
 
@@ -205,7 +205,7 @@ ALTER TABLE design_object_versions
 ```sql
 CREATE TABLE workspace_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL REFERENCES design_objects(id) ON DELETE CASCADE,
     version_number INTEGER NOT NULL,
     version_type VARCHAR(10) NOT NULL CHECK (version_type IN ('save', 'publish')),
     layout JSONB NOT NULL,

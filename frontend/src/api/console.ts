@@ -6,31 +6,30 @@ import type {
   GridItem,
 } from "../pages/console/types";
 import { migrateGridItems } from "../pages/console/layout-utils";
+import type {
+  VersionSummary,
+  WorkspaceVersionContent,
+} from "../shared/types/versioning";
 
 // ---------------------------------------------------------------------------
-// WorkspaceSummary — shape returned by the backend (metadata blob)
+// WorkspaceSummary — shape returned by the backend
 // ---------------------------------------------------------------------------
 
 interface WorkspaceSummary {
   id: string;
   name: string;
   owner_id?: string;
+  published?: boolean;
   metadata?: {
     layout?: LayoutPreset;
     panes?: PaneConfig[];
     gridItems?: GridItem[];
     overflowPanes?: PaneConfig[];
-    published?: boolean;
     description?: string;
   } | null;
   created_at?: string;
 }
 
-/**
- * Normalize a raw WorkspaceSummary (from the API) into a WorkspaceLayout.
- * The backend stores layout/panes/gridItems inside the `metadata` JSON column.
- * This function extracts those fields and ensures `panes` always defaults to [].
- */
 function normalizeWorkspace(raw: WorkspaceSummary): WorkspaceLayout {
   const meta = raw.metadata ?? {};
   return {
@@ -44,16 +43,19 @@ function normalizeWorkspace(raw: WorkspaceSummary): WorkspaceLayout {
     overflowPanes: Array.isArray(meta.overflowPanes)
       ? meta.overflowPanes
       : undefined,
-    published: meta.published ?? false,
+    published: raw.published ?? false,
     owner_id: raw.owner_id,
     description: meta.description,
   };
 }
 
 export const consoleApi = {
-  listWorkspaces: async (): Promise<ApiResult<WorkspaceLayout[]>> => {
+  listWorkspaces: async (params?: {
+    includeAllUsers?: boolean;
+  }): Promise<ApiResult<WorkspaceLayout[]>> => {
+    const qs = params?.includeAllUsers ? "?include_all_users=true" : "";
     const result = await api.get<PaginatedResult<WorkspaceSummary>>(
-      "/api/console/workspaces",
+      `/api/console/workspaces${qs}`,
     );
     if (!result.success) return result;
     const items = Array.isArray(result.data.data) ? result.data.data : [];
@@ -69,25 +71,20 @@ export const consoleApi = {
   },
 
   saveWorkspace: async (
-    ws: Omit<WorkspaceLayout, "id"> & { id?: string },
+    ws: Omit<WorkspaceLayout, "id"> & { id?: string; label?: string },
   ): Promise<ApiResult<WorkspaceLayout>> => {
-    // Send the full workspace layout as the metadata blob so the backend stores it
-    const body = {
+    const body: Record<string, unknown> = {
       name: ws.name,
       metadata: {
         layout: ws.layout,
         panes: ws.panes,
         gridItems: ws.gridItems,
         overflowPanes: ws.overflowPanes,
-        published: ws.published,
         description: ws.description,
       },
       id: ws.id,
     };
-    // Always use POST. The backend will handle both creation (new workspace)
-    // and updates (existing workspace) using UPSERT logic (INSERT ... ON CONFLICT DO UPDATE).
-    // This allows the frontend to always send the same request format, and the backend
-    // handles whether to insert or update based on whether the ID already exists.
+    if (ws.label !== undefined) body.label = ws.label;
     const result = await api.post<WorkspaceSummary>(
       "/api/console/workspaces",
       body,
@@ -121,16 +118,20 @@ export const consoleApi = {
   deleteWorkspace: (id: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/console/workspaces/${id}`),
 
+  recoverWorkspace: (id: string): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
+    api.post(`/api/console/workspaces/${id}/recover`, {}),
+
+  permanentDeleteWorkspace: (id: string): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
+    api.delete(`/api/console/workspaces/${id}/permanent`),
+
   publishWorkspace: async (
     id: string,
     published: boolean,
-  ): Promise<ApiResult<WorkspaceLayout>> => {
-    const result = await api.patch<WorkspaceSummary>(
-      `/api/console/workspaces/${id}/publish`,
-      { published },
-    );
-    if (!result.success) return result;
-    return { success: true, data: normalizeWorkspace(result.data) };
+  ): Promise<ApiResult<{ published: boolean; version?: number }>> => {
+    const endpoint = published
+      ? `/api/console/workspaces/${id}/publish`
+      : `/api/console/workspaces/${id}/unpublish`;
+    return api.post<{ published: boolean; version?: number }>(endpoint, {});
   },
 
   shareWorkspace: (
@@ -142,4 +143,48 @@ export const consoleApi = {
     }>,
   ): Promise<ApiResult<void>> =>
     api.post<void>(`/api/console/workspaces/${id}/share`, { grantees }),
+
+  // ── Workspace versioning ─────────────────────────────────────────────────
+
+  listWorkspaceVersions: (id: string, opts?: { includeDeleted?: boolean }) =>
+    api.get<VersionSummary[]>(
+      `/api/console/workspaces/${id}/versions${opts?.includeDeleted ? "?include_deleted=true" : ""}`,
+    ),
+
+  getWorkspaceVersionContent: (id: string, versionNumber: number) =>
+    api.get<WorkspaceVersionContent>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}`,
+    ),
+
+  restoreWorkspaceVersion: (id: string, versionNumber: number) =>
+    api.post<{ version_number: number }>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}/restore`,
+      {},
+    ),
+
+  softDeleteWorkspaceVersion: (id: string, versionNumber: number) =>
+    api.delete<{ deleted: boolean }>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}`,
+    ),
+
+  recoverWorkspaceVersion: (id: string, versionNumber: number) =>
+    api.post<{ recovered: boolean }>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}/recover`,
+      {},
+    ),
+
+  permanentDeleteWorkspaceVersion: (id: string, versionNumber: number) =>
+    api.delete<{ permanently_deleted: boolean }>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}/permanent`,
+    ),
+
+  updateWorkspaceVersionLabel: (
+    id: string,
+    versionNumber: number,
+    label: string | null,
+  ) =>
+    api.patch<{ version_number: number; label: string | null }>(
+      `/api/console/workspaces/${id}/versions/${versionNumber}`,
+      { label },
+    ),
 };

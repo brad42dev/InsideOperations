@@ -631,7 +631,7 @@ export function CategoryShapeWizard({
         setFocusedElement(null);
       }
     });
-  }, [selectedId, loadShape, editMode, initialConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, loadShape, editMode, initialConfig]);  
 
   // Jump straight to Point Bindings step when opened via "Bind point..." context menu
   useEffect(() => {

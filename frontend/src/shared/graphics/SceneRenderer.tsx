@@ -535,16 +535,18 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     // Runs every 5s; 60s threshold applied inside checkStaleness().
     const staleInterval = setInterval(checkStaleness, 5_000);
 
+    const pendingDom = pendingDomRef.current;
+    const lastUpdateTimestamps = lastUpdateTimestampsRef.current;
     return () => {
       pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
       unsubAlarm();
       clearInterval(staleInterval);
-      pendingDomRef.current.clear();
+      pendingDom.clear();
       // lastPvRef is intentionally NOT cleared here — values are re-applied on
       // the next subscription run so there is no placeholder flash between
       // subscription restarts (shapeMap / resolvedTagMap settling after mount).
       // It is cleared in a separate effect when document.id changes.
-      lastUpdateTimestampsRef.current.clear();
+      lastUpdateTimestamps.clear();
     };
   }, [document.id, document.children, liveSubscribe, resolvedTagMap, shapeMap]);
 
@@ -621,8 +623,9 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   // same render cycle — guaranteeing lastPvRef is empty when the new document's
   // subscription starts (no stale values re-applied to the incoming document).
   useLayoutEffect(() => {
+    const lastPv = lastPvRef.current;
     return () => {
-      lastPvRef.current.clear();
+      lastPv.clear();
       historicalPvRef.current = new Map();
     };
   }, [document.id]);

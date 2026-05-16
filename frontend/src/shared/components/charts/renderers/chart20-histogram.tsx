@@ -206,7 +206,7 @@ function ViolinPlot({
       {
         type: "bar",
         barWidth: horizontal ? undefined : 8,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         data: horizontal
           ? [[stats.q1, 0, stats.q3 - stats.q1]]
           : ([[0, stats.q1, stats.q3 - stats.q1]] as any),
@@ -387,7 +387,7 @@ export default function HistogramChart({ config }: RendererProps) {
       yAxis: horizontal ? categoryAxis : countAxis,
       series,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [labels, counts, normalCurve, normalOverlay, pointSlot, horizontal]);
 
   if (!pointSlot) {

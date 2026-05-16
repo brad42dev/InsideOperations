@@ -11,6 +11,8 @@ import ContextMenu from "../../shared/components/ContextMenu";
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from "./ConsolePalette";
 import { graphicsApi } from "../../api/graphics";
 import { usePermission } from "../../shared/hooks/usePermission";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 import type { PaneConfig } from "./types";
 import {
   useIOClipboardStore,
@@ -237,10 +239,12 @@ export default function PaneWrapper({
     onToggleFullscreen?.();
   }
 
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
   const { data: replaceGraphics = [] } = useQuery({
-    queryKey: ["console-replace-graphics"],
+    queryKey: ["console-replace-graphics", showAllUsers],
     queryFn: async () => {
-      const r = await graphicsApi.list({ scope: "console" });
+      const r = await graphicsApi.list({ scope: "console", includeAllUsers: showAllUsers });
       if (!r.success) return [];
       return r.data.data ?? [];
     },
@@ -1019,8 +1023,17 @@ export default function PaneWrapper({
               style={{
                 padding: "10px 16px",
                 borderBottom: "1px solid var(--io-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
               }}
             >
+              <AdminToggle
+                label="All users"
+                checked={showAllUsers}
+                onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+                title="Show all users' graphics"
+              />
               <input
                 autoFocus
                 value={replaceSearch}

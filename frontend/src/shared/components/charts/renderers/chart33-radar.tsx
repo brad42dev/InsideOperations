@@ -82,7 +82,7 @@ export default function RadarChart({ config }: RendererProps) {
       : rawValues;
 
     return { indicators, normalizedValues };
-  }, [seriesSlots, rawValues, normalize]);
+  }, [seriesSlots, rawValues, normalize, slotLabel]);
 
   const option: EChartsOption = useMemo(() => {
     const textMuted = resolveToken("--io-text-muted");

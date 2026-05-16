@@ -22,6 +22,7 @@ import type { WorkspaceLayout, PaneConfig, LayoutPreset } from "./types";
 import { uuidv4 } from "../../lib/uuid";
 import { consoleApi } from "../../api/console";
 import { useAuthStore } from "../../store/auth";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 import { useUiStore } from "../../store/ui";
 import { usePlaybackStore } from "../../store/playback";
 import {
@@ -32,6 +33,9 @@ import {
 import { useSelectionStore } from "../../store/selectionStore";
 import { useRealtimeStore } from "../../store/realtimeStore";
 import { ExportDialog } from "../../shared/components/ExportDialog";
+import { VersionRecoveryDialog } from "../../shared/components/versioning/VersionRecoveryDialog";
+import { SaveConfirmDialog } from "../../shared/components/versioning/SaveConfirmDialog";
+import type { WorkspaceVersionContent } from "../../shared/types/versioning";
 import { exportsApi, type ExportFormat } from "../../api/exports";
 import { showToast } from "../../shared/components/Toast";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
@@ -471,6 +475,7 @@ export default function ConsolePage() {
   const canPublish =
     user?.permissions.includes("console:workspace_publish") ?? false;
   const canWrite = user?.permissions.includes("console:write") ?? false;
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
 
   // ---- Kiosk mode -----------------------------------------------------------
 
@@ -581,9 +586,9 @@ export default function ConsolePage() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["console-workspaces"],
+    queryKey: ["console-workspaces", showAllUsers],
     queryFn: async () => {
-      const result = await consoleApi.listWorkspaces();
+      const result = await consoleApi.listWorkspaces({ includeAllUsers: showAllUsers });
       if (!result.success) throw new Error(result.error.message);
       return result.data;
     },
@@ -635,7 +640,7 @@ export default function ConsolePage() {
           serverSnapshotsRef.current[activeWs.id] ?? JSON.stringify(activeWs);
       }
     }
-  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]);  
 
   // Sync localStorage workspaces → WorkspaceStore when not using API
   const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false);
@@ -650,12 +655,13 @@ export default function ConsolePage() {
       }
       setLocalWorkspacesLoaded(true);
     }
-  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]);  
 
   // ---- API mutations --------------------------------------------------------
 
   const saveMutation = useMutation({
-    mutationFn: (ws: WorkspaceLayout) => consoleApi.saveWorkspace(ws),
+    mutationFn: (ws: WorkspaceLayout & { label?: string }) =>
+      consoleApi.saveWorkspace(ws),
     onSuccess: (data, ws) => {
       // The API client never rejects — it returns { success: false } on error.
       // We must check here so that 4xx/5xx responses route to error handling
@@ -831,9 +837,32 @@ export default function ConsolePage() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: ({ id, published }: { id: string; published: boolean }) =>
-      consoleApi.publishWorkspace(id, published),
-    onSuccess: () => {
+    mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
+      if (published) {
+        // Publish IS a save — persist current in-memory state to the live row first
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id);
+        if (ws) {
+          const saveResult = await consoleApi.saveWorkspace(ws);
+          if (!saveResult.success) {
+            throw new Error(saveResult.error?.message ?? "Save before publish failed");
+          }
+        }
+      }
+      return consoleApi.publishWorkspace(id, published);
+    },
+    onSuccess: (_data, vars) => {
+      if (vars.published) {
+        // Sync snapshot refs so dirty indicator clears (save-before-publish bypassed saveMutation)
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === vars.id);
+        if (ws) {
+          const snap = JSON.stringify(ws);
+          serverSnapshotsRef.current[vars.id] = snap;
+          if (vars.id === useWorkspaceStore.getState().activeId) {
+            lastSavedSnapshotRef.current = snap;
+          }
+          clearDraftLocal(vars.id);
+        }
+      }
       void queryClient.invalidateQueries({ queryKey: ["console-workspaces"] });
     },
     onError: (_err, vars) => {
@@ -854,9 +883,9 @@ export default function ConsolePage() {
   // ---- Persist helper — routes to API or localStorage ---------------------
 
   const persistWorkspace = useCallback(
-    (ws: WorkspaceLayout) => {
+    (ws: WorkspaceLayout, label?: string) => {
       if (useApi) {
-        saveMutation.mutate(ws);
+        saveMutation.mutate(label !== undefined ? { ...ws, label } : ws);
       } else {
         const current = useWorkspaceStore.getState().workspaces;
         const exists = current.find((w) => w.id === ws.id);
@@ -870,6 +899,35 @@ export default function ConsolePage() {
       }
     },
     [useApi, saveMutation],
+  );
+
+  // ---- Version restore — apply a recovered workspace layout ------------------
+
+  const handleLoadWorkspaceVersion = useCallback(
+    (content: WorkspaceVersionContent | unknown) => {
+      const vc = content as WorkspaceVersionContent;
+      if (!vc?.layout || !activeId) return;
+      const layoutData = vc.layout as {
+        layout?: string;
+        panes?: PaneConfig[];
+        gridItems?: GridItem[];
+        overflowPanes?: PaneConfig[];
+      };
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId);
+      if (!ws) return;
+      const updated: WorkspaceLayout = {
+        ...ws,
+        layout: (layoutData.layout as LayoutPreset) ?? ws.layout,
+        panes: layoutData.panes ?? ws.panes,
+        gridItems: layoutData.gridItems ?? ws.gridItems,
+        overflowPanes: layoutData.overflowPanes ?? ws.overflowPanes,
+      };
+      setWorkspaces(
+        useWorkspaceStore.getState().workspaces.map((w) => (w.id === activeId ? updated : w)),
+      );
+      showToast({ title: "Version restored", variant: "success", duration: 3000 });
+    },
+    [activeId, setWorkspaces],
   );
 
   // ---- Debounced draft save (2s after last layout change → localStorage only) --
@@ -923,8 +981,8 @@ export default function ConsolePage() {
       .getState()
       .workspaces.find((w) => w.id === activeId);
     if (!ws) return;
-    persistWorkspace(ws);
-  }, [activeId, persistWorkspace]);
+    setShowSaveConfirmDialog(true);
+  }, [activeId]);
 
   const handleSaveAsPersonal = useCallback(() => {
     const ws = useWorkspaceStore
@@ -1039,6 +1097,7 @@ export default function ConsolePage() {
 
   const saveFailCountRef = useRef(0);
   const [showSaveBanner, setShowSaveBanner] = useState(false);
+  const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1088,6 +1147,7 @@ export default function ConsolePage() {
     x: number;
     y: number;
   } | null>(null);
+  const [versionHistoryWorkspaceId, setVersionHistoryWorkspaceId] = useState<string | null>(null);
 
   const handleWorkspaceContextMenu = useCallback((x: number, y: number) => {
     setWorkspaceBgCtxMenu({ x, y });
@@ -1100,7 +1160,7 @@ export default function ConsolePage() {
       new Set(
         activeWorkspace?.panes.filter((p) => p.pinned).map((p) => p.id) ?? [],
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [activeWorkspace?.panes],
   );
 
@@ -1370,6 +1430,7 @@ export default function ConsolePage() {
   }, [
     handleUndo,
     handleRedo,
+    handleExplicitSave,
     isLocked,
     activeId,
     selectedPaneIds,
@@ -1962,6 +2023,19 @@ export default function ConsolePage() {
                       gap: 5,
                     }}
                   >
+                    {ws.published && (
+                      <span
+                        title="Published"
+                        style={{
+                          display: "inline-block",
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: "#10b981",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
                     {ws.name}
                     {wsIsDirty && (
                       <span
@@ -3155,6 +3229,13 @@ export default function ConsolePage() {
               },
             },
             {
+              label: "Version History",
+              onClick: () => {
+                setWorkspaceBgCtxMenu(null);
+                if (activeId) setVersionHistoryWorkspaceId(activeId);
+              },
+            },
+            {
               label: "Save and Close",
               onClick: () => {
                 setWorkspaceBgCtxMenu(null);
@@ -3273,6 +3354,13 @@ export default function ConsolePage() {
                   onClick: () => duplicateWorkspace(ws.id),
                 },
                 {
+                  label: "Version History",
+                  onClick: () => {
+                    setVersionHistoryWorkspaceId(ws.id);
+                    setTabContextMenu(null);
+                  },
+                },
+                {
                   label: ws.locked ? "Unlock Workspace" : "Lock Workspace",
                   divider: true,
                   onClick: () => {
@@ -3315,6 +3403,30 @@ export default function ConsolePage() {
             />
           );
         })()}
+
+      {versionHistoryWorkspaceId && (
+        <VersionRecoveryDialog
+          open={!!versionHistoryWorkspaceId}
+          onClose={() => setVersionHistoryWorkspaceId(null)}
+          objectType="workspace"
+          objectId={versionHistoryWorkspaceId}
+          objectName={workspaces.find((w) => w.id === versionHistoryWorkspaceId)?.name}
+          onLoadVersion={handleLoadWorkspaceVersion}
+        />
+      )}
+
+      <SaveConfirmDialog
+        open={showSaveConfirmDialog}
+        onOpenChange={setShowSaveConfirmDialog}
+        objectName={workspaces.find((w) => w.id === activeId)?.name}
+        onConfirm={({ label }) => {
+          setShowSaveConfirmDialog(false);
+          const ws = useWorkspaceStore
+            .getState()
+            .workspaces.find((w) => w.id === activeId);
+          if (ws) persistWorkspace(ws, label);
+        }}
+      />
     </div>
   );
 }

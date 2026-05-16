@@ -160,7 +160,7 @@ export default function StateTimelineChart({ config }: RendererProps) {
             : null,
       };
     });
-  }, [historyBatch, itemSlots, windowEndMs, pointMetaMap]);
+  }, [historyBatch, itemSlots, windowEndMs, pointMetaMap, slotLabel]);
 
   const LABEL_WIDTH = 120;
   const AXIS_HEIGHT = 24;

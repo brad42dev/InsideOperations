@@ -418,6 +418,41 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::graphics::publish_graphic),
         )
         .route(
+            "/api/v1/design-objects/:id/unpublish",
+            post(handlers::graphics::unpublish_graphic),
+        )
+        .route(
+            "/api/v1/design-objects/:id/recover",
+            post(handlers::graphics::recover_graphic),
+        )
+        .route(
+            "/api/v1/design-objects/:id/permanent",
+            delete(handlers::graphics::permanent_delete_graphic),
+        )
+        .route(
+            "/api/v1/design-objects/:id/versions",
+            get(handlers::graphics::list_versions),
+        )
+        // Static sub-paths MUST come before parameterised :version_number routes
+        .route(
+            "/api/v1/design-objects/:id/versions/:version_number/restore",
+            post(handlers::graphics::restore_version),
+        )
+        .route(
+            "/api/v1/design-objects/:id/versions/:version_number/recover",
+            post(handlers::graphics::recover_version),
+        )
+        .route(
+            "/api/v1/design-objects/:id/versions/:version_number/permanent",
+            delete(handlers::graphics::permanent_delete_version),
+        )
+        .route(
+            "/api/v1/design-objects/:id/versions/:version_number",
+            get(handlers::graphics::get_version_content)
+                .delete(handlers::graphics::soft_delete_version)
+                .patch(handlers::graphics::update_version_label),
+        )
+        .route(
             "/api/v1/design-objects/:id/thumbnail.png",
             get(handlers::graphics::get_thumbnail),
         )
@@ -466,6 +501,83 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/console/workspaces/:id/duplicate",
             post(handlers::console::duplicate_workspace),
+        )
+        // Workspace version routes — static sub-paths MUST come before parameterised :version_number
+        .route(
+            "/api/console/workspaces/:id/unpublish",
+            post(handlers::console::unpublish_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/recover",
+            post(handlers::console::recover_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/permanent",
+            delete(handlers::console::permanent_delete_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/versions",
+            get(handlers::console::list_workspace_versions),
+        )
+        .route(
+            "/api/console/workspaces/:id/versions/:version_number/restore",
+            post(handlers::console::restore_workspace_version),
+        )
+        .route(
+            "/api/console/workspaces/:id/versions/:version_number/recover",
+            post(handlers::console::recover_workspace_version),
+        )
+        .route(
+            "/api/console/workspaces/:id/versions/:version_number/permanent",
+            delete(handlers::console::permanent_delete_workspace_version),
+        )
+        .route(
+            "/api/console/workspaces/:id/versions/:version_number",
+            get(handlers::console::get_workspace_version_content)
+                .delete(handlers::console::soft_delete_workspace_version)
+                .patch(handlers::console::update_workspace_version_label),
+        )
+        // Saved charts
+        .route(
+            "/api/v1/saved-charts",
+            get(handlers::saved_charts::list_saved_charts)
+                .post(handlers::saved_charts::create_saved_chart),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/publish",
+            post(handlers::saved_charts::publish_saved_chart),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/unpublish",
+            post(handlers::saved_charts::unpublish_saved_chart),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/versions",
+            get(handlers::saved_charts::list_chart_versions),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/versions/:version_number/restore",
+            post(handlers::saved_charts::restore_chart_version),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/versions/:version_number/recover",
+            post(handlers::saved_charts::recover_chart_version),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/versions/:version_number/permanent",
+            delete(handlers::saved_charts::permanent_delete_chart_version),
+        )
+        .route(
+            "/api/v1/saved-charts/:id/versions/:version_number",
+            get(handlers::saved_charts::get_chart_version_content)
+                .delete(handlers::saved_charts::soft_delete_chart_version)
+                .patch(handlers::saved_charts::update_chart_version_label),
+        )
+        .route(
+            "/api/v1/saved-charts/:id",
+            get(handlers::saved_charts::get_saved_chart)
+                .put(handlers::saved_charts::update_saved_chart)
+                .delete(handlers::saved_charts::delete_saved_chart),
         )
         // Bookmarks
         .route(

@@ -808,7 +808,7 @@ export default function GraphicPane({
         nodeSelected,
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [zoneId],
   );
 
@@ -822,7 +822,7 @@ export default function GraphicPane({
       e.stopPropagation();
       openPointDetail(pointId, e.clientX, e.clientY);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [],
   );
 
@@ -843,7 +843,7 @@ export default function GraphicPane({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ── Scene-node selection zone registration ──────────────────────────────────

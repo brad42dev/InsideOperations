@@ -280,7 +280,7 @@ function TimeContextBar() {
   // Stop playback when range changes
   useEffect(() => {
     setTcPlaying(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [globalTimeRange?.start, globalTimeRange?.end]);
 
   // Ensure globalPlaybackTimestamp is initialized when a range is set
@@ -520,7 +520,7 @@ function PlaybackBarInner({
       }
     }, 2000);
     return () => clearInterval(timer);
-  }, [activeExportJob?.id, activeExportJob?.status]);
+  }, [activeExportJob, activeExportJob?.id, activeExportJob?.status, setActiveExportJob]);
 
   // Step interval state — default to index 4 (1 minute)
   const [stepIdx, setStepIdx] = useState<number>(4);

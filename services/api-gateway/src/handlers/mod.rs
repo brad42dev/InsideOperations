@@ -17,6 +17,7 @@ pub mod opc_certs;
 pub mod points;
 pub mod reports;
 pub mod rounds;
+pub mod saved_charts;
 pub mod search;
 pub mod shifts;
 pub mod system;

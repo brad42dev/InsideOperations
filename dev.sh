@@ -253,7 +253,7 @@ cmd_status() {
     done
     echo ""
     echo "Database:"
-    if docker compose ps db 2>/dev/null | grep -q "running"; then
+    if docker compose ps db 2>/dev/null | grep -q "Up"; then
         echo "  PostgreSQL          running OK"
     else
         echo "  PostgreSQL          stopped"

@@ -168,7 +168,7 @@ function getPort(): MessagePort {
   port.start();
 
   port.onmessage = (ev: MessageEvent) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     const msg = ev.data as Record<string, unknown>;
     handleWorkerMessage(msg);
   };

@@ -2816,9 +2816,9 @@ pub async fn commit_iographic(
 
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
     let version_type = if options.import_as == "published" {
-        "published"
+        "publish"
     } else {
-        "draft"
+        "save"
     };
 
     let mut graphic_ids: Vec<String> = Vec::new();

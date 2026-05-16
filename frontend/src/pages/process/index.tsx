@@ -38,6 +38,7 @@ import { processPasteTarget } from "./clipboard/processPasteTarget";
 import { useGlobalSelectionStore } from "../../store/globalSelectionStore";
 import { useNodeMarquee } from "../../shared/hooks/useNodeMarquee";
 import { useNodeClick } from "../../shared/hooks/useNodeClick";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -573,6 +574,7 @@ export default function ProcessPage() {
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const { isKiosk, setKiosk } = useUiStore();
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
 
   // ---- Clipboard: selection zone + paste target ----------------------------
 
@@ -693,9 +695,9 @@ export default function ProcessPage() {
   // ---- Graphics data --------------------------------------------------------
 
   const { data: graphicsList, isLoading: graphicsLoading } = useQuery({
-    queryKey: ["design-objects", "process"],
+    queryKey: ["design-objects", "process", showAllUsers],
     queryFn: async () => {
-      const result = await graphicsApi.list({ scope: "process" });
+      const result = await graphicsApi.list({ scope: "process", includeAllUsers: showAllUsers });
       if (result.success) return result.data.data;
       return [] as DesignObjectSummary[];
     },
@@ -833,7 +835,7 @@ export default function ProcessPage() {
 
   const MAX_BOOKMARKS = 50;
 
-  function handleAddBookmark() {
+  const handleAddBookmark = useCallback(() => {
     if (viewportBookmarks.length >= MAX_BOOKMARKS) {
       alert(
         `Maximum ${MAX_BOOKMARKS} bookmarks per graphic. Please delete some before adding more.`,
@@ -841,7 +843,7 @@ export default function ProcessPage() {
       return;
     }
     setBookmarkDialogOpen(true);
-  }
+  }, [viewportBookmarks.length]);
 
   function handleBookmarkConfirm(label: string, description: string) {
     setBookmarkDialogOpen(false);
@@ -1133,7 +1135,7 @@ export default function ProcessPage() {
   function zoomOut() {
     setViewport((vp) => ({ ...vp, zoom: Math.max(0.05, vp.zoom / 1.25) }));
   }
-  function zoomFit() {
+  const zoomFit = useCallback(() => {
     if (!graphic?.scene_data) return;
     const { width, height } = graphic.scene_data.canvas;
     const fitZoom = Math.min(
@@ -1141,10 +1143,11 @@ export default function ProcessPage() {
       viewport.screenHeight / height,
     );
     setViewport((vp) => ({ ...vp, zoom: fitZoom, panX: 0, panY: 0 }));
-  }
-  function zoom100() {
+  }, [graphic?.scene_data, viewport.screenWidth, viewport.screenHeight, setViewport]);
+
+  const zoom100 = useCallback(() => {
     setViewport((vp) => ({ ...vp, zoom: 1, panX: 0, panY: 0 }));
-  }
+  }, [setViewport]);
 
   // ---- Export --------------------------------------------------------------
 
@@ -1281,7 +1284,7 @@ export default function ProcessPage() {
   // Navigate from scene renderer navigation links
   const handleNavigate = handleNavigateWithHistory;
 
-  function navBack() {
+  const navBack = useCallback(() => {
     if (navHistoryIndex < 0) return;
     const entry = navHistory[navHistoryIndex];
     if (!entry) return;
@@ -1293,9 +1296,9 @@ export default function ProcessPage() {
       panY: entry.panY,
       zoom: entry.zoom,
     }));
-  }
+  }, [navHistoryIndex, navHistory, handleSelectView, setViewport]);
 
-  function navForward() {
+  const navForward = useCallback(() => {
     if (navHistoryIndex >= navHistory.length - 1) return;
     const entry = navHistory[navHistoryIndex + 1];
     if (!entry) return;
@@ -1307,7 +1310,7 @@ export default function ProcessPage() {
       panY: entry.panY,
       zoom: entry.zoom,
     }));
-  }
+  }, [navHistoryIndex, navHistory, handleSelectView, setViewport]);
 
   // ---- Hover tooltip (§7.3) -----------------------------------------------
 

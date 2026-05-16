@@ -5652,12 +5652,13 @@ export default function DesignerRightPanel({
     const node = findNodeById(doc, singleId);
     if (node?.type !== "display_element") return;
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, [singleId]);
+  }, [singleId, doc]);
 
   // Switch to default tab when selection changes; fall back to "doc" when cleared
   const prevSelKey = useRef("");
+  const selectedIdsKey = selectedIds.join(",");
   useEffect(() => {
-    const key = selectedIds.join(",");
+    const key = selectedIdsKey;
     if (key === prevSelKey.current) return;
     prevSelKey.current = key;
     if (selectedIds.length === 0) {
@@ -5668,7 +5669,7 @@ export default function DesignerRightPanel({
     } else {
       setActiveTab("multi");
     }
-  }, [selectedIds.join(",")]);
+  }, [selectedIdsKey, selectedIds, singleNode]);
 
   // Open a specific tab after widget placement
   useEffect(() => {

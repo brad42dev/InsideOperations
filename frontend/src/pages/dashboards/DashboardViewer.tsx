@@ -269,6 +269,12 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
     user?.permissions.includes("dashboards:edit") === true;
   const isOwner = (user && dashboard?.user_id === user.id) || canEditDashboards;
 
+  const {
+    menuState: widgetMenuState,
+    handleContextMenu: handleWidgetContextMenu,
+    closeMenu: closeWidgetMenu,
+  } = useContextMenu<WidgetConfig>();
+
   if (query.isLoading) {
     return (
       <div
@@ -320,11 +326,6 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
   }
 
   const widgets = dashboard.widgets ?? [];
-  const {
-    menuState: widgetMenuState,
-    handleContextMenu: handleWidgetContextMenu,
-    closeMenu: closeWidgetMenu,
-  } = useContextMenu<WidgetConfig>();
 
   return (
     <div

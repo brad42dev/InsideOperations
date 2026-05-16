@@ -317,7 +317,7 @@ export default function AttributeControlChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [attrPoints, limits, labels, variant, showWERules]);
 
   if (!defectSlot) {

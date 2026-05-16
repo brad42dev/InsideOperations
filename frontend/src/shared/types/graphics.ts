@@ -752,6 +752,7 @@ export interface GraphicSummary {
   createdAt: string;
   updatedAt: string;
   version: number;
+  published?: boolean;
 }
 
 // @deprecated Use IOClipboardPayload from shared/clipboard/types.

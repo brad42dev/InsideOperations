@@ -8,6 +8,8 @@ import PlaylistManager from "./PlaylistManager";
 import { usePermission } from "../../shared/hooks/usePermission";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 
 // ---------------------------------------------------------------------------
 // Unified dashboard item (legacy dashboards table + Designer design_objects)
@@ -572,6 +574,7 @@ export default function DashboardsPage() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const canExport = usePermission("dashboards:export");
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
 
   // Close export dropdown on outside click
   useEffect(() => {
@@ -598,9 +601,9 @@ export default function DashboardsPage() {
   });
 
   const designerQuery = useQuery({
-    queryKey: ["designer-dashboards"],
+    queryKey: ["designer-dashboards", showAllUsers],
     queryFn: async () => {
-      const result = await graphicsApi.list();
+      const result = await graphicsApi.list({ includeAllUsers: showAllUsers });
       if (!result.success) throw new Error(result.error.message);
       return result.data.data.filter((d) => d.designMode === "dashboard");
     },
@@ -936,7 +939,7 @@ export default function DashboardsPage() {
           borderBottom: "1px solid var(--io-border)",
         }}
       >
-        <div style={{ marginBottom: "10px" }}>
+        <div style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: 12 }}>
           <input
             type="text"
             placeholder="Search dashboards..."
@@ -952,6 +955,12 @@ export default function DashboardsPage() {
               fontSize: "13px",
               outline: "none",
             }}
+          />
+          <AdminToggle
+            label="All users"
+            checked={showAllUsers}
+            onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+            title="Show all users' dashboards (admin only)"
           />
         </div>
 

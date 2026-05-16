@@ -1131,7 +1131,6 @@ export function renderEmbeddedSvgSvg(
   node: EmbeddedSvgNode,
   ctx: RenderContext,
 ): React.ReactElement {
-  // eslint-disable-next-line react/no-danger
   return React.createElement("g", {
     key: node.id,
     transform: ctx.transform,
@@ -1382,7 +1381,6 @@ export function renderSymbolInstanceSvg(
       py = 0;
     }
 
-    // eslint-disable-next-line react/no-danger
     composablePartElements.push(
       <svg
         key={pid}

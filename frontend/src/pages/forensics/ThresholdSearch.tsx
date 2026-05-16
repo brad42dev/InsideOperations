@@ -81,7 +81,10 @@ export default function ThresholdSearch() {
     },
   });
 
-  const exceedances = searchMutation.data ?? [];
+  const exceedances = useMemo(
+    () => searchMutation.data ?? [],
+    [searchMutation.data],
+  );
 
   // ---------------------------------------------------------------------------
   // History data for trend view

@@ -112,7 +112,7 @@ export default function GaugeChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [liveValue, min, max, thresholds, pointSlot]);
 
   if (!pointSlot) {

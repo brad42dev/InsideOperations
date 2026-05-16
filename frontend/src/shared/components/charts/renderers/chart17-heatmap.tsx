@@ -236,7 +236,7 @@ export default function HeatmapChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [heatData, calendarData, calendarMode, calendarYear]);
 
   if (!valueSlot) {

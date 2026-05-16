@@ -2967,13 +2967,16 @@ export default function DesignerCanvas({
   // Helper: execute + push to history
   // -------------------------------------------------------------------------
 
-  function executeCmd(cmd: SceneCommand) {
-    const d = docRef.current;
-    if (!d) return;
-    const before = d;
-    sceneExecute(cmd);
-    historyPush(cmd, before);
-  }
+  const executeCmd = useCallback(
+    (cmd: SceneCommand) => {
+      const d = docRef.current;
+      if (!d) return;
+      const before = d;
+      sceneExecute(cmd);
+      historyPush(cmd, before);
+    },
+    [sceneExecute, historyPush],
+  );
 
   // ── Place mode helpers ───────────────────────────────────────────────────
 
@@ -3167,19 +3170,22 @@ export default function DesignerCanvas({
   // Helper: snap
   // -------------------------------------------------------------------------
 
-  function snap(v: number, axis?: "h" | "v"): number {
-    // Guide snap takes priority over grid snap (threshold: 6 canvas units)
-    const GUIDE_SNAP = 6;
-    if (guidesVisible && guides.length > 0 && axis) {
-      for (const g of guides) {
-        if (g.axis === axis && Math.abs(v - g.position) < GUIDE_SNAP) {
-          return g.position;
+  const snap = useCallback(
+    (v: number, axis?: "h" | "v"): number => {
+      // Guide snap takes priority over grid snap (threshold: 6 canvas units)
+      const GUIDE_SNAP = 6;
+      if (guidesVisible && guides.length > 0 && axis) {
+        for (const g of guides) {
+          if (g.axis === axis && Math.abs(v - g.position) < GUIDE_SNAP) {
+            return g.position;
+          }
         }
       }
-    }
-    // Snap to the finest visible grid unit (minor if shown, otherwise major)
-    return snapToGridValue(v, adaptiveMinor ?? adaptiveMajor, snapToGrid);
-  }
+      // Snap to the finest visible grid unit (minor if shown, otherwise major)
+      return snapToGridValue(v, adaptiveMinor ?? adaptiveMajor, snapToGrid);
+    },
+    [guidesVisible, guides, adaptiveMinor, adaptiveMajor, snapToGrid],
+  );
 
   // -------------------------------------------------------------------------
   // Helper: snap to nearest connection point (for pipe tool)
@@ -4313,6 +4319,11 @@ export default function DesignerCanvas({
       setPenWaypoints,
       setPenCursor,
       setFreehandPreview,
+      beginTextEdit,
+      endDrag,
+      executeCmd,
+      setActiveGroup,
+      setTool,
     ],
   );
 
@@ -4785,7 +4796,6 @@ export default function DesignerCanvas({
       setPipeDrawState,
       setViewport,
       setFreehandPreview,
-      setSlotPopover,
     ],
   );
 
@@ -5801,6 +5811,7 @@ export default function DesignerCanvas({
       drawPreview,
       snap,
       endDrag,
+      executeCmd,
       setAlignGuides,
       setRotationPreview,
       setDrawPreview,
@@ -5949,6 +5960,9 @@ export default function DesignerCanvas({
       setTool,
       setActiveGroup,
       onOpenGroupInTab,
+      executeCmd,
+      beginTextEdit,
+      confirmPlacement,
     ],
   );
 
@@ -6583,6 +6597,9 @@ export default function DesignerCanvas({
       setViewport,
       setActiveGroup,
       endDrag,
+      executeCmd,
+      cancelPlacement,
+      confirmPlacement,
       setAlignGuides,
     ],
   );
@@ -6652,7 +6669,7 @@ export default function DesignerCanvas({
       document.removeEventListener("io:toolbar-group", onToolbarGroup);
       document.removeEventListener("io:toolbar-ungroup", onToolbarUngroup);
     };
-  }, []);
+  }, [executeCmd]);
 
   // -------------------------------------------------------------------------
   // Right-click context menu
@@ -6741,6 +6758,7 @@ export default function DesignerCanvas({
   }, [ghostPlacement]);
 
   // Blob URL for ghost placement image — created from libraryStore cache, revoked on cleanup
+  const ghostPlacementShapeId = ghostPlacement?.shapeId;
   useEffect(() => {
     if (!ghostPlacement) {
       setGhostBlobUrl(null);
@@ -6757,7 +6775,7 @@ export default function DesignerCanvas({
     const url = URL.createObjectURL(blob);
     setGhostBlobUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [ghostPlacement?.shapeId]);
+  }, [ghostPlacement, ghostPlacementShapeId]);
 
   // Enter place mode when paste target dispatches the event
   useEffect(() => {
@@ -6820,7 +6838,7 @@ export default function DesignerCanvas({
 
     document.addEventListener("io:stencil-drop", onStencilDrop);
     return () => document.removeEventListener("io:stencil-drop", onStencilDrop);
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // Place a configured chart widget onto the canvas. Called after the user
   // saves the ChartConfigPanel modal that opens on palette drop.
@@ -7058,7 +7076,7 @@ export default function DesignerCanvas({
         "io:display-element-drop",
         onDisplayElementDrop,
       );
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // -------------------------------------------------------------------------
   // Handle report element drops from left palette
@@ -7175,7 +7193,7 @@ export default function DesignerCanvas({
         "io:report-element-drop",
         onReportElementDrop,
       );
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // -------------------------------------------------------------------------
   // Test fixture: programmatic TextBlock placement (io:test-add-text-block)
@@ -7221,7 +7239,7 @@ export default function DesignerCanvas({
         "io:test-add-text-block",
         onTestAddTextBlock,
       );
-  }, []);
+  }, [executeCmd]);
 
   // -------------------------------------------------------------------------
   // Cursor style based on active tool

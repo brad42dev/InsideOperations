@@ -73,15 +73,15 @@ function alarmColor(value: PointValue | undefined): string {
  * server implementations — casting at each use site is more robust.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const OfflineTileLayerClass = (L.TileLayer as any).extend({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   initialize(url: string, options: L.TileLayerOptions & { graphicId: string }) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (L.TileLayer.prototype as any).initialize.call(this, url, options);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (this as any)._graphicId = options.graphicId;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (this as any)._evictRun = false;
   },
 
@@ -92,15 +92,15 @@ const OfflineTileLayerClass = (L.TileLayer as any).extend({
     const z = (coords as unknown as { z: number }).z;
     const x = (coords as unknown as { x: number }).x;
     const y = (coords as unknown as { y: number }).y;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const graphicId = (this as any)._graphicId as string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const evictRun = (this as any)._evictRun as boolean;
     const runEvict = !evictRun;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     if (runEvict) (this as any)._evictRun = true;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const getTileUrl = (
       (this as any).getTileUrl as (coords: L.Coords) => string
     ).bind(this);
@@ -292,7 +292,7 @@ export default function TileGraphicViewer({
 
     // Tile layer pointing to API tile pyramid — uses IndexedDB caching
     const tileUrl = `/api/v1/design-objects/${graphicId}/tiles/{z}/{x}/{y}.png`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const tileLayer = new (OfflineTileLayerClass as any)(tileUrl, {
       tileSize: 256,
       noWrap: true,
@@ -307,10 +307,11 @@ export default function TileGraphicViewer({
     map.fitBounds(bounds);
     mapRef.current = map;
 
+    const markers = markersRef.current;
     return () => {
       map.remove();
       mapRef.current = null;
-      markersRef.current.clear();
+      markers.clear();
     };
     // Intentionally only on mount / graphicId change
     // eslint-disable-next-line react-hooks/exhaustive-deps

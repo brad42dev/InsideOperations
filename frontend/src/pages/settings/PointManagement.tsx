@@ -1590,7 +1590,10 @@ export default function PointManagement() {
     },
   });
 
-  const points = pointsQuery.data?.data ?? [];
+  const points = useMemo(
+    () => pointsQuery.data?.data ?? [],
+    [pointsQuery.data?.data],
+  );
   const pagination = pointsQuery.data?.pagination;
   const sources = sourcesQuery.data ?? [];
 
