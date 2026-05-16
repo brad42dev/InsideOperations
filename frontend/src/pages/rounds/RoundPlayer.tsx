@@ -282,7 +282,7 @@ function BarcodeGate({
   const [scanError, setScanError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const codeReaderRef = useRef<any>(null);
 
   // BarcodeDetector API scan
@@ -1443,6 +1443,7 @@ export default function RoundPlayer() {
       comments,
       gps,
       isOnline,
+      operatorNotBadged,
       saveOfflineResponse,
       videoBlobs,
       audioBlobs,

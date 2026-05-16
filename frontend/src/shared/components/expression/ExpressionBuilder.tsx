@@ -2267,7 +2267,7 @@ export function ExpressionBuilder({
         pasteNativeTiles: (tiles) =>
           dispatch({ type: "PASTE_NATIVE_TILES", tiles }),
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [],
   );
   usePasteTarget(expressionPasteTarget);
@@ -2281,7 +2281,7 @@ export function ExpressionBuilder({
       dispatchCopySelection: () => dispatch({ type: "COPY_SELECTION" }),
     }));
     // dispatch is stable (from useReducer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const [leftPanelTab, setLeftPanelTab] = useState<"palette" | "templates">(
@@ -2361,11 +2361,14 @@ export function ExpressionBuilder({
 
   const previewStr = expressionToString(state.tiles);
   const pointRefs = collectPointRefs(state.tiles);
-  const testNumericValues: Record<string, number> = {};
-  for (const ref of pointRefs) {
-    const v = parseFloat(testValues[ref.id] ?? "0");
-    testNumericValues[ref.id] = isNaN(v) ? 0 : v;
-  }
+  const testNumericValues = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const ref of pointRefs) {
+      const v = parseFloat(testValues[ref.id] ?? "0");
+      result[ref.id] = isNaN(v) ? 0 : v;
+    }
+    return result;
+  }, [pointRefs, testValues]);
 
   const validation = validateExpression(state);
 
@@ -2693,6 +2696,54 @@ export function ExpressionBuilder({
     setShowConfirmDialog(true);
   }
 
+  // Called by slow-warning "Accept & Apply" button and by the normal path
+  const doSaveAndApply = useCallback(
+    async (ast: ExpressionAst) => {
+      setOkFlowRunning(true);
+      try {
+        if (state.saveForFuture) {
+          const result = await expressionsApi.create({
+            name: state.name.trim(),
+            description: state.description.trim() || undefined,
+            context,
+            ast,
+            is_shared: state.shareExpression,
+          });
+          if (!result.success) {
+            const errMsg =
+              result.error?.message ?? "Failed to save expression.";
+            showToast({
+              title: "Save failed",
+              description: errMsg,
+              variant: "error",
+              duration: 5000,
+            });
+            setOkFlowRunning(false);
+            return;
+          }
+        }
+        onApply(ast);
+      } catch (err) {
+        showToast({
+          title: "Save failed",
+          description: String(err),
+          variant: "error",
+          duration: 5000,
+        });
+      } finally {
+        setOkFlowRunning(false);
+      }
+    },
+    [
+      state.saveForFuture,
+      state.name,
+      state.description,
+      state.shareExpression,
+      context,
+      onApply,
+    ],
+  );
+
   // Called when the user confirms the confirmation dialog
   const handleConfirmOk = useCallback(async () => {
     setShowConfirmDialog(false);
@@ -2762,62 +2813,7 @@ export function ExpressionBuilder({
 
     // All checks passed — proceed to save + apply
     await doSaveAndApply(ast);
-  }, [
-    state.tiles,
-    state.saveForFuture,
-    state.name,
-    state.description,
-    state.shareExpression,
-    testNumericValues,
-  ]);
-
-  // Called by slow-warning "Accept & Apply" button and by the normal path
-  const doSaveAndApply = useCallback(
-    async (ast: ExpressionAst) => {
-      setOkFlowRunning(true);
-      try {
-        if (state.saveForFuture) {
-          const result = await expressionsApi.create({
-            name: state.name.trim(),
-            description: state.description.trim() || undefined,
-            context,
-            ast,
-            is_shared: state.shareExpression,
-          });
-          if (!result.success) {
-            const errMsg =
-              result.error?.message ?? "Failed to save expression.";
-            showToast({
-              title: "Save failed",
-              description: errMsg,
-              variant: "error",
-              duration: 5000,
-            });
-            setOkFlowRunning(false);
-            return;
-          }
-        }
-        onApply(ast);
-      } catch (err) {
-        showToast({
-          title: "Save failed",
-          description: String(err),
-          variant: "error",
-          duration: 5000,
-        });
-      } finally {
-        setOkFlowRunning(false);
-      }
-    },
-    [
-      state.saveForFuture,
-      state.name,
-      state.description,
-      state.shareExpression,
-      context,
-      onApply,
-    ],
-  );
+  }, [state.tiles, testNumericValues, doSaveAndApply]);
 
   // Shared button styles
   const okDisabled = !validation.valid || okFlowRunning;

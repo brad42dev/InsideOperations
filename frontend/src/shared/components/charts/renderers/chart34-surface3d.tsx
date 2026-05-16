@@ -191,9 +191,9 @@ export default function Chart34Surface3d({ config }: RendererProps) {
     const yName = ySlot?.pointId ?? "Y";
     const zName = zSlot?.pointId ?? "Z";
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     type PlotlyData = any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     type PlotlyLayout = any;
 
     const traces: PlotlyData[] = [];
@@ -243,7 +243,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
     let cancelled = false;
 
     // plotly.js-dist-min ships its own types via plotly.js; cast through unknown
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     import("plotly.js-dist-min" as any)
       .then((PlotlyRaw: unknown) => {
         if (cancelled || !plotDivRef.current) return;
@@ -269,7 +269,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
 
     return () => {
       cancelled = true;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       import("plotly.js-dist-min" as any)
         .then((PlotlyRaw: unknown) => {
           if (!div) return;

@@ -30,7 +30,7 @@
 interface SharedWorkerGlobalScopeShim {
   onconnect: ((e: MessageEvent) => void) | null;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const sharedSelf = self as unknown as SharedWorkerGlobalScopeShim;
 
 const ports: MessagePort[] = [];
@@ -83,7 +83,7 @@ sharedSelf.onconnect = (e: MessageEvent) => {
   port.postMessage({ type: "state", state: connectionState });
 
   port.onmessage = (ev: MessageEvent) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     const msg = ev.data as Record<string, unknown>;
     handlePortMessage(port, msg);
   };

@@ -295,10 +295,14 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   // Store in a ref so the rAF DOM-mutation callback can access the latest map
   // without capturing a stale closure.
   const pointMetaMapRef = useRef<Map<string, PointDetail>>(new Map());
-  useEffect(() => {
+  // Synchronous assignment before browser paint so the no-deps re-apply layout
+  // effect below always reads the current render's pointMetaMap (not the previous).
+  useLayoutEffect(() => {
     pointMetaMapRef.current = pointMetaMap;
-    // Re-apply last-known values so EU spans appear as soon as meta loads,
-    // without waiting for the next WS tick.
+  }, [pointMetaMap]);
+  // Post-paint catch-up: re-apply live values after meta loads so EU text
+  // appears without waiting for the next WS tick.
+  useEffect(() => {
     if (!liveSubscribe || lastPvRef.current.size === 0) return;
     const map = pointToElementsRef.current;
     for (const [pid, pv] of lastPvRef.current) {
@@ -531,16 +535,18 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     // Runs every 5s; 60s threshold applied inside checkStaleness().
     const staleInterval = setInterval(checkStaleness, 5_000);
 
+    const pendingDom = pendingDomRef.current;
+    const lastUpdateTimestamps = lastUpdateTimestampsRef.current;
     return () => {
       pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
       unsubAlarm();
       clearInterval(staleInterval);
-      pendingDomRef.current.clear();
+      pendingDom.clear();
       // lastPvRef is intentionally NOT cleared here — values are re-applied on
       // the next subscription run so there is no placeholder flash between
       // subscription restarts (shapeMap / resolvedTagMap settling after mount).
       // It is cleared in a separate effect when document.id changes.
-      lastUpdateTimestampsRef.current.clear();
+      lastUpdateTimestamps.clear();
     };
   }, [document.id, document.children, liveSubscribe, resolvedTagMap, shapeMap]);
 
@@ -617,8 +623,9 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
   // same render cycle — guaranteeing lastPvRef is empty when the new document's
   // subscription starts (no stale values re-applied to the incoming document).
   useLayoutEffect(() => {
+    const lastPv = lastPvRef.current;
     return () => {
-      lastPvRef.current.clear();
+      lastPv.clear();
       historicalPvRef.current = new Map();
     };
   }, [document.id]);
@@ -654,6 +661,15 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     return [...new Set(ids)];
   }, []);
 
+  const batchShapesFetch = useCallback(
+    async (ids: string[]): Promise<Record<string, ShapeData>> => {
+      const res = await graphicsApi.batchShapes(ids);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data as unknown as Record<string, ShapeData>;
+    },
+    [],
+  );
+
   // Fetch shapes on mount / document change — two phases:
   // 1. Fetch base shapes; 2. derive part shape IDs from base sidecars and fetch those.
   useEffect(() => {
@@ -661,10 +677,8 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     if (baseIds.length === 0) return;
     let cancelled = false;
 
-    // Always load from public static files (canonical source, always current).
-    // The DB-backed batchShapes API can return stale sidecars that lack `addons`/
-    // `compositeAttachments`, which breaks composable part resolution in Phase 2.
-    fetchShapes(baseIds)
+    // Fetch shapes from DB via the batch endpoint — DB is the sole source of truth.
+    fetchShapes(baseIds, batchShapesFetch)
       .then(async (baseMap) => {
         if (cancelled) return;
         // Phase 2: walk symbol_instance nodes, look up each composable part's addon
@@ -696,7 +710,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
           if (!cancelled) setShapeMap(baseMap);
           return;
         }
-        const partMap = await fetchShapes(uniquePartIds);
+        const partMap = await fetchShapes(uniquePartIds, batchShapesFetch);
         if (!cancelled) setShapeMap(new Map([...baseMap, ...partMap]));
       })
       .catch(console.error);
@@ -704,7 +718,7 @@ export const SceneRenderer = memo<SceneRendererProps>(function SceneRenderer({
     return () => {
       cancelled = true;
     };
-  }, [document.id, children, collectBaseShapeIds]);
+  }, [document.id, children, collectBaseShapeIds, batchShapesFetch]);
 
   // Collect stencil IDs and fetch their SVG on mount / document change
   useEffect(() => {
@@ -1469,6 +1483,8 @@ function applyTextReadoutLikeMutation(
         vFracEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
       if (fracEuSpan) {
         fracEuSpan.style.display = !isCommFail && !isBad ? "" : "none";
+        if (!isCommFail && !isBad && metaUnit)
+          fracEuSpan.textContent = ` ${metaUnit}`;
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
         const s = document.createElementNS(
           "http://www.w3.org/2000/svg",
@@ -1476,8 +1492,8 @@ function applyTextReadoutLikeMutation(
         );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
-        s.setAttribute("font-size", "9");
-        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.setAttribute("font-size", String(cfg.euRow?.fontSize ?? 9));
+        s.setAttribute("fill", cfg.euRow?.color || DE_COLORS.textMuted);
         s.textContent = ` ${metaUnit}`;
         vFracEl.appendChild(s);
       }
@@ -1517,6 +1533,8 @@ function applyTextReadoutLikeMutation(
       const euSpan = textEl.querySelector<SVGTSpanElement>('[data-role="eu"]');
       if (euSpan) {
         euSpan.style.display = !isCommFail && !isBad ? "" : "none";
+        if (!isCommFail && !isBad && metaUnit)
+          euSpan.textContent = ` ${metaUnit}`;
       } else if (cfg.showUnits && !!metaUnit && !isCommFail && !isBad) {
         const s = document.createElementNS(
           "http://www.w3.org/2000/svg",
@@ -1524,8 +1542,8 @@ function applyTextReadoutLikeMutation(
         );
         s.setAttribute("data-role", "eu");
         s.setAttribute("font-family", "Inter");
-        s.setAttribute("font-size", "9");
-        s.setAttribute("fill", DE_COLORS.textMuted);
+        s.setAttribute("font-size", String(cfg.euRow?.fontSize ?? 9));
+        s.setAttribute("fill", cfg.euRow?.color || DE_COLORS.textMuted);
         s.textContent = ` ${metaUnit}`;
         textEl.appendChild(s);
       }

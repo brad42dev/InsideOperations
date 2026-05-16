@@ -95,6 +95,7 @@ export function useTimeSeriesBuffer({
   const buffers = useRef(getBuffers(bufferKey));
   const lastTs = useRef(getLastTs(bufferKey));
   const queryClient = useQueryClient();
+  const pointIdsKey = pointIds.join(",");
 
   // Clean up module-scope maps when this pane unmounts (prevents unbounded growth
   // when operators add/remove panes over a long session).
@@ -104,7 +105,7 @@ export function useTimeSeriesBuffer({
       _globalLastTs.delete(bufferKey);
     };
     // bufferKey is stable (pane ID) — intentionally empty-ish dep array
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [bufferKey]);
 
   const [tick, setTick] = useState(0);
@@ -146,7 +147,7 @@ export function useTimeSeriesBuffer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     bufferKey,
-    pointIds.join(","),
+    pointIdsKey,
     durationMinutes,
     bucketSeconds,
     aggregateType,
@@ -341,7 +342,7 @@ export function useTimeSeriesBuffer({
   // most once per animation frame, preventing interference with SceneRenderer's
   // own DOM-mutation path.
   const rafPendingRef = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const pendingPvsRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
@@ -349,7 +350,7 @@ export function useTimeSeriesBuffer({
 
     if (wsManager.getState() === "disconnected") void wsManager.connect();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = (pv: any) => {
       pendingPvsRef.current.set(pv.pointId, pv);
       if (!rafPendingRef.current) {
@@ -397,14 +398,15 @@ export function useTimeSeriesBuffer({
     };
 
     pointIds.forEach((id) => wsManager.subscribe(id, handler));
+    const pendingPvs = pendingPvsRef.current;
     return () => {
       pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
-      pendingPvsRef.current.clear();
+      pendingPvs.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isHistorical,
-    pointIds.join(","),
+    pointIdsKey,
     bucketSeconds,
     durationMinutes,
     interpolation,

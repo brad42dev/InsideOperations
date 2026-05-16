@@ -7,6 +7,8 @@ import { useAuthStore } from "../../store/auth";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { showToast } from "../../shared/components/Toast";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -416,6 +418,20 @@ function GraphicCard({ graphic, onDelete, canDelete }: GraphicCardProps) {
           >
             {MODE_LABELS[graphic.designMode] ?? graphic.designMode}
           </span>
+          {graphic.published && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "2px 7px",
+                borderRadius: 4,
+                background: "rgba(16,185,129,0.15)",
+                color: "#10b981",
+              }}
+            >
+              Published
+            </span>
+          )}
         </div>
 
         {/* Name */}
@@ -749,12 +765,15 @@ export default function DesignerGraphicsList() {
   // Data
   // --------------------------------------------------------------------------
 
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+  const setShowAllUsers = useAdminToggleStore((s) => s.setShowAllUsersObjects);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: [
       "design-objects",
-      { scope: scopeFilter, mode: modeFilter, search },
+      { scope: scopeFilter, mode: modeFilter, search, showAllUsers },
     ],
-    queryFn: () => graphicsApi.list(),
+    queryFn: () => graphicsApi.list({ includeAllUsers: showAllUsers }),
     staleTime: 30_000,
   });
 
@@ -1054,6 +1073,14 @@ export default function DesignerGraphicsList() {
               );
             })}
           </div>
+
+          {/* Admin toggle */}
+          <AdminToggle
+            label="All users"
+            checked={showAllUsers}
+            onChange={setShowAllUsers}
+            title="Show all users' objects (admin only)"
+          />
 
           {/* Result count */}
           {!isLoading && (

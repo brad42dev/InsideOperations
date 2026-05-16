@@ -135,6 +135,7 @@ export default function WaterfallChart({ config }: RendererProps) {
     increaseColor,
     decreaseColor,
     highlighted,
+    slotLabel,
   ]);
 
   const option: EChartsOption = useMemo(() => {

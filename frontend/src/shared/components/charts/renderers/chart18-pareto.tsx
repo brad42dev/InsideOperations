@@ -145,7 +145,7 @@ export default function ParetoChart({ config }: RendererProps) {
       sortedValues: items,
       cumulativePct: cumPct,
     };
-  }, [seriesSlots, values, latestData, mode]);
+  }, [seriesSlots, values, latestData, mode, slotLabel]);
 
   const option: EChartsOption = useMemo(() => {
     const textMuted = resolveToken("--io-text-muted");
@@ -271,7 +271,7 @@ export default function ParetoChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [
     sortedNames,
     sortedValues,

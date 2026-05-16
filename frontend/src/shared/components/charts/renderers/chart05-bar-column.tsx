@@ -200,7 +200,7 @@ export default function BarColumnChart({ config }: RendererProps) {
               type: "custom" as const,
               name: "Error",
               silent: true,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               
               renderItem: (_params: unknown, api: any) => {
                 const idx = api.value(0) as number;
                 const low = api.value(1) as number;

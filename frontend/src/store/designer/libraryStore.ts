@@ -4,28 +4,16 @@
  * Shape library cache for the Designer module.
  *
  * Responsibilities:
- *  - Fetches and caches the global shape index from /shapes/index.json (once).
- *  - Loads individual shape SVG + JSON sidecar files on demand from:
- *      /shapes/{category}/{id}.svg
- *      /shapes/{category}/{id}.json
- *    (falls back to /shapes/{id}.svg and /shapes/{id}.json if category unknown)
+ *  - Fetches and caches the global shape index from GET /api/v1/shapes (once).
+ *  - Loads individual shape SVG + sidecar on demand via POST /api/v1/shapes/batch.
  *  - Maintains an in-memory cache of up to 200 fully-loaded shapes.
  *  - Deduplicates concurrent loads for the same shape ID.
  *  - Provides synchronous getShape() for rendering code that has already
  *    triggered a load.
- *
- * The shape index JSON is expected to have the shape:
- * {
- *   shapes: Array<{
- *     id: string
- *     category: string
- *     label: string
- *     subcategory?: string
- *   }>
- * }
  */
 
 import { create } from "zustand";
+import { graphicsApi } from "../../api/graphics";
 
 // ---------------------------------------------------------------------------
 // Sidecar types — canonical definition lives in shared/types/shapes.ts
@@ -60,21 +48,6 @@ export interface ShapeIndexItem {
   subcategory?: string;
   /** 'library' = built-in Tier 1 shape (read-only for reimport), 'user' = custom shape */
   source?: "library" | "user";
-}
-
-// ---------------------------------------------------------------------------
-// Raw index JSON shape
-// ---------------------------------------------------------------------------
-
-interface RawIndexShape {
-  id: string;
-  category: string;
-  label: string;
-  subcategory?: string;
-}
-
-interface RawIndex {
-  shapes: RawIndexShape[];
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +90,7 @@ export interface LibraryStore {
   cacheStencilList(items: Array<{ id: string; svg_data?: string }>): void;
 
   /**
-   * Fetch /shapes/index.json and populate `index`.
+   * Fetch the shape index from GET /api/v1/shapes and populate `index`.
    * Safe to call multiple times — subsequent calls are no-ops if already loaded.
    * Sets indexError on failure and does NOT set indexLoaded=true, allowing retries.
    */
@@ -205,19 +178,17 @@ let indexFetchPromise: Promise<ShapeIndexItem[]> | null = null;
  */
 async function fetchIndexOnce(): Promise<ShapeIndexItem[]> {
   if (!indexFetchPromise) {
-    indexFetchPromise = fetch("/shapes/index.json")
+    indexFetchPromise = graphicsApi
+      .shapesIndex()
       .then((res) => {
-        if (!res.ok)
-          throw new Error(`/shapes/index.json returned ${res.status}`);
-        return res.json() as Promise<RawIndex>;
-      })
-      .then((data) => {
-        if (!Array.isArray(data.shapes)) {
+        if (!res.success)
+          throw new Error(`GET /api/v1/shapes failed: ${res.error.message}`);
+        if (!Array.isArray(res.data.shapes)) {
           throw new Error(
-            '/shapes/index.json: "shapes" is missing or not an array',
+            '/api/v1/shapes: "shapes" is missing or not an array',
           );
         }
-        return data.shapes.map((s) => ({
+        return res.data.shapes.map((s) => ({
           id: s.id,
           category: s.category,
           label: s.label,
@@ -225,9 +196,8 @@ async function fetchIndexOnce(): Promise<ShapeIndexItem[]> {
         }));
       })
       .catch((err) => {
-        // Reset promise so the next loadIndex() call can retry
         indexFetchPromise = null;
-        throw err; // re-throw so loadIndex() can set indexError
+        throw err;
       });
   }
   return indexFetchPromise;
@@ -306,34 +276,22 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       (async (): Promise<ShapeEntry | null> => {
         let entry: ShapeEntry | null = null;
         try {
-          // Ensure index is loaded so we know the category.
-          if (!get().indexLoaded) {
-            await get().loadIndex();
-            if (!get().indexLoaded) {
-              // Index failed — log and fall through to root-level fallback URLs.
-              console.warn(
-                `[libraryStore] Shape ${id}: index unavailable, using fallback URL`,
-              );
-            }
+          const res = await graphicsApi.batchShapes([id]);
+          if (!res.success) {
+            console.warn(
+              `[libraryStore] Shape ${id}: batch fetch failed: ${res.error.message}`,
+            );
+            return null;
           }
-
-          const indexItem = get().index.find((item) => item.id === id);
-          const category = indexItem?.category;
-
-          // Fetch sidecar JSON first so we can resolve the correct SVG filename
-          // (shapes with variants don't have a bare {id}.svg — only opt1/opt2 files).
-          const jsonUrl = category
-            ? `/shapes/${category}/${id}.json`
-            : `/shapes/${id}.json`;
-
-          const jsonRes = await fetch(jsonUrl);
-          if (!jsonRes.ok) {
-            console.warn(`[libraryStore] Shape ${id}: json=${jsonRes.status}`);
+          const shapeData = res.data[id];
+          if (!shapeData) {
+            console.warn(
+              `[libraryStore] Shape ${id}: not found in batch response`,
+            );
             return null;
           }
 
-          const rawSidecar = (await jsonRes.json()) as ShapeSidecar;
-
+          const rawSidecar = shapeData.sidecar as unknown as ShapeSidecar;
           // Normalize variants.options Record → flat options Array so all
           // consumers (variant picker, getShapeSvg) use the same structure.
           const sidecar: ShapeSidecar = rawSidecar;
@@ -347,34 +305,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             );
           }
 
-          // Resolve SVG filename: prefer opt1 variant, fall back to {id}.svg.
-          // Mirrors shapeCache.ts resolveSvgFilename().
-          let svgFilename: string;
-          if (sidecar.options && sidecar.options.length > 0) {
-            const opt1 =
-              sidecar.options.find((o) => o.id === "opt1") ??
-              sidecar.options[0];
-            svgFilename = opt1.file;
-          } else {
-            svgFilename = `${id}.svg`;
-          }
-
-          // Variant file may include a path component — only prepend category if it's a bare filename.
-          const svgUrl =
-            category && !svgFilename.includes("/")
-              ? `/shapes/${category}/${svgFilename}`
-              : `/shapes/${svgFilename}`;
-
-          const svgRes = await fetch(svgUrl);
-          if (!svgRes.ok) {
-            console.warn(
-              `[libraryStore] Shape ${id}: svg=${svgRes.status} (${svgUrl})`,
-            );
-            return null;
-          }
-
-          const svg = await svgRes.text();
-          entry = { id, svg, sidecar };
+          entry = { id, svg: shapeData.svg, sidecar };
           return entry;
         } catch (err) {
           console.warn(`[libraryStore] Error loading shape ${id}:`, err);

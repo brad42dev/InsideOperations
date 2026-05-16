@@ -438,15 +438,14 @@ export default function AboutPage() {
     }
   }
 
-  // Active license data filtered by search
-  const rawLicenses =
-    activeTab === "backend"
-      ? (backendQuery.data ?? [])
-      : (frontendQuery.data ?? []);
   const isLicensesLoading =
     activeTab === "backend" ? backendQuery.isLoading : frontendQuery.isLoading;
 
   const filteredLicenses = useMemo(() => {
+    const rawLicenses =
+      activeTab === "backend"
+        ? (backendQuery.data ?? [])
+        : (frontendQuery.data ?? []);
     if (!searchFilter.trim()) return rawLicenses;
     const q = searchFilter.toLowerCase();
     return rawLicenses.filter(
@@ -455,7 +454,7 @@ export default function AboutPage() {
         e.license.toLowerCase().includes(q) ||
         e.copyright.toLowerCase().includes(q),
     );
-  }, [rawLicenses, searchFilter]);
+  }, [activeTab, backendQuery.data, frontendQuery.data, searchFilter]);
 
   const about = aboutQuery.data;
 

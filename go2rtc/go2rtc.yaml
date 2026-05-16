@@ -1,0 +1,15 @@
+api:
+  listen: ":1984"
+
+webrtc:
+  candidates:
+    - stun:8555
+streams:
+  stream_test:
+    - rtsp://cam1
+  stream_6ffeeed42ee646a2aac9fced4f0655aa:
+    - rtsp://192.168.1.50/live
+  hls_test:
+    - ffmpeg:pipe:0
+  hls_probe:
+    - ffmpeg:device?video=0

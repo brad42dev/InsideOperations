@@ -47,7 +47,7 @@ export default function PlaylistPlayer() {
   useEffect(() => {
     if (!currentItem) return;
     setTimeRemaining(currentItem.dwell_seconds);
-  }, [currentIndex, currentItem?.dwell_seconds]);
+  }, [currentIndex, currentItem, currentItem?.dwell_seconds]);
 
   // Auto-advance timer
   useEffect(() => {

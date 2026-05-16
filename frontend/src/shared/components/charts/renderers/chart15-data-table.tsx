@@ -320,6 +320,10 @@ function PivotDataTable({
     })),
   });
 
+  // Stable cache-key for metaQueries — the array reference changes every render
+  // (useQueries returns a new array on each call), so we derive a string key.
+  const metaQueriesKey = metaQueries.map((q) => q.dataUpdatedAt).join(",");
+
   // Build matrix: rowKey → colKey → samples[]
   const matrix = useMemo(() => {
     const m = new Map<string, Map<string, number[]>>();
@@ -366,12 +370,13 @@ function PivotDataTable({
       rowMap.get(colKey)!.push(entry.value);
     });
     return m;
-    // Use a stable derived key for metaQueries — the array reference changes every render
-    // (useQueries returns a new array on each call), which would defeat the memo.
+    // metaQueriesKey is a stable derived string from metaQueries.map(q=>q.dataUpdatedAt)
+    // used instead of metaQueries directly to avoid defeating memoization (useQueries
+    // returns a new array reference on every render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     values,
-    metaQueries.map((q) => q.dataUpdatedAt).join(","),
+    metaQueriesKey,
     config.points,
     pivot.rowField,
     pivot.colField,

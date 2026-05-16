@@ -2806,6 +2806,7 @@ export default function DesignerCanvas({
   } | null>(null);
   const ghostPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const ghostImgRef = useRef<HTMLImageElement>(null);
+  const [ghostBlobUrl, setGhostBlobUrl] = useState<string | null>(null);
 
   // ── Place mode — two-phase paste placement ─────────────────────────────────
   // Phase 1 "floating": a bounding-box ghost follows the cursor; single click anchors it.
@@ -2842,6 +2843,23 @@ export default function DesignerCanvas({
   const docRef = useRef(doc);
   docRef.current = doc;
 
+  function findSymbolNodeDeep(
+    nodes: SceneNode[],
+    id: NodeId,
+  ): SymbolInstance | undefined {
+    for (const n of nodes) {
+      if (n.id === id) return n as SymbolInstance;
+      if ("children" in n && Array.isArray((n as Group).children)) {
+        const found = findSymbolNodeDeep(
+          (n as Group).children as SceneNode[],
+          id,
+        );
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+
   // Stable memoized initial config for CategoryShapeWizard — recomputed only
   // when the configured node's identity changes, NOT on every doc update.
   // Uses docRef.current to read the document at open-time without making `doc`
@@ -2851,9 +2869,10 @@ export default function DesignerCanvas({
     if (!shapeConfigNodeId) return undefined;
     const currentDoc = docRef.current;
     if (!currentDoc) return undefined;
-    const configNode = currentDoc.children.find(
-      (n) => n.id === shapeConfigNodeId,
-    ) as SymbolInstance | undefined;
+    const configNode = findSymbolNodeDeep(
+      currentDoc.children,
+      shapeConfigNodeId,
+    );
     if (!configNode) return undefined;
     return {
       bindings: [
@@ -2948,13 +2967,16 @@ export default function DesignerCanvas({
   // Helper: execute + push to history
   // -------------------------------------------------------------------------
 
-  function executeCmd(cmd: SceneCommand) {
-    const d = docRef.current;
-    if (!d) return;
-    const before = d;
-    sceneExecute(cmd);
-    historyPush(cmd, before);
-  }
+  const executeCmd = useCallback(
+    (cmd: SceneCommand) => {
+      const d = docRef.current;
+      if (!d) return;
+      const before = d;
+      sceneExecute(cmd);
+      historyPush(cmd, before);
+    },
+    [sceneExecute, historyPush],
+  );
 
   // ── Place mode helpers ───────────────────────────────────────────────────
 
@@ -3148,19 +3170,22 @@ export default function DesignerCanvas({
   // Helper: snap
   // -------------------------------------------------------------------------
 
-  function snap(v: number, axis?: "h" | "v"): number {
-    // Guide snap takes priority over grid snap (threshold: 6 canvas units)
-    const GUIDE_SNAP = 6;
-    if (guidesVisible && guides.length > 0 && axis) {
-      for (const g of guides) {
-        if (g.axis === axis && Math.abs(v - g.position) < GUIDE_SNAP) {
-          return g.position;
+  const snap = useCallback(
+    (v: number, axis?: "h" | "v"): number => {
+      // Guide snap takes priority over grid snap (threshold: 6 canvas units)
+      const GUIDE_SNAP = 6;
+      if (guidesVisible && guides.length > 0 && axis) {
+        for (const g of guides) {
+          if (g.axis === axis && Math.abs(v - g.position) < GUIDE_SNAP) {
+            return g.position;
+          }
         }
       }
-    }
-    // Snap to the finest visible grid unit (minor if shown, otherwise major)
-    return snapToGridValue(v, adaptiveMinor ?? adaptiveMajor, snapToGrid);
-  }
+      // Snap to the finest visible grid unit (minor if shown, otherwise major)
+      return snapToGridValue(v, adaptiveMinor ?? adaptiveMajor, snapToGrid);
+    },
+    [guidesVisible, guides, adaptiveMinor, adaptiveMajor, snapToGrid],
+  );
 
   // -------------------------------------------------------------------------
   // Helper: snap to nearest connection point (for pipe tool)
@@ -4294,6 +4319,11 @@ export default function DesignerCanvas({
       setPenWaypoints,
       setPenCursor,
       setFreehandPreview,
+      beginTextEdit,
+      endDrag,
+      executeCmd,
+      setActiveGroup,
+      setTool,
     ],
   );
 
@@ -4766,7 +4796,6 @@ export default function DesignerCanvas({
       setPipeDrawState,
       setViewport,
       setFreehandPreview,
-      setSlotPopover,
     ],
   );
 
@@ -5782,6 +5811,7 @@ export default function DesignerCanvas({
       drawPreview,
       snap,
       endDrag,
+      executeCmd,
       setAlignGuides,
       setRotationPreview,
       setDrawPreview,
@@ -5930,6 +5960,9 @@ export default function DesignerCanvas({
       setTool,
       setActiveGroup,
       onOpenGroupInTab,
+      executeCmd,
+      beginTextEdit,
+      confirmPlacement,
     ],
   );
 
@@ -6564,6 +6597,9 @@ export default function DesignerCanvas({
       setViewport,
       setActiveGroup,
       endDrag,
+      executeCmd,
+      cancelPlacement,
+      confirmPlacement,
       setAlignGuides,
     ],
   );
@@ -6633,7 +6669,7 @@ export default function DesignerCanvas({
       document.removeEventListener("io:toolbar-group", onToolbarGroup);
       document.removeEventListener("io:toolbar-ungroup", onToolbarUngroup);
     };
-  }, []);
+  }, [executeCmd]);
 
   // -------------------------------------------------------------------------
   // Right-click context menu
@@ -6721,6 +6757,26 @@ export default function DesignerCanvas({
     return () => window.removeEventListener("keydown", onKey);
   }, [ghostPlacement]);
 
+  // Blob URL for ghost placement image — created from libraryStore cache, revoked on cleanup
+  const ghostPlacementShapeId = ghostPlacement?.shapeId;
+  useEffect(() => {
+    if (!ghostPlacement) {
+      setGhostBlobUrl(null);
+      return;
+    }
+    const svgStr = useLibraryStore
+      .getState()
+      .cache.get(ghostPlacement.shapeId)?.svg;
+    if (!svgStr) {
+      setGhostBlobUrl(null);
+      return;
+    }
+    const blob = new Blob([svgStr], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    setGhostBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [ghostPlacement, ghostPlacementShapeId]);
+
   // Enter place mode when paste target dispatches the event
   useEffect(() => {
     function onEnterPlaceMode(e: Event) {
@@ -6782,7 +6838,7 @@ export default function DesignerCanvas({
 
     document.addEventListener("io:stencil-drop", onStencilDrop);
     return () => document.removeEventListener("io:stencil-drop", onStencilDrop);
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // Place a configured chart widget onto the canvas. Called after the user
   // saves the ChartConfigPanel modal that opens on palette drop.
@@ -7020,7 +7076,7 @@ export default function DesignerCanvas({
         "io:display-element-drop",
         onDisplayElementDrop,
       );
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // -------------------------------------------------------------------------
   // Handle report element drops from left palette
@@ -7137,7 +7193,7 @@ export default function DesignerCanvas({
         "io:report-element-drop",
         onReportElementDrop,
       );
-  }, [snap]);
+  }, [snap, executeCmd]);
 
   // -------------------------------------------------------------------------
   // Test fixture: programmatic TextBlock placement (io:test-add-text-block)
@@ -7183,7 +7239,7 @@ export default function DesignerCanvas({
         "io:test-add-text-block",
         onTestAddTextBlock,
       );
-  }, []);
+  }, [executeCmd]);
 
   // -------------------------------------------------------------------------
   // Cursor style based on active tool
@@ -9071,7 +9127,7 @@ export default function DesignerCanvas({
                 >
                   <img
                     ref={ghostImgRef}
-                    src={`/shapes/${ghostPlacement.categoryId}/${ghostPlacement.shapeId}.svg`}
+                    src={ghostBlobUrl ?? ""}
                     alt=""
                     style={{
                       position: "fixed",
@@ -9093,9 +9149,9 @@ export default function DesignerCanvas({
           {/* Shape Configuration Dialog — edit mode, opened from context menu */}
           {shapeConfigNodeId &&
             (() => {
-              const configNode = docRef.current?.children.find(
-                (n) => n.id === shapeConfigNodeId,
-              ) as SymbolInstance | undefined;
+              const configNode = docRef.current
+                ? findSymbolNodeDeep(docRef.current.children, shapeConfigNodeId)
+                : undefined;
               const configShapeId = configNode?.shapeRef.shapeId ?? "";
               const configCategoryId =
                 useLibraryStore
@@ -9121,9 +9177,10 @@ export default function DesignerCanvas({
                       setShapeConfigJumpToPoint(false);
                       return;
                     }
-                    const node = docRef.current.children.find(
-                      (n) => n.id === shapeConfigNodeId,
-                    ) as SymbolInstance | undefined;
+                    const node = findSymbolNodeDeep(
+                      docRef.current.children,
+                      shapeConfigNodeId,
+                    );
                     if (!node) {
                       setShapeConfigNodeId(null);
                       setShapeConfigJumpToPoint(false);

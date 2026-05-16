@@ -64,6 +64,14 @@ export interface DesignerTab {
    * Undefined for type === 'graphic'.
    */
   groupName?: string;
+  /** True when this tab holds recovered autosave content (not yet saved). */
+  isPreview?: boolean;
+  /** The canonical graphic's real server UUID — target for Save from preview tab. */
+  previewSourceId?: string;
+  /** The __autosave_* server row UUID — deleted when user saves or discards. */
+  previewAutosaveId?: string;
+  /** The IDB key for this recovery record (graphicId or "__new__"). */
+  previewIdbKey?: string;
 }
 
 export interface TabStore {
@@ -152,6 +160,19 @@ export interface TabStore {
    * Find a group sub-tab by its groupNodeId. Returns null if not found.
    */
   findGroupTab(groupNodeId: string): DesignerTab | null;
+
+  /** Stamp a tab as a preview tab and record its autosave metadata. */
+  setTabPreviewMeta(
+    tabId: string,
+    meta: {
+      previewSourceId?: string;
+      previewAutosaveId?: string;
+      previewIdbKey?: string;
+    },
+  ): void;
+
+  /** Clear the preview flag and metadata (called after a successful save). */
+  clearTabPreviewMeta(tabId: string): void;
 
   /** Reset all tabs (e.g. on logout or page unload). */
   reset(): void;
@@ -411,6 +432,30 @@ export const useTabStore = create<TabStore>((set, get) => ({
         (t) => t.type === "group" && t.groupNodeId === groupNodeId,
       ) ?? null
     );
+  },
+
+  setTabPreviewMeta(tabId, meta) {
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId ? { ...t, isPreview: true, ...meta } : t,
+      ),
+    }));
+  },
+
+  clearTabPreviewMeta(tabId) {
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId
+          ? {
+              ...t,
+              isPreview: false,
+              previewSourceId: undefined,
+              previewAutosaveId: undefined,
+              previewIdbKey: undefined,
+            }
+          : t,
+      ),
+    }));
   },
 
   reset() {

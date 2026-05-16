@@ -103,7 +103,7 @@ export default function TreemapChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [values, latestData, seriesSlots]);
 
   if (pointIds.length === 0) {

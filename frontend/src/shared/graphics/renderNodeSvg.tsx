@@ -1022,7 +1022,7 @@ export function renderPipeSvg(
  * it via ctx.svgContent. If null, a dashed loading placeholder is shown.
  *
  * SVG content originates from design_objects (admin-uploaded), same trust
- * level as base shape SVGs fetched from /shapes/.
+ * level as base shape SVGs served from the batch shapes endpoint.
  */
 export function renderStencilSvg(
   node: Stencil,
@@ -1125,13 +1125,12 @@ export function renderWidgetPlaceholderSvg(
 
 /**
  * Renders an EmbeddedSvgNode. The svgContent is server-authored SVG markup
- * (same trust level as base shape SVGs fetched from /shapes/).
+ * (same trust level as base shape SVGs served from the batch shapes endpoint).
  */
 export function renderEmbeddedSvgSvg(
   node: EmbeddedSvgNode,
   ctx: RenderContext,
 ): React.ReactElement {
-  // eslint-disable-next-line react/no-danger
   return React.createElement("g", {
     key: node.id,
     transform: ctx.transform,
@@ -1187,7 +1186,7 @@ export function renderGroupSvg(
  * This is a pure function -- all state resolution (point bindings, shape loading)
  * is handled by the caller and passed in via SymbolInstanceRenderContext.
  *
- * SVG content originates from server-fetched static files under /shapes/ --
+ * SVG content originates from the batch shapes endpoint (DB-served) --
  * same trust level as base shape SVGs. Not user input.
  */
 export function renderSymbolInstanceSvg(
@@ -1311,7 +1310,7 @@ export function renderSymbolInstanceSvg(
   // ---- Composable part rendering (spec: Shape Library Composable Parts) ----
   // Algorithm: resolve part shape via base sidecar addons, then compute
   // exact placement from compositeAttachments + part bodyBase. Falls back to stacking.
-  // SVG content is server-fetched static files from /shapes/ -- same trust level as base shapes.
+  // SVG content is DB-served from the batch shapes endpoint -- same trust level as base shapes.
   const bw = sidecar?.geometry?.baseSize?.[0] ?? sidecar?.geometry?.width ?? 64;
   const bh =
     sidecar?.geometry?.baseSize?.[1] ?? sidecar?.geometry?.height ?? 64;
@@ -1382,7 +1381,6 @@ export function renderSymbolInstanceSvg(
       py = 0;
     }
 
-    // eslint-disable-next-line react/no-danger
     composablePartElements.push(
       <svg
         key={pid}

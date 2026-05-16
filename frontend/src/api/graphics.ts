@@ -1,5 +1,10 @@
-import { api } from "./client";
+import { api, type ApiResult } from "./client";
 import type { GraphicDocument, GraphicSummary } from "../shared/types/graphics";
+import type {
+  VersionSummary,
+  GraphicVersionContent,
+} from "../shared/types/versioning";
+import { shapeCache } from "../shared/graphics/shapeCache";
 
 export interface DesignObjectSummary extends GraphicSummary {}
 
@@ -8,11 +13,13 @@ export interface DesignObjectCreateRequest {
   scene_data: GraphicDocument;
   type?: "graphic" | "dashboard" | "report";
   metadata?: Record<string, unknown>;
+  label?: string;
 }
 
 export interface DesignObjectUpdateRequest {
   name?: string;
   scene_data?: GraphicDocument;
+  label?: string;
 }
 
 export interface ShapeBatchResponse {
@@ -31,19 +38,27 @@ export interface GraphicHierarchyNode {
 
 export const graphicsApi = {
   /** Get the view hierarchy tree for navigation (scope=process) */
-  getHierarchy: () =>
-    api.get<{ tree: GraphicHierarchyNode[] }>(
-      "/api/graphics/hierarchy?scope=process",
-    ),
+  getHierarchy: (params?: { includeAllUsers?: boolean }) => {
+    const extra = params?.includeAllUsers ? "&include_all_users=true" : "";
+    return api.get<{ tree: GraphicHierarchyNode[] }>(
+      `/api/graphics/hierarchy?scope=process${extra}`,
+    );
+  },
 
   /** List graphics, optionally filtered by module scope */
   list: (params?: {
     scope?: "console" | "process";
     mode?: "graphic" | "dashboard" | "report";
-  }) =>
-    api.get<{ data: DesignObjectSummary[]; total: number }>(
-      params?.scope ? `/api/graphics?module=${params.scope}` : "/api/graphics",
-    ),
+    includeAllUsers?: boolean;
+  }) => {
+    const qp = new URLSearchParams();
+    if (params?.scope) qp.set("module", params.scope);
+    if (params?.includeAllUsers) qp.set("include_all_users", "true");
+    const qs = qp.toString();
+    return api.get<{ data: DesignObjectSummary[]; total: number }>(
+      `/api/graphics${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   /** Get a single graphic by ID */
   get: (id: string) =>
@@ -85,11 +100,28 @@ export const graphicsApi = {
   /** Delete a graphic */
   remove: (id: string) => api.delete(`/api/v1/design-objects/${id}`),
 
+  recover: (id: string): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
+    api.post(`/api/v1/design-objects/${id}/recover`, {}),
+
+  permanentDelete: (id: string): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
+    api.delete(`/api/v1/design-objects/${id}/permanent`),
+
   /** Batch fetch shapes from the shape library */
   batchShapes: (shapeIds: string[]) =>
     api.post<ShapeBatchResponse>("/api/v1/shapes/batch", {
       shape_ids: shapeIds,
     }),
+
+  /** Fetch the shape library catalog from the database */
+  shapesIndex: () =>
+    api.get<{
+      shapes: Array<{
+        id: string;
+        category: string;
+        label: string;
+        subcategory?: string;
+      }>;
+    }>("/api/v1/shapes"),
 
   /** Get a graphic's thumbnail URL */
   thumbnailUrl: (id: string) => `/api/v1/design-objects/${id}/thumbnail.png`,
@@ -163,10 +195,13 @@ export const graphicsApi = {
    * Library shapes (source=library) are read-only.
    * Sidecar metadata is preserved — only the visual geometry changes.
    */
-  reimportShapeSvg: (shapeId: string, svgContent: string) =>
-    api.put<{
+  reimportShapeSvg: async (shapeId: string, svgContent: string) => {
+    const result = await api.put<{
       data: { viewBoxChanged: boolean; oldViewBox: string; newViewBox: string };
-    }>(`/api/v1/shapes/${shapeId}/svg`, { svg_content: svgContent }),
+    }>(`/api/v1/shapes/${shapeId}/svg`, { svg_content: svgContent });
+    if (result.success) shapeCache.delete(shapeId);
+    return result;
+  },
 
   /**
    * Resolve point tag names to their internal UUIDs.
@@ -180,25 +215,17 @@ export const graphicsApi = {
 
   // ── Versioning ──────────────────────────────────────────────────────────
 
-  /** List all versions (drafts + published) for a graphic. */
-  getVersions: (id: string) =>
-    api.get<{
-      data: Array<{
-        id: string;
-        version: number;
-        type: "published" | "draft";
-        author: string;
-        author_name: string;
-        timestamp: string;
-        isCurrent?: boolean;
-      }>;
-    }>(`/api/v1/design-objects/${id}/versions`),
+  /** List all versions for a graphic. */
+  getVersions: (id: string, opts?: { includeDeleted?: boolean }) =>
+    api.get<VersionSummary[]>(
+      `/api/v1/design-objects/${id}/versions${opts?.includeDeleted ? "?include_deleted=true" : ""}`,
+    ),
 
-  /** Get the scene_data for a specific version. */
-  getVersionContent: (id: string, versionId: string) =>
-    api.get<{
-      data: { scene_data: import("../shared/types/graphics").GraphicDocument };
-    }>(`/api/v1/design-objects/${id}/versions/${versionId}`),
+  /** Get the full content for a specific version (version_number, not UUID). */
+  getVersionContent: (id: string, versionNumber: number) =>
+    api.get<GraphicVersionContent>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}`,
+    ),
 
   /**
    * Publish the current draft as a permanent immutable snapshot.
@@ -210,14 +237,48 @@ export const graphicsApi = {
       {},
     ),
 
-  /**
-   * Restore a previous version — creates a new draft from the old version's content.
-   * Returns the new draft version number.
-   */
-  restoreVersion: (id: string, versionId: string) =>
-    api.post<{ data: { version: number } }>(
-      `/api/v1/design-objects/${id}/versions/${versionId}/restore`,
+  /** Unpublish a graphic — sets published=false. Requires designer:publish. */
+  unpublishGraphic: (id: string) =>
+    api.post<{ data: { published: boolean } }>(
+      `/api/v1/design-objects/${id}/unpublish`,
       {},
+    ),
+
+  /** Restore a previous version to live (server-side). */
+  restoreVersion: (id: string, versionNumber: number | string) =>
+    api.post<{ version_number: number }>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}/restore`,
+      {},
+    ),
+
+  /** Soft-delete a version. */
+  softDeleteVersion: (id: string, versionNumber: number) =>
+    api.delete<{ deleted: boolean }>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}`,
+    ),
+
+  /** Recover a soft-deleted version (admin only). */
+  recoverVersion: (id: string, versionNumber: number) =>
+    api.post<{ recovered: boolean }>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}/recover`,
+      {},
+    ),
+
+  /** Permanently delete a version (admin only). */
+  permanentDeleteVersion: (id: string, versionNumber: number) =>
+    api.delete<{ permanently_deleted: boolean }>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}/permanent`,
+    ),
+
+  /** Update a version's label. */
+  updateVersionLabel: (
+    id: string,
+    versionNumber: number,
+    label: string | null,
+  ) =>
+    api.patch<{ version_number: number; label: string | null }>(
+      `/api/v1/design-objects/${id}/versions/${versionNumber}`,
+      { label },
     ),
 
   // ── User (custom) shapes ────────────────────────────────────────────────
@@ -274,7 +335,11 @@ export const graphicsApi = {
    * Delete a user-created custom shape by its design_objects UUID.
    * Only user shapes (source=user) can be deleted; library shapes are immutable.
    */
-  deleteUserShape: (id: string) => api.delete(`/api/v1/shapes/user/${id}`),
+  deleteUserShape: async (id: string) => {
+    const result = await api.delete(`/api/v1/shapes/user/${id}`);
+    if (result.success) shapeCache.clear();
+    return result;
+  },
 
   /** Export a graphic as a .iographic ZIP (returns Blob) */
   exportIographic: async (id: string, description?: string): Promise<Blob> => {

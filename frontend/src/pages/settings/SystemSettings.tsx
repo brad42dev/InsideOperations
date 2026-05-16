@@ -254,10 +254,11 @@ function GeneralTab() {
 
   // Compute a preview of the current timezone offset
   const [tzPreview, setTzPreview] = useState("");
+  const systemTimezone = form["system.timezone"];
   useEffect(() => {
     try {
       const fmt = new Intl.DateTimeFormat("en-US", {
-        timeZone: form["system.timezone"],
+        timeZone: systemTimezone,
         timeZoneName: "longOffset",
         hour: "2-digit",
         minute: "2-digit",
@@ -271,7 +272,7 @@ function GeneralTab() {
     } catch {
       setTzPreview("");
     }
-  }, [form["system.timezone"]]);
+  }, [form, systemTimezone]);
 
   if (isLoading) {
     return (

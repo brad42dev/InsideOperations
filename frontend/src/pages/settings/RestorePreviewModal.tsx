@@ -307,7 +307,7 @@ export function RestorePreviewModal({
       .catch(() => {
         setLoadError("Network error loading restore preview");
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [snapshotId]);
 
   const toggleRow = (id: string) => {

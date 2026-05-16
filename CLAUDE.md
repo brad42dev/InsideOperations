@@ -1,115 +1,53 @@
-# Inside/Operations — Claude Working Instructions
+# Inside/Operations
 
-**Project reference** (tech stack, modules, services, design-doc index): `docs/PROJECT_REFERENCE.md`
-Update that file when any of it changes — the design-docs in `design-docs/` are frozen at initial commit.
+Industrial control / SCADA-style web app. Rust backend (11 services + API gateway), TypeScript/React frontend (Vite), PostgreSQL + TimescaleDB.
 
----
-
-## Specs and Design Docs — Historical Archive
-
-Both `design-docs/` and `/home/io/spec_docs/` are **historical**. They describe original design intent but have not been maintained as the codebase evolved. **The code is the authority.**
-
-See `design-docs/ARCHIVE.md` and `spec_docs/ARCHIVE.md` for details.
-
-**Exception:** `design-docs/shape-sidecar-spec/` is actively maintained and current.
-
-They're still worth a skim when working in a covered module for the first time — non-negotiables and architectural constraints are mostly still valid. But verify against the actual code before acting on specifics.
-
-**`docs/SPEC_MANIFEST.md`** tracks audit status per unit. **`docs/decisions/`** has current decision files.
-
----
-
-## Licensing (CRITICAL)
-
-All dependencies must be licensed for royalty-free commercial use: MIT, Apache 2.0, BSD, ISC, PostgreSQL, MPL 2.0.
-**Prohibited:** GPL, AGPL, LGPL, or any copyleft license. When in doubt, don't use it.
-
----
-
-## Dev Environment
-
-```bash
-# Start everything (DB + all 11 services)
-BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/13/include" ./dev.sh start
-
-# Frontend dev server (separate terminal)
-cd frontend && pnpm dev          # Vite on port 5173
-
-# Other dev.sh commands
-./dev.sh stop / restart / status / health
-./dev.sh logs [service-name]
-./dev.sh build                   # rebuild + restart running services
-```
-
-> **Build gotcha:** `BINDGEN_EXTRA_CLANG_ARGS` is required on this machine — clang-18 runtime is installed but not its headers. Any `cargo build` that touches the `samael` crate will fail without it.
-
-> **Kill gotcha:** `pkill -f "target/debug"` exits 144 (kills the shell). Use `pgrep -af target/debug` to find PIDs and `kill <pid>` individually.
-
----
-
-## Build Commands (individual)
-
-```bash
-# Backend (from repo root)
-cargo build                          # all workspace crates
-cargo build -p io-api-gateway        # specific service
-cargo test / cargo test -p <crate>
-cargo clippy -- -D warnings          # must be clean
-
-# Frontend (from frontend/)
-pnpm build / pnpm test / pnpm lint
-
-# Database
-docker compose up -d                 # start PostgreSQL + TimescaleDB
-sqlx migrate run                     # apply pending migrations
-```
-
-Admin login: `admin` / `changeme`
-DB: `postgresql://io:io_password@localhost:5432/io_dev`
-
----
-
-## Authority Documents
-
-| Doc | Authority over |
-|-----|---------------|
-| `design-docs/03` | RBAC — 118 permissions, 8 roles, all permission names |
-| `design-docs/04` | Schema — all table DDL, indexes, triggers, seed data |
-| `design-docs/05` | Build order — 17 phases, what ships when |
-| `design-docs/37` | Wire formats — inter-service message shapes, REST envelope, error codes |
-
----
-
-## Audit System
-
-```
-/design-qa <contract>   → discover implementations, Q&A, write decision file
-/audit <unit-id>        → verify code against spec, produce task files for gaps
-```
-
-- `docs/SPEC_MANIFEST.md` — all audit units, non-negotiables, false-DONE patterns
-- `docs/decisions/` — decision files from `/design-qa` sessions
+## Project map
+- `docs/PROJECT_REFERENCE.md` — tech stack, modules, services, design-doc index. Update when any of it changes.
+- `frontend/` — React app, Vite dev server on :5173
+- `crates/` — Rust workspace, all backend services
+- `design-docs/` and `/home/io/spec_docs/` — **historical, not maintained**. Code is authority. See `design-docs/ARCHIVE.md` and `spec_docs/ARCHIVE.md`. Exception: `design-docs/shape-sidecar-spec/` is current.
+- `docs/SPEC_MANIFEST.md` — audit status per unit, non-negotiables, false-DONE patterns
+- `docs/decisions/` — current decision files (from `/design-qa`)
 - `docs/tasks/` — task files for verified gaps
 
-**Wave 0 cross-cutting contracts** (apply to ALL modules):
-`CX-EXPORT`, `CX-POINT-CONTEXT`, `CX-ENTITY-CONTEXT`, `CX-CANVAS-CONTEXT`,
-`CX-POINT-DETAIL`, `CX-PLAYBACK`, `CX-RBAC`, `CX-ERROR`, `CX-LOADING`, `CX-EMPTY`, `CX-TOKENS`, `CX-KIOSK`
+## Authority docs (current)
+| Doc | Authority over |
+|-----|----------------|
+| `design-docs/03` | RBAC — 118 permissions, 8 roles |
+| `design-docs/04` | Schema — DDL, indexes, triggers, seed data |
+| `design-docs/05` | Build order — 17 phases |
+| `design-docs/37` | Wire formats — inter-service messages, REST envelope, errors |
 
----
+## Invariants — do not violate without explicit approval
 
-## Point Identity — Non-Negotiable
+1. **Point identity: UUID internal, tagname external.** Frontend never uses raw UUID as a point identifier. All bindings carry `pointTag` or `pointId` (resolved only). Resolution: `resolvedTagMap` in `SceneRenderer` + `POST /api/points/resolve-tags`. No fallback path skips resolution. If resolution fails → error/offline state, never silent bind. The one exception: `data-point-id` SVG attributes carry resolved UUIDs (WS wire format is UUID-keyed). Do not add user-facing APIs that take/display raw UUIDs.
 
-Point data uses UUID as the **internal** primary key for performance (16-byte FK in billions of history rows). UUIDs must never leak into user-facing frontend code.
+2. **Licenses.** Dependencies must be MIT, Apache-2.0, BSD, ISC, PostgreSQL, or MPL-2.0. No GPL/AGPL/LGPL/copyleft. When in doubt, don't add it.
 
-- **Frontend never uses a raw UUID as a point identifier.** All point bindings carry `pointTag` (tagname) or `pointId` (UUID only after resolution). Resolution happens through `resolvedTagMap` in `SceneRenderer` and the `POST /api/points/resolve-tags` endpoint. There is no fallback path that skips resolution.
-- **If tag resolution fails, show an error/offline state.** Never silently bind a UUID directly to a DOM element or WS subscription.
-- **`data-point-id` attributes on SVG elements** contain resolved UUIDs (the WS wire format is UUID-keyed for performance). This is correct — the DOM mutation path is the one place UUIDs are intentionally used. Everywhere above that layer uses tagnames.
-- **UUID internal, tagname external** — this is a deliberate architectural decision. Do not add new frontend API calls that take or display a raw UUID. If you need to reference a point from user-facing code, use tagname + source_id.
+3. **Historical specs are not authoritative.** When working in a module covered by a spec in `design-docs/` or `spec_docs/`, skim for non-negotiables and architectural intent, but verify every specific against current code before acting on it.
 
-## Known Gotchas
+## Building and running
+- `./dev.sh` — start/stop/restart/status/health/logs/build for the full stack. Run `./dev.sh` with no args for usage.
+- Frontend dev server: `cd frontend && pnpm dev`
+- Tests: `cargo test [-p <crate>]` and `pnpm test` in `frontend/`
+- Lint must be clean: `cargo clippy -- -D warnings` and `pnpm lint`
 
-- **`point_meta.tagname`** — no underscore. The field is `tagname`, not `tag_name`. API always returns `tagname`.
-- **`position: fixed` in react-grid-layout** — breaks due to CSS transforms. Use `createPortal(el, document.body)` instead.
-- **Designer `graphicScope`** — stored in `doc.metadata.graphicScope`, not `doc.scope`.
-- **`aggregation_types = 0`** means unrestricted (all types allowed), not "no aggregations". Sending 0 in the wrong context caused HTTP 400 on all charts.
-- **TimescaleDB continuous aggregates** — `materialized_only=true` by default; manual `CALL refresh_continuous_aggregate(...)` required after `TRUNCATE`.
+### Environment gotchas
+- **`BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/13/include"`** is required for any `cargo build` touching `samael`. `dev.sh` sets this; one-off `cargo` invocations need it exported.
+- **Never use `pkill -f "target/debug"`** — exit 144 kills the shell. Use `pgrep -af target/debug` + `kill <pid>` individually.
+
+## Audit workflow
+- `/design-qa <contract>` — discover implementations, Q&A, write decision file
+- `/audit <unit-id>` — verify code against spec, produce task files for gaps
+- Wave 0 cross-cutting contracts (apply to all modules): see `docs/SPEC_MANIFEST.md`
+
+## Codebase quirks (pointers, not copies)
+- `point_meta.tagname` — one word, no underscore. API returns `tagname`.
+- `position: fixed` inside `react-grid-layout` breaks (CSS transforms). Use `createPortal(el, document.body)`. See `frontend/src/shared/graphics/` for established pattern.
+- Designer scope lives at `doc.metadata.graphicScope`, not `doc.scope`.
+- `aggregation_types = 0` means *unrestricted*, not "none". Wrong context = HTTP 400.
+- TimescaleDB continuous aggregates: `materialized_only=true` default; `CALL refresh_continuous_aggregate(...)` after `TRUNCATE`.
+
+## Admin / DB (local dev)
+`admin` / `changeme` · `postgresql://io:io_password@localhost:5432/io_dev`

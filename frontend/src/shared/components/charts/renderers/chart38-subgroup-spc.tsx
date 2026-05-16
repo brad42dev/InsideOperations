@@ -422,7 +422,7 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
           : []),
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [xbarStats, dispStats, labels, subchartType]);
 
   if (instrumentSlots.length === 0) {

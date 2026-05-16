@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 import * as echarts from "echarts";
 import {
   useThemeName,

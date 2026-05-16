@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { pointsApi } from "../../api/points";
 import type { PointDetail } from "../../api/points";
@@ -8,7 +9,11 @@ import type { PointDetail } from "../../api/points";
  * Caches via TanStack Query with 5-minute staleTime.
  */
 export function usePointMeta(pointIds: string[]): Map<string, PointDetail> {
-  const uniqueIds = Array.from(new Set(pointIds.filter(Boolean)));
+  const uniqueIds = useMemo(
+    () => Array.from(new Set(pointIds.filter(Boolean))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pointIds.join(",")],
+  );
 
   const results = useQueries({
     queries: uniqueIds.map((id) => ({
@@ -22,10 +27,16 @@ export function usePointMeta(pointIds: string[]): Map<string, PointDetail> {
     })),
   });
 
-  const metaMap = new Map<string, PointDetail>();
-  uniqueIds.forEach((id, i) => {
-    const data = results[i]?.data;
-    if (data) metaMap.set(id, data);
-  });
-  return metaMap;
+  // Stable key: changes only when actual data resolves, not on every render.
+  const dataKey = results.map((r) => r.dataUpdatedAt ?? 0).join(",");
+
+  return useMemo(() => {
+    const metaMap = new Map<string, PointDetail>();
+    uniqueIds.forEach((id, i) => {
+      const data = results[i]?.data;
+      if (data) metaMap.set(id, data);
+    });
+    return metaMap;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uniqueIds, dataKey]);
 }

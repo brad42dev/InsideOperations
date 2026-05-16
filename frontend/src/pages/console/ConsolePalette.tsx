@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { graphicsApi } from "../../api/graphics";
+import { savedChartsApi } from "../../api/savedCharts";
+import type { ChartConfig } from "../../shared/components/charts/chart-config-types";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { VersionRecoveryDialog } from "../../shared/components/versioning/VersionRecoveryDialog";
+import type { ChartVersionContent } from "../../shared/types/versioning";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 import type { WorkspaceLayout } from "./types";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
 import { useAuthStore } from "../../store/auth";
@@ -1110,6 +1116,15 @@ function WorkspacesSection({
 
   return (
     <div style={{ padding: "4px 0" }}>
+      <div style={{ padding: "4px 10px 2px" }}>
+        <AdminToggle
+          label="All users"
+          checked={useAdminToggleStore((s) => s.showAllUsersObjects)}
+          onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+          title="Show all users' workspaces"
+        />
+      </div>
+
       {favoriteItems.length > 0 && (
         <>
           <SubGroupLabel label="Favorites" icon={<StarIcon filled />} />
@@ -1173,8 +1188,37 @@ function ChartsSection({
 }) {
   const [dragging, setDragging] = useState(false);
   const [hovering, setHovering] = useState(false);
-  const { charts, publishChart, deleteChart } = useSavedChartsStore();
-  const canPublish = usePermission("console:publish");
+  const [versionHistoryChartId, setVersionHistoryChartId] = useState<string | null>(null);
+  const {
+    charts,
+    publishChart,
+    deleteChart,
+    fetchCharts,
+    initialized,
+    migrationPending,
+    migrateFromLocalStorage,
+    dismissMigration,
+  } = useSavedChartsStore();
+  const canPublish = usePermission("console:workspace_publish");
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
+  const handleLoadChartVersion = useCallback((content: ChartVersionContent | unknown) => {
+    const vc = content as ChartVersionContent;
+    if (!vc?.config || !versionHistoryChartId) return;
+    const chartId = versionHistoryChartId;
+    void savedChartsApi.update(chartId, { config: vc.config as ChartConfig }).then((r) => {
+      if (r.success) void fetchCharts({ allUsers: showAllUsers });
+    });
+  }, [versionHistoryChartId, fetchCharts, showAllUsers]);
+
+  useEffect(() => {
+    if (!initialized) void fetchCharts({ allUsers: showAllUsers });
+  }, [initialized, fetchCharts, showAllUsers]);
+
+  useEffect(() => {
+    if (initialized) void fetchCharts({ allUsers: showAllUsers });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAllUsers]);
   const blankItem: ConsoleDragItem = { itemType: "chart", label: "Chart" };
 
   const published = charts.filter((c) => c.published);
@@ -1199,6 +1243,36 @@ function ChartsSection({
         gap: 2,
       }}
     >
+      <div style={{ padding: "0 2px 2px" }}>
+        <AdminToggle
+          label="All users"
+          checked={showAllUsers}
+          onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+          title="Show all users' charts"
+        />
+      </div>
+      {migrationPending && (
+        <div
+          style={{
+            padding: "8px",
+            background: "var(--io-surface-elevated)",
+            borderRadius: 4,
+            margin: "4px 0",
+          }}
+        >
+          <div
+            style={{ fontSize: 11, color: "var(--io-text)", marginBottom: 4 }}
+          >
+            Found saved charts in this browser. Migrate to the server?
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => void migrateFromLocalStorage()}>
+              Migrate
+            </button>
+            <button onClick={dismissMigration}>Dismiss</button>
+          </div>
+        </div>
+      )}
       {/* Blank "any chart" item */}
       <div
         draggable
@@ -1284,6 +1358,7 @@ function ChartsSection({
                   }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
+                  onVersionHistory={() => setVersionHistoryChartId(chart.id)}
                 />
               ))}
             </>
@@ -1317,11 +1392,22 @@ function ChartsSection({
                   }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
+                  onVersionHistory={() => setVersionHistoryChartId(chart.id)}
                 />
               ))}
             </>
           )}
         </>
+      )}
+      {versionHistoryChartId && (
+        <VersionRecoveryDialog
+          open={!!versionHistoryChartId}
+          onClose={() => setVersionHistoryChartId(null)}
+          objectType="chart"
+          objectId={versionHistoryChartId}
+          objectName={charts.find((c) => c.id === versionHistoryChartId)?.name}
+          onLoadVersion={handleLoadChartVersion}
+        />
       )}
     </div>
   );
@@ -1334,6 +1420,7 @@ function SavedChartRow({
   onQuickPlace,
   onPublish,
   onDelete,
+  onVersionHistory,
 }: {
   chart: SavedChart;
   canPublish: boolean;
@@ -1341,18 +1428,19 @@ function SavedChartRow({
   onQuickPlace: () => void;
   onPublish: (published: boolean) => void;
   onDelete: () => void;
+  onVersionHistory: () => void;
 }) {
   const [hovering, setHovering] = useState(false);
   const { menuState, handleContextMenu, closeMenu } = useContextMenu();
 
   const menuItems = [
     { label: "Place in Active Pane", onClick: onQuickPlace },
+    { label: "Version History", onClick: onVersionHistory, divider: true },
     ...(canPublish
       ? [
           {
             label: chart.published ? "Unpublish" : "Publish",
             onClick: () => onPublish(!chart.published),
-            divider: true,
           },
         ]
       : []),
@@ -1708,10 +1796,12 @@ function GraphicsSection({
   onToggleFavorite: (id: string) => void;
   search?: string;
 }) {
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["console-palette-graphics"],
+    queryKey: ["console-palette-graphics", showAllUsers],
     queryFn: async () => {
-      const r = await graphicsApi.list({ scope: "console" });
+      const r = await graphicsApi.list({ scope: "console", includeAllUsers: showAllUsers });
       if (!r.success) return [];
       return r.data.data ?? [];
     },
@@ -1732,9 +1822,21 @@ function GraphicsSection({
     (g) => !favoriteIds.has(g.id),
   );
 
+  const toggleBar = (
+    <div style={{ padding: "4px 10px 2px" }}>
+      <AdminToggle
+        label="All users"
+        checked={showAllUsers}
+        onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+        title="Show all users' graphics"
+      />
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div style={{ padding: "4px 0" }}>
+        {toggleBar}
         <div
           style={{
             padding: "8px 10px",
@@ -1751,6 +1853,7 @@ function GraphicsSection({
   if (graphics.length === 0) {
     return (
       <div style={{ padding: "4px 0" }}>
+        {toggleBar}
         <div
           style={{
             padding: "8px 10px",
@@ -1860,6 +1963,7 @@ function GraphicsSection({
         gap: 3,
       }}
     >
+      {toggleBar}
       {filteredGraphics.length === 0 && (
         <div
           style={{

@@ -253,7 +253,7 @@ export default function TrendPane({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const { updatePane, activeId } = useWorkspaceStore();
   const { saveChart, publishChart } = useSavedChartsStore();
-  const canPublish = usePermission("console:publish");
+  const canPublish = usePermission("console:workspace_publish");
 
   const paneZoneId = `console/pane/${config.id}` as const;
   useSelectionZone({
@@ -543,7 +543,7 @@ export default function TrendPane({
   // rAF batches pending updates so setTick fires at most once per frame,
   // preventing interference with SceneRenderer's DOM-mutation path.
   const trendRafPendingRef = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const trendPendingPvsRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
@@ -551,7 +551,7 @@ export default function TrendPane({
 
     if (wsManager.getState() === "disconnected") void wsManager.connect();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const handler = (pv: any) => {
       trendPendingPvsRef.current.set(pv.pointId, pv);
       if (!trendRafPendingRef.current) {
@@ -599,9 +599,10 @@ export default function TrendPane({
     };
 
     pointIds.forEach((id) => wsManager.subscribe(id, handler));
+    const pendingPvs = trendPendingPvsRef.current;
     return () => {
       pointIds.forEach((id) => wsManager.unsubscribe(id, handler));
-      trendPendingPvsRef.current.clear();
+      pendingPvs.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHistorical, pointIds.join(","), bucketSeconds, durationMinutes]);
@@ -692,20 +693,20 @@ export default function TrendPane({
     if (activeId) updatePane(activeId, { ...config, chartConfig: newConfig });
   }
 
-  function handleSaveChart(
+  async function handleSaveChart(
     cfg: ChartConfig,
     name: string,
     description: string,
     publish: boolean,
   ) {
-    const saved = saveChart({
+    const saved = await saveChart({
       name,
       description: description || undefined,
       chartType: cfg.chartType,
       config: cfg,
-      published: publish || undefined,
+      published: publish || false,
     });
-    if (publish) publishChart(saved.id, true);
+    if (saved && publish) await publishChart(saved.id, true);
     setSaveModal(null);
   }
 

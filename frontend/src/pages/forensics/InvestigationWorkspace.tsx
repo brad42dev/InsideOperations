@@ -37,6 +37,8 @@ import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
 import ForensicsPlaybackBar from "../../shared/components/ForensicsPlaybackBar";
 import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
+import { AdminToggle } from "../../shared/components/AdminToggle";
+import { useAdminToggleStore } from "../../store/adminToggleStore";
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -136,11 +138,13 @@ function StageCard({
   );
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
+
   // Load graphic list only when snapshot dialog is open
   const graphicsQuery = useQuery({
-    queryKey: ["graphics-list-for-snapshot"],
+    queryKey: ["graphics-list-for-snapshot", showAllUsers],
     queryFn: async () => {
-      const result = await graphicsApi.list();
+      const result = await graphicsApi.list({ includeAllUsers: showAllUsers });
       return result.success ? (result.data.data ?? []) : [];
     },
     enabled: showSnapshotDialog,
@@ -577,6 +581,13 @@ function StageCard({
               >
                 📷 Add Graphic Snapshot
               </h3>
+
+              <AdminToggle
+                label="All users"
+                checked={showAllUsers}
+                onChange={useAdminToggleStore.getState().setShowAllUsersObjects}
+                title="Show all users' graphics"
+              />
 
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "6px" }}

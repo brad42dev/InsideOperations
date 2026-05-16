@@ -46,8 +46,9 @@ import DesignerLeftPalette from "./DesignerLeftPalette";
 import DesignerRightPanel from "./DesignerRightPanel";
 import DesignerCanvas, { getNodeBounds } from "./DesignerCanvas";
 import DesignerTabBar from "./DesignerTabBar";
-import { SceneRenderer } from "../../shared/graphics/SceneRenderer";
 import VersionHistoryDialog from "./components/VersionHistoryDialog";
+import { PublishConfirmDialog } from "../../shared/components/versioning";
+import { SaveConfirmDialog } from "../../shared/components/versioning/SaveConfirmDialog";
 import ValidateBindingsDialog from "./components/ValidateBindingsDialog";
 import IographicImportWizard from "./components/IographicImportWizard";
 import IographicExportDialog from "./components/IographicExportDialog";
@@ -907,6 +908,8 @@ export default function DesignerPage() {
   const tabStoreOpenGroupTab = useTabStore((s) => s.openGroupTab);
   const tabStoreCloseGroupTabs = useTabStore((s) => s.closeGroupTabsForGraphic);
   const tabStoreSetGraphicId = useTabStore((s) => s.setTabGraphicId);
+  const tabStoreSetPreviewMeta = useTabStore((s) => s.setTabPreviewMeta);
+  const tabStoreClearPreviewMeta = useTabStore((s) => s.clearTabPreviewMeta);
   const setViewport = useUiStore((s) => s.setViewport);
   const setActiveGroup = useUiStore((s) => s.setActiveGroup);
 
@@ -946,6 +949,9 @@ export default function DesignerPage() {
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false);
 
+  // Preview tab save confirmation
+  const [showPreviewSaveConfirm, setShowPreviewSaveConfirm] = useState(false);
+
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -982,10 +988,11 @@ export default function DesignerPage() {
     /** Ordered docBefore snapshots for undo history reconstruction */
     historyDocs: GraphicDocument[];
   } | null>(null);
-  const [showCrashPreview, setShowCrashPreview] = useState(false);
 
   // Dialogs
+  const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [showValidateBindings, setShowValidateBindings] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -1019,6 +1026,125 @@ export default function DesignerPage() {
   useEffect(() => {
     return wsManager.onStateChange((s) => setWsConnected(s === "connected"));
   }, []);
+
+  // -------------------------------------------------------------------------
+  // Autosave cleanup helper
+  //
+  // Deletes BOTH the server __autosave_* row and the IDB record for a graphic.
+  // Call this on any explicit user action that discards or supersedes an autosave
+  // (Discard in crash-recovery dialog, Discard in tab-close prompt, real save).
+  //
+  // autosaveIdHint: the known server row UUID (pass autoSaveIdRef.current for the
+  //   active tab; pass null for inactive tabs — it will be read from IDB).
+  // idbKey: the IndexedDB key for this graphic (graphicId or "__new__").
+  // -------------------------------------------------------------------------
+
+  const cleanupAutosave = useCallback(
+    async (autosaveIdHint: string | null, idbKey: string) => {
+      const db = idbRef.current;
+
+      // Resolve autosaveId: use hint if already known, else read from IDB
+      let autosaveId = autosaveIdHint;
+      if (!autosaveId && db) {
+        autosaveId = await new Promise<string | null>((resolve) => {
+          try {
+            const rTx = db.transaction("designer-autosave", "readonly");
+            const rReq = rTx.objectStore("designer-autosave").get(idbKey);
+            rReq.onsuccess = () =>
+              resolve(
+                (rReq.result as { autosaveId?: string } | undefined)
+                  ?.autosaveId ?? null,
+              );
+            rReq.onerror = () => resolve(null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+
+      if (autosaveId) {
+        void graphicsApi.remove(autosaveId).catch(() => {});
+        if (autoSaveIdRef.current === autosaveId) {
+          autoSaveIdRef.current = null;
+        }
+      }
+
+      try {
+        if (db) {
+          const tx = db.transaction("designer-autosave", "readwrite");
+          tx.objectStore("designer-autosave").delete(idbKey);
+        }
+      } catch {
+        /* best-effort */
+      }
+    },
+    [],
+  );
+
+  // -------------------------------------------------------------------------
+  // Open recovered autosave content in a new preview tab
+  // -------------------------------------------------------------------------
+
+  const openRecoveryPreviewTab = useCallback(
+    (recovery: {
+      id: string;
+      savedAt: number;
+      savedDoc: unknown;
+      autosaveId: string | null;
+      historyDocs: GraphicDocument[];
+    }) => {
+      const savedDoc = recovery.savedDoc as GraphicDocument;
+      const originalName = savedDoc?.name ?? "Untitled";
+      const previewGraphicId = "preview-" + crypto.randomUUID();
+
+      const { tabId: openedTabId } = tabStoreOpenTab(
+        previewGraphicId,
+        "Preview — " + originalName,
+      );
+      tabStoreSetPreviewMeta(openedTabId, {
+        previewSourceId: graphicId ?? undefined,
+        previewAutosaveId: recovery.autosaveId ?? undefined,
+        previewIdbKey: recovery.id,
+      });
+
+      useSceneStore.setState({
+        doc: savedDoc,
+        graphicId: null,
+        isDirty: true,
+        designMode: savedDoc.metadata?.designMode ?? "graphic",
+        version: 0,
+      });
+
+      historyRestoreFromSnapshots(recovery.historyDocs, savedDoc);
+
+      useSceneStore.getState()._setDoc(savedDoc, true);
+
+      const recShapeIds: string[] = [];
+      const walkShapes = (nodes: SceneNode[]) => {
+        for (const n of nodes) {
+          if (n.type === "symbol_instance") {
+            recShapeIds.push((n as SymbolInstance).shapeRef.shapeId);
+          }
+          if (
+            "children" in n &&
+            Array.isArray((n as { children?: unknown[] }).children)
+          ) {
+            walkShapes((n as { children: SceneNode[] }).children);
+          }
+        }
+      };
+      walkShapes(savedDoc.children ?? []);
+      if (recShapeIds.length > 0) {
+        void useLibraryStore.getState().loadShapes(recShapeIds);
+      }
+    },
+    [
+      graphicId,
+      tabStoreOpenTab,
+      tabStoreSetPreviewMeta,
+      historyRestoreFromSnapshots,
+    ],
+  );
 
   // -------------------------------------------------------------------------
   // Load graphic on mount
@@ -1162,7 +1288,7 @@ export default function DesignerPage() {
         lockHeldRef.current = false;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [graphicId]);
 
   // -------------------------------------------------------------------------
@@ -1170,13 +1296,27 @@ export default function DesignerPage() {
   // -------------------------------------------------------------------------
 
   const handleSave = useCallback(
-    async ({ explicit = false }: { explicit?: boolean } = {}) => {
+    async ({
+      explicit = false,
+      label,
+    }: { explicit?: boolean; label?: string } = {}) => {
       const currentDoc = useSceneStore.getState().doc;
       const currentId = useSceneStore.getState().graphicId;
       // For new (unsaved) documents there is no lock yet — allow save.
       // For existing documents, block save if this session doesn't hold the lock.
       if (!currentDoc || isSaving) return;
       if (currentId && lockHeldRef.current === false) return;
+
+      // Preview tabs require explicit confirmation before overwriting the canonical graphic
+      if (
+        useTabStore
+          .getState()
+          .tabs.find((t) => t.id === useTabStore.getState().activeTabId)
+          ?.isPreview
+      ) {
+        setShowPreviewSaveConfirm(true);
+        return;
+      }
 
       setIsSaving(true);
       try {
@@ -1186,6 +1326,7 @@ export default function DesignerPage() {
           const result = await graphicsApi.update(currentId, {
             name: docName,
             scene_data: currentDoc,
+            ...(label !== undefined ? { label } : {}),
           });
           if (!result.success) {
             console.error(
@@ -1238,6 +1379,9 @@ export default function DesignerPage() {
               tabStoreSetGraphicId(activeTabId, resp.data.id, docName);
             }
           }
+          // Update URL from /designer/graphics/new → /designer/graphics/:id/edit
+          // so useParams() returns the real ID and version history / lock flow work correctly.
+          navigate(`/designer/graphics/${resp.data.id}/edit`, { replace: true });
         }
         markClean();
         historyMarkClean();
@@ -1335,14 +1479,70 @@ export default function DesignerPage() {
         setIsSaving(false);
       }
     },
-    [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId],
+    [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId, navigate],
   );
 
-  /** Stable callback for UI-initiated saves (toolbar, menu) — marks explicit for toast warnings. */
+  /** Stable callback for UI-initiated saves (toolbar, menu) — opens the save confirm dialog. */
   const handleExplicitSave = useCallback(
-    () => handleSave({ explicit: true }),
-    [handleSave],
+    () => setShowSaveConfirmDialog(true),
+    [],
   );
+
+  const handlePreviewSaveConfirmed = useCallback(async () => {
+    setShowPreviewSaveConfirm(false);
+    const currentActiveTab = useTabStore
+      .getState()
+      .tabs.find((t) => t.id === useTabStore.getState().activeTabId);
+    if (!currentActiveTab?.isPreview || !currentActiveTab.previewSourceId)
+      return;
+
+    const doc = useSceneStore.getState().doc;
+    if (!doc) return;
+
+    setIsSaving(true);
+    try {
+      const result = await graphicsApi.update(
+        currentActiveTab.previewSourceId,
+        {
+          name: doc.name ?? "Untitled",
+          scene_data: doc,
+        },
+      );
+      if (result.success) {
+        void cleanupAutosave(
+          currentActiveTab.previewAutosaveId ?? null,
+          currentActiveTab.previewIdbKey ?? "",
+        );
+        tabStoreClearPreviewMeta(currentActiveTab.id);
+        tabStoreSetGraphicId(
+          currentActiveTab.id,
+          currentActiveTab.previewSourceId,
+          doc.name ?? "Untitled",
+        );
+        markClean();
+        historyMarkClean();
+        showToast({
+          title: "Graphic saved",
+          variant: "success",
+          duration: 3000,
+        });
+        navigate(`/designer/graphics/${currentActiveTab.previewSourceId}/edit`);
+      } else {
+        showToast({ title: "Save failed", variant: "error" });
+      }
+    } catch {
+      showToast({ title: "Save failed", variant: "error" });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    cleanupAutosave,
+    tabStoreClearPreviewMeta,
+    tabStoreSetGraphicId,
+    markClean,
+    historyMarkClean,
+    navigate,
+  ]);
 
   const handleRenameConfirm = useCallback(
     async (newName: string) => {
@@ -1462,33 +1662,26 @@ export default function DesignerPage() {
   // Publish — create permanent version snapshot
   // -------------------------------------------------------------------------
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(async (label?: string) => {
     const currentId = useSceneStore.getState().graphicId;
-    // Block publish only if another user explicitly holds the lock (lockState is set)
     if (!currentId || isPublishing) return;
-    if (
-      !window.confirm(
-        "Publish this graphic? This creates a permanent, immutable snapshot that cannot be deleted.",
-      )
-    )
-      return;
 
     setIsPublishing(true);
     try {
-      // Save first to ensure the snapshot captures the latest content
-      await handleSave();
+      await handleSave({ explicit: true, label });
       const result = await graphicsApi.publishGraphic(currentId);
       if (result.success) {
-        // Show brief success indication via the version history panel
-        setShowVersionHistory(true);
+        showToast({ title: "Graphic published", variant: "success", duration: 3000 });
       } else {
-        console.error(
-          "[DesignerPage] Publish failed:",
-          (result as { error: { message: string } }).error?.message,
-        );
+        showToast({
+          title: "Publish failed",
+          description: (result as { error: { message: string } }).error?.message ?? "Unknown error",
+          variant: "error",
+        });
       }
     } catch (err) {
       console.error("[DesignerPage] Publish failed:", err);
+      showToast({ title: "Publish failed", variant: "error" });
     } finally {
       setIsPublishing(false);
     }
@@ -1976,7 +2169,7 @@ export default function DesignerPage() {
       } else {
         doClose();
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+       
     },
     [
       tabStoreCloseTab,
@@ -2025,6 +2218,8 @@ export default function DesignerPage() {
           markClean();
           historyMarkClean();
         }
+        // Autosave is superseded by the real save — clean up both sides
+        void cleanupAutosave(isActive ? autoSaveIdRef.current : null, gid);
       }
     } catch (err) {
       console.error("[DesignerPage] Tab save failed:", err);
@@ -2046,6 +2241,7 @@ export default function DesignerPage() {
     markClean,
     historyMarkClean,
     requestCloseTab,
+    cleanupAutosave,
   ]);
 
   // Sync isDirty → active tab's isModified
@@ -2095,12 +2291,12 @@ export default function DesignerPage() {
     function handler(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        handleSave({ explicit: true });
+        setShowSaveConfirmDialog(true);
       }
     }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleSave]);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Tab keyboard shortcuts: Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1-9
@@ -2490,7 +2686,7 @@ export default function DesignerPage() {
       idbRef.current = null;
       autoSaveIdRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [graphicId, isNew]);
 
   // -------------------------------------------------------------------------
@@ -2695,7 +2891,10 @@ export default function DesignerPage() {
               style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
             >
               <button
-                onClick={() => setShowCrashPreview(true)}
+                onClick={() => {
+                  openRecoveryPreviewTab(crashRecovery);
+                  setCrashRecovery(null);
+                }}
                 style={{
                   padding: "6px 14px",
                   fontSize: 12,
@@ -2710,21 +2909,11 @@ export default function DesignerPage() {
               </button>
               <button
                 onClick={() => {
-                  // Discard — delete the auto-save from IndexedDB and load normally
-                  try {
-                    const db = idbRef.current;
-                    if (db) {
-                      const tx = db.transaction(
-                        "designer-autosave",
-                        "readwrite",
-                      );
-                      tx.objectStore("designer-autosave").delete(
-                        crashRecovery.id,
-                      );
-                    }
-                  } catch {
-                    /* best-effort */
-                  }
+                  // Discard — delete both the server row and the IDB record
+                  void cleanupAutosave(
+                    crashRecovery.autosaveId,
+                    crashRecovery.id,
+                  );
                   setCrashRecovery(null);
                 }}
                 style={{
@@ -2856,121 +3045,6 @@ export default function DesignerPage() {
         </div>
       )}
 
-      {/* Crash recovery split-view preview overlay (spec §18 [Preview]) */}
-      {crashRecovery &&
-        showCrashPreview &&
-        (() => {
-          const currentDoc = useSceneStore.getState().doc;
-          const savedDoc = crashRecovery.savedDoc as GraphicDocument | null;
-          return (
-            <div
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(0,0,0,0.85)",
-                zIndex: 2200,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div
-                style={{
-                  padding: "10px 16px",
-                  background: "var(--io-surface)",
-                  borderBottom: "1px solid var(--io-border)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "var(--io-text-primary)",
-                  }}
-                >
-                  Preview: Compare Versions
-                </span>
-                <span
-                  style={{ fontSize: 12, color: "var(--io-text-secondary)" }}
-                >
-                  Left: Current server version — Right: Auto-saved{" "}
-                  {new Date(crashRecovery.savedAt).toLocaleTimeString()}
-                </span>
-                <button
-                  onClick={() => setShowCrashPreview(false)}
-                  style={{
-                    marginLeft: "auto",
-                    padding: "4px 12px",
-                    fontSize: 12,
-                    background: "transparent",
-                    border: "1px solid var(--io-border)",
-                    borderRadius: "var(--io-radius)",
-                    color: "var(--io-text-secondary)",
-                    cursor: "pointer",
-                  }}
-                >
-                  Close Preview
-                </button>
-              </div>
-              <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-                <div
-                  style={{
-                    flex: 1,
-                    borderRight: "2px solid var(--io-border)",
-                    overflow: "hidden",
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      left: 8,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: "var(--io-text-secondary)",
-                      background: "var(--io-surface)",
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      border: "1px solid var(--io-border)",
-                    }}
-                  >
-                    Server version
-                  </div>
-                  {currentDoc && <SceneRenderer document={currentDoc} />}
-                </div>
-                <div
-                  style={{ flex: 1, overflow: "hidden", position: "relative" }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      left: 8,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: "var(--io-accent)",
-                      background: "var(--io-surface)",
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      border: "1px solid var(--io-accent)",
-                      zIndex: 1,
-                    }}
-                  >
-                    Auto-saved version
-                  </div>
-                  {savedDoc && <SceneRenderer document={savedDoc} />}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
       {/* Pessimistic lock banner — shown when the graphic is locked by someone else */}
       {lockState && (
         <div
@@ -3028,6 +3102,32 @@ export default function DesignerPage() {
         </div>
       )}
 
+      {/* Recovery preview banner */}
+      {activeTab?.isPreview && (
+        <div
+          style={{
+            background: "color-mix(in srgb, var(--io-accent) 12%, transparent)",
+            borderBottom:
+              "1px solid color-mix(in srgb, var(--io-accent) 40%, transparent)",
+            padding: "6px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            fontSize: 12,
+            color: "var(--io-text-primary)",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ color: "var(--io-accent)", fontWeight: 600 }}>
+            Recovered changes
+          </span>
+          <span style={{ color: "var(--io-text-secondary)" }}>
+            Click Save to overwrite the current version, or rename then Save As
+            to keep both.
+          </span>
+        </div>
+      )}
+
       {/* Version history dialog */}
       <VersionHistoryDialog
         open={showVersionHistory}
@@ -3035,6 +3135,16 @@ export default function DesignerPage() {
         graphicId={graphicId ?? null}
         onPreview={handlePreviewVersion}
         onRestore={handleRestoreVersion}
+      />
+
+      <PublishConfirmDialog
+        open={showPublishConfirm}
+        onOpenChange={setShowPublishConfirm}
+        objectName={doc?.name ?? "Untitled"}
+        onConfirm={({ label }) => {
+          setShowPublishConfirm(false);
+          void handlePublish(label);
+        }}
       />
 
       {/* Validate bindings dialog */}
@@ -3111,6 +3221,19 @@ export default function DesignerPage() {
           onSave={handleTabPromptSave}
           onDiscard={() => {
             const { tabId, onAfterClose } = tabClosePrompt;
+            const discardTab = useTabStore.getState().getTab(tabId);
+            if (discardTab) {
+              const isActive = useTabStore.getState().activeTabId === tabId;
+              const idbKey = discardTab.isPreview
+                ? (discardTab.previewIdbKey ?? discardTab.graphicId)
+                : discardTab.graphicId;
+              const autosaveHint = discardTab.isPreview
+                ? (discardTab.previewAutosaveId ?? null)
+                : isActive
+                  ? autoSaveIdRef.current
+                  : null;
+              void cleanupAutosave(autosaveHint, idbKey);
+            }
             setTabClosePrompt(null);
             tabStoreSetModified(tabId, false);
             requestCloseTab(tabId, onAfterClose);
@@ -3118,6 +3241,28 @@ export default function DesignerPage() {
           onCancel={() => setTabClosePrompt(null)}
         />
       )}
+
+      {/* Save with version label confirmation */}
+      <SaveConfirmDialog
+        open={showSaveConfirmDialog}
+        onOpenChange={setShowSaveConfirmDialog}
+        objectName={doc?.name ?? undefined}
+        onConfirm={({ label }) => {
+          setShowSaveConfirmDialog(false);
+          void handleSave({ explicit: true, label });
+        }}
+      />
+
+      {/* Preview tab save confirmation */}
+      <ConfirmDialog
+        open={showPreviewSaveConfirm}
+        onOpenChange={setShowPreviewSaveConfirm}
+        title="Overwrite saved version?"
+        description={`This will replace the current saved version of "${activeTab?.graphicName?.replace(/^Preview — /, "") ?? "this graphic"}" with your recovered changes. This cannot be undone.`}
+        confirmLabel="Overwrite"
+        variant="danger"
+        onConfirm={handlePreviewSaveConfirmed}
+      />
 
       {/* Delete confirmation */}
       <ConfirmDialog
@@ -3134,7 +3279,7 @@ export default function DesignerPage() {
       <DesignerToolbar
         onSave={handleExplicitSave}
         isSaving={isSaving}
-        onPublish={canPublish ? handlePublish : undefined}
+        onPublish={canPublish ? () => setShowPublishConfirm(true) : undefined}
         isPublishing={isPublishing}
         onShowVersionHistory={() => setShowVersionHistory(true)}
         onValidateBindings={handleValidateBindings}

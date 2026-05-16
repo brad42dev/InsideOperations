@@ -51,6 +51,18 @@ pub struct IographicStencilEntry {
     pub name: String,
 }
 
+/// Per-shape content hashes for staleness detection.
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct ShapeHashEntry {
+    pub shape_id: String,
+    pub sidecar_hash: String,
+    pub svg_hash: String,
+}
+
+fn default_thin_mode() -> String {
+    "thin".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IographicManifest {
     pub format: String,
@@ -85,6 +97,12 @@ pub struct IographicManifest {
     /// Absent in packages produced before this feature was added — treated as a warning on import.
     #[serde(default)]
     pub checksum: String,
+    /// "thin" (default) or "full". Full exports embed complete shape data.
+    #[serde(default = "default_thin_mode")]
+    pub export_mode: String,
+    /// Per-shape content hashes. Present in both thin and full exports.
+    #[serde(default)]
+    pub shape_hashes: Vec<ShapeHashEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -834,6 +852,10 @@ fn transform_expression_ast_uuids_to_tags(
 #[derive(Debug, Deserialize)]
 pub struct ExportIographicBody {
     pub description: Option<String>,
+    /// Export mode: "thin" (default) or "full".
+    /// Full embeds complete SVG + sidecar for all shapes referenced by the graphic.
+    #[serde(default = "default_thin_mode")]
+    pub mode: String,
 }
 
 pub async fn export_graphic(
@@ -1224,6 +1246,94 @@ pub async fn export_graphic(
     // Re-sort shape_dependencies after possible additions from custom shapes
     shape_dependencies.sort();
 
+    // 3c-pre. Fetch per-shape content hashes from DB for staleness detection.
+    let shape_hashes: Vec<ShapeHashEntry> = if !shape_dependencies.is_empty() {
+        match sqlx::query(
+            r#"
+            SELECT metadata->>'shape_id'     AS shape_id,
+                   metadata->>'sidecar_hash'  AS sidecar_hash,
+                   metadata->>'svg_hash'      AS svg_hash
+            FROM design_objects
+            WHERE metadata->>'shape_id' = ANY($1)
+              AND type IN ('shape', 'shape_part')
+            "#,
+        )
+        .bind(&shape_dependencies)
+        .fetch_all(&state.db)
+        .await
+        {
+            Ok(rows) => rows
+                .iter()
+                .filter_map(|row| {
+                    let sid: Option<String> = row.try_get("shape_id").ok().flatten();
+                    let sh: Option<String> = row.try_get("sidecar_hash").ok().flatten();
+                    let svh: Option<String> = row.try_get("svg_hash").ok().flatten();
+                    Some(ShapeHashEntry {
+                        shape_id: sid?,
+                        sidecar_hash: sh.unwrap_or_default(),
+                        svg_hash: svh.unwrap_or_default(),
+                    })
+                })
+                .collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "export_graphic: failed to fetch shape hashes");
+                vec![]
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    // Full export: embed shape SVG + sidecar into the ZIP file map.
+    if body.mode == "full" {
+        for dep_id in &shape_dependencies {
+            let row = match sqlx::query(
+                r#"SELECT svg_data, metadata
+                   FROM design_objects
+                   WHERE metadata->>'shape_id' = $1
+                     AND type IN ('shape', 'shape_part')
+                   LIMIT 1"#,
+            )
+            .bind(dep_id)
+            .fetch_optional(&state.db)
+            .await
+            {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    tracing::warn!(shape_id = %dep_id, "full export: shape not found");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, shape_id = %dep_id, "full export: db error");
+                    continue;
+                }
+            };
+
+            let shape_svg: String = row
+                .try_get::<Option<String>, _>("svg_data")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let shape_meta: Option<serde_json::Value> = row.try_get("metadata").ok().flatten();
+            let shape_sidecar = shape_meta
+                .as_ref()
+                .and_then(|m| m.get("sidecar"))
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+
+            file_map.insert(
+                format!("shapes/{}/shape.svg", dep_id),
+                shape_svg.into_bytes(),
+            );
+            file_map.insert(
+                format!("shapes/{}/sidecar.json", dep_id),
+                serde_json::to_string_pretty(&shape_sidecar)
+                    .unwrap_or_default()
+                    .into_bytes(),
+            );
+        }
+    }
+
     // 3c. Compute SHA-256 checksum over all non-manifest files (sorted by path = BTreeMap order).
     let mut hasher = Sha256::new();
     for content in file_map.values() {
@@ -1261,6 +1371,8 @@ pub async fn export_graphic(
         shape_dependencies,
         point_tags,
         checksum,
+        export_mode: body.mode.clone(),
+        shape_hashes,
     };
 
     let manifest_json = match serde_json::to_string_pretty(&manifest) {
@@ -1674,6 +1786,251 @@ fn read_zip_entry_string(
 }
 
 // ---------------------------------------------------------------------------
+// Full-import helpers (Phase 5)
+// ---------------------------------------------------------------------------
+
+fn read_zip_string(
+    archive: &mut zip::ZipArchive<std::io::Cursor<Vec<u8>>>,
+    path: &str,
+) -> Option<String> {
+    use std::io::Read;
+    let mut entry = archive.by_name(path).ok()?;
+    let mut buf = String::new();
+    entry.read_to_string(&mut buf).ok()?;
+    Some(buf)
+}
+
+async fn upsert_imported_shape(
+    db: &sqlx::PgPool,
+    original_id: &str,
+    svg: &str,
+    sidecar: &serde_json::Value,
+    hash_entry: &ShapeHashEntry,
+    created_by: Option<uuid::Uuid>,
+) -> String {
+    let base_id = format!("{}.imported", original_id);
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM design_objects WHERE metadata->>'shape_id' = $1")
+            .bind(&base_id)
+            .fetch_one(db)
+            .await
+            .unwrap_or(0);
+
+    let final_id = if count == 0 {
+        base_id
+    } else {
+        format!(
+            "{}.imported.{}",
+            original_id,
+            &hash_entry.sidecar_hash[..8.min(hash_entry.sidecar_hash.len())]
+        )
+    };
+
+    let display_name = sidecar
+        .get("display_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(original_id);
+
+    let new_sidecar_hash = crate::shape_hash::sidecar_hash(sidecar);
+    let new_svg_hash = crate::shape_hash::svg_hash(svg);
+
+    let metadata = serde_json::json!({
+        "shape_id":      final_id,
+        "source":        "user",
+        "display_name":  format!("{} (imported)", display_name),
+        "category":      sidecar.get("category").and_then(|v| v.as_str()).unwrap_or("imported"),
+        "schema":        "io-shape-v1",
+        "sidecar":       sidecar,
+        "sidecar_hash":  new_sidecar_hash,
+        "svg_hash":      new_svg_hash,
+        "imported_from": original_id,
+    });
+
+    let shape_type = if original_id.starts_with("part-") {
+        "shape_part"
+    } else {
+        "shape"
+    };
+
+    if let Err(e) = sqlx::query(
+        "INSERT INTO design_objects (id, name, type, svg_data, metadata, created_by) \
+         VALUES (gen_random_uuid(), $1, $2, $3, $4::jsonb, $5) \
+         ON CONFLICT ((metadata->>'shape_id')) \
+             WHERE type IN ('shape','shape_part') AND metadata->>'source' = 'user' \
+         DO UPDATE SET svg_data  = EXCLUDED.svg_data, \
+                       metadata  = EXCLUDED.metadata, \
+                       updated_at = NOW()",
+    )
+    .bind(display_name)
+    .bind(shape_type)
+    .bind(svg)
+    .bind(metadata.to_string())
+    .bind(created_by)
+    .execute(db)
+    .await
+    {
+        tracing::error!(error = %e, shape_id = %final_id, "upsert_imported_shape failed");
+    }
+
+    final_id
+}
+
+async fn overwrite_user_shape(
+    db: &sqlx::PgPool,
+    shape_id: &str,
+    svg: &str,
+    sidecar: &serde_json::Value,
+    hash_entry: &ShapeHashEntry,
+) {
+    if let Err(e) = sqlx::query(
+        r#"UPDATE design_objects
+           SET svg_data   = $1,
+               metadata   = jsonb_set(
+                   jsonb_set(
+                       jsonb_set(metadata, '{sidecar}', $2::jsonb),
+                       '{sidecar_hash}', to_jsonb($3::text)
+                   ),
+                   '{svg_hash}', to_jsonb($4::text)
+               ),
+               updated_at = NOW()
+           WHERE metadata->>'shape_id' = $5
+             AND type IN ('shape', 'shape_part')
+             AND metadata->>'source' = 'user'"#,
+    )
+    .bind(svg)
+    .bind(sidecar)
+    .bind(&hash_entry.sidecar_hash)
+    .bind(&hash_entry.svg_hash)
+    .bind(shape_id)
+    .execute(db)
+    .await
+    {
+        tracing::error!(error = %e, shape_id = %shape_id, "overwrite_user_shape failed");
+    }
+}
+
+/// Import embedded shapes from a full iographic package.
+/// Returns mapping: original shape_id -> actual shape_id to use in this system.
+async fn import_full_shapes(
+    db: &sqlx::PgPool,
+    zip_bytes: &[u8],
+    manifest: &IographicManifest,
+    created_by: Option<uuid::Uuid>,
+) -> std::collections::HashMap<String, String> {
+    let mut id_map = std::collections::HashMap::new();
+
+    let cursor = std::io::Cursor::new(zip_bytes.to_vec());
+    let mut archive = match zip::ZipArchive::new(cursor) {
+        Ok(a) => a,
+        Err(_) => {
+            for h in &manifest.shape_hashes {
+                id_map.insert(h.shape_id.clone(), h.shape_id.clone());
+            }
+            return id_map;
+        }
+    };
+
+    for hash_entry in &manifest.shape_hashes {
+        let shape_id = &hash_entry.shape_id;
+
+        let svg = read_zip_string(&mut archive, &format!("shapes/{}/shape.svg", shape_id));
+        let sidecar_str =
+            read_zip_string(&mut archive, &format!("shapes/{}/sidecar.json", shape_id));
+
+        if svg.is_none() {
+            id_map.insert(shape_id.clone(), shape_id.clone());
+            continue;
+        }
+
+        let svg = svg.unwrap();
+        let sidecar: serde_json::Value = sidecar_str
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}));
+
+        let db_row = sqlx::query(
+            r#"SELECT metadata->>'source'       AS source,
+                      metadata->>'sidecar_hash'  AS sidecar_hash,
+                      metadata->>'svg_hash'       AS svg_hash
+               FROM design_objects
+               WHERE metadata->>'shape_id' = $1
+                 AND type IN ('shape', 'shape_part')
+               LIMIT 1"#,
+        )
+        .bind(shape_id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten();
+
+        match db_row {
+            Some(row) => {
+                let source: String = row.try_get("source").unwrap_or_default();
+                let db_sh: String = row.try_get("sidecar_hash").unwrap_or_default();
+                let db_svh: String = row.try_get("svg_hash").unwrap_or_default();
+                let hashes_match = !db_sh.is_empty()
+                    && db_sh == hash_entry.sidecar_hash
+                    && db_svh == hash_entry.svg_hash;
+
+                if hashes_match {
+                    id_map.insert(shape_id.clone(), shape_id.clone());
+                } else if source == "library" {
+                    let new_id =
+                        upsert_imported_shape(db, shape_id, &svg, &sidecar, hash_entry, created_by)
+                            .await;
+                    id_map.insert(shape_id.clone(), new_id);
+                } else {
+                    overwrite_user_shape(db, shape_id, &svg, &sidecar, hash_entry).await;
+                    id_map.insert(shape_id.clone(), shape_id.clone());
+                }
+            }
+            None => {
+                let new_id =
+                    upsert_imported_shape(db, shape_id, &svg, &sidecar, hash_entry, created_by)
+                        .await;
+                id_map.insert(shape_id.clone(), new_id);
+            }
+        }
+    }
+
+    id_map
+}
+
+fn rewrite_shape_refs(
+    val: serde_json::Value,
+    id_map: &std::collections::HashMap<String, String>,
+) -> serde_json::Value {
+    match val {
+        serde_json::Value::Object(mut map) => {
+            if let Some(shape_ref) = map.get_mut("shapeRef") {
+                if let Some(shape_id) = shape_ref.get("shapeId").and_then(|v| v.as_str()) {
+                    if let Some(new_id) = id_map.get(shape_id) {
+                        if new_id != shape_id {
+                            if let Some(obj) = shape_ref.as_object_mut() {
+                                obj.insert(
+                                    "shapeId".to_string(),
+                                    serde_json::Value::String(new_id.clone()),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            let new_map: serde_json::Map<String, serde_json::Value> = map
+                .into_iter()
+                .map(|(k, v)| (k, rewrite_shape_refs(v, id_map)))
+                .collect();
+            serde_json::Value::Object(new_map)
+        }
+        serde_json::Value::Array(arr) => serde_json::Value::Array(
+            arr.into_iter()
+                .map(|v| rewrite_shape_refs(v, id_map))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/v1/design-objects/import/iographic/analyze
 // Read-only analysis step: parse ZIP, validate manifest, resolve tags & shapes.
 // ---------------------------------------------------------------------------
@@ -1690,6 +2047,8 @@ struct TagResolution {
 struct ShapeStatus {
     shape_id: String,
     status: String, // "available", "missing", "custom_new", "custom_exists"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hash_status: Option<String>, // "match", "mismatch", "no_hash", "not_checked"
 }
 
 #[derive(Serialize)]
@@ -1915,31 +2274,34 @@ pub async fn analyze_iographic(
     let mut shape_statuses: Vec<ShapeStatus> = Vec::new();
     for shape_id in &manifest.shape_dependencies {
         let is_custom = shape_id.starts_with(".custom.");
-        let status = match sqlx::query(
-            "SELECT id FROM design_objects \
-             WHERE type = 'shape' AND metadata->>'shape_id' = $1 \
+        let db_row = match sqlx::query(
+            "SELECT id, \
+                    metadata->>'sidecar_hash' AS sidecar_hash, \
+                    metadata->>'svg_hash'     AS svg_hash \
+             FROM design_objects \
+             WHERE type IN ('shape', 'shape_part') AND metadata->>'shape_id' = $1 \
              LIMIT 1",
         )
         .bind(shape_id)
         .fetch_optional(&state.db)
         .await
         {
-            Ok(Some(_)) => {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, shape_id = %shape_id, "analyze_iographic: shape lookup failed");
+                None
+            }
+        };
+
+        let status = match &db_row {
+            Some(_) => {
                 if is_custom {
                     "custom_exists"
                 } else {
                     "available"
                 }
             }
-            Ok(None) => {
-                if is_custom {
-                    "custom_new"
-                } else {
-                    "missing"
-                }
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, shape_id = %shape_id, "analyze_iographic: shape lookup failed");
+            None => {
                 if is_custom {
                     "custom_new"
                 } else {
@@ -1947,9 +2309,29 @@ pub async fn analyze_iographic(
                 }
             }
         };
+
+        let manifest_hash = manifest
+            .shape_hashes
+            .iter()
+            .find(|h| h.shape_id == *shape_id);
+        let hash_status = match (manifest_hash, &db_row) {
+            (Some(mh), Some(row)) if !mh.sidecar_hash.is_empty() => {
+                let db_sh: String = row.try_get("sidecar_hash").unwrap_or_default();
+                let db_svh: String = row.try_get("svg_hash").unwrap_or_default();
+                if db_sh == mh.sidecar_hash && db_svh == mh.svg_hash {
+                    Some("match".to_string())
+                } else {
+                    Some("mismatch".to_string())
+                }
+            }
+            (Some(_), Some(_)) => Some("no_hash".to_string()),
+            _ => Some("not_checked".to_string()),
+        };
+
         shape_statuses.push(ShapeStatus {
             shape_id: shape_id.clone(),
             status: status.to_string(),
+            hash_status,
         });
     }
 
@@ -2434,9 +2816,9 @@ pub async fn commit_iographic(
 
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
     let version_type = if options.import_as == "published" {
-        "published"
+        "publish"
     } else {
-        "draft"
+        "save"
     };
 
     let mut graphic_ids: Vec<String> = Vec::new();
@@ -2448,6 +2830,14 @@ pub async fn commit_iographic(
     let mut unresolved_tags_out: Vec<String> = unresolved_kept.iter().cloned().collect();
     unresolved_tags_out.sort();
     let mut missing_shapes_out: Vec<String> = Vec::new();
+
+    // For full imports, process embedded shapes first and get the ID remapping.
+    let shape_id_map = if manifest.export_mode == "full" && !manifest.shape_hashes.is_empty() {
+        import_full_shapes(&state.db, &bytes, &manifest, created_by).await
+    } else {
+        std::collections::HashMap::new()
+    };
+    let has_remaps = shape_id_map.iter().any(|(k, v)| k != v);
 
     // 5. Import each graphic entry
     for entry in &entries {
@@ -2553,6 +2943,12 @@ pub async fn commit_iographic(
         )
         .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
+        let reconstructed_bindings = if has_remaps {
+            rewrite_shape_refs(reconstructed_bindings, &shape_id_map)
+        } else {
+            reconstructed_bindings
+        };
+
         total_bindings_resolved += entry_resolved;
         total_bindings_unresolved += entry_unresolved;
 
@@ -2635,12 +3031,13 @@ pub async fn commit_iographic(
         // 5d. Insert version row
         let version_id = Uuid::new_v4();
         if let Err(e) = sqlx::query(
-            "INSERT INTO design_object_versions (id, graphic_id, version, version_type, created_by) \
-             VALUES ($1, $2, 1, $3, $4)",
+            "INSERT INTO design_object_versions (id, design_object_id, version_number, version_type, svg_data, created_by) \
+             VALUES ($1, $2, 1, $3, $4, $5)",
         )
         .bind(version_id)
         .bind(new_id)
         .bind(version_type)
+        .bind(svg_content.as_deref().unwrap_or(""))
         .bind(created_by)
         .execute(&state.db)
         .await

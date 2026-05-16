@@ -512,7 +512,7 @@ export default function WorkspaceGrid({
         ),
       );
     },
-    [locked, pinnedIds, onGridLayoutChange],
+    [locked, pinnedIds, onGridLayoutChange, gridItems],
   );
 
   // Augment grid items with min size constraints

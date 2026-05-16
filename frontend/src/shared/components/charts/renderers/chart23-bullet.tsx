@@ -148,7 +148,7 @@ export default function BulletChart({ config }: RendererProps) {
       yAxis: vertical ? valueAxis : categoryAxis,
       series,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [liveValue, ranges, target, pointSlot, vertical]);
 
   if (!pointSlot) {

@@ -98,6 +98,11 @@ export default function TrendChartWidget({ config, variables }: Props) {
     enabled: pointIds.length > 0,
   });
 
+  // useThemeColors makes this component a theme context consumer so it re-renders
+  // on theme switch — ensuring resolveToken reads and chart options are always fresh.
+  // Must be called unconditionally before any early return.
+  const themeColors = useThemeColors();
+
   if (pointIds.length === 0) {
     return (
       <div
@@ -172,9 +177,6 @@ export default function TrendChartWidget({ config, variables }: Props) {
     );
   }
 
-  // useThemeColors makes this component a theme context consumer so it re-renders
-  // on theme switch — ensuring resolveToken reads and chart options are always fresh.
-  const themeColors = useThemeColors();
   const axisColor = themeColors.chartAxis;
   const labelColor = resolveToken("--io-text-muted");
 

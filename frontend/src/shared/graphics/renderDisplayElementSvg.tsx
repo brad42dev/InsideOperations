@@ -568,17 +568,16 @@ function renderTextReadoutContent(
         <tspan data-role="v-frac-content">
           {hasFrac ? `.${fracPart}` : ""}
         </tspan>
-        {euEnabled && (
-          <tspan
-            data-role="eu"
-            fontFamily="Inter"
-            fontSize={er?.fontSize ?? 9}
-            fill={er?.color || DE_COLORS.textMuted}
-          >
-            {" "}
-            {unitText}
-          </tspan>
-        )}
+        <tspan
+          data-role="eu"
+          fontFamily="Inter"
+          fontSize={er?.fontSize ?? 9}
+          fill={er?.color || DE_COLORS.textMuted}
+          style={{ display: euEnabled ? "" : "none" }}
+        >
+          {" "}
+          {unitText}
+        </tspan>
       </text>,
     );
   } else {
@@ -597,17 +596,16 @@ function renderTextReadoutContent(
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
         <tspan data-role="v">{rawValueStr}</tspan>
-        {euEnabled && (
-          <tspan
-            data-role="eu"
-            fontFamily="Inter"
-            fontSize={er?.fontSize ?? 9}
-            fill={er?.color || DE_COLORS.textMuted}
-          >
-            {" "}
-            {unitText}
-          </tspan>
-        )}
+        <tspan
+          data-role="eu"
+          fontFamily="Inter"
+          fontSize={er?.fontSize ?? 9}
+          fill={er?.color || DE_COLORS.textMuted}
+          style={{ display: euEnabled ? "" : "none" }}
+        >
+          {" "}
+          {unitText}
+        </tspan>
       </text>,
     );
   }
@@ -811,7 +809,7 @@ function renderTextReadoutArraySvg(
         data-value-box-y={String(yOff)}
         data-eu-unit={euEnabled ? unitText : ""}
         data-min-width={String(cfg.minWidth ?? 40)}
-        data-fixed-layout={hasInlineLabel ? "true" : undefined}
+        data-fixed-layout="true"
         data-label-offset={hasInlineLabel ? String(maxLabelW) : undefined}
         data-decimal-int-len={decimalPad ? String(maxIntLen) : undefined}
         data-decimal-frac-len={decimalPad ? String(maxFracLen) : undefined}

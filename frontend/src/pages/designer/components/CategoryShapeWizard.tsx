@@ -15,6 +15,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLibraryStore } from "../../../store/designer";
+import { ShapeThumbnail } from "./ShapeThumbnail";
 import type { ShapeSidecar } from "../../../shared/types/shapes";
 import type {
   DisplayElementType,
@@ -89,13 +90,6 @@ interface AddonGroup {
 // Static maps
 // ---------------------------------------------------------------------------
 
-const GROUP_TO_CATEGORY: Record<string, string> = {
-  actuator: "actuators",
-  "fail-indicator": "indicators",
-  agitator: "agitators",
-  support: "supports",
-};
-
 const GROUP_LABELS: Record<string, string> = {
   actuator: "Actuator",
   "fail-indicator": "Fail Position",
@@ -160,7 +154,6 @@ const ALL_DISPLAY_ELEMENTS: Array<{ id: DisplayElementType; label: string }> = [
 
 function ShapeThumbnailCard({
   shapeId,
-  category,
   label,
   selected,
   onClick,
@@ -200,18 +193,10 @@ function ShapeThumbnailCard({
           justifyContent: "center",
         }}
       >
-        <img
-          src={`/shapes/${category}/${shapeId}.svg`}
-          alt={label}
-          style={{
-            maxWidth: 52,
-            maxHeight: 52,
-            objectFit: "contain",
-            opacity: selected ? 1 : 0.75,
-          }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
+        <ShapeThumbnail
+          shapeId={shapeId}
+          size={52}
+          style={{ opacity: selected ? 1 : 0.75 }}
         />
       </div>
       <span
@@ -235,7 +220,6 @@ function ShapeThumbnailCard({
 
 function AddonThumbnailCard({
   file,
-  group,
   label,
   selected,
   onClick,
@@ -247,7 +231,6 @@ function AddonThumbnailCard({
   selected: boolean;
   onClick: () => void;
 }) {
-  const addonCategory = GROUP_TO_CATEGORY[group] ?? group;
   return (
     <button
       onClick={onClick}
@@ -277,18 +260,10 @@ function AddonThumbnailCard({
           justifyContent: "center",
         }}
       >
-        <img
-          src={`/shapes/${addonCategory}/${file}`}
-          alt={label}
-          style={{
-            maxWidth: 52,
-            maxHeight: 52,
-            objectFit: "contain",
-            opacity: selected ? 1 : 0.75,
-          }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
+        <ShapeThumbnail
+          shapeId={file.replace(/\.svg$/, "")}
+          size={52}
+          style={{ opacity: selected ? 1 : 0.75 }}
         />
       </div>
       <span
@@ -656,7 +631,7 @@ export function CategoryShapeWizard({
         setFocusedElement(null);
       }
     });
-  }, [selectedId, loadShape, editMode, initialConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, loadShape, editMode, initialConfig]);  
 
   // Jump straight to Point Bindings step when opened via "Bind point..." context menu
   useEffect(() => {

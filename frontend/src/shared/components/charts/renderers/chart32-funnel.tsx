@@ -75,7 +75,7 @@ export default function FunnelChart({ config }: RendererProps) {
         };
       })
       .sort((a, b) => b.value - a.value);
-  }, [seriesSlots, values, latestData]);
+  }, [seriesSlots, values, latestData, slotLabel]);
 
   const option: EChartsOption = useMemo(() => {
     const funnelData = sorted.map((d) => ({
@@ -136,7 +136,7 @@ export default function FunnelChart({ config }: RendererProps) {
         },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sorted, showConversion, config, highlighted]);
 
   if (pointIds.length === 0) {

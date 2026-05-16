@@ -19,6 +19,7 @@
 - **Metrics:** metrics 0.23 + metrics-exporter-prometheus 0.15
 - **PDF Generation:** typst-as-lib 0.15 (optional feature flag `typst-pdf` on api-gateway)
 - **SVG Rendering:** resvg 0.44 + tiny-skia 0.11 (thumbnail/export rendering in api-gateway)
+- **Build Script:** api-gateway `build.rs` embeds all 85 shape JSON sidecars + SVGs at compile time via `serde_json` build-dependency; generates `$OUT_DIR/shape_seeds.rs`
 - **File Scanning:** YARA-X 0.10 via `io-scan` crate (malware/policy enforcement)
 - **TLS/Certificates:** rcgen 0.13 + x509-parser 0.16 (self-signed cert generation)
 - **Expression Eval:** rhai 1.19 (expression builder evaluation)
@@ -28,6 +29,7 @@
 - **OPC UA:** async-opcua 0.17
 - **HTTP Client:** reqwest 0.12 (rustls-tls)
 - **Misc:** zip 2, aes-gcm 0.10, sha2, hmac, dashmap 6, rhai 1.19, sd-notify 0.4
+- **Schema Validation:** jsonschema 0.28 (MIT) — validates sidecar JSON against io-shape-v1.schema.json at startup; HTTP 422 pattern for future wizard endpoint
 
 > **Note:** `instant-acme` was planned for ACME/Let's Encrypt but is NOT in the codebase. Certificate management uses `rcgen` + `x509-parser` for self-signed only.
 
@@ -85,6 +87,16 @@
 | Settings | System configuration (incremental across phases) |
 | Shifts | Shift management, badge events, presence |
 | Alerts | Human-initiated notifications, muster command center |
+
+### Chart Widget System
+
+The chart/widget system is unified under a single `ChartConfig` source of truth:
+- **41 chart types** (IDs 1–41): time-series, ECharts, Plotly statistical/3D, uPlot, custom SVG renderers
+- **6 content widgets** (IDs 50–55): camera stream, gauge, KPI card, sparkline, alarm indicator, data table
+- **Widget nodes** in the designer scene graph render chart overlays via HTML (`ChartRenderer`) positioned over the SVG canvas
+- **bufferKey** format: `graphic:${graphicId}:widget:${node.id}` — scopes live data subscriptions per graphic instance
+- **Camera Streams**: Settings tab for go2rtc stream management (add/edit/delete), ACL enforcement via RBAC
+- **Export pipeline**: `ExportRenderProcess` waits for `data-chart-ready` on all widget overlays before signaling `data-export-ready`
 
 ### 12 Backend Services
 
