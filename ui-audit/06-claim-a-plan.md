@@ -104,18 +104,17 @@ Resolve values, then add in a second `index.css` commit.
 11. **A8** — `--io-accent-muted`: grep all Designer source files for the token name; examine the call site(s) to determine the expected visual tier; propose a value; write it.
 12. **A10** — `--io-accent-rgb: 45 212 191`: confirm dark-theme `--io-accent` hex is `#2dd4bf`; confirm this RGB decomposition is correct; write the token. Note: light/HPHMI themes must update this value if their accent color differs — add a comment in index.css to that effect.
 
-### Pass 3 — Decision-gated tokens (user decision before executing)
+### Pass 3 — Decision-gated tokens (decisions recorded 2026-05-27)
 
-Get explicit user sign-off on both before writing any code.
+13. **A13** — ✅ **Decision: Option B — full z-index scale.**
+    - `--io-z-dropdown: 500`
+    - `--io-z-modal: 1000` (replaces current `--io-z-modal: 300`)
+    - `--io-z-toast: 2000`
+    - Claim B dialog migration will reference these tokens when moving hardcoded integers.
 
-13. **A13** — Present two options to user:
-    - Option A: raise `--io-z-modal` to 1000 only.
-    - Option B: define a full scale — `--io-z-dropdown: 500`, `--io-z-modal: 1000`, `--io-z-toast: 2000`. This is recommended because Claim B dialog migration will reference multiple z-index tiers, and a single token does not cover all cases.
-    - In either case, the Claim B phase will migrate hardcoded z-index integers to the chosen tokens. This commit only updates/adds the token definitions.
-
-14. **A14** — Present sidebar width choice to user:
-    - Option A (220px): update `--io-sidebar-width: 220px` in index.css. No module code changes. Establishes 220px as the official convention. Fast.
-    - Option B (240px): keep `--io-sidebar-width: 240px` in index.css; update `ConsolePalette.tsx`, `Settings/index.tsx` aside, and `DesignerLeftPalette.tsx` (3 files). Establishes 240px as the official convention aligned with the AppShell reference.
+14. **A14** — ✅ **Decision: 220px (Option A).**
+    - Update `--io-sidebar-width: 220px` in index.css. No module code changes.
+    - 220px is the official convention. Can be revisited later if the value needs changing.
 
 ### Pass 4 — Shell drift fixes (after Passes 1–3 are committed)
 
@@ -123,7 +122,7 @@ Independent of each other; can be in one PR.
 
 15. **B1** — Designer palette background: `var(--io-surface)` → `var(--io-surface-secondary)` in `DesignerLeftPalette.tsx`.
 16. **B2** — Settings active nav indicator: add `borderLeft: '2px solid var(--io-accent)'` + padding adjustment in `Settings/index.tsx`.
-17. **B3** — Sidebar width code: 0 files (if 220px) or 3 files (if 240px) — conditional on A14.
+17. **B3** — Sidebar width code: **0 file changes** (220px decided in A14 — token update only, no module edits).
 18. **B4** — Settings nav group `letterSpacing`: 0.08em → 0.06em in `Settings/index.tsx`.
 
 ### Natural PR boundaries
