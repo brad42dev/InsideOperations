@@ -156,8 +156,14 @@ fn compute_workspace_version_metadata(
         .clone()
         .unwrap_or(serde_json::json!({}));
     if let Some(obj) = meta.as_object_mut() {
-        obj.insert("element_count".to_string(), serde_json::json!(element_count));
-        obj.insert("binding_count".to_string(), serde_json::json!(binding_count));
+        obj.insert(
+            "element_count".to_string(),
+            serde_json::json!(element_count),
+        );
+        obj.insert(
+            "binding_count".to_string(),
+            serde_json::json!(binding_count),
+        );
     }
     meta
 }
@@ -600,7 +606,10 @@ pub async fn recover_workspace(
         return IoError::NotFound(format!("Deleted workspace {} not found", id)).into_response();
     }
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "recovered": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "recovered": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -636,10 +645,8 @@ pub async fn permanent_delete_workspace(
     };
 
     if result.is_none() {
-        return IoError::NotFound(
-            format!("Workspace {} not found or not soft-deleted", id),
-        )
-        .into_response();
+        return IoError::NotFound(format!("Workspace {} not found or not soft-deleted", id))
+            .into_response();
     }
 
     let audit_meta = serde_json::json!({
@@ -663,7 +670,10 @@ pub async fn permanent_delete_workspace(
         .await;
     });
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "permanently_deleted": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "permanently_deleted": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -886,10 +896,8 @@ pub async fn unpublish_workspace(
             tracing::info!(workspace_id = %id, "Workspace unpublished");
             Json(ApiResponse::ok(serde_json::json!({ "published": false }))).into_response()
         }
-        Ok(None) => {
-            IoError::NotFound(format!("Workspace {} not found or not owned by you", id))
-                .into_response()
-        }
+        Ok(None) => IoError::NotFound(format!("Workspace {} not found or not owned by you", id))
+            .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "unpublish_workspace query failed");
             IoError::Database(e).into_response()
@@ -1154,11 +1162,7 @@ pub async fn list_workspace_versions(
         deleted_filter = deleted_filter,
     );
 
-    let rows = match sqlx::query(&sql)
-        .bind(id)
-        .fetch_all(&state.db)
-        .await
-    {
+    let rows = match sqlx::query(&sql).bind(id).fetch_all(&state.db).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "list_workspace_versions query failed");
@@ -1346,11 +1350,8 @@ pub async fn restore_workspace_version(
     match update_result {
         Ok(Some(_)) => {}
         Ok(None) => {
-            return IoError::NotFound(format!(
-                "Workspace {} not found or not owned by you",
-                id
-            ))
-            .into_response()
+            return IoError::NotFound(format!("Workspace {} not found or not owned by you", id))
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "restore_workspace_version update failed");

@@ -15,7 +15,10 @@ use uuid::Uuid;
 use crate::state::AppState;
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn is_admin(claims: &Claims) -> bool {
@@ -263,8 +266,16 @@ pub async fn create_saved_chart(
     let label = body.label.clone();
     let db = state.db.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            create_chart_version_snapshot(&db, id, user_id, "save", &config_snap, &version_metadata, label).await
+        if let Err(e) = create_chart_version_snapshot(
+            &db,
+            id,
+            user_id,
+            "save",
+            &config_snap,
+            &version_metadata,
+            label,
+        )
+        .await
         {
             tracing::warn!(error = %e, chart_id = %id, "Chart version snapshot creation failed (non-fatal)");
         }
@@ -298,15 +309,14 @@ pub async fn list_saved_charts(
     let all_users = params.all_users.as_deref() == Some("true") && is_admin(&claims);
 
     let (total, rows) = if all_users {
-        let total: i64 = match sqlx::query_scalar(
-            "SELECT COUNT(*) FROM saved_charts WHERE deleted_at IS NULL",
-        )
-        .fetch_one(&state.db)
-        .await
-        {
-            Ok(n) => n,
-            Err(e) => return IoError::Database(e).into_response(),
-        };
+        let total: i64 =
+            match sqlx::query_scalar("SELECT COUNT(*) FROM saved_charts WHERE deleted_at IS NULL")
+                .fetch_one(&state.db)
+                .await
+            {
+                Ok(n) => n,
+                Err(e) => return IoError::Database(e).into_response(),
+            };
 
         let rows = match sqlx::query(
             r#"
@@ -363,7 +373,13 @@ pub async fn list_saved_charts(
     };
 
     let items: Vec<SavedChartSummary> = rows.iter().map(row_to_summary).collect();
-    Json(PagedResponse::new(items, page as u32, per_page as u32, total as u64)).into_response()
+    Json(PagedResponse::new(
+        items,
+        page as u32,
+        per_page as u32,
+        total as u64,
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -464,8 +480,16 @@ pub async fn update_saved_chart(
         let label = body.label.clone();
         let db = state.db.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                create_chart_version_snapshot(&db, id, user_id, "save", &config_snap, &version_metadata, label).await
+            if let Err(e) = create_chart_version_snapshot(
+                &db,
+                id,
+                user_id,
+                "save",
+                &config_snap,
+                &version_metadata,
+                label,
+            )
+            .await
             {
                 tracing::warn!(error = %e, chart_id = %id, "Chart version snapshot creation failed (non-fatal)");
             }
@@ -511,7 +535,9 @@ pub async fn delete_saved_chart(
     };
 
     match result {
-        Ok(Some(_)) => Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))).into_response(),
+        Ok(Some(_)) => {
+            Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))).into_response()
+        }
         Ok(None) => IoError::NotFound(format!("Saved chart {} not found", id)).into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }
@@ -558,7 +584,13 @@ pub async fn publish_saved_chart(
             let config: JsonValue = row.try_get("config").unwrap_or(JsonValue::Null);
             let version_metadata = compute_chart_version_metadata(&config);
             match create_chart_version_snapshot(
-                &state.db, id, user_id, "publish", &config, &version_metadata, None,
+                &state.db,
+                id,
+                user_id,
+                "publish",
+                &config,
+                &version_metadata,
+                None,
             )
             .await
             {
@@ -618,9 +650,10 @@ pub async fn unpublish_saved_chart(
     };
 
     match result {
-        Ok(Some(_)) => {
-            Json(ApiResponse::ok(serde_json::json!({ "id": id, "published": false }))).into_response()
-        }
+        Ok(Some(_)) => Json(ApiResponse::ok(
+            serde_json::json!({ "id": id, "published": false }),
+        ))
+        .into_response(),
         Ok(None) => IoError::NotFound(format!("Saved chart {} not found", id)).into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }
@@ -882,11 +915,8 @@ pub async fn restore_chart_version(
     match update_result {
         Ok(Some(_)) => {}
         Ok(None) => {
-            return IoError::NotFound(format!(
-                "Chart {} not found or not owned by you",
-                id
-            ))
-            .into_response()
+            return IoError::NotFound(format!("Chart {} not found or not owned by you", id))
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "restore_chart_version update failed");

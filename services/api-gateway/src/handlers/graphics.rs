@@ -196,12 +196,16 @@ fn compute_version_metadata(
     let element_count = scene_data.as_ref().map(count_scene_nodes).unwrap_or(0);
     let binding_count = scene_data.as_ref().map(count_point_bindings).unwrap_or(0);
 
-    let mut meta = existing_metadata
-        .clone()
-        .unwrap_or(serde_json::json!({}));
+    let mut meta = existing_metadata.clone().unwrap_or(serde_json::json!({}));
     if let Some(obj) = meta.as_object_mut() {
-        obj.insert("element_count".to_string(), serde_json::json!(element_count));
-        obj.insert("binding_count".to_string(), serde_json::json!(binding_count));
+        obj.insert(
+            "element_count".to_string(),
+            serde_json::json!(element_count),
+        );
+        obj.insert(
+            "binding_count".to_string(),
+            serde_json::json!(binding_count),
+        );
     }
     meta
 }
@@ -336,7 +340,11 @@ pub async fn list_graphics(
     };
 
     // Parameter positions: [all_users, user_id, (module?,) limit, offset]
-    let (limit_pos, offset_pos) = if module_bind.is_some() { (4, 5) } else { (3, 4) };
+    let (limit_pos, offset_pos) = if module_bind.is_some() {
+        (4, 5)
+    } else {
+        (3, 4)
+    };
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM design_objects WHERE type = 'graphic' AND name NOT LIKE '__autosave_%' AND deleted_at IS NULL {visibility}{extra_where}",
@@ -733,24 +741,42 @@ pub async fn update_graphic(
         let created_by = match claims.sub.parse::<Uuid>() {
             Ok(u) => u,
             Err(_) => {
-                tracing::warn!("update_graphic: invalid user ID in token, skipping version snapshot");
+                tracing::warn!(
+                    "update_graphic: invalid user ID in token, skipping version snapshot"
+                );
                 Uuid::nil()
             }
         };
         if !created_by.is_nil() {
-            let scene_data_for_stats = row.try_get::<Option<JsonValue>, _>("bindings").ok().flatten();
+            let scene_data_for_stats = row
+                .try_get::<Option<JsonValue>, _>("bindings")
+                .ok()
+                .flatten();
             let existing_metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
-            let version_metadata = compute_version_metadata(&scene_data_for_stats, &existing_metadata);
-            let svg_data_snap: String = row.try_get::<Option<String>, _>("svg_data").ok().flatten().unwrap_or_default();
+            let version_metadata =
+                compute_version_metadata(&scene_data_for_stats, &existing_metadata);
+            let svg_data_snap: String = row
+                .try_get::<Option<String>, _>("svg_data")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
             let bindings_snap: Option<JsonValue> = row.try_get("bindings").ok().flatten();
             let label = body.label.clone();
 
             let db = state.db.clone();
             tokio::spawn(async move {
                 if let Err(e) = create_version_snapshot(
-                    &db, id, created_by, "save", &svg_data_snap, &bindings_snap,
-                    &version_metadata, label,
-                ).await {
+                    &db,
+                    id,
+                    created_by,
+                    "save",
+                    &svg_data_snap,
+                    &bindings_snap,
+                    &version_metadata,
+                    label,
+                )
+                .await
+                {
                     tracing::warn!(error = %e, graphic_id = %id, "Version snapshot creation failed (non-fatal)");
                 }
             });
@@ -847,7 +873,10 @@ pub async fn recover_graphic(
         return IoError::NotFound(format!("Deleted graphic {} not found", id)).into_response();
     }
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "recovered": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "recovered": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -883,10 +912,8 @@ pub async fn permanent_delete_graphic(
     };
 
     if result.is_none() {
-        return IoError::NotFound(
-            format!("Graphic {} not found or not soft-deleted", id),
-        )
-        .into_response();
+        return IoError::NotFound(format!("Graphic {} not found or not soft-deleted", id))
+            .into_response();
     }
 
     let audit_meta = serde_json::json!({
@@ -916,7 +943,10 @@ pub async fn permanent_delete_graphic(
         }
     });
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "permanently_deleted": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "permanently_deleted": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1050,10 +1080,8 @@ pub async fn unpublish_graphic(
             tracing::info!(graphic_id = %id, "Graphic unpublished");
             Json(ApiResponse::ok(serde_json::json!({ "published": false }))).into_response()
         }
-        Ok(None) => IoError::NotFound(
-            format!("Graphic {} not found or not owned by you", id),
-        )
-        .into_response(),
+        Ok(None) => IoError::NotFound(format!("Graphic {} not found or not owned by you", id))
+            .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "unpublish_graphic query failed");
             IoError::Database(e).into_response()
@@ -1278,11 +1306,8 @@ pub async fn restore_version(
     match update_result {
         Ok(Some(_)) => {}
         Ok(None) => {
-            return IoError::NotFound(format!(
-                "Graphic {} not found or not owned by you",
-                id
-            ))
-            .into_response()
+            return IoError::NotFound(format!("Graphic {} not found or not owned by you", id))
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "restore_version update failed");
@@ -2142,8 +2167,7 @@ pub async fn list_graphics_hierarchy(
     let all_users = query.include_all_users.as_deref() == Some("true") && is_admin(&claims);
 
     // $1 = all_users (bool), $2 = user_id (UUID), $3 = scope_filter
-    let hierarchy_sql =
-        "SELECT id, name, parent_id, type \
+    let hierarchy_sql = "SELECT id, name, parent_id, type \
          FROM design_objects \
          WHERE type = 'graphic' \
            AND deleted_at IS NULL \
@@ -2152,11 +2176,11 @@ pub async fn list_graphics_hierarchy(
          ORDER BY name ASC";
 
     let rows = match sqlx::query(hierarchy_sql)
-    .bind(all_users)
-    .bind(user_id)
-    .bind(&scope_filter)
-    .fetch_all(&state.db)
-    .await
+        .bind(all_users)
+        .bind(user_id)
+        .bind(&scope_filter)
+        .fetch_all(&state.db)
+        .await
     {
         Ok(r) => r,
         Err(e) => {
