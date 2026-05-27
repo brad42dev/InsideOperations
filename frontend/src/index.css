@@ -26,6 +26,9 @@ body {
   --io-surface-sunken: #09090b;
   --io-surface-overlay: rgba(0, 0, 0, 0.7);
   --io-surface: var(--io-surface-elevated);
+  --io-bg: var(--io-surface-primary);
+  --io-surface-hover: var(--io-surface-elevated);
+  --io-surface-raised: var(--io-surface-elevated);
 
   /* Text (5) */
   --io-text-primary: #f9fafb;
@@ -33,6 +36,8 @@ body {
   --io-text-muted: #71717a;
   --io-text-inverse: #09090b;
   --io-text-link: var(--io-accent);
+  --io-text: var(--io-text-primary);
+  --io-text-on-accent: var(--io-accent-foreground);
 
   /* Accent — Midnight Teal, dark theme uses 400-level (5) */
   --io-accent: #2dd4bf;
@@ -40,6 +45,8 @@ body {
   --io-accent-active: #99f6e4;
   --io-accent-foreground: #09090b;
   --io-accent-subtle: rgba(45, 212, 191, 0.1);
+  /* Keep --io-accent-rgb in sync with --io-accent hex per theme: light=13 148 136, hphmi=20 184 166 */
+  --io-accent-rgb: 45 212 191;
 
   /* Borders & Separators (4) */
   --io-border: #3f3f46;
@@ -64,6 +71,7 @@ body {
   /* Operational Status (2) */
   --io-alarm-normal: #22c55e;
   --io-alarm-disabled: #52525b;
+  --io-alarm-inactive: #808080;
 
   /* Semantic Status (5 + subtle variants + status-fg) */
   --io-danger: #ef4444;
@@ -75,6 +83,7 @@ body {
   --io-warning-subtle: rgba(251, 191, 36, 0.15);
   --io-danger-subtle: rgba(239, 68, 68, 0.12);
   --io-status-fg: #ffffff;
+  --io-error: var(--io-danger);
 
   /* Chart & Visualization (5) */
   --io-chart-bg: #18181b;
@@ -103,7 +112,7 @@ body {
 
   /* Layer 4: Sidebar Tokens (5) */
   --io-sidebar-bg: var(--io-surface-secondary);
-  --io-sidebar-width: 240px;
+  --io-sidebar-width: 220px;
   --io-sidebar-collapsed: 48px;
   --io-sidebar-active-border: var(--io-accent);
   --io-sidebar-hover-bg: var(--io-accent-subtle);
@@ -138,6 +147,7 @@ body {
   --io-modal-bg: var(--io-surface-elevated);
   --io-modal-backdrop: var(--io-surface-overlay);
   --io-modal-radius: var(--io-radius-lg);
+  --io-overlay: var(--io-modal-backdrop);
 
   /* Layer 4: Toast/Notification Tokens (3) */
   --io-toast-bg: var(--io-surface-elevated);
@@ -199,13 +209,13 @@ body {
   --io-z-sidebar: 100;
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
-  --io-z-dropdown: 200;
-  --io-z-modal: 300;
-  --io-z-command: 400;
-  --io-z-visual-lock: 500;
-  --io-z-kiosk-auth: 600;
-  --io-z-toast: 700;
-  --io-z-emergency: 800;
+  --io-z-dropdown: 500;
+  --io-z-modal: 1000;
+  --io-z-command: 1200;
+  --io-z-visual-lock: 1500;
+  --io-z-kiosk-auth: 1800;
+  --io-z-toast: 2000;
+  --io-z-emergency: 3000;
 
   /* Duration (3) */
   --io-duration-fast: 150ms;
@@ -216,6 +226,9 @@ body {
   --io-font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", "Fira Code", "Courier New",
     monospace;
+  --io-font-sans:
+    "InterVariable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
 }
 
 /* ---- Light theme ------------------------------------------- */
@@ -227,6 +240,9 @@ body {
   --io-surface-sunken: #f3f4f6;
   --io-surface-overlay: rgba(0, 0, 0, 0.5);
   --io-surface: var(--io-surface-elevated);
+  --io-bg: var(--io-surface-primary);
+  --io-surface-hover: var(--io-surface-elevated);
+  --io-surface-raised: var(--io-surface-elevated);
 
   /* Text */
   --io-text-primary: #111827;
@@ -234,6 +250,8 @@ body {
   --io-text-muted: #9ca3af;
   --io-text-inverse: #ffffff;
   --io-text-link: var(--io-accent);
+  --io-text: var(--io-text-primary);
+  --io-text-on-accent: var(--io-accent-foreground);
 
   /* Accent — Midnight Teal, light theme uses 600-level */
   --io-accent: #0d9488;
@@ -241,6 +259,7 @@ body {
   --io-accent-active: #115e59;
   --io-accent-foreground: #ffffff;
   --io-accent-subtle: rgba(13, 148, 136, 0.08);
+  --io-accent-rgb: 13 148 136;
 
   /* Borders */
   --io-border: #e5e7eb;
@@ -265,6 +284,7 @@ body {
   /* Operational Status */
   --io-alarm-normal: #16a34a;
   --io-alarm-disabled: #9ca3af;
+  --io-alarm-inactive: #808080;
 
   /* Semantic Status */
   --io-danger: #dc2626;
@@ -276,6 +296,7 @@ body {
   --io-warning-subtle: rgba(217, 119, 6, 0.1);
   --io-danger-subtle: rgba(220, 38, 38, 0.1);
   --io-status-fg: #ffffff;
+  --io-error: var(--io-danger);
 
   /* Chart & Visualization */
   --io-chart-bg: #ffffff;
@@ -304,7 +325,7 @@ body {
 
   /* Layer 4: Sidebar Tokens */
   --io-sidebar-bg: var(--io-surface-secondary);
-  --io-sidebar-width: 240px;
+  --io-sidebar-width: 220px;
   --io-sidebar-collapsed: 48px;
   --io-sidebar-active-border: var(--io-accent);
   --io-sidebar-hover-bg: var(--io-accent-subtle);
@@ -339,6 +360,7 @@ body {
   --io-modal-bg: var(--io-surface-elevated);
   --io-modal-backdrop: var(--io-surface-overlay);
   --io-modal-radius: var(--io-radius-lg);
+  --io-overlay: var(--io-modal-backdrop);
 
   /* Layer 4: Toast/Notification Tokens */
   --io-toast-bg: var(--io-surface-elevated);
@@ -400,13 +422,13 @@ body {
   --io-z-sidebar: 100;
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
-  --io-z-dropdown: 200;
-  --io-z-modal: 300;
-  --io-z-command: 400;
-  --io-z-visual-lock: 500;
-  --io-z-kiosk-auth: 600;
-  --io-z-toast: 700;
-  --io-z-emergency: 800;
+  --io-z-dropdown: 500;
+  --io-z-modal: 1000;
+  --io-z-command: 1200;
+  --io-z-visual-lock: 1500;
+  --io-z-kiosk-auth: 1800;
+  --io-z-toast: 2000;
+  --io-z-emergency: 3000;
 
   /* Duration (same across themes) */
   --io-duration-fast: 150ms;
@@ -423,6 +445,9 @@ body {
   --io-surface-sunken: #0c1525;
   --io-surface-overlay: rgba(0, 0, 0, 0.7);
   --io-surface: var(--io-surface-elevated);
+  --io-bg: var(--io-surface-primary);
+  --io-surface-hover: var(--io-surface-elevated);
+  --io-surface-raised: var(--io-surface-elevated);
 
   /* Text */
   --io-text-primary: #e2e8f0;
@@ -430,6 +455,8 @@ body {
   --io-text-muted: #64748b;
   --io-text-inverse: #0f172a;
   --io-text-link: var(--io-accent);
+  --io-text: var(--io-text-primary);
+  --io-text-on-accent: var(--io-accent-foreground);
 
   /* Accent — Midnight Teal, HPHMI uses 500-level */
   --io-accent: #14b8a6;
@@ -437,6 +464,7 @@ body {
   --io-accent-active: #5eead4;
   --io-accent-foreground: #0f172a;
   --io-accent-subtle: rgba(45, 212, 191, 0.08);
+  --io-accent-rgb: 20 184 166;
 
   /* Borders */
   --io-border: #475569;
@@ -461,6 +489,7 @@ body {
   /* Operational Status */
   --io-alarm-normal: #22c55e;
   --io-alarm-disabled: #64748b;
+  --io-alarm-inactive: #808080;
 
   /* Semantic Status */
   --io-danger: #ef4444;
@@ -472,6 +501,7 @@ body {
   --io-warning-subtle: rgba(245, 158, 11, 0.15);
   --io-danger-subtle: rgba(239, 68, 68, 0.12);
   --io-status-fg: #ffffff;
+  --io-error: var(--io-danger);
 
   /* Chart & Visualization */
   --io-chart-bg: #1e293b;
@@ -500,7 +530,7 @@ body {
 
   /* Layer 4: Sidebar Tokens */
   --io-sidebar-bg: var(--io-surface-secondary);
-  --io-sidebar-width: 240px;
+  --io-sidebar-width: 220px;
   --io-sidebar-collapsed: 48px;
   --io-sidebar-active-border: var(--io-accent);
   --io-sidebar-hover-bg: var(--io-accent-subtle);
@@ -535,6 +565,7 @@ body {
   --io-modal-bg: var(--io-surface-elevated);
   --io-modal-backdrop: var(--io-surface-overlay);
   --io-modal-radius: var(--io-radius-lg);
+  --io-overlay: var(--io-modal-backdrop);
 
   /* Layer 4: Toast/Notification Tokens */
   --io-toast-bg: var(--io-surface-elevated);
@@ -596,13 +627,13 @@ body {
   --io-z-sidebar: 100;
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
-  --io-z-dropdown: 200;
-  --io-z-modal: 300;
-  --io-z-command: 400;
-  --io-z-visual-lock: 500;
-  --io-z-kiosk-auth: 600;
-  --io-z-toast: 700;
-  --io-z-emergency: 800;
+  --io-z-dropdown: 500;
+  --io-z-modal: 1000;
+  --io-z-command: 1200;
+  --io-z-visual-lock: 1500;
+  --io-z-kiosk-auth: 1800;
+  --io-z-toast: 2000;
+  --io-z-emergency: 3000;
 
   /* Duration */
   --io-duration-fast: 150ms;

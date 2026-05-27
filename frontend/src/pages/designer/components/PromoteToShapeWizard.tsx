@@ -2165,7 +2165,7 @@ export function PromoteToShapeWizard({
                     i === step
                       ? "var(--io-accent)"
                       : i < step
-                        ? "var(--io-accent-muted, #3b82f6)"
+                        ? "var(--io-accent-subtle)"
                         : "var(--io-border)",
                 }}
               />

@@ -324,7 +324,7 @@ export default function CommandPalette({
         [cmdk-overlay] {
           position: fixed;
           inset: 0;
-          z-index: 3000;
+          z-index: var(--io-z-command);
           background: rgba(0, 0, 0, 0.6);
           backdrop-filter: blur(4px);
         }
@@ -333,7 +333,7 @@ export default function CommandPalette({
           top: 20%;
           left: 50%;
           transform: translateX(-50%);
-          z-index: 3001;
+          z-index: calc(var(--io-z-command) + 1);
           width: 560px;
           max-width: calc(100vw - 32px);
           background: var(--io-surface-elevated);

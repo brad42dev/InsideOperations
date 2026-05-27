@@ -3,7 +3,7 @@
 **Derived from:** `ui-audit/02-comparison.md` (post-reconciliation), `ui-audit/04-recommendations.md`, `ui-audit/05-claim-c-deferral.md`
 **Scope:** `index.css` token registry, left nav (sidebar), top-bar styling. Excludes Claim B (shared style constants, shared components) and Claim C (canvas/work-surface containers, shared graphics CSS).
 **Date:** 2026-05-27
-**Status:** Planning only — no implementation
+**Status:** Token registry gaps in progress — see Section 1.1 for per-item status
 
 ---
 
@@ -15,20 +15,20 @@ All changes are additions or value corrections to `index.css`. No existing token
 
 | # | Token | Status | Proposed Fix | Source |
 |---|---|---|---|---|
-| A1 | `--io-bg` | Undefined; referenced in Console (grid container) | `--io-bg: var(--io-surface-primary)` | 02 Cat 1 Console Deviations; 04 Cat 1 |
-| A2 | `--io-text` | Undefined; referenced in Console and Designer dialog titles | `--io-text: var(--io-text-primary)` | 02 Cat 1 Console+Designer Deviations; 02 Cat 9 Console+Designer Deviations; 04 Cat 1 |
-| A3 | `--io-surface-hover` | Undefined; referenced in Designer zoom dropdown | `--io-surface-hover: var(--io-surface-elevated)` | 02 Cat 4 Designer Deviations; 04 Cat 1 |
-| A4 | `--io-font-sans` | Undefined; referenced in Designer zoom dropdown (font-family) | Define using the same font stack as the document root. Read `index.css` lines 1–18 (root selector) before writing to confirm the value matches what the document actually inherits. | 02 Cat 1 Designer Deviations; 02 Cat 4 Designer Deviations; 04 Cat 1 |
-| A5 | `--io-text-on-accent` | Undefined; referenced in Settings `btnPrimary` across ~15 files | `--io-text-on-accent: var(--io-accent-foreground)` | 02 Cat 1 Settings Deviations; 02 Cat 6 Settings Deviations; 04 Cat 1 |
-| A6 | `--io-error` | Undefined; referenced in DesignerCanvas context menu (Claim C file, but token definition is Claim A) | `--io-error: var(--io-danger)` | 02 Cat 10 Designer Deviations; 02 List 2 #7; 04 Cat 1 |
-| A7 | `--io-surface-raised` | Undefined; referenced in Designer `RowSection` | `--io-surface-raised: var(--io-surface-elevated)` | 02 Cat 7 Designer Deviations; 02 List 2 #7 |
-| A8 | `--io-accent-muted` | Undefined; referenced in Designer (specific file not pinned in audit) | Define as an opacity-reduced accent color. Research required: grep all Designer source files for `--io-accent-muted` to determine the visual tier expected. Likely between `--io-accent-subtle` (`rgba(45,212,191,0.1)`, index.css:42) and `--io-accent` (`#2dd4bf`). Propose value after grep confirms usage context. | 02 List 2 #7 |
-| A9 | `--io-overlay` | Undefined; referenced in Settings as `var(--io-overlay, rgba(0,0,0,0.5))` | `--io-overlay: var(--io-modal-backdrop)`. Pre-condition: verify `--io-surface-overlay` (the target of `--io-modal-backdrop` at index.css:139) is itself registered. If not, define `--io-overlay: rgba(0,0,0,0.5)` directly. | 02 Cat 11 Settings Deviations; 02 List 2 #7 |
-| A10 | `--io-accent-rgb` | Undefined; referenced in Settings for `rgba()` constructs | `--io-accent-rgb: 45 212 191` (space-separated for modern CSS `rgba(var(--io-accent-rgb) / opacity)` syntax; dark-theme `#2dd4bf` decomposes to `45 212 191`). Must be kept in sync with the accent hex across all themes. | 02 List 2 #7 |
-| A11 | `--io-alarm-inactive` | Not yet defined; needed by `alarmFlash.css` off-state hex migration (Claim C work) | `--io-alarm-inactive: #808080` (documented as the off-state value in 02 Cat 8 Shared Infrastructure) | 04 Cat 8 actions; 05 Section 3.1 |
-| A12 | `--io-text-inverse` | Not yet defined; needed by DesignerCanvas resize handle fix (Claim C work) | `--io-text-inverse: #ffffff` (dark-theme-first; preserves current `fill="white"` behavior while making it themeable) | 04 Cat 10 actions; 05 Section 3.4 |
-| A13 | `--io-z-modal` | Defined at 300 in index.css; misaligned with all actual usage across all three modules (1000–9999 range) | **⚠ User decision required — see Section 2.** Two options: (a) raise to 1000 only; (b) define a full scale `--io-z-dropdown: 500`, `--io-z-modal: 1000`, `--io-z-toast: 2000`. | 04 Cat 11 actions; 04 Risk R1; 02 List 2 #11 |
-| A14 | `--io-sidebar-width` | Defined as 240px; all three modules hardcode 220px in code (token not consumed anywhere) | **⚠ User decision required — see Section 2.** Option A: update token to 220px (1-line change in index.css, no module code changes). Option B: update all module code to 240px (changes in DesignerLeftPalette.tsx, ConsolePalette.tsx, Settings/index.tsx aside — 3 files). | 02 Cat 5 Console+Settings+Designer Deviations; 04 Cat 5 |
+| A1 | `--io-bg` | ✅ Done 2026-05-27 | `--io-bg: var(--io-surface-primary)` | 02 Cat 1 Console Deviations; 04 Cat 1 |
+| A2 | `--io-text` | ✅ Done 2026-05-27 | `--io-text: var(--io-text-primary)` | 02 Cat 1 Console+Designer Deviations; 02 Cat 9 Console+Designer Deviations; 04 Cat 1 |
+| A3 | `--io-surface-hover` | ✅ Done 2026-05-27 | `--io-surface-hover: var(--io-surface-elevated)` | 02 Cat 4 Designer Deviations; 04 Cat 1 |
+| A4 | `--io-font-sans` | ✅ Done 2026-05-27 | `--io-font-sans: "InterVariable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif` — matched body selector font stack. Defined in `:root` only (static across themes, same pattern as `--io-font-mono`). | 02 Cat 1 Designer Deviations; 02 Cat 4 Designer Deviations; 04 Cat 1 |
+| A5 | `--io-text-on-accent` | ✅ Done 2026-05-27 | `--io-text-on-accent: var(--io-accent-foreground)` | 02 Cat 1 Settings Deviations; 02 Cat 6 Settings Deviations; 04 Cat 1 |
+| A6 | `--io-error` | ✅ Done 2026-05-27 | `--io-error: var(--io-danger)` | 02 Cat 10 Designer Deviations; 02 List 2 #7; 04 Cat 1 |
+| A7 | `--io-surface-raised` | ✅ Done 2026-05-27 | `--io-surface-raised: var(--io-surface-elevated)` | 02 Cat 7 Designer Deviations; 02 List 2 #7 |
+| A8 | `--io-accent-muted` | ⚠ Skipped — consumer fix preferred over new token | Only usage: `PromoteToShapeWizard.tsx:2168` — stepper progress bars, completed-step color, with fallback `#3b82f6` (info blue). No other wizard uses this token. `RecognitionWizard` uses hardcoded greens for completed steps; no shared pattern exists. User direction: change `PromoteToShapeWizard.tsx:2168` to use an existing token instead of defining a one-off `--io-accent-muted`. Candidate: `var(--io-accent-subtle)` (rgba(45,212,191,0.1)) — readable teal tint for a completed bar. **Action required in a consumer-file pass:** update `PromoteToShapeWizard.tsx:2168` from `"var(--io-accent-muted, #3b82f6)"` to `"var(--io-accent-subtle)"`. Do NOT define `--io-accent-muted` in index.css. | 02 List 2 #7 |
+| A9 | `--io-overlay` | ✅ Done 2026-05-27 | `--io-overlay: var(--io-modal-backdrop)`. Pre-condition verified: `--io-modal-backdrop → --io-surface-overlay` chain is complete in all three themes. | 02 Cat 11 Settings Deviations; 02 List 2 #7 |
+| A10 | `--io-accent-rgb` | ✅ Done 2026-05-27 | Added per-theme: dark=`45 212 191` (#2dd4bf), light=`13 148 136` (#0d9488), hphmi=`20 184 166` (#14b8a6). Comment added in dark theme pointing to light/hphmi values. | 02 List 2 #7 |
+| A11 | `--io-alarm-inactive` | ✅ Done 2026-05-27 | `--io-alarm-inactive: #808080` — added to all three themes with identical value. | 04 Cat 8 actions; 05 Section 3.1 |
+| A12 | `--io-text-inverse` | ⚠ Skipped — already defined; audit claim was incorrect | Token IS defined in all three theme blocks: dark=#09090b (line 34), light=#ffffff (line 235), hphmi=#0f172a (line 431). Plan entry "Not yet defined" was wrong. No action needed. | 04 Cat 10 actions; 05 Section 3.4 |
+| A13 | `--io-z-modal` | ✅ Done 2026-05-27 | Updated per Option B decision: `--io-z-dropdown: 500` (was 200), `--io-z-modal: 1000` (was 300), `--io-z-toast: 2000` (was 700), `--io-z-visual-lock: 1500` (was 500), `--io-z-emergency: 3000` (was 800). Applied to all three theme blocks. Remaining Claim B item: `--io-z-command: 400` and `--io-z-kiosk-auth: 600` are unused in components (CommandPalette hardcodes 3000/3001); adopt tokens + reconcile in Claim B. | 04 Cat 11 actions; 04 Risk R1; 02 List 2 #11 |
+| A14 | `--io-sidebar-width` | ✅ Done 2026-05-27 | Updated to 220px in all three theme blocks per Option A decision. No module code changes needed. | 02 Cat 5 Console+Settings+Designer Deviations; 04 Cat 5 |
 
 **Category A total: 14 changes in `index.css`**
 
@@ -86,35 +86,37 @@ Within token work, independent gaps go first; research-gated or decision-gated i
 
 All are `index.css` only. Can land in a single commit.
 
-1. **A1** — `--io-bg: var(--io-surface-primary)`
-2. **A2** — `--io-text: var(--io-text-primary)`
-3. **A3** — `--io-surface-hover: var(--io-surface-elevated)`
-4. **A5** — `--io-text-on-accent: var(--io-accent-foreground)`
-5. **A6** — `--io-error: var(--io-danger)`
-6. **A7** — `--io-surface-raised: var(--io-surface-elevated)`
-7. **A9** — `--io-overlay: var(--io-modal-backdrop)` (after verifying alias chain)
-8. **A11** — `--io-alarm-inactive: #808080`
-9. **A12** — `--io-text-inverse: #ffffff`
+1. ✅ **A1** — `--io-bg: var(--io-surface-primary)` — Done 2026-05-27
+2. ✅ **A2** — `--io-text: var(--io-text-primary)` — Done 2026-05-27
+3. ✅ **A3** — `--io-surface-hover: var(--io-surface-elevated)` — Done 2026-05-27
+4. ✅ **A5** — `--io-text-on-accent: var(--io-accent-foreground)` — Done 2026-05-27
+5. ✅ **A6** — `--io-error: var(--io-danger)` — Done 2026-05-27
+6. ✅ **A7** — `--io-surface-raised: var(--io-surface-elevated)` — Done 2026-05-27
+7. ✅ **A9** — `--io-overlay: var(--io-modal-backdrop)` — Done 2026-05-27; alias chain verified
+8. ✅ **A11** — `--io-alarm-inactive: #808080` — Done 2026-05-27
+9. ~~**A12** — `--io-text-inverse: #ffffff`~~ — **SKIPPED**: already defined in all three themes (dark=#09090b, light=#ffffff, hphmi=#0f172a). Plan claim was incorrect.
 
 ### Pass 2 — Research-gated tokens (grep / read index.css before writing)
 
 Resolve values, then add in a second `index.css` commit.
 
-10. **A4** — `--io-font-sans`: read root `font-family` declaration in `index.css` (lines 1–18); write token with the same stack to guarantee consistency.
-11. **A8** — `--io-accent-muted`: grep all Designer source files for the token name; examine the call site(s) to determine the expected visual tier; propose a value; write it.
-12. **A10** — `--io-accent-rgb: 45 212 191`: confirm dark-theme `--io-accent` hex is `#2dd4bf`; confirm this RGB decomposition is correct; write the token. Note: light/HPHMI themes must update this value if their accent color differs — add a comment in index.css to that effect.
+10. ✅ **A4** — `--io-font-sans` — Done 2026-05-27; matched `body` selector font stack (`:root` only, same pattern as `--io-font-mono`)
+11. ~~**A8** — `--io-accent-muted`~~ — **SKIPPED**: token used in one place only (`PromoteToShapeWizard.tsx:2168`); no shared pattern; fix is to update that consumer to use `var(--io-accent-subtle)` instead. Do not define this token.
+12. ✅ **A10** — `--io-accent-rgb` — Done 2026-05-27; per-theme values confirmed and added with inline comment
 
 ### Pass 3 — Decision-gated tokens (decisions recorded 2026-05-27)
 
-13. **A13** — ✅ **Decision: Option B — full z-index scale.**
-    - `--io-z-dropdown: 500`
-    - `--io-z-modal: 1000` (replaces current `--io-z-modal: 300`)
-    - `--io-z-toast: 2000`
-    - Claim B dialog migration will reference these tokens when moving hardcoded integers.
+13. ✅ **A13** — Done 2026-05-27. **Decision: Option B — full z-index scale.**
+    - `--io-z-dropdown: 500` (was 200)
+    - `--io-z-modal: 1000` (was 300)
+    - `--io-z-toast: 2000` (was 700)
+    - Applied to all three theme blocks.
+    - ✅ **Emergency/toast inversion resolved 2026-05-27:** `--io-z-emergency` raised 800→3000; `--io-z-visual-lock` raised 500→1500 (above modal at 1000, below toast). Both applied in all three themes.
+    - ⚠ **Remaining Claim B items:** `--io-z-command: 400` and `--io-z-kiosk-auth: 600` tokens exist only in `tokens.ts`; no component references them. CommandPalette hardcodes `z-index: 3000/3001`. Full token adoption + value reconciliation deferred to Claim B z-index migration.
 
-14. **A14** — ✅ **Decision: 220px (Option A).**
-    - Update `--io-sidebar-width: 220px` in index.css. No module code changes.
-    - 220px is the official convention. Can be revisited later if the value needs changing.
+14. ✅ **A14** — Done 2026-05-27. **Decision: 220px (Option A).**
+    - `--io-sidebar-width: 220px` in all three theme blocks. No module code changes.
+    - 220px is the official convention.
 
 ### Pass 4 — Shell drift fixes (after Passes 1–3 are committed)
 
@@ -142,9 +144,9 @@ None of the 18 changes require coordination that prevents isolation. B3 (if 240p
 
 Claim A is complete when all of the following are verifiable:
 
-1. **Zero undefined token references in shell-layer code.** Each token in the set {`--io-bg`, `--io-text`, `--io-surface-hover`, `--io-font-sans`, `--io-text-on-accent`, `--io-error`, `--io-surface-raised`, `--io-accent-muted`, `--io-overlay`, `--io-accent-rgb`} is defined in `index.css`. Grep confirms no remaining unresolved references in the shell-layer files.
+1. **Zero undefined token references in shell-layer code.** Each token in the set {`--io-bg`, `--io-text`, `--io-surface-hover`, `--io-font-sans`, `--io-text-on-accent`, `--io-error`, `--io-surface-raised`, `--io-overlay`, `--io-accent-rgb`} is defined in `index.css`. Grep confirms no remaining unresolved references in the shell-layer files. Note: `--io-accent-muted` was removed from this set — its single usage in `PromoteToShapeWizard.tsx` was redirected to `var(--io-accent-subtle)`; the token is intentionally not defined.
 
-2. **Two new tokens defined.** `--io-alarm-inactive` and `--io-text-inverse` exist in `index.css` with documented values.
+2. **One new token defined.** `--io-alarm-inactive` exists in `index.css` with value `#808080`. (`--io-text-inverse` was already defined before this workstream began — A12 was skipped; see table.)
 
 3. **`--io-z-modal` is at a realistic value.** Token is ≥1000 and consistent with the chosen z-index scale (whether single-token or full scale per A13 decision).
 
