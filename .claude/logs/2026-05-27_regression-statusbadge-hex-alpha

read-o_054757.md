@@ -1,152 +1,202 @@
-# Work Unit Log: regression-accent-token-prefix
+# Work Unit Log: regression-statusbadge-hex-alpha
 
-read-onl
+read-o
 
-Started: 2026-05-27T05:28:06+00:00
-Session: 7b3e9adb-0cfd-40e4-8d10-41a20da9a984
+Started: 2026-05-27T05:47:57+00:00
+Session: 361ad460-9bf3-4897-b065-aefe183d5610
 
 ---
 
 
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css` (304→310 chars)
+## #EDIT `/home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx` (88→158 chars)
 
-_2026-05-27T05:28:34+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx` (99→101 chars)
-
-_2026-05-27T05:28:37+00:00_
+_2026-05-27T05:49:17+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (855→639 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (280→957 chars)
 
-_2026-05-27T05:28:51+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (423→395 chars)
-
-_2026-05-27T05:28:57+00:00_
+_2026-05-27T05:49:30+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (359→357 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (1068→1632 chars)
 
-_2026-05-27T05:29:12+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (291→387 chars)
-
-_2026-05-27T05:29:19+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (148→174 chars)
-
-_2026-05-27T05:29:25+00:00_
+_2026-05-27T05:49:47+00:00_
 
 
 ## #PROMPT
 
-_2026-05-27T05:29:32+00:00_
+_2026-05-27T05:50:22+00:00_
 
 ```
-~initprompt~ regression-accent-token-prefix
+~initprompt~ regression-statusbadge-hex-alpha
 
-Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is an explicit exception to the Claim C deferral.
+Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is not affected by the Claim C deferral (StatusBadge in OpcSources is in the Settings module, not the canvas layer).
 
-Goal: fix the var(--accent) prefix bug that makes selection highlights invisible. Per the audit, the issue is that shared/clipboard/selection/selection.css and MarqueeLayer.tsx reference var(--accent) without the --io- prefix, so the variable is undefined everywhere and selection highlights and marquee borders render with no color.
+Goal: fix the OpcSources StatusBadge hex-alpha concatenation bug that renders all badge backgrounds as transparent.
 
-Part one, investigation. Open shared/clipboard/selection/selection.css and shared/clipboard/selection/MarqueeLayer.tsx. Identify every reference to var(--accent) without the --io- prefix. For each, record: file, line number, current value, and the intended color based on context (selection highlight, marquee border, etc.). Also check index.css to confirm what the correct --io- prefixed token name should be. The audit notes "accent-subtle teal" as the intended color for MarqueeLayer; verify whether the correct token is --io-accent, --io-accent-subtle, or something else, and what its hex value is.
+Part one, investigation. Open the OpcSources.tsx file in the Settings module and locate the StatusBadge usage. Identify the hex-alpha concatenation pattern that produces transparent backgrounds. The audit suggests the bug is concatenating a hex color value with an alpha suffix in a way that produces an invalid CSS color (likely something like \${color}40 where the resulting string is not a valid color expression). Record the exact current code, the file, and the line numbers.
 
-Part two, fix. Replace each var(--accent) reference with the correct --io- prefixed token. Do not change any other behavior. Do not refactor unrelated CSS. Do not add new tokens to index.css. If you find a reference where the correct token does not exist in index.css, stop and tell me rather than inventing a token.
+Confirm whether this bug exists only in OpcSources.tsx or whether the same pattern is used elsewhere in Settings. If StatusBadge itself has the bug internally (rather than the bug being in how OpcSources passes props to it), the fix scope is larger; record this finding.
 
-Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect that the var(--accent) bug has been fixed: locate the shared infrastructure entry for selection.css and MarqueeLayer.tsx (likely under category 5 or 10 per the reconciliation), and update the deviations and notes fields to record the fix with a date and the corrected token reference. Update ui-audit/04-recommendations.md similarly: locate the priority-one regression entry and mark it as resolved with the same date and reference.
+Part two, fix. Replace the broken hex-alpha concatenation with a correct CSS color expression. Options include using rgba() with explicit values, using a CSS variable that already has the right alpha applied, or using color-mix() if the codebase already uses it elsewhere. Pick the approach that matches the codebase's existing patterns; do not introduce a new pattern just for this fix. If StatusBadge itself has the bug, fix it at the component level so all consumers benefit, not just OpcSources.
 
-Do not modify any other audit files. Do not touch any Claim A or Claim B work. Do not modify any other files in the canvas or work-surface layer per the Claim C deferral.
+Do not change any other behavior. Do not refactor StatusBadge beyond what is needed to fix the bug. Do not modify any unrelated Settings pages.
 
-When done, print: the files modified, the specific replacements made (before and after for each), and the audit-file updates applied. Stop.
+Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect the fix: locate the StatusBadge or OpcSources entry (likely category 8 status indicators) and update the deviations and notes fields with the fix date and corrected approach. Update ui-audit/04-recommendations.md similarly: mark the priority-one regression as resolved.
+
+Do not modify any other audit files. Do not touch any Claim A, Claim B, or other Claim C work.
+
+When done, print: the files modified, the specific code change (before and after), whether the fix was scoped to OpcSources or to StatusBadge itself with rationale, and the audit-file updates applied. Stop.
 ```
 
 
 ## #ASSISTANT
 
-Reading the audit files and source files to confirm the bug details.
+Starting with the audit docs and source files to understand the bug before touching anything.
 
 
 ## #ASSISTANT
 
-Now reading the source files to identify all `var(--accent)` references and confirm the correct tokens.
-
-
-## #ASSISTANT
-
-Now let me verify the correct token names in index.css.
+Good. Now let me find OpcSources.tsx and read the relevant sections.
 
 
 ## #BASH
-_Find --io-accent and --io-accent-subtle token definitions_
+_Find OpcSources.tsx location_
 
 ```bash
-grep -n "io-accent" /home/io/io-dev/io/frontend/src/index.css | head -20
+find /home/io/io-dev/io/frontend -name "OpcSources.tsx" 2>/dev/null
 ```
 
 
 ## #ASSISTANT
 
-Investigation complete. Here's what I found:
-
-**`selection.css`:**
-- Line 2: `outline: 2px solid var(--accent)` — intended: selection-box outline, correct token: `var(--io-accent)`
-- Line 9: `0 0 12px 2px var(--accent)` — intended: soft-glow shadow, correct token: `var(--io-accent)`
-
-**`MarqueeLayer.tsx`:**
-- Line 100: `background: "rgba(80, 180, 255, 0.08)"` — hardcoded blue, correct token: `var(--io-accent-subtle)` (teal, defined at index.css:42 as `rgba(45,212,191,0.1)`)
-- Line 101: `border: "1px dashed var(--accent)"` — correct token: `var(--io-accent)`
-
-Both `--io-accent` and `--io-accent-subtle` are confirmed in index.css (lines 38 and 42). Applying the fixes now.
-
-
-## #ASSISTANT
-
-Now updating the audit artifacts. First `02-comparison.md` — both the Cat 5 and Cat 10 shared infrastructure entries.
-
-
-## #ASSISTANT
-
-Now update the Cat 10 secondary entry in `02-comparison.md`.
-
-
-## #ASSISTANT
-
-Now update `04-recommendations.md` — the Cat 5 priority-one fix entry and the Cat 10 entry.
+Now let me find the StatusBadge and hex-alpha pattern in OpcSources.tsx.
 
 
 ## #BASH
-_Find var(--accent) references in recommendations file_
+_Find StatusBadge and hex-alpha concat patterns in OpcSources.tsx_
 
 ```bash
-grep -n "var(--accent)" /home/io/io-dev/io/ui-audit/04-recommendations.md
+grep -n "StatusBadge\|statusBadge\|status_badge\|color}20\|color}40\|color}80\|hex.*alpha\|alpha.*hex\|\${color}" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -60
+```
+
+
+## #BASH
+_Find STATUS_COLORS definition_
+
+```bash
+grep -n "STATUS_COLORS" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -20
 ```
 
 
 ## #ASSISTANT
 
-Now update the Cat 10 entry in recommendations.
+Let me check how SystemHealth.tsx and Import.tsx do their StatusBadge correctly, to match the codebase pattern.
+
+
+## #BASH
+_Find SystemHealth StatusBadge pattern_
+
+```bash
+grep -n "color-mix\|success-subtle\|StatusBadge\|statusBadge\|status.*badge" /home/io/io-dev/io/frontend/src/pages/settings/SystemHealth.tsx | head -20
+```
+
+
+## #BASH
+_Find Import.tsx status badge pattern_
+
+```bash
+grep -n "success-subtle\|color-mix\|StatusBadge\|status.*badge\|io-success" /home/io/io-dev/io/frontend/src/pages/settings/Import.tsx | head -20
+```
 
 
 ## #ASSISTANT
 
-Finally update the Phase 2 migration order entry.
+The codebase already uses `color-mix(in srgb, ...)` in SystemHealth.tsx — this is the correct existing pattern to match. Let me verify there are no other files with the same `${color}20` bug.
+
+
+## #BASH
+_Search for hex-alpha concat pattern across frontend_
+
+```bash
+grep -rn '${color}20\|${color}40\|${color}80\|`${.*}[0-9a-f][0-9a-f]`' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #BASH
+_Search for hex-alpha concat pattern with different quoting_
+
+```bash
+grep -rn 'color}20\|color}40\|color}80\|color}10' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #ASSISTANT
+
+Good — the same bug pattern exists in 4 more files. The task asks me to fix OpcSources only and record the finding. Let me verify the color values in Users.tsx and Roles.tsx are also CSS vars:
+
+
+## #BASH
+_Verify Users.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Users.tsx | head -15
+```
+
+
+## #BASH
+_Verify Roles.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Roles.tsx | head -15
+```
+
+
+## #ASSISTANT
+
+Let me check the SystemHealth StatusBadge implementation in full for the exact border pattern:
+
+
+## #ASSISTANT
+
+The bug is confirmed in OpcSources.tsx only. The `StatusBadge` is a local function (not shared), and the bug is in lines 168 and 170. The fix uses the `color-mix()` pattern already established by `SystemHealth.tsx`.
+
+Applying the fix:
+
+
+## #ASSISTANT
+
+Now update the two audit files. Starting with `04-recommendations.md`:
+
+
+## #ASSISTANT
+
+Now update `02-comparison.md` — the Category 8 entry for Settings OpcSources:
+
+
+## #ASSISTANT
+
+Now verify the fix compiles cleanly:
+
+
+## #BASH
+_TypeScript check for OpcSources.tsx_
+
+```bash
+cd /home/io/io-dev/io/frontend && pnpm tsc --noEmit 2>&1 | grep -i "OpcSources\|error" | head -20
+```
 
 
 ## #TURN_END
 
-_2026-05-27T05:29:33+00:00_
+_2026-05-27T05:50:23+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:31:41+00:00_
+_2026-05-27T05:52:28+00:00_
 
 ```
 You are performing a DEEP verification review of a Claude Code work unit.
@@ -183,148 +233,198 @@ DO NOT speculate about things outside the diff. Stay grounded in what's there.
 
 WORK UNIT LOG:
 ---
-# Work Unit Log: regression-accent-token-prefix
+# Work Unit Log: regression-statusbadge-hex-alpha
 
-read-onl
+read-o
 
-Started: 2026-05-27T05:28:06+00:00
-Session: 7b3e9adb-0cfd-40e4-8d10-41a20da9a984
+Started: 2026-05-27T05:47:57+00:00
+Session: 361ad460-9bf3-4897-b065-aefe183d5610
 
 ---
 
 
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css` (304→310 chars)
+## #EDIT `/home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx` (88→158 chars)
 
-_2026-05-27T05:28:34+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx` (99→101 chars)
-
-_2026-05-27T05:28:37+00:00_
+_2026-05-27T05:49:17+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (855→639 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (280→957 chars)
 
-_2026-05-27T05:28:51+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (423→395 chars)
-
-_2026-05-27T05:28:57+00:00_
+_2026-05-27T05:49:30+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (359→357 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (1068→1632 chars)
 
-_2026-05-27T05:29:12+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (291→387 chars)
-
-_2026-05-27T05:29:19+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (148→174 chars)
-
-_2026-05-27T05:29:25+00:00_
+_2026-05-27T05:49:47+00:00_
 
 
 ## #PROMPT
 
-_2026-05-27T05:29:32+00:00_
+_2026-05-27T05:50:22+00:00_
 
 ```
-~initprompt~ regression-accent-token-prefix
+~initprompt~ regression-statusbadge-hex-alpha
 
-Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is an explicit exception to the Claim C deferral.
+Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is not affected by the Claim C deferral (StatusBadge in OpcSources is in the Settings module, not the canvas layer).
 
-Goal: fix the var(--accent) prefix bug that makes selection highlights invisible. Per the audit, the issue is that shared/clipboard/selection/selection.css and MarqueeLayer.tsx reference var(--accent) without the --io- prefix, so the variable is undefined everywhere and selection highlights and marquee borders render with no color.
+Goal: fix the OpcSources StatusBadge hex-alpha concatenation bug that renders all badge backgrounds as transparent.
 
-Part one, investigation. Open shared/clipboard/selection/selection.css and shared/clipboard/selection/MarqueeLayer.tsx. Identify every reference to var(--accent) without the --io- prefix. For each, record: file, line number, current value, and the intended color based on context (selection highlight, marquee border, etc.). Also check index.css to confirm what the correct --io- prefixed token name should be. The audit notes "accent-subtle teal" as the intended color for MarqueeLayer; verify whether the correct token is --io-accent, --io-accent-subtle, or something else, and what its hex value is.
+Part one, investigation. Open the OpcSources.tsx file in the Settings module and locate the StatusBadge usage. Identify the hex-alpha concatenation pattern that produces transparent backgrounds. The audit suggests the bug is concatenating a hex color value with an alpha suffix in a way that produces an invalid CSS color (likely something like \${color}40 where the resulting string is not a valid color expression). Record the exact current code, the file, and the line numbers.
 
-Part two, fix. Replace each var(--accent) reference with the correct --io- prefixed token. Do not change any other behavior. Do not refactor unrelated CSS. Do not add new tokens to index.css. If you find a reference where the correct token does not exist in index.css, stop and tell me rather than inventing a token.
+Confirm whether this bug exists only in OpcSources.tsx or whether the same pattern is used elsewhere in Settings. If StatusBadge itself has the bug internally (rather than the bug being in how OpcSources passes props to it), the fix scope is larger; record this finding.
 
-Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect that the var(--accent) bug has been fixed: locate the shared infrastructure entry for selection.css and MarqueeLayer.tsx (likely under category 5 or 10 per the reconciliation), and update the deviations and notes fields to record the fix with a date and the corrected token reference. Update ui-audit/04-recommendations.md similarly: locate the priority-one regression entry and mark it as resolved with the same date and reference.
+Part two, fix. Replace the broken hex-alpha concatenation with a correct CSS color expression. Options include using rgba() with explicit values, using a CSS variable that already has the right alpha applied, or using color-mix() if the codebase already uses it elsewhere. Pick the approach that matches the codebase's existing patterns; do not introduce a new pattern just for this fix. If StatusBadge itself has the bug, fix it at the component level so all consumers benefit, not just OpcSources.
 
-Do not modify any other audit files. Do not touch any Claim A or Claim B work. Do not modify any other files in the canvas or work-surface layer per the Claim C deferral.
+Do not change any other behavior. Do not refactor StatusBadge beyond what is needed to fix the bug. Do not modify any unrelated Settings pages.
 
-When done, print: the files modified, the specific replacements made (before and after for each), and the audit-file updates applied. Stop.
+Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect the fix: locate the StatusBadge or OpcSources entry (likely category 8 status indicators) and update the deviations and notes fields with the fix date and corrected approach. Update ui-audit/04-recommendations.md similarly: mark the priority-one regression as resolved.
+
+Do not modify any other audit files. Do not touch any Claim A, Claim B, or other Claim C work.
+
+When done, print: the files modified, the specific code change (before and after), whether the fix was scoped to OpcSources or to StatusBadge itself with rationale, and the audit-file updates applied. Stop.
 ```
 
 
 ## #ASSISTANT
 
-Reading the audit files and source files to confirm the bug details.
+Starting with the audit docs and source files to understand the bug before touching anything.
 
 
 ## #ASSISTANT
 
-Now reading the source files to identify all `var(--accent)` references and confirm the correct tokens.
-
-
-## #ASSISTANT
-
-Now let me verify the correct token names in index.css.
+Good. Now let me find OpcSources.tsx and read the relevant sections.
 
 
 ## #BASH
-_Find --io-accent and --io-accent-subtle token definitions_
+_Find OpcSources.tsx location_
 
 ```bash
-grep -n "io-accent" /home/io/io-dev/io/frontend/src/index.css | head -20
+find /home/io/io-dev/io/frontend -name "OpcSources.tsx" 2>/dev/null
 ```
 
 
 ## #ASSISTANT
 
-Investigation complete. Here's what I found:
-
-**`selection.css`:**
-- Line 2: `outline: 2px solid var(--accent)` — intended: selection-box outline, correct token: `var(--io-accent)`
-- Line 9: `0 0 12px 2px var(--accent)` — intended: soft-glow shadow, correct token: `var(--io-accent)`
-
-**`MarqueeLayer.tsx`:**
-- Line 100: `background: "rgba(80, 180, 255, 0.08)"` — hardcoded blue, correct token: `var(--io-accent-subtle)` (teal, defined at index.css:42 as `rgba(45,212,191,0.1)`)
-- Line 101: `border: "1px dashed var(--accent)"` — correct token: `var(--io-accent)`
-
-Both `--io-accent` and `--io-accent-subtle` are confirmed in index.css (lines 38 and 42). Applying the fixes now.
-
-
-## #ASSISTANT
-
-Now updating the audit artifacts. First `02-comparison.md` — both the Cat 5 and Cat 10 shared infrastructure entries.
-
-
-## #ASSISTANT
-
-Now update the Cat 10 secondary entry in `02-comparison.md`.
-
-
-## #ASSISTANT
-
-Now update `04-recommendations.md` — the Cat 5 priority-one fix entry and the Cat 10 entry.
+Now let me find the StatusBadge and hex-alpha pattern in OpcSources.tsx.
 
 
 ## #BASH
-_Find var(--accent) references in recommendations file_
+_Find StatusBadge and hex-alpha concat patterns in OpcSources.tsx_
 
 ```bash
-grep -n "var(--accent)" /home/io/io-dev/io/ui-audit/04-recommendations.md
+grep -n "StatusBadge\|statusBadge\|status_badge\|color}20\|color}40\|color}80\|hex.*alpha\|alpha.*hex\|\${color}" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -60
+```
+
+
+## #BASH
+_Find STATUS_COLORS definition_
+
+```bash
+grep -n "STATUS_COLORS" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -20
 ```
 
 
 ## #ASSISTANT
 
-Now update the Cat 10 entry in recommendations.
+Let me check how SystemHealth.tsx and Import.tsx do their StatusBadge correctly, to match the codebase pattern.
+
+
+## #BASH
+_Find SystemHealth StatusBadge pattern_
+
+```bash
+grep -n "color-mix\|success-subtle\|StatusBadge\|statusBadge\|status.*badge" /home/io/io-dev/io/frontend/src/pages/settings/SystemHealth.tsx | head -20
+```
+
+
+## #BASH
+_Find Import.tsx status badge pattern_
+
+```bash
+grep -n "success-subtle\|color-mix\|StatusBadge\|status.*badge\|io-success" /home/io/io-dev/io/frontend/src/pages/settings/Import.tsx | head -20
+```
 
 
 ## #ASSISTANT
 
-Finally update the Phase 2 migration order entry.
+The codebase already uses `color-mix(in srgb, ...)` in SystemHealth.tsx — this is the correct existing pattern to match. Let me verify there are no other files with the same `${color}20` bug.
+
+
+## #BASH
+_Search for hex-alpha concat pattern across frontend_
+
+```bash
+grep -rn '${color}20\|${color}40\|${color}80\|`${.*}[0-9a-f][0-9a-f]`' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #BASH
+_Search for hex-alpha concat pattern with different quoting_
+
+```bash
+grep -rn 'color}20\|color}40\|color}80\|color}10' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #ASSISTANT
+
+Good — the same bug pattern exists in 4 more files. The task asks me to fix OpcSources only and record the finding. Let me verify the color values in Users.tsx and Roles.tsx are also CSS vars:
+
+
+## #BASH
+_Verify Users.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Users.tsx | head -15
+```
+
+
+## #BASH
+_Verify Roles.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Roles.tsx | head -15
+```
+
+
+## #ASSISTANT
+
+Let me check the SystemHealth StatusBadge implementation in full for the exact border pattern:
+
+
+## #ASSISTANT
+
+The bug is confirmed in OpcSources.tsx only. The `StatusBadge` is a local function (not shared), and the bug is in lines 168 and 170. The fix uses the `color-mix()` pattern already established by `SystemHealth.tsx`.
+
+Applying the fix:
+
+
+## #ASSISTANT
+
+Now update the two audit files. Starting with `04-recommendations.md`:
+
+
+## #ASSISTANT
+
+Now update `02-comparison.md` — the Category 8 entry for Settings OpcSources:
+
+
+## #ASSISTANT
+
+Now verify the fix compiles cleanly:
+
+
+## #BASH
+_TypeScript check for OpcSources.tsx_
+
+```bash
+cd /home/io/io-dev/io/frontend && pnpm tsc --noEmit 2>&1 | grep -i "OpcSources\|error" | head -20
+```
 
 
 ## #TURN_END
 
-_2026-05-27T05:29:33+00:00_
+_2026-05-27T05:50:23+00:00_
 
 ---
 ---
@@ -333,232 +433,1082 @@ _2026-05-27T05:29:33+00:00_
 
 DIFF OF CHANGES:
 ---
-diff --git a/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx b/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-index ace7355a..cb83f33c 100644
---- a/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-+++ b/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-@@ -97,8 +97,8 @@ export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
-             left: rect.left,
-             width: rect.width,
-             height: rect.height,
--            background: "rgba(80, 180, 255, 0.08)",
--            border: "1px dashed var(--accent)",
-+            background: "var(--io-accent-subtle)",
-+            border: "1px dashed var(--io-accent)",
-             pointerEvents: "none",
-           }}
-         />
-diff --git a/frontend/src/shared/clipboard/selection/selection.css b/frontend/src/shared/clipboard/selection/selection.css
-index 4b6369e3..14dd9e03 100644
---- a/frontend/src/shared/clipboard/selection/selection.css
-+++ b/frontend/src/shared/clipboard/selection/selection.css
-@@ -1,11 +1,11 @@
- .io-selection-overlay [data-indicator="selection-box"] {
--  outline: 2px solid var(--accent);
-+  outline: 2px solid var(--io-accent);
-   outline-offset: -1px;
-   border-radius: 2px;
- }
- .io-selection-overlay [data-indicator="soft-glow"] {
-   box-shadow:
-     0 0 0 2px rgba(255, 255, 255, 0.15),
--    0 0 12px 2px var(--accent);
-+    0 0 12px 2px var(--io-accent);
-   border-radius: 4px;
- }
+diff --git a/frontend/src/pages/settings/OpcSources.tsx b/frontend/src/pages/settings/OpcSources.tsx
+index 0807d2ff..89713e31 100644
+--- a/frontend/src/pages/settings/OpcSources.tsx
++++ b/frontend/src/pages/settings/OpcSources.tsx
+@@ -165,9 +165,9 @@ function StatusBadge({ status }: { status: string }) {
+         borderRadius: "9999px",
+         fontSize: "11px",
+         fontWeight: 600,
+-        background: `${color}20`,
++        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+         color,
+-        border: `1px solid ${color}40`,
++        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+         textTransform: "capitalize",
+       }}
+     >
 diff --git a/ui-audit/02-comparison.md b/ui-audit/02-comparison.md
-index d581a1c0..afb93f2d 100644
+index afb93f2d..4af88c4e 100644
 --- a/ui-audit/02-comparison.md
 +++ b/ui-audit/02-comparison.md
-@@ -70,8 +70,8 @@
- | **Implementation** | Shared clipboard selection overlay system. `selection.css` applies a selection-box outline and glow effect to `.io-selection-overlay` container child elements via `data-indicator` attribute. `MarqueeLayer.tsx` renders a draggable marquee rectangle during drag operations via mouse events and writes to `globalSelectionStore`. |
- | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` (render return), `:101` (token deviation) |
- | **Visual properties actually applied** | `selection.css`: `[data-indicator="selection-box"]`: `outline: 2px solid var(--accent)`, `outline-offset: -1px`, `borderRadius: 2px`; `[data-indicator="soft-glow"]`: `box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 12px 2px var(--accent)`, `borderRadius: 4px`. `MarqueeLayer.tsx`: container `position: absolute, inset: 0`; marquee rect while dragging: `background: rgba(80,180,255,0.08)`, `border: 1px dashed var(--accent)`, `pointerEvents: none` |
--| **Deviations from app shell** | Both files use `var(--accent)` without the `--io-` prefix — this token has no definition anywhere in the codebase; selection box outline and glow shadow render with no color (CSS initial value). `MarqueeLayer.tsx:101` hardcodes background `rgba(80,180,255,0.08)` (blue) instead of `var(--io-accent-subtle)` (teal, index.css:42). Correct token throughout: `var(--io-accent)`. |
--| **Notes** | Functional regression: shared selection overlay is visually invisible. Masked by module-specific selection feedback (PaneWrapper inline-style border for Console panes, SVG stroke in DesignerCanvas). Both files need `var(--accent)` → `var(--io-accent)`. MarqueeLayer background also needs `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
-+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` in both files (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `MarqueeLayer.tsx:100` background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (teal, index.css:42). Selection box outline, glow shadow, and marquee border now render with the correct teal accent color. |
-+| **Notes** | Regression resolved. Selection overlay is now visible. Two-line fix: selection.css (2 token references) + MarqueeLayer.tsx (1 token + 1 hardcoded background). Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
+@@ -106,7 +106,7 @@
+ | **Implementation** | Inline-styles; all hand-drawn `<span>` elements with circle or badge styles; no shared component | Inline-styles; module-local; scattered across `DesignerToolbar` (dirty dot, READ-ONLY badge), `DesignerTabBar` (modified dot), `DesignerStatusBar` (WS dot, binding summary, TEST MODE) | Inline-styles; no shared component; five distinct `StatusBadge` implementations across `OpcSources`, `SystemHealth`, `Import`, `Email`, `PointManagement`; connection dots in `OpcSources` and `SystemHealth` | All three: no shared status indicator component; all three use small circle dots (6–8px) for binary connection/state indicators; all three use `var(--io-success)` / `var(--io-danger)` tokens for the connected/error states | — |
+ | **Source-of-truth files** | `index.tsx:59–134` (ConsoleStatusBar); `index.tsx:2026–2052` (tab dots, banners); `AlarmListPane:34–91`; `PointTablePane:26–59` | `DesignerStatusBar:204–371`; `DesignerToolbar:1584–1615`; `DesignerTabBar:181–193` | `OpcSources:156–186`; `SystemHealth:41–70`; `Import:72–106`; `Email:187–212`; `PointManagement:126–232`; `OpcSources` + `SystemHealth` connection dots | — | — |
+ | **Visual properties actually applied** | Connection dot: 6×6px circle, `var(--io-success)`/`var(--io-warning)`/`var(--io-danger)`; dirty/playback dot: 6×6 `var(--io-warning)`; published dot: `#10b981` hardcoded; `PriorityBadge`: pill with hardcoded `rgba()` backgrounds per level; `StateBadge`: text-color-coded; `QualityBadge`: 6×6 circle + text, hardcoded colors | WS dot: `●` glyph 8px, `#22c55e`/`#ef4444` hardcoded; dirty indicator: 7×7px div, `#f97316` hardcoded; READ-ONLY badge: `#eab308`/`rgba(234,179,8,*)` hardcoded; modified tab dot: `var(--io-warning, #f59e0b)` — only token-using indicator; TEST MODE: `#4ade80` with CSS keyframe animation injected as inline `<style>` tag | `OpcSources StatusBadge`: hex-alpha concat bug (broken background); `SystemHealth`: `color-mix(in srgb, colorVar 12%, transparent)` (correct); `Import`: `--io-success-subtle`/`--io-success` token pairs (correct); `Email`: dot-only 7px, token-based; `PointManagement CriticalityBadge`: token pairs (correct); connection dots: `var(--io-success)`/`var(--io-danger)` fill + hardcoded `#22c55e` glow shadow | All three use `var(--io-success)`/`var(--io-danger)` as primary fill tokens for connection state dots | — |
+-| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | `OpcSources StatusBadge` broken by hex-alpha CSS var concat; `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages) | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
++| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | **Fixed 2026-05-27:** `OpcSources StatusBadge` hex-alpha concat bug resolved — `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `1px solid color-mix(in srgb, ${color} 25%, transparent)`. Fix uses the `color-mix` pattern already established in `SystemHealth.tsx`; scoped to the local `StatusBadge` function (OpcSources.tsx:168–170). Remaining: `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages). **Open finding:** same `${color}20`/`${color}40` hex-alpha bug exists in `Users.tsx` (Badge:108/110), `Roles.tsx` (Badge:51/53), `CameraStreams.tsx` (785/787), `MaintenanceTicketsPanel.tsx` (52) — not fixed here. | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
+ | **Notes** | `var(--io-alarm-high)` is used correctly on the save-failure banner — the only alarm token use in Console's status layer | TEST MODE injects a new `<style>` element on every render cycle when test mode is active — a performance concern | `Import.tsx` token-pair pattern (`--io-success-subtle`/`--io-success`) is the cleanest `StatusBadge` implementation across all three modules | — | — |
  
- ---
- 
-@@ -158,8 +158,8 @@
- | **Implementation** | See Category 5 Shared Infrastructure for full entry. Shared clipboard selection overlay; selection.css applies CSS-class-based selection box/glow; MarqueeLayer.tsx renders drag marquee rectangle. |
- | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` |
- | **Visual properties actually applied** | selection-box outline and soft-glow via `var(--accent)` (broken prefix); marquee rect `rgba(80,180,255,0.08)` bg + `1px dashed var(--accent)` border |
--| **Deviations from app shell** | `var(--accent)` prefix bug (should be `var(--io-accent)`); selection overlay invisible at runtime. MarqueeLayer background hardcoded blue, should be `var(--io-accent-subtle)`. |
--| **Notes** | Functional regression — shared selection overlay has no visible color. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
-+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101); `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). |
-+| **Notes** | Regression resolved. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
- 
- | Field | alarmFlash.css |
- |---|---|
+ ### Shared Infrastructure — Category 8
 diff --git a/ui-audit/04-recommendations.md b/ui-audit/04-recommendations.md
-index a473fccb..f1e6f423 100644
+index f1e6f423..2aabbd25 100644
 --- a/ui-audit/04-recommendations.md
 +++ b/ui-audit/04-recommendations.md
-@@ -152,7 +152,7 @@ When this work is complete:
- **Adopt:** Console + Settings convention: `background: var(--io-surface-secondary)`, `borderRight: 1px solid var(--io-border)`.
- 
- **Actions (highest priority first):**
--- Fix (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (two occurrences). Also `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. This is the highest priority fix in the shared infrastructure — selection highlight is currently invisible.
-+- **Fixed 2026-05-27** (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (lines 2 and 9). `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (line 101) and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (line 100). Selection highlight and marquee border now render with teal accent color.
- - Fix: Align Designer left palette background: `var(--io-surface)` → `var(--io-surface-secondary)` to match Console and Settings
- - Fix: Resolve `--io-sidebar-width` discrepancy — either update the token to 220px to match current practice, or update all three modules to 240px. Pick one and be consistent.
- - Fix: Settings active nav item — add `borderLeft: 2px solid var(--io-accent)` on active state to match AppShell pattern
-@@ -252,7 +252,7 @@ When this work is complete:
- 
- **Actions (by priority):**
- 
--- Fix (functional regression, highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` everywhere. `MarqueeLayer.tsx` marquee background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Two-line fix with outsized impact.
-+- **Fixed 2026-05-27** (functional regression, was highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). Selection highlight and marquee border now render with teal accent color.
- - Fix: `alarmFlash.css` — migrate alarm hex colors to `--io-alarm-*` tokens (see Cat 8). Required for light/HPHMI theme support.
- - Fix: Console `WorkspaceGrid` container `var(--io-bg)` (undefined) → `var(--io-surface-primary)` (after defining `--io-bg` alias in Cat 1 token work, this becomes automatic)
- - Fix: DesignerCanvas canvas border `rgba(255,255,255,0.08)` → define a token or use `var(--io-border)` with opacity; grid lines `rgba(128,128,128,0.12/0.28)` → acceptable to leave as-is if theme support is not required for the grid appearance
-@@ -307,7 +307,7 @@ No component changes. Pure token additions to `index.css`.
- 
+@@ -308,7 +308,7 @@ No component changes. Pure token additions to `index.css`.
  These are bugs visible at runtime, not polish issues.
  
--1. `selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)
-+1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
- 2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
+ 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
+-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
++2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
  3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
  4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
+ 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.
 ---
 
 FULL FILE CONTENTS (for surrounding-code analysis):
 ---
 
---- File: /home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx ---
-import { useCallback, useRef, useState } from "react";
-import type { SelectableEntity, SelectionZoneId } from "../types";
-import { useGlobalSelectionStore } from "../../../store/globalSelectionStore";
+--- File: /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx ---
+import React, { useState } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  pointSourcesApi,
+  pointSourceStatsApi,
+  historyRecoveryApi,
+  PointSource,
+  PointSourceStats,
+  RecoveryJob,
+  CreatePointSourceRequest,
+  UpdatePointSourceRequest,
+} from "../../api/points";
+import { opcCertsApi, OpcServerCert } from "../../api/opcCerts";
+import { settingsApi } from "../../api/settings";
+import SupplementalConnectorsTab from "./SupplementalConnectorsTab";
+import { ExportButton } from "../../shared/components/ExportDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  cellStyle,
+} from "./settingsStyles";
 
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
+// ---------------------------------------------------------------------------
+// Column definitions for OPC sources export
+// ---------------------------------------------------------------------------
+const OPC_SOURCES_COLUMNS = [
+  { id: "name", label: "Name" },
+  { id: "endpoint_url", label: "Endpoint URL" },
+  { id: "status", label: "Status" },
+  { id: "enabled", label: "Enabled" },
+  { id: "security_policy", label: "Security Policy" },
+  { id: "security_mode", label: "Security Mode" },
+  { id: "last_connected_at", label: "Last Connected" },
+];
 
-interface Props {
-  zoneId: SelectionZoneId;
-  enumerate: () => Array<{ entity: SelectableEntity; rect: Rect }>;
-  containerRef: React.RefObject<HTMLElement>;
-}
+const OPC_SOURCES_DEFAULT_VISIBLE = [
+  "name",
+  "endpoint_url",
+  "status",
+  "enabled",
+  "last_connected_at",
+];
 
-export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
-  const [rect, setRect] = useState<Rect | null>(null);
-  const modeRef = useRef<"add" | "toggle" | "remove" | "replace">("replace");
-  const startRef = useRef<{ x: number; y: number } | null>(null);
-  const selectMany = useGlobalSelectionStore((s) => s.selectMany);
-  const clearZone = useGlobalSelectionStore((s) => s.clearZone);
-
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      if (e.target !== containerRef.current) return;
-      const bounds = containerRef.current!.getBoundingClientRect();
-      startRef.current = {
-        x: e.clientX - bounds.left,
-        y: e.clientY - bounds.top,
-      };
-      modeRef.current = e.altKey
-        ? "remove"
-        : e.ctrlKey || e.metaKey
-          ? "add"
-          : "replace";
-      setRect({
-        top: startRef.current.y,
-        left: startRef.current.x,
-        width: 0,
-        height: 0,
-      });
-    },
-    [containerRef],
-  );
-
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!startRef.current) return;
-      const bounds = containerRef.current!.getBoundingClientRect();
-      const x = e.clientX - bounds.left;
-      const y = e.clientY - bounds.top;
-      const left = Math.min(startRef.current.x, x);
-      const top = Math.min(startRef.current.y, y);
-      const width = Math.abs(x - startRef.current.x);
-      const height = Math.abs(y - startRef.current.y);
-      setRect({ top, left, width, height });
-    },
-    [containerRef],
-  );
-
-  const onMouseUp = useCallback(() => {
-    if (!rect) return;
-    const contained = enumerate()
-      .filter(({ rect: r }) => fullyContained(r, rect))
-      .map(({ entity }) => entity);
-    if (modeRef.current === "replace") {
-      if (contained.length === 0) clearZone(zoneId);
-      else selectMany(zoneId, contained, "replace");
-    } else if (modeRef.current === "add") {
-      selectMany(zoneId, contained, "add");
-    } else if (modeRef.current === "remove") {
-      selectMany(zoneId, contained, "remove");
-    }
-    startRef.current = null;
-    setRect(null);
-  }, [rect, enumerate, selectMany, clearZone, zoneId]);
-
+// ---------------------------------------------------------------------------
+// TableSkeleton — shimmer rows for OPC sources table
+// ---------------------------------------------------------------------------
+function TableSkeleton({
+  rows = 4,
+  columns = 5,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
-    <div
-      style={{ position: "absolute", inset: 0 }}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={() => {
-        startRef.current = null;
-        setRect(null);
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr
+          style={{
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface-primary)",
+          }}
+        >
+          {Array.from({ length: columns }).map((_, i) => (
+            <th key={i} style={{ padding: "10px 14px", textAlign: "left" }}>
+              <div
+                style={{
+                  height: "10px",
+                  borderRadius: "4px",
+                  background: "var(--io-border)",
+                  width: i === columns - 1 ? "40px" : "120px",
+                  animation: "io-shimmer 1.5s ease-in-out infinite",
+                }}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, ri) => (
+          <tr
+            key={ri}
+            style={{
+              borderBottom:
+                ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined,
+            }}
+          >
+            {Array.from({ length: columns }).map((_, ci) => (
+              <td key={ci} style={{ padding: "12px 14px" }}>
+                <div
+                  style={{
+                    height: "12px",
+                    borderRadius: "4px",
+                    background: "var(--io-surface-primary)",
+                    width:
+                      ci === columns - 1
+                        ? "40px"
+                        : ci === 0
+                          ? "120px"
+                          : "160px",
+                    animation: "io-shimmer 1.5s ease-in-out infinite",
+                    animationDelay: `${ri * 0.05}s`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client certificate API (GET /api/certificates?type=client)
+// ---------------------------------------------------------------------------
+
+export interface ClientCertificate {
+  id: string;
+  name: string;
+  subject: string | null;
+  not_after: string | null;
+  expired: boolean;
+}
+
+const clientCertsApi = {
+  list: () =>
+    fetch("/api/certificates?type=client", {
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }).then(async (r) => {
+      const json = await r.json();
+      return json as {
+        success: boolean;
+        data: ClientCertificate[];
+        error?: { message: string };
+      };
+    }),
+};
+
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "var(--io-success)",
+  inactive: "var(--io-text-muted)",
+  connecting: "var(--io-warning)",
+  error: "var(--io-danger)",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_COLORS[status] ?? "var(--io-text-muted)";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "2px 8px",
+        borderRadius: "9999px",
+        fontSize: "11px",
+        fontWeight: 600,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+        color,
+        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+        textTransform: "capitalize",
       }}
     >
-      {rect ? (
-        <div
+      <span
+        style={{
+          width: "6px",
+          height: "6px",
+          borderRadius: "50%",
+          background: color,
+          flexShrink: 0,
+        }}
+      />
+      {status}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Source stats — inline chips for the table row
+// ---------------------------------------------------------------------------
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function SourceStatsChips({ stats }: { stats: PointSourceStats | undefined }) {
+  if (!stats) return null;
+  const chips: Array<{ label: string; value: string; color?: string }> = [
+    { label: "pts", value: fmtCount(stats.point_count) },
+    { label: "active", value: fmtCount(stats.active_subscriptions) },
+  ];
+  if (stats.updates_per_minute !== null) {
+    chips.push({ label: "/min", value: fmtCount(stats.updates_per_minute) });
+  }
+  if (stats.error_count_24h > 0) {
+    chips.push({
+      label: "errors",
+      value: String(stats.error_count_24h),
+      color: "var(--io-danger)",
+    });
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "6px",
+        marginTop: "5px",
+        flexWrap: "wrap",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {chips.map((c) => (
+        <span
+          key={c.label}
           style={{
-            position: "absolute",
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-            background: "var(--io-accent-subtle)",
-            border: "1px dashed var(--io-accent)",
-            pointerEvents: "none",
+            display: "inline-flex",
+            alignItems: "baseline",
+            gap: "3px",
+            fontSize: "11px",
+            color: c.color ?? "var(--io-text-muted)",
           }}
-        />
-      ) : null}
+        >
+          <strong
+            style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+          >
+            {c.value}
+          </strong>
+          <span style={{ opacity: 0.7 }}>{c.label}</span>
+        </span>
+      ))}
     </div>
   );
 }
 
-function fullyContained(inner: Rect, outer: Rect): boolean {
+// ---------------------------------------------------------------------------
+// Source stats — tile grid for the detail panel
+// ---------------------------------------------------------------------------
+
+function SourceStatsTiles({ sourceId }: { sourceId: string }) {
+  const statsQuery = useQuery({
+    queryKey: ["point-source-stats", sourceId],
+    queryFn: async () => {
+      const r = await pointSourceStatsApi.get(sourceId);
+      if (!r.success) throw new Error(r.error.message);
+      return r.data as PointSourceStats;
+    },
+    refetchInterval: 15_000,
+  });
+
+  const s = statsQuery.data;
+  const tiles: Array<{
+    label: string;
+    value: string;
+    sub?: string;
+    accent?: boolean;
+    danger?: boolean;
+  }> = [
+    {
+      label: "Total Points",
+      value: s ? fmtCount(s.point_count) : "—",
+      sub: "configured",
+    },
+    {
+      label: "Active Subs",
+      value: s ? fmtCount(s.active_subscriptions) : "—",
+      sub: "subscriptions",
+      accent: s ? s.active_subscriptions > 0 : false,
+    },
+    {
+      label: "Updates / min",
+      value:
+        s?.updates_per_minute !== null && s?.updates_per_minute !== undefined
+          ? fmtCount(s.updates_per_minute)
+          : "—",
+      sub: "recording",
+    },
+    {
+      label: "Errors (24 h)",
+      value: s ? String(s.error_count_24h) : "—",
+      danger: s ? s.error_count_24h > 0 : false,
+    },
+  ];
+
   return (
-    inner.left >= outer.left &&
-    inner.top >= outer.top &&
-    inner.left + inner.width <= outer.left + outer.width &&
-    inner.top + inner.height <= outer.top + outer.height
+    <div>
+      <div
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          color: "var(--io-text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: "10px",
+        }}
+      >
+        Live Statistics
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "8px",
+          marginBottom: "20px",
+        }}
+      >
+        {tiles.map((t) => (
+          <div
+            key={t.label}
+            style={{
+              background: "var(--io-surface-secondary)",
+              border: "1px solid var(--io-border-subtle)",
+              borderRadius: "var(--io-radius)",
+              padding: "12px 10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "20px",
+                fontWeight: 700,
+                fontVariantNumeric: "tabular-nums",
+                color: t.danger
+                  ? "var(--io-danger)"
+                  : t.accent
+                    ? "var(--io-success)"
+                    : "var(--io-text-primary)",
+                lineHeight: 1.1,
+              }}
+            >
+              {statsQuery.isLoading ? (
+                <span style={{ opacity: 0.3 }}>—</span>
+              ) : (
+                t.value
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.3,
+              }}
+            >
+              {t.label}
+              {t.sub && (
+                <span style={{ display: "block", opacity: 0.7 }}>{t.sub}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {s?.last_value_at && (
+        <div
+          style={{
+            fontSize: "11px",
+            color: "var(--io-text-muted)",
+            marginBottom: "16px",
+          }}
+        >
+          Last value received: {new Date(s.last_value_at).toLocaleString()}
+        </div>
+      )}
+    </div>
   );
 }
 
---- File: /home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css ---
-.io-selection-overlay [data-indicator="selection-box"] {
-  outline: 2px solid var(--io-accent);
-  outline-offset: -1px;
-  border-radius: 2px;
+// ---------------------------------------------------------------------------
+// Modal wrapper
+// ---------------------------------------------------------------------------
+
+function ModalContent({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Dialog.Portal>
+      <Dialog.Overlay
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--io-overlay, rgba(0,0,0,0.5))",
+          zIndex: 100,
+        }}
+      />
+      <Dialog.Content
+        aria-describedby={undefined}
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          padding: "24px",
+          width: "520px",
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          zIndex: 101,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
+          }}
+        >
+          <Dialog.Title
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
+            {title}
+          </Dialog.Title>
+          <Dialog.Close asChild>
+            <button
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </Dialog.Close>
+        </div>
+        {children}
+      </Dialog.Content>
+    </Dialog.Portal>
+  );
 }
-.io-selection-overlay [data-indicator="soft-glow"] {
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.15),
-    0 0 12px 2px var(--io-accent);
-  border-radius: 4px;
+
+// ---------------------------------------------------------------------------
+// Source form fields (shared between create and edit)
+// ---------------------------------------------------------------------------
+
+interface SourceFormState {
+  name: string;
+  endpoint_url: string;
+  security_policy: string;
+  security_mode: string;
+  username: string;
+  password: string;
+  enabled: boolean;
+  client_certificate_id: string | null;
+  platform: string | null;
+  publish_interval_ms: number | null;
+  data_category_id: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Data categories
+// ---------------------------------------------------------------------------
+
+const PREDEFINED_CATEGORIES = [
+  { id: "process", label: "Process" },
+  { id: "event", label: "Event" },
+  { id: "access_control", label: "Access Control" },
+  { id: "personnel", label: "Personnel" },
+  { id: "financial", label: "Financial" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "ticketing", label: "Ticketing" },
+  { id: "environmental", label: "Environmental" },
+  { id: "general", label: "General" },
+];
+
+interface DataCategory {
+  id: string;
+  label: string;
+  predefined: boolean;
+}
+
+// Simple in-memory custom categories store (backed by API in production)
+function useDataCategories() {
+  const query = useQuery<DataCategory[]>({
+    queryKey: ["data-categories"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/data-categories");
+        if (!res.ok) throw new Error("API unavailable");
+        const json = await res.json();
+        return json.data ?? json;
+      } catch {
+        // Fall back to predefined only
+        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }));
+      }
+    },
+    staleTime: 60_000,
+    initialData: PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true })),
+  });
+  return query;
+}
+
+// ---------------------------------------------------------------------------
+// Manage Categories modal
+// ---------------------------------------------------------------------------
+
+function ManageCategoriesModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const catQuery = useDataCategories();
+  const categories = catQuery.data ?? [];
+
+  const [newName, setNewName] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleCreate() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/data-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+      setNewName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRename(id: string) {
+    const trimmed = editName.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+      setEditId(null);
+      setEditName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this custom category?")) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return null;
+
+  const modalOverlay: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 200,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--io-overlay, rgba(0,0,0,0.5))",
+  };
+
+  const modalBox: React.CSSProperties = {
+    position: "relative",
+    width: "500px",
+    maxWidth: "95vw",
+    maxHeight: "80vh",
+    background: "var(--io-surface-elevated)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "10px",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+  };
+
+  const catInputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "6px 10px",
+    background: "var(--io-surface-secondary)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    color: "var(--io-text)",
+    fontSize: "13px",
+  };
+
+  const smBtn = (
+    variant: "primary" | "ghost" | "danger",
+  ): React.CSSProperties => ({
+    padding: "5px 10px",
+    fontSize: "12px",
+    border:
+      variant === "danger"
+        ? "1px solid var(--io-danger)"
+        : variant === "ghost"
+          ? "1px solid var(--io-border)"
+          : "none",
+    borderRadius: "var(--io-radius)",
+    background: variant === "primary" ? "var(--io-accent)" : "transparent",
+    color:
+      variant === "primary"
+        ? "var(--io-text-on-accent)"
+        : variant === "danger"
+          ? "var(--io-danger)"
+          : "var(--io-text-secondary)",
+    cursor: saving ? "not-allowed" : "pointer",
+    opacity: saving ? 0.6 : 1,
+  });
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div
+          style={{
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: "15px" }}>
+            Manage Data Categories
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              fontSize: "18px",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginBottom: "16px",
+              lineHeight: 1.5,
+            }}
+          >
+            Predefined categories cannot be deleted. Custom categories can be
+            renamed or deleted.
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "var(--io-danger-subtle)",
+                color: "var(--io-danger)",
+                borderRadius: "var(--io-radius)",
+                fontSize: "12px",
+                marginBottom: "12px",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Category list */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              marginBottom: "20px",
+            }}
+          >
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 10px",
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border-subtle)",
+                  borderRadius: "var(--io-radius)",
+                }}
+              >
+                {editId === cat.id ? (
+                  <>
+                    <input
+                      style={catInputStyle}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(cat.id);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      style={smBtn("primary")}
+                      onClick={() => handleRename(cat.id)}
+                      disabled={saving}
+                    >
+                      Save
+                    </button>
+                    <button
+                      style={smBtn("ghost")}
+                      onClick={() => {
+                        setEditId(null);
+                        setEditName("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: "13px",
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
+                      {cat.label}
+                    </span>
+                    {cat.predefined ? (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--io-text-muted)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        predefined
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          style={smBtn("ghost")}
+                          onClick={() => {
+                            setEditId(cat.id);
+                            setEditName(cat.label);
+                          }}
+                          disabled={saving}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          style={smBtn("danger")}
+                          onClick={() => handleDelete(cat.id)}
+                          disabled={saving}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Add new */}
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: "8px",
+            }}
+          >
+            Add Custom Category
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              style={catInputStyle}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Category name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate();
+              }}
+            />
+            <button
+              style={smBtn("primary")}
+              onClick={handleCreate}
+              disabled={saving || !newName.trim()}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--io-border)",
+            display: "flex",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+          }}
+        >
+          <button onClick={onClose} style={smBtn("ghost")}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SECURITY_POLICIES = [
+  "None",
+  "Basic256Sha256",
+  "Aes128Sha256RsaOaep",
+  "Aes256Sha256RsaPss",
+];
+const SECURITY_MODES = ["None", "Sign", "SignAndEncrypt"];
+
+// DCS platform options from doc 17 §Connection Profiles
+const DCS_PLATFORMS = [
+  { value: "", label: "Unknown / Generic" },
+  { value: "siemens_s7_1500", label: "Siemens S7-1500 (TIA Portal)" },
+  { value: "siemens_s7_1200", label: "Siemens S7-1200 (TIA Portal)" },
+  { value: "siemens_wincc_oa", label: "Siemens WinCC OA" },
+  { value: "siemens_wincc_v7", label: "Siemens WinCC V7 / RT Pro" },
+  { value: "honeywell_experion", label: "Honeywell Experion PKS" },
+  { value: "abb_800xa", label: "ABB 800xA" },
+  { value: "emerson_deltav_pk", label: "Emerson DeltaV PK Controller" },
+  { value: "emerson_deltav_app", label: "Emerson DeltaV Application Station" },
+  { value: "yokogawa_exaopc", label: "Yokogawa Exaopc" },
+];
+
+function SourceFormFields({
+  form,
+  onChange,
+  showEnabled,
+  clientCerts,
+}: {
+  form: SourceFormState;
+  onChange: (patch: Partial<SourceFormState>) => void;
+  showEnabled?: boolean;
+  clientCerts?: ClientCertificate[];
+}) {
+  const [manageCatsOpen, setManageCatsOpen] = useState(false);
+  const catQuery = useDataCategories();
+  const categories = catQuery.data ?? [];
+  const field = (
+    label: string,
+    key: keyof SourceFormState,
+    type = "text",
+    placeholder?: string,
+    required?: boolean,
+  ) => (
+    <div>
+      <label style={labelStyle}>
+        {label}
+        {required && " *"}
+      </label>
+      <input
+        type={type}
+        style={inputStyle}
+        value={form[key] as string}
+        onChange={(e) => onChange({ [key]: e.target.value })}
+        placeholder={placeholder}
+        required={required}
+        autoComplete="off"
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      {field("Name", "name", "text", "OPC-Unit3-Primary", true)}
+      {field(
+        "Endpoint URL",
+        "endpoint_url",
+        "text",
+        "opc.tcp://hostname:4840",
+        true,
+      )}
+
+      <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Policy</label>
+          <select
+            style={{ ...inputStyle, cursor: "pointer" }}
+            value={form.security_policy}
+            onChange={(e) => onChange({ security_policy: e.target.value })}
+          >
+            {SECURITY_POLICIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Mode</label>
+          <select
+            style={{ ...inputStyle, cursor: "pointer" }}
+            value={form.security_mode}
+            onChange={(e) => onChange({ security_mode: e.target.value })}
+          >
+            {SECURITY_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Client Certificate dropdown */}
+      <div>
+        <label style={labelStyle}>Client Certificate</label>
+        <select
+          style={{ ...inputStyle, cursor: "pointer" }}
+          value={form.client_certificate_id ?? ""}
+          onChange={(e) =>
+            onChange({ client_certificate_id: e.target.value || null })
+          }
+        >
+          <option value="">(none)</option>
+          {(clientCerts ?? []).map((cert) => (
+            <option key={cert.id} value={cert.id}>
+              {cert.name}
+              {cert.expired ? " [EXPIRED]" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Platform dropdown */}
+      <div>
+        <label style={labelStyle}>Platform</label>
+        <select
+          style={{ ...inputStyle, cursor: "pointer" }}
+          value={form.platform ?? ""}
+          onChange={(e) => onChange({ platform: e.target.value || null })}
+        >
+          {DCS_PLATFORMS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Data Category dropdown */}
+      <div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+          }}
+        >
+          <label style={labelStyle}>Data Category</label>
+          <button
+            type="button"
+            onClick={() => setManageCatsOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--io-accent)",
+              fontSize: "11px",
+              cursor: "p
 
 --- File: /home/io/io-dev/io/ui-audit/02-comparison.md ---
 # UI Audit Comparison — Cross-Module Analysis
@@ -669,8 +1619,7 @@ function fullyContained(inner: Rect, outer: Rect): boolean {
 | **Implementation** | Inline-styles; all hand-drawn `<span>` elements with circle or badge styles; no shared component | Inline-styles; module-local; scattered across `DesignerToolbar` (dirty dot, READ-ONLY badge), `DesignerTabBar` (modified dot), `DesignerStatusBar` (WS dot, binding summary, TEST MODE) | Inline-styles; no shared component; five distinct `StatusBadge` implementations across `OpcSources`, `SystemHealth`, `Import`, `Email`, `PointManagement`; connection dots in `OpcSources` and `SystemHealth` | All three: no shared status indicator component; all three use small circle dots (6–8px) for binary connection/state indicators; all three use `var(--io-success)` / `var(--io-danger)` tokens for the connected/error states | — |
 | **Source-of-truth files** | `index.tsx:59–134` (ConsoleStatusBar); `index.tsx:2026–2052` (tab dots, banners); `AlarmListPane:34–91`; `PointTablePane:26–59` | `DesignerStatusBar:204–371`; `DesignerToolbar:1584–1615`; `DesignerTabBar:181–193` | `OpcSources:156–186`; `SystemHealth:41–70`; `Import:72–106`; `Email:187–212`; `PointManagement:126–232`; `OpcSources` + `SystemHealth` connection dots | — | — |
 | **Visual properties actually applied** | Connection dot: 6×6px circle, `var(--io-success)`/`var(--io-warning)`/`var(--io-danger)`; dirty/playback dot: 6×6 `var(--io-warning)`; published dot: `#10b981` hardcoded; `PriorityBadge`: pill with hardcoded `rgba()` backgrounds per level; `StateBadge`: text-color-coded; `QualityBadge`: 6×6 circle + text, hardcoded colors | WS dot: `●` glyph 8px, `#22c55e`/`#ef4444` hardcoded; dirty indicator: 7×7px div, `#f97316` hardcoded; READ-ONLY badge: `#eab308`/`rgba(234,179,8,*)` hardcoded; modified tab dot: `var(--io-warning, #f59e0b)` — only token-using indicator; TEST MODE: `#4ade80` with CSS keyframe animation injected as inline `<style>` tag | `OpcSources StatusBadge`: hex-alpha concat bug (broken background); `SystemHealth`: `color-mix(in srgb, colorVar 12%, transparent)` (correct); `Import`: `--io-success-subtle`/`--io-success` token pairs (correct); `Email`: dot-only 7px, token-based; `PointManagement CriticalityBadge`: token pairs (correct); connection dots: `var(--io-success)`/`var(--io-danger)` fill + hardcoded `#22c55e` glow shadow | All three use `var(--io-success)`/`var(--io-danger)` as primary fill tokens for connection state dots | — |
-| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | `OpcSources StatusBadge` broken by hex-alpha CSS var concat; `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages) | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
-| **Notes** | `var(--io-alarm-high)` is used correctly on the save-failure banner — the only alarm token use in Console's status layer | TEST MODE injects a new
+| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | **Fixed 2026-05-27:** `OpcSources StatusBadge` hex-alpha concat bug resolved — `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `1px solid color-mix(in srgb, ${color} 25%, transparent)`. Fix uses the `color-mix` pattern already established in `SystemHealth.tsx`; scoped to the local `StatusBadge` function (OpcSources.tsx:168–170). Remaining: `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success
 
 --- File: /home/io/io-dev/io/ui-audit/04-recommendations.md ---
 # UI Audit Recommendations
@@ -983,7 +1932,7 @@ No component changes. Pure token additions to `index.css`.
 These are bugs visible at runtime, not polish issues.
 
 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
+2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
 3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
 4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.
@@ -1031,11 +1980,7 @@ Depends on: Phases 1–4 being stable.
 
 ### R1 — `--io-z-modal: 300` is unusable as-is
 
-Every dialog in all three modules uses z-index values between 1000 and 9999. Raising the token will fix any code that correctly references it, but code currently using hardcoded integers (the majority) will be unaffected until individually migrated. There is a risk that the migration is incomplete and layers will stack incorrectly in edge cases (e.g., a console modal rendered inside a designer tab). A z-index audit across all `zIndex` values in the frontend would be needed to produce a safe z-index scale before setting definitive token values.
-
-### R2 — Light theme and HPHMI theme are not yet implemented; audit was dark-theme-only
-
-The audit verified token references but could not test whether visual output is correct in non-dark themes. `alarmFlash.css` is confirmed dark-theme-only (colors are hardcoded hex matching dark-theme token values). `operationalState.css` is intentionally non-adaptive. Any module-local hardcoded hex values will also fail to adapt. If theme switching is a near-term requirement, the Phase 2 alarmFlash fix and Phase 1 token additions should be front-load
+Every dialog in all three modules uses z-index values between 1000 and 9999. Raising the token will fix any code that correctly references it, but code currently using hardcoded integers (the majority) will be unaffected until individually migrated. There is a risk that the migration is incomplete and layers will stack incorrectly in edge cases (e.g., a console modal rendered inside a designer tab). A z-inde
 
 ---
 
@@ -1045,14 +1990,14 @@ Produce the review now.
 
 ## #TURN_END
 
-_2026-05-27T05:31:41+00:00_
+_2026-05-27T05:52:28+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:31:48+00:00_
+_2026-05-27T05:52:33+00:00_
 
 ```
 ~deepreview~
@@ -1063,305 +2008,245 @@ _2026-05-27T05:31:48+00:00_
 _Run deep review script_
 
 ```bash
-${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/run-review.sh "$(cat ${CLAUDE_PROJECT_DIR}/.claude/state/current_log.txt)" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Find current log path and available hook scripts_
-
-```bash
-cat /home/io/io-dev/io/.claude/state/current_log.txt 2>/dev/null && echo "---" && ls /home/io/io-dev/io/.claude/hooks/scripts/ 2>/dev/null
-```
-
-
-## #BASH
-_Run deep review with correct paths_
-
-```bash
-/home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "/home/io/io-dev/io/.claude/logs/2026-05-27_regression-accent-token-prefix/read-onl_052806.md" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_List log files in current work unit directory_
-
-```bash
-ls /home/io/io-dev/io/.claude/logs/2026-05-27_regression-accent-token-prefix/
-```
-
-
-## #BASH
-_List log directory and read current log pointer_
-
-```bash
-ls /home/io/io-dev/io/.claude/logs/ && echo "---" && cat /home/io/io-dev/io/.claude/state/current_log.txt
-```
-
-
-## #BASH
-_List logs with details to see exact filenames_
-
-```bash
-ls -la "/home/io/io-dev/io/.claude/logs/" | cat
-```
-
-
-## #BASH
-_Run deep review with log path via find_
-
-```bash
-LOG=$(find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" | head -1) && echo "LOG: [$LOG]" && /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "$LOG" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Find log file with null separator to handle newline in name_
-
-```bash
-find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} echo "FOUND: [{}]"
-```
-
-
-## #BASH
-_Run deep review passing log path with null-safe xargs_
-
-```bash
-find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "{}" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Read the generated deep review file_
-
-```bash
-find /home/io/io-dev/io/.claude/reviews/ -name "2026-05-27_regression*" -print0 | xargs -0 cat
+bash /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "$(cat /home/io/io-dev/io/.claude/state/current_log.txt)" "$CLAUDE_SESSION_ID" "deep" 2>&1
 ```
 
 
 ## #TURN_END
 
-_2026-05-27T05:31:49+00:00_
+_2026-05-27T05:52:33+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:43:14+00:00_
+_2026-05-27T05:55:22+00:00_
 
 ```
-git add -A
-git commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
+You are performing a SHALLOW verification review of a Claude Code work unit.
+
+Your job is to compare what was asked (the initial prompt) against what was
+actually built (the diff).
+
+Be skeptical and direct. Look for:
+- The diff does something different from what was asked
+- The diff regresses previously working behavior
+- The diff expands scope beyond the prompt
+- The diff appears to invert architectural decisions
+
+Output format (markdown):
+
+## Summary
+One paragraph: does the diff appear to match intent, or are there concerns?
+
+## Concerns
+If concerns exist, list them as numbered items. If none: "No concerns identified."
+
+DO NOT include preamble. Start directly with "## Summary".
+DO NOT speculate beyond what's in the log and diff.
+
+WORK UNIT LOG:
+---
+# Work Unit Log: regression-statusbadge-hex-alpha
+
+read-o
+
+Started: 2026-05-27T05:47:57+00:00
+Session: 361ad460-9bf3-4897-b065-aefe183d5610
+
+---
+
+
+## #EDIT `/home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx` (88→158 chars)
+
+_2026-05-27T05:49:17+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (280→957 chars)
+
+_2026-05-27T05:49:30+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (1068→1632 chars)
+
+_2026-05-27T05:49:47+00:00_
+
+
+## #PROMPT
+
+_2026-05-27T05:50:22+00:00_
+
+```
+~initprompt~ regression-statusbadge-hex-alpha
+
+Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is not affected by the Claim C deferral (StatusBadge in OpcSources is in the Settings module, not the canvas layer).
+
+Goal: fix the OpcSources StatusBadge hex-alpha concatenation bug that renders all badge backgrounds as transparent.
+
+Part one, investigation. Open the OpcSources.tsx file in the Settings module and locate the StatusBadge usage. Identify the hex-alpha concatenation pattern that produces transparent backgrounds. The audit suggests the bug is concatenating a hex color value with an alpha suffix in a way that produces an invalid CSS color (likely something like \${color}40 where the resulting string is not a valid color expression). Record the exact current code, the file, and the line numbers.
+
+Confirm whether this bug exists only in OpcSources.tsx or whether the same pattern is used elsewhere in Settings. If StatusBadge itself has the bug internally (rather than the bug being in how OpcSources passes props to it), the fix scope is larger; record this finding.
+
+Part two, fix. Replace the broken hex-alpha concatenation with a correct CSS color expression. Options include using rgba() with explicit values, using a CSS variable that already has the right alpha applied, or using color-mix() if the codebase already uses it elsewhere. Pick the approach that matches the codebase's existing patterns; do not introduce a new pattern just for this fix. If StatusBadge itself has the bug, fix it at the component level so all consumers benefit, not just OpcSources.
+
+Do not change any other behavior. Do not refactor StatusBadge beyond what is needed to fix the bug. Do not modify any unrelated Settings pages.
+
+Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect the fix: locate the StatusBadge or OpcSources entry (likely category 8 status indicators) and update the deviations and notes fields with the fix date and corrected approach. Update ui-audit/04-recommendations.md similarly: mark the priority-one regression as resolved.
+
+Do not modify any other audit files. Do not touch any Claim A, Claim B, or other Claim C work.
+
+When done, print: the files modified, the specific code change (before and after), whether the fix was scoped to OpcSources or to StatusBadge itself with rationale, and the audit-file updates applied. Stop.
+```
+
+
+## #ASSISTANT
+
+Starting with the audit docs and source files to understand the bug before touching anything.
+
+
+## #ASSISTANT
+
+Good. Now let me find OpcSources.tsx and read the relevant sections.
+
+
+## #BASH
+_Find OpcSources.tsx location_
+
+```bash
+find /home/io/io-dev/io/frontend -name "OpcSources.tsx" 2>/dev/null
+```
+
+
+## #ASSISTANT
+
+Now let me find the StatusBadge and hex-alpha pattern in OpcSources.tsx.
+
+
+## #BASH
+_Find StatusBadge and hex-alpha concat patterns in OpcSources.tsx_
+
+```bash
+grep -n "StatusBadge\|statusBadge\|status_badge\|color}20\|color}40\|color}80\|hex.*alpha\|alpha.*hex\|\${color}" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -60
 ```
 
 
 ## #BASH
-_Stage all changes and commit with provided message_
+_Find STATUS_COLORS definition_
 
 ```bash
-git -C /home/io/io-dev/io add -A && git -C /home/io/io-dev/io commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
+grep -n "STATUS_COLORS" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -20
+```
+
+
+## #ASSISTANT
+
+Let me check how SystemHealth.tsx and Import.tsx do their StatusBadge correctly, to match the codebase pattern.
+
+
+## #BASH
+_Find SystemHealth StatusBadge pattern_
+
+```bash
+grep -n "color-mix\|success-subtle\|StatusBadge\|statusBadge\|status.*badge" /home/io/io-dev/io/frontend/src/pages/settings/SystemHealth.tsx | head -20
+```
+
+
+## #BASH
+_Find Import.tsx status badge pattern_
+
+```bash
+grep -n "success-subtle\|color-mix\|StatusBadge\|status.*badge\|io-success" /home/io/io-dev/io/frontend/src/pages/settings/Import.tsx | head -20
+```
+
+
+## #ASSISTANT
+
+The codebase already uses `color-mix(in srgb, ...)` in SystemHealth.tsx — this is the correct existing pattern to match. Let me verify there are no other files with the same `${color}20` bug.
+
+
+## #BASH
+_Search for hex-alpha concat pattern across frontend_
+
+```bash
+grep -rn '${color}20\|${color}40\|${color}80\|`${.*}[0-9a-f][0-9a-f]`' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #BASH
+_Search for hex-alpha concat pattern with different quoting_
+
+```bash
+grep -rn 'color}20\|color}40\|color}80\|color}10' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #ASSISTANT
+
+Good — the same bug pattern exists in 4 more files. The task asks me to fix OpcSources only and record the finding. Let me verify the color values in Users.tsx and Roles.tsx are also CSS vars:
+
+
+## #BASH
+_Verify Users.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Users.tsx | head -15
+```
+
+
+## #BASH
+_Verify Roles.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Roles.tsx | head -15
+```
+
+
+## #ASSISTANT
+
+Let me check the SystemHealth StatusBadge implementation in full for the exact border pattern:
+
+
+## #ASSISTANT
+
+The bug is confirmed in OpcSources.tsx only. The `StatusBadge` is a local function (not shared), and the bug is in lines 168 and 170. The fix uses the `color-mix()` pattern already established by `SystemHealth.tsx`.
+
+Applying the fix:
+
+
+## #ASSISTANT
+
+Now update the two audit files. Starting with `04-recommendations.md`:
+
+
+## #ASSISTANT
+
+Now update `02-comparison.md` — the Category 8 entry for Settings OpcSources:
+
+
+## #ASSISTANT
+
+Now verify the fix compiles cleanly:
+
+
+## #BASH
+_TypeScript check for OpcSources.tsx_
+
+```bash
+cd /home/io/io-dev/io/frontend && pnpm tsc --noEmit 2>&1 | grep -i "OpcSources\|error" | head -20
 ```
 
 
 ## #TURN_END
 
-_2026-05-27T05:43:14+00:00_
+_2026-05-27T05:50:23+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:44:02+00:00_
-
-```
-You are producing a work-unit summary from a Claude Code work-unit log.
-
-Below is the log of a single work unit. It contains the initial prompt, tagged
-sections showing what tools were used and what files were modified, and the
-assistant's responses during the turn(s).
-
-Produce a structured summary covering ONLY what is in the log:
-
-1. **Work unit purpose**: 1-2 sentence statement of what this work unit was about.
-   Derive from the initial prompt and the work that was done.
-
-2. **Key decisions made**: bulleted list of significant decisions or approaches
-   taken. Only include decisions that are visible in the log. Do not speculate.
-
-3. **What was built or changed**: bulleted list of concrete outcomes — files
-   modified, features implemented, bugs fixed, tests added.
-
-4. **What was deliberately not done**: anything the log indicates was explicitly
-   out of scope, deferred, or rejected. If nothing was explicitly deferred,
-   omit this section.
-
-5. **Open questions or follow-ups**: anything the log indicates needs to be
-   revisited or resolved later. If none, omit this section.
-
-6. **Files modified**: a clean list of file paths that were edited/written.
-
-Constraints on your output:
-- Be terse. Each section should be a few bullets, not paragraphs.
-- Do NOT speculate about intent beyond what's in the log.
-- Do NOT comment on code quality or make recommendations.
-- Do NOT include preamble like "Here's the summary" — start directly with section 1.
-- Output is markdown. Use ## headers for each section.
-
-Here is the log:
-
----
-
-# Work Unit Log: regression-accent-token-prefix
-
-read-onl
-
-Started: 2026-05-27T05:28:06+00:00
-Session: 7b3e9adb-0cfd-40e4-8d10-41a20da9a984
-
----
-
-
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css` (304→310 chars)
-
-_2026-05-27T05:28:34+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx` (99→101 chars)
-
-_2026-05-27T05:28:37+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (855→639 chars)
-
-_2026-05-27T05:28:51+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (423→395 chars)
-
-_2026-05-27T05:28:57+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (359→357 chars)
-
-_2026-05-27T05:29:12+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (291→387 chars)
-
-_2026-05-27T05:29:19+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (148→174 chars)
-
-_2026-05-27T05:29:25+00:00_
-
-
-## #PROMPT
-
-_2026-05-27T05:29:32+00:00_
-
-```
-~initprompt~ regression-accent-token-prefix
-
-Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is an explicit exception to the Claim C deferral.
-
-Goal: fix the var(--accent) prefix bug that makes selection highlights invisible. Per the audit, the issue is that shared/clipboard/selection/selection.css and MarqueeLayer.tsx reference var(--accent) without the --io- prefix, so the variable is undefined everywhere and selection highlights and marquee borders render with no color.
-
-Part one, investigation. Open shared/clipboard/selection/selection.css and shared/clipboard/selection/MarqueeLayer.tsx. Identify every reference to var(--accent) without the --io- prefix. For each, record: file, line number, current value, and the intended color based on context (selection highlight, marquee border, etc.). Also check index.css to confirm what the correct --io- prefixed token name should be. The audit notes "accent-subtle teal" as the intended color for MarqueeLayer; verify whether the correct token is --io-accent, --io-accent-subtle, or something else, and what its hex value is.
-
-Part two, fix. Replace each var(--accent) reference with the correct --io- prefixed token. Do not change any other behavior. Do not refactor unrelated CSS. Do not add new tokens to index.css. If you find a reference where the correct token does not exist in index.css, stop and tell me rather than inventing a token.
-
-Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect that the var(--accent) bug has been fixed: locate the shared infrastructure entry for selection.css and MarqueeLayer.tsx (likely under category 5 or 10 per the reconciliation), and update the deviations and notes fields to record the fix with a date and the corrected token reference. Update ui-audit/04-recommendations.md similarly: locate the priority-one regression entry and mark it as resolved with the same date and reference.
-
-Do not modify any other audit files. Do not touch any Claim A or Claim B work. Do not modify any other files in the canvas or work-surface layer per the Claim C deferral.
-
-When done, print: the files modified, the specific replacements made (before and after for each), and the audit-file updates applied. Stop.
-```
-
-
-## #ASSISTANT
-
-Reading the audit files and source files to confirm the bug details.
-
-
-## #ASSISTANT
-
-Now reading the source files to identify all `var(--accent)` references and confirm the correct tokens.
-
-
-## #ASSISTANT
-
-Now let me verify the correct token names in index.css.
-
-
-## #BASH
-_Find --io-accent and --io-accent-subtle token definitions_
-
-```bash
-grep -n "io-accent" /home/io/io-dev/io/frontend/src/index.css | head -20
-```
-
-
-## #ASSISTANT
-
-Investigation complete. Here's what I found:
-
-**`selection.css`:**
-- Line 2: `outline: 2px solid var(--accent)` — intended: selection-box outline, correct token: `var(--io-accent)`
-- Line 9: `0 0 12px 2px var(--accent)` — intended: soft-glow shadow, correct token: `var(--io-accent)`
-
-**`MarqueeLayer.tsx`:**
-- Line 100: `background: "rgba(80, 180, 255, 0.08)"` — hardcoded blue, correct token: `var(--io-accent-subtle)` (teal, defined at index.css:42 as `rgba(45,212,191,0.1)`)
-- Line 101: `border: "1px dashed var(--accent)"` — correct token: `var(--io-accent)`
-
-Both `--io-accent` and `--io-accent-subtle` are confirmed in index.css (lines 38 and 42). Applying the fixes now.
-
-
-## #ASSISTANT
-
-Now updating the audit artifacts. First `02-comparison.md` — both the Cat 5 and Cat 10 shared infrastructure entries.
-
-
-## #ASSISTANT
-
-Now update the Cat 10 secondary entry in `02-comparison.md`.
-
-
-## #ASSISTANT
-
-Now update `04-recommendations.md` — the Cat 5 priority-one fix entry and the Cat 10 entry.
-
-
-## #BASH
-_Find var(--accent) references in recommendations file_
-
-```bash
-grep -n "var(--accent)" /home/io/io-dev/io/ui-audit/04-recommendations.md
-```
-
-
-## #ASSISTANT
-
-Now update the Cat 10 entry in recommendations.
-
-
-## #ASSISTANT
-
-Finally update the Phase 2 migration order entry.
-
-
-## #TURN_END
-
-_2026-05-27T05:29:33+00:00_
-
----
-
-
-## #PROMPT
-
-_2026-05-27T05:31:41+00:00_
+_2026-05-27T05:52:28+00:00_
 
 ```
 You are performing a DEEP verification review of a Claude Code work unit.
@@ -1398,148 +2283,198 @@ DO NOT speculate about things outside the diff. Stay grounded in what's there.
 
 WORK UNIT LOG:
 ---
-# Work Unit Log: regression-accent-token-prefix
+# Work Unit Log: regression-statusbadge-hex-alpha
 
-read-onl
+read-o
 
-Started: 2026-05-27T05:28:06+00:00
-Session: 7b3e9adb-0cfd-40e4-8d10-41a20da9a984
+Started: 2026-05-27T05:47:57+00:00
+Session: 361ad460-9bf3-4897-b065-aefe183d5610
 
 ---
 
 
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css` (304→310 chars)
+## #EDIT `/home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx` (88→158 chars)
 
-_2026-05-27T05:28:34+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx` (99→101 chars)
-
-_2026-05-27T05:28:37+00:00_
+_2026-05-27T05:49:17+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (855→639 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (280→957 chars)
 
-_2026-05-27T05:28:51+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (423→395 chars)
-
-_2026-05-27T05:28:57+00:00_
+_2026-05-27T05:49:30+00:00_
 
 
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (359→357 chars)
+## #EDIT `/home/io/io-dev/io/ui-audit/02-comparison.md` (1068→1632 chars)
 
-_2026-05-27T05:29:12+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (291→387 chars)
-
-_2026-05-27T05:29:19+00:00_
-
-
-## #EDIT `/home/io/io-dev/io/ui-audit/04-recommendations.md` (148→174 chars)
-
-_2026-05-27T05:29:25+00:00_
+_2026-05-27T05:49:47+00:00_
 
 
 ## #PROMPT
 
-_2026-05-27T05:29:32+00:00_
+_2026-05-27T05:50:22+00:00_
 
 ```
-~initprompt~ regression-accent-token-prefix
+~initprompt~ regression-statusbadge-hex-alpha
 
-Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is an explicit exception to the Claim C deferral.
+Read-only investigation first, then fix. Read ui-audit/04-recommendations.md and ui-audit/02-comparison.md to confirm the bug details. Read ui-audit/05-claim-c-deferral.md to confirm this regression is not affected by the Claim C deferral (StatusBadge in OpcSources is in the Settings module, not the canvas layer).
 
-Goal: fix the var(--accent) prefix bug that makes selection highlights invisible. Per the audit, the issue is that shared/clipboard/selection/selection.css and MarqueeLayer.tsx reference var(--accent) without the --io- prefix, so the variable is undefined everywhere and selection highlights and marquee borders render with no color.
+Goal: fix the OpcSources StatusBadge hex-alpha concatenation bug that renders all badge backgrounds as transparent.
 
-Part one, investigation. Open shared/clipboard/selection/selection.css and shared/clipboard/selection/MarqueeLayer.tsx. Identify every reference to var(--accent) without the --io- prefix. For each, record: file, line number, current value, and the intended color based on context (selection highlight, marquee border, etc.). Also check index.css to confirm what the correct --io- prefixed token name should be. The audit notes "accent-subtle teal" as the intended color for MarqueeLayer; verify whether the correct token is --io-accent, --io-accent-subtle, or something else, and what its hex value is.
+Part one, investigation. Open the OpcSources.tsx file in the Settings module and locate the StatusBadge usage. Identify the hex-alpha concatenation pattern that produces transparent backgrounds. The audit suggests the bug is concatenating a hex color value with an alpha suffix in a way that produces an invalid CSS color (likely something like \${color}40 where the resulting string is not a valid color expression). Record the exact current code, the file, and the line numbers.
 
-Part two, fix. Replace each var(--accent) reference with the correct --io- prefixed token. Do not change any other behavior. Do not refactor unrelated CSS. Do not add new tokens to index.css. If you find a reference where the correct token does not exist in index.css, stop and tell me rather than inventing a token.
+Confirm whether this bug exists only in OpcSources.tsx or whether the same pattern is used elsewhere in Settings. If StatusBadge itself has the bug internally (rather than the bug being in how OpcSources passes props to it), the fix scope is larger; record this finding.
 
-Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect that the var(--accent) bug has been fixed: locate the shared infrastructure entry for selection.css and MarqueeLayer.tsx (likely under category 5 or 10 per the reconciliation), and update the deviations and notes fields to record the fix with a date and the corrected token reference. Update ui-audit/04-recommendations.md similarly: locate the priority-one regression entry and mark it as resolved with the same date and reference.
+Part two, fix. Replace the broken hex-alpha concatenation with a correct CSS color expression. Options include using rgba() with explicit values, using a CSS variable that already has the right alpha applied, or using color-mix() if the codebase already uses it elsewhere. Pick the approach that matches the codebase's existing patterns; do not introduce a new pattern just for this fix. If StatusBadge itself has the bug, fix it at the component level so all consumers benefit, not just OpcSources.
 
-Do not modify any other audit files. Do not touch any Claim A or Claim B work. Do not modify any other files in the canvas or work-surface layer per the Claim C deferral.
+Do not change any other behavior. Do not refactor StatusBadge beyond what is needed to fix the bug. Do not modify any unrelated Settings pages.
 
-When done, print: the files modified, the specific replacements made (before and after for each), and the audit-file updates applied. Stop.
+Part three, update the audit artifacts. Update ui-audit/02-comparison.md to reflect the fix: locate the StatusBadge or OpcSources entry (likely category 8 status indicators) and update the deviations and notes fields with the fix date and corrected approach. Update ui-audit/04-recommendations.md similarly: mark the priority-one regression as resolved.
+
+Do not modify any other audit files. Do not touch any Claim A, Claim B, or other Claim C work.
+
+When done, print: the files modified, the specific code change (before and after), whether the fix was scoped to OpcSources or to StatusBadge itself with rationale, and the audit-file updates applied. Stop.
 ```
 
 
 ## #ASSISTANT
 
-Reading the audit files and source files to confirm the bug details.
+Starting with the audit docs and source files to understand the bug before touching anything.
 
 
 ## #ASSISTANT
 
-Now reading the source files to identify all `var(--accent)` references and confirm the correct tokens.
-
-
-## #ASSISTANT
-
-Now let me verify the correct token names in index.css.
+Good. Now let me find OpcSources.tsx and read the relevant sections.
 
 
 ## #BASH
-_Find --io-accent and --io-accent-subtle token definitions_
+_Find OpcSources.tsx location_
 
 ```bash
-grep -n "io-accent" /home/io/io-dev/io/frontend/src/index.css | head -20
+find /home/io/io-dev/io/frontend -name "OpcSources.tsx" 2>/dev/null
 ```
 
 
 ## #ASSISTANT
 
-Investigation complete. Here's what I found:
-
-**`selection.css`:**
-- Line 2: `outline: 2px solid var(--accent)` — intended: selection-box outline, correct token: `var(--io-accent)`
-- Line 9: `0 0 12px 2px var(--accent)` — intended: soft-glow shadow, correct token: `var(--io-accent)`
-
-**`MarqueeLayer.tsx`:**
-- Line 100: `background: "rgba(80, 180, 255, 0.08)"` — hardcoded blue, correct token: `var(--io-accent-subtle)` (teal, defined at index.css:42 as `rgba(45,212,191,0.1)`)
-- Line 101: `border: "1px dashed var(--accent)"` — correct token: `var(--io-accent)`
-
-Both `--io-accent` and `--io-accent-subtle` are confirmed in index.css (lines 38 and 42). Applying the fixes now.
-
-
-## #ASSISTANT
-
-Now updating the audit artifacts. First `02-comparison.md` — both the Cat 5 and Cat 10 shared infrastructure entries.
-
-
-## #ASSISTANT
-
-Now update the Cat 10 secondary entry in `02-comparison.md`.
-
-
-## #ASSISTANT
-
-Now update `04-recommendations.md` — the Cat 5 priority-one fix entry and the Cat 10 entry.
+Now let me find the StatusBadge and hex-alpha pattern in OpcSources.tsx.
 
 
 ## #BASH
-_Find var(--accent) references in recommendations file_
+_Find StatusBadge and hex-alpha concat patterns in OpcSources.tsx_
 
 ```bash
-grep -n "var(--accent)" /home/io/io-dev/io/ui-audit/04-recommendations.md
+grep -n "StatusBadge\|statusBadge\|status_badge\|color}20\|color}40\|color}80\|hex.*alpha\|alpha.*hex\|\${color}" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -60
+```
+
+
+## #BASH
+_Find STATUS_COLORS definition_
+
+```bash
+grep -n "STATUS_COLORS" /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx | head -20
 ```
 
 
 ## #ASSISTANT
 
-Now update the Cat 10 entry in recommendations.
+Let me check how SystemHealth.tsx and Import.tsx do their StatusBadge correctly, to match the codebase pattern.
+
+
+## #BASH
+_Find SystemHealth StatusBadge pattern_
+
+```bash
+grep -n "color-mix\|success-subtle\|StatusBadge\|statusBadge\|status.*badge" /home/io/io-dev/io/frontend/src/pages/settings/SystemHealth.tsx | head -20
+```
+
+
+## #BASH
+_Find Import.tsx status badge pattern_
+
+```bash
+grep -n "success-subtle\|color-mix\|StatusBadge\|status.*badge\|io-success" /home/io/io-dev/io/frontend/src/pages/settings/Import.tsx | head -20
+```
 
 
 ## #ASSISTANT
 
-Finally update the Phase 2 migration order entry.
+The codebase already uses `color-mix(in srgb, ...)` in SystemHealth.tsx — this is the correct existing pattern to match. Let me verify there are no other files with the same `${color}20` bug.
+
+
+## #BASH
+_Search for hex-alpha concat pattern across frontend_
+
+```bash
+grep -rn '${color}20\|${color}40\|${color}80\|`${.*}[0-9a-f][0-9a-f]`' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #BASH
+_Search for hex-alpha concat pattern with different quoting_
+
+```bash
+grep -rn 'color}20\|color}40\|color}80\|color}10' /home/io/io-dev/io/frontend/src/ 2>/dev/null
+```
+
+
+## #ASSISTANT
+
+Good — the same bug pattern exists in 4 more files. The task asks me to fix OpcSources only and record the finding. Let me verify the color values in Users.tsx and Roles.tsx are also CSS vars:
+
+
+## #BASH
+_Verify Users.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Users.tsx | head -15
+```
+
+
+## #BASH
+_Verify Roles.tsx color values_
+
+```bash
+grep -n "color.*var\|color.*#\|COLORS\[" /home/io/io-dev/io/frontend/src/pages/settings/Roles.tsx | head -15
+```
+
+
+## #ASSISTANT
+
+Let me check the SystemHealth StatusBadge implementation in full for the exact border pattern:
+
+
+## #ASSISTANT
+
+The bug is confirmed in OpcSources.tsx only. The `StatusBadge` is a local function (not shared), and the bug is in lines 168 and 170. The fix uses the `color-mix()` pattern already established by `SystemHealth.tsx`.
+
+Applying the fix:
+
+
+## #ASSISTANT
+
+Now update the two audit files. Starting with `04-recommendations.md`:
+
+
+## #ASSISTANT
+
+Now update `02-comparison.md` — the Category 8 entry for Settings OpcSources:
+
+
+## #ASSISTANT
+
+Now verify the fix compiles cleanly:
+
+
+## #BASH
+_TypeScript check for OpcSources.tsx_
+
+```bash
+cd /home/io/io-dev/io/frontend && pnpm tsc --noEmit 2>&1 | grep -i "OpcSources\|error" | head -20
+```
 
 
 ## #TURN_END
 
-_2026-05-27T05:29:33+00:00_
+_2026-05-27T05:50:23+00:00_
 
 ---
 ---
@@ -1548,232 +2483,1082 @@ _2026-05-27T05:29:33+00:00_
 
 DIFF OF CHANGES:
 ---
-diff --git a/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx b/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-index ace7355a..cb83f33c 100644
---- a/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-+++ b/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
-@@ -97,8 +97,8 @@ export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
-             left: rect.left,
-             width: rect.width,
-             height: rect.height,
--            background: "rgba(80, 180, 255, 0.08)",
--            border: "1px dashed var(--accent)",
-+            background: "var(--io-accent-subtle)",
-+            border: "1px dashed var(--io-accent)",
-             pointerEvents: "none",
-           }}
-         />
-diff --git a/frontend/src/shared/clipboard/selection/selection.css b/frontend/src/shared/clipboard/selection/selection.css
-index 4b6369e3..14dd9e03 100644
---- a/frontend/src/shared/clipboard/selection/selection.css
-+++ b/frontend/src/shared/clipboard/selection/selection.css
-@@ -1,11 +1,11 @@
- .io-selection-overlay [data-indicator="selection-box"] {
--  outline: 2px solid var(--accent);
-+  outline: 2px solid var(--io-accent);
-   outline-offset: -1px;
-   border-radius: 2px;
- }
- .io-selection-overlay [data-indicator="soft-glow"] {
-   box-shadow:
-     0 0 0 2px rgba(255, 255, 255, 0.15),
--    0 0 12px 2px var(--accent);
-+    0 0 12px 2px var(--io-accent);
-   border-radius: 4px;
- }
+diff --git a/frontend/src/pages/settings/OpcSources.tsx b/frontend/src/pages/settings/OpcSources.tsx
+index 0807d2ff..89713e31 100644
+--- a/frontend/src/pages/settings/OpcSources.tsx
++++ b/frontend/src/pages/settings/OpcSources.tsx
+@@ -165,9 +165,9 @@ function StatusBadge({ status }: { status: string }) {
+         borderRadius: "9999px",
+         fontSize: "11px",
+         fontWeight: 600,
+-        background: `${color}20`,
++        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+         color,
+-        border: `1px solid ${color}40`,
++        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+         textTransform: "capitalize",
+       }}
+     >
 diff --git a/ui-audit/02-comparison.md b/ui-audit/02-comparison.md
-index d581a1c0..afb93f2d 100644
+index afb93f2d..4af88c4e 100644
 --- a/ui-audit/02-comparison.md
 +++ b/ui-audit/02-comparison.md
-@@ -70,8 +70,8 @@
- | **Implementation** | Shared clipboard selection overlay system. `selection.css` applies a selection-box outline and glow effect to `.io-selection-overlay` container child elements via `data-indicator` attribute. `MarqueeLayer.tsx` renders a draggable marquee rectangle during drag operations via mouse events and writes to `globalSelectionStore`. |
- | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` (render return), `:101` (token deviation) |
- | **Visual properties actually applied** | `selection.css`: `[data-indicator="selection-box"]`: `outline: 2px solid var(--accent)`, `outline-offset: -1px`, `borderRadius: 2px`; `[data-indicator="soft-glow"]`: `box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 12px 2px var(--accent)`, `borderRadius: 4px`. `MarqueeLayer.tsx`: container `position: absolute, inset: 0`; marquee rect while dragging: `background: rgba(80,180,255,0.08)`, `border: 1px dashed var(--accent)`, `pointerEvents: none` |
--| **Deviations from app shell** | Both files use `var(--accent)` without the `--io-` prefix — this token has no definition anywhere in the codebase; selection box outline and glow shadow render with no color (CSS initial value). `MarqueeLayer.tsx:101` hardcodes background `rgba(80,180,255,0.08)` (blue) instead of `var(--io-accent-subtle)` (teal, index.css:42). Correct token throughout: `var(--io-accent)`. |
--| **Notes** | Functional regression: shared selection overlay is visually invisible. Masked by module-specific selection feedback (PaneWrapper inline-style border for Console panes, SVG stroke in DesignerCanvas). Both files need `var(--accent)` → `var(--io-accent)`. MarqueeLayer background also needs `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
-+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` in both files (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `MarqueeLayer.tsx:100` background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (teal, index.css:42). Selection box outline, glow shadow, and marquee border now render with the correct teal accent color. |
-+| **Notes** | Regression resolved. Selection overlay is now visible. Two-line fix: selection.css (2 token references) + MarqueeLayer.tsx (1 token + 1 hardcoded background). Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
+@@ -106,7 +106,7 @@
+ | **Implementation** | Inline-styles; all hand-drawn `<span>` elements with circle or badge styles; no shared component | Inline-styles; module-local; scattered across `DesignerToolbar` (dirty dot, READ-ONLY badge), `DesignerTabBar` (modified dot), `DesignerStatusBar` (WS dot, binding summary, TEST MODE) | Inline-styles; no shared component; five distinct `StatusBadge` implementations across `OpcSources`, `SystemHealth`, `Import`, `Email`, `PointManagement`; connection dots in `OpcSources` and `SystemHealth` | All three: no shared status indicator component; all three use small circle dots (6–8px) for binary connection/state indicators; all three use `var(--io-success)` / `var(--io-danger)` tokens for the connected/error states | — |
+ | **Source-of-truth files** | `index.tsx:59–134` (ConsoleStatusBar); `index.tsx:2026–2052` (tab dots, banners); `AlarmListPane:34–91`; `PointTablePane:26–59` | `DesignerStatusBar:204–371`; `DesignerToolbar:1584–1615`; `DesignerTabBar:181–193` | `OpcSources:156–186`; `SystemHealth:41–70`; `Import:72–106`; `Email:187–212`; `PointManagement:126–232`; `OpcSources` + `SystemHealth` connection dots | — | — |
+ | **Visual properties actually applied** | Connection dot: 6×6px circle, `var(--io-success)`/`var(--io-warning)`/`var(--io-danger)`; dirty/playback dot: 6×6 `var(--io-warning)`; published dot: `#10b981` hardcoded; `PriorityBadge`: pill with hardcoded `rgba()` backgrounds per level; `StateBadge`: text-color-coded; `QualityBadge`: 6×6 circle + text, hardcoded colors | WS dot: `●` glyph 8px, `#22c55e`/`#ef4444` hardcoded; dirty indicator: 7×7px div, `#f97316` hardcoded; READ-ONLY badge: `#eab308`/`rgba(234,179,8,*)` hardcoded; modified tab dot: `var(--io-warning, #f59e0b)` — only token-using indicator; TEST MODE: `#4ade80` with CSS keyframe animation injected as inline `<style>` tag | `OpcSources StatusBadge`: hex-alpha concat bug (broken background); `SystemHealth`: `color-mix(in srgb, colorVar 12%, transparent)` (correct); `Import`: `--io-success-subtle`/`--io-success` token pairs (correct); `Email`: dot-only 7px, token-based; `PointManagement CriticalityBadge`: token pairs (correct); connection dots: `var(--io-success)`/`var(--io-danger)` fill + hardcoded `#22c55e` glow shadow | All three use `var(--io-success)`/`var(--io-danger)` as primary fill tokens for connection state dots | — |
+-| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | `OpcSources StatusBadge` broken by hex-alpha CSS var concat; `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages) | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
++| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | **Fixed 2026-05-27:** `OpcSources StatusBadge` hex-alpha concat bug resolved — `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `1px solid color-mix(in srgb, ${color} 25%, transparent)`. Fix uses the `color-mix` pattern already established in `SystemHealth.tsx`; scoped to the local `StatusBadge` function (OpcSources.tsx:168–170). Remaining: `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages). **Open finding:** same `${color}20`/`${color}40` hex-alpha bug exists in `Users.tsx` (Badge:108/110), `Roles.tsx` (Badge:51/53), `CameraStreams.tsx` (785/787), `MaintenanceTicketsPanel.tsx` (52) — not fixed here. | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
+ | **Notes** | `var(--io-alarm-high)` is used correctly on the save-failure banner — the only alarm token use in Console's status layer | TEST MODE injects a new `<style>` element on every render cycle when test mode is active — a performance concern | `Import.tsx` token-pair pattern (`--io-success-subtle`/`--io-success`) is the cleanest `StatusBadge` implementation across all three modules | — | — |
  
- ---
- 
-@@ -158,8 +158,8 @@
- | **Implementation** | See Category 5 Shared Infrastructure for full entry. Shared clipboard selection overlay; selection.css applies CSS-class-based selection box/glow; MarqueeLayer.tsx renders drag marquee rectangle. |
- | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` |
- | **Visual properties actually applied** | selection-box outline and soft-glow via `var(--accent)` (broken prefix); marquee rect `rgba(80,180,255,0.08)` bg + `1px dashed var(--accent)` border |
--| **Deviations from app shell** | `var(--accent)` prefix bug (should be `var(--io-accent)`); selection overlay invisible at runtime. MarqueeLayer background hardcoded blue, should be `var(--io-accent-subtle)`. |
--| **Notes** | Functional regression — shared selection overlay has no visible color. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
-+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101); `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). |
-+| **Notes** | Regression resolved. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
- 
- | Field | alarmFlash.css |
- |---|---|
+ ### Shared Infrastructure — Category 8
 diff --git a/ui-audit/04-recommendations.md b/ui-audit/04-recommendations.md
-index a473fccb..f1e6f423 100644
+index f1e6f423..2aabbd25 100644
 --- a/ui-audit/04-recommendations.md
 +++ b/ui-audit/04-recommendations.md
-@@ -152,7 +152,7 @@ When this work is complete:
- **Adopt:** Console + Settings convention: `background: var(--io-surface-secondary)`, `borderRight: 1px solid var(--io-border)`.
- 
- **Actions (highest priority first):**
--- Fix (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (two occurrences). Also `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. This is the highest priority fix in the shared infrastructure — selection highlight is currently invisible.
-+- **Fixed 2026-05-27** (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (lines 2 and 9). `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (line 101) and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (line 100). Selection highlight and marquee border now render with teal accent color.
- - Fix: Align Designer left palette background: `var(--io-surface)` → `var(--io-surface-secondary)` to match Console and Settings
- - Fix: Resolve `--io-sidebar-width` discrepancy — either update the token to 220px to match current practice, or update all three modules to 240px. Pick one and be consistent.
- - Fix: Settings active nav item — add `borderLeft: 2px solid var(--io-accent)` on active state to match AppShell pattern
-@@ -252,7 +252,7 @@ When this work is complete:
- 
- **Actions (by priority):**
- 
--- Fix (functional regression, highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` everywhere. `MarqueeLayer.tsx` marquee background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Two-line fix with outsized impact.
-+- **Fixed 2026-05-27** (functional regression, was highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). Selection highlight and marquee border now render with teal accent color.
- - Fix: `alarmFlash.css` — migrate alarm hex colors to `--io-alarm-*` tokens (see Cat 8). Required for light/HPHMI theme support.
- - Fix: Console `WorkspaceGrid` container `var(--io-bg)` (undefined) → `var(--io-surface-primary)` (after defining `--io-bg` alias in Cat 1 token work, this becomes automatic)
- - Fix: DesignerCanvas canvas border `rgba(255,255,255,0.08)` → define a token or use `var(--io-border)` with opacity; grid lines `rgba(128,128,128,0.12/0.28)` → acceptable to leave as-is if theme support is not required for the grid appearance
-@@ -307,7 +307,7 @@ No component changes. Pure token additions to `index.css`.
- 
+@@ -308,7 +308,7 @@ No component changes. Pure token additions to `index.css`.
  These are bugs visible at runtime, not polish issues.
  
--1. `selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)
-+1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
- 2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
+ 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
+-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
++2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
  3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
  4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
+ 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.
 ---
 
 FULL FILE CONTENTS (for surrounding-code analysis):
 ---
 
---- File: /home/io/io-dev/io/frontend/src/shared/clipboard/selection/MarqueeLayer.tsx ---
-import { useCallback, useRef, useState } from "react";
-import type { SelectableEntity, SelectionZoneId } from "../types";
-import { useGlobalSelectionStore } from "../../../store/globalSelectionStore";
+--- File: /home/io/io-dev/io/frontend/src/pages/settings/OpcSources.tsx ---
+import React, { useState } from "react";
+import ContextMenu from "../../shared/components/ContextMenu";
+import { useContextMenu } from "../../shared/hooks/useContextMenu";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  pointSourcesApi,
+  pointSourceStatsApi,
+  historyRecoveryApi,
+  PointSource,
+  PointSourceStats,
+  RecoveryJob,
+  CreatePointSourceRequest,
+  UpdatePointSourceRequest,
+} from "../../api/points";
+import { opcCertsApi, OpcServerCert } from "../../api/opcCerts";
+import { settingsApi } from "../../api/settings";
+import SupplementalConnectorsTab from "./SupplementalConnectorsTab";
+import { ExportButton } from "../../shared/components/ExportDialog";
+import {
+  inputStyle,
+  labelStyle,
+  btnPrimary,
+  btnSecondary,
+  cellStyle,
+} from "./settingsStyles";
 
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
+// ---------------------------------------------------------------------------
+// Column definitions for OPC sources export
+// ---------------------------------------------------------------------------
+const OPC_SOURCES_COLUMNS = [
+  { id: "name", label: "Name" },
+  { id: "endpoint_url", label: "Endpoint URL" },
+  { id: "status", label: "Status" },
+  { id: "enabled", label: "Enabled" },
+  { id: "security_policy", label: "Security Policy" },
+  { id: "security_mode", label: "Security Mode" },
+  { id: "last_connected_at", label: "Last Connected" },
+];
 
-interface Props {
-  zoneId: SelectionZoneId;
-  enumerate: () => Array<{ entity: SelectableEntity; rect: Rect }>;
-  containerRef: React.RefObject<HTMLElement>;
-}
+const OPC_SOURCES_DEFAULT_VISIBLE = [
+  "name",
+  "endpoint_url",
+  "status",
+  "enabled",
+  "last_connected_at",
+];
 
-export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
-  const [rect, setRect] = useState<Rect | null>(null);
-  const modeRef = useRef<"add" | "toggle" | "remove" | "replace">("replace");
-  const startRef = useRef<{ x: number; y: number } | null>(null);
-  const selectMany = useGlobalSelectionStore((s) => s.selectMany);
-  const clearZone = useGlobalSelectionStore((s) => s.clearZone);
-
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      if (e.target !== containerRef.current) return;
-      const bounds = containerRef.current!.getBoundingClientRect();
-      startRef.current = {
-        x: e.clientX - bounds.left,
-        y: e.clientY - bounds.top,
-      };
-      modeRef.current = e.altKey
-        ? "remove"
-        : e.ctrlKey || e.metaKey
-          ? "add"
-          : "replace";
-      setRect({
-        top: startRef.current.y,
-        left: startRef.current.x,
-        width: 0,
-        height: 0,
-      });
-    },
-    [containerRef],
-  );
-
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!startRef.current) return;
-      const bounds = containerRef.current!.getBoundingClientRect();
-      const x = e.clientX - bounds.left;
-      const y = e.clientY - bounds.top;
-      const left = Math.min(startRef.current.x, x);
-      const top = Math.min(startRef.current.y, y);
-      const width = Math.abs(x - startRef.current.x);
-      const height = Math.abs(y - startRef.current.y);
-      setRect({ top, left, width, height });
-    },
-    [containerRef],
-  );
-
-  const onMouseUp = useCallback(() => {
-    if (!rect) return;
-    const contained = enumerate()
-      .filter(({ rect: r }) => fullyContained(r, rect))
-      .map(({ entity }) => entity);
-    if (modeRef.current === "replace") {
-      if (contained.length === 0) clearZone(zoneId);
-      else selectMany(zoneId, contained, "replace");
-    } else if (modeRef.current === "add") {
-      selectMany(zoneId, contained, "add");
-    } else if (modeRef.current === "remove") {
-      selectMany(zoneId, contained, "remove");
-    }
-    startRef.current = null;
-    setRect(null);
-  }, [rect, enumerate, selectMany, clearZone, zoneId]);
-
+// ---------------------------------------------------------------------------
+// TableSkeleton — shimmer rows for OPC sources table
+// ---------------------------------------------------------------------------
+function TableSkeleton({
+  rows = 4,
+  columns = 5,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
-    <div
-      style={{ position: "absolute", inset: 0 }}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={() => {
-        startRef.current = null;
-        setRect(null);
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr
+          style={{
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface-primary)",
+          }}
+        >
+          {Array.from({ length: columns }).map((_, i) => (
+            <th key={i} style={{ padding: "10px 14px", textAlign: "left" }}>
+              <div
+                style={{
+                  height: "10px",
+                  borderRadius: "4px",
+                  background: "var(--io-border)",
+                  width: i === columns - 1 ? "40px" : "120px",
+                  animation: "io-shimmer 1.5s ease-in-out infinite",
+                }}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, ri) => (
+          <tr
+            key={ri}
+            style={{
+              borderBottom:
+                ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined,
+            }}
+          >
+            {Array.from({ length: columns }).map((_, ci) => (
+              <td key={ci} style={{ padding: "12px 14px" }}>
+                <div
+                  style={{
+                    height: "12px",
+                    borderRadius: "4px",
+                    background: "var(--io-surface-primary)",
+                    width:
+                      ci === columns - 1
+                        ? "40px"
+                        : ci === 0
+                          ? "120px"
+                          : "160px",
+                    animation: "io-shimmer 1.5s ease-in-out infinite",
+                    animationDelay: `${ri * 0.05}s`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client certificate API (GET /api/certificates?type=client)
+// ---------------------------------------------------------------------------
+
+export interface ClientCertificate {
+  id: string;
+  name: string;
+  subject: string | null;
+  not_after: string | null;
+  expired: boolean;
+}
+
+const clientCertsApi = {
+  list: () =>
+    fetch("/api/certificates?type=client", {
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    }).then(async (r) => {
+      const json = await r.json();
+      return json as {
+        success: boolean;
+        data: ClientCertificate[];
+        error?: { message: string };
+      };
+    }),
+};
+
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "var(--io-success)",
+  inactive: "var(--io-text-muted)",
+  connecting: "var(--io-warning)",
+  error: "var(--io-danger)",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_COLORS[status] ?? "var(--io-text-muted)";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "2px 8px",
+        borderRadius: "9999px",
+        fontSize: "11px",
+        fontWeight: 600,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+        color,
+        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+        textTransform: "capitalize",
       }}
     >
-      {rect ? (
-        <div
+      <span
+        style={{
+          width: "6px",
+          height: "6px",
+          borderRadius: "50%",
+          background: color,
+          flexShrink: 0,
+        }}
+      />
+      {status}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Source stats — inline chips for the table row
+// ---------------------------------------------------------------------------
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function SourceStatsChips({ stats }: { stats: PointSourceStats | undefined }) {
+  if (!stats) return null;
+  const chips: Array<{ label: string; value: string; color?: string }> = [
+    { label: "pts", value: fmtCount(stats.point_count) },
+    { label: "active", value: fmtCount(stats.active_subscriptions) },
+  ];
+  if (stats.updates_per_minute !== null) {
+    chips.push({ label: "/min", value: fmtCount(stats.updates_per_minute) });
+  }
+  if (stats.error_count_24h > 0) {
+    chips.push({
+      label: "errors",
+      value: String(stats.error_count_24h),
+      color: "var(--io-danger)",
+    });
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "6px",
+        marginTop: "5px",
+        flexWrap: "wrap",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {chips.map((c) => (
+        <span
+          key={c.label}
           style={{
-            position: "absolute",
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-            background: "var(--io-accent-subtle)",
-            border: "1px dashed var(--io-accent)",
-            pointerEvents: "none",
+            display: "inline-flex",
+            alignItems: "baseline",
+            gap: "3px",
+            fontSize: "11px",
+            color: c.color ?? "var(--io-text-muted)",
           }}
-        />
-      ) : null}
+        >
+          <strong
+            style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+          >
+            {c.value}
+          </strong>
+          <span style={{ opacity: 0.7 }}>{c.label}</span>
+        </span>
+      ))}
     </div>
   );
 }
 
-function fullyContained(inner: Rect, outer: Rect): boolean {
+// ---------------------------------------------------------------------------
+// Source stats — tile grid for the detail panel
+// ---------------------------------------------------------------------------
+
+function SourceStatsTiles({ sourceId }: { sourceId: string }) {
+  const statsQuery = useQuery({
+    queryKey: ["point-source-stats", sourceId],
+    queryFn: async () => {
+      const r = await pointSourceStatsApi.get(sourceId);
+      if (!r.success) throw new Error(r.error.message);
+      return r.data as PointSourceStats;
+    },
+    refetchInterval: 15_000,
+  });
+
+  const s = statsQuery.data;
+  const tiles: Array<{
+    label: string;
+    value: string;
+    sub?: string;
+    accent?: boolean;
+    danger?: boolean;
+  }> = [
+    {
+      label: "Total Points",
+      value: s ? fmtCount(s.point_count) : "—",
+      sub: "configured",
+    },
+    {
+      label: "Active Subs",
+      value: s ? fmtCount(s.active_subscriptions) : "—",
+      sub: "subscriptions",
+      accent: s ? s.active_subscriptions > 0 : false,
+    },
+    {
+      label: "Updates / min",
+      value:
+        s?.updates_per_minute !== null && s?.updates_per_minute !== undefined
+          ? fmtCount(s.updates_per_minute)
+          : "—",
+      sub: "recording",
+    },
+    {
+      label: "Errors (24 h)",
+      value: s ? String(s.error_count_24h) : "—",
+      danger: s ? s.error_count_24h > 0 : false,
+    },
+  ];
+
   return (
-    inner.left >= outer.left &&
-    inner.top >= outer.top &&
-    inner.left + inner.width <= outer.left + outer.width &&
-    inner.top + inner.height <= outer.top + outer.height
+    <div>
+      <div
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          color: "var(--io-text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: "10px",
+        }}
+      >
+        Live Statistics
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "8px",
+          marginBottom: "20px",
+        }}
+      >
+        {tiles.map((t) => (
+          <div
+            key={t.label}
+            style={{
+              background: "var(--io-surface-secondary)",
+              border: "1px solid var(--io-border-subtle)",
+              borderRadius: "var(--io-radius)",
+              padding: "12px 10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "20px",
+                fontWeight: 700,
+                fontVariantNumeric: "tabular-nums",
+                color: t.danger
+                  ? "var(--io-danger)"
+                  : t.accent
+                    ? "var(--io-success)"
+                    : "var(--io-text-primary)",
+                lineHeight: 1.1,
+              }}
+            >
+              {statsQuery.isLoading ? (
+                <span style={{ opacity: 0.3 }}>—</span>
+              ) : (
+                t.value
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.3,
+              }}
+            >
+              {t.label}
+              {t.sub && (
+                <span style={{ display: "block", opacity: 0.7 }}>{t.sub}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {s?.last_value_at && (
+        <div
+          style={{
+            fontSize: "11px",
+            color: "var(--io-text-muted)",
+            marginBottom: "16px",
+          }}
+        >
+          Last value received: {new Date(s.last_value_at).toLocaleString()}
+        </div>
+      )}
+    </div>
   );
 }
 
---- File: /home/io/io-dev/io/frontend/src/shared/clipboard/selection/selection.css ---
-.io-selection-overlay [data-indicator="selection-box"] {
-  outline: 2px solid var(--io-accent);
-  outline-offset: -1px;
-  border-radius: 2px;
+// ---------------------------------------------------------------------------
+// Modal wrapper
+// ---------------------------------------------------------------------------
+
+function ModalContent({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Dialog.Portal>
+      <Dialog.Overlay
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--io-overlay, rgba(0,0,0,0.5))",
+          zIndex: 100,
+        }}
+      />
+      <Dialog.Content
+        aria-describedby={undefined}
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          padding: "24px",
+          width: "520px",
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          zIndex: 101,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
+          }}
+        >
+          <Dialog.Title
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
+            {title}
+          </Dialog.Title>
+          <Dialog.Close asChild>
+            <button
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </Dialog.Close>
+        </div>
+        {children}
+      </Dialog.Content>
+    </Dialog.Portal>
+  );
 }
-.io-selection-overlay [data-indicator="soft-glow"] {
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.15),
-    0 0 12px 2px var(--io-accent);
-  border-radius: 4px;
+
+// ---------------------------------------------------------------------------
+// Source form fields (shared between create and edit)
+// ---------------------------------------------------------------------------
+
+interface SourceFormState {
+  name: string;
+  endpoint_url: string;
+  security_policy: string;
+  security_mode: string;
+  username: string;
+  password: string;
+  enabled: boolean;
+  client_certificate_id: string | null;
+  platform: string | null;
+  publish_interval_ms: number | null;
+  data_category_id: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Data categories
+// ---------------------------------------------------------------------------
+
+const PREDEFINED_CATEGORIES = [
+  { id: "process", label: "Process" },
+  { id: "event", label: "Event" },
+  { id: "access_control", label: "Access Control" },
+  { id: "personnel", label: "Personnel" },
+  { id: "financial", label: "Financial" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "ticketing", label: "Ticketing" },
+  { id: "environmental", label: "Environmental" },
+  { id: "general", label: "General" },
+];
+
+interface DataCategory {
+  id: string;
+  label: string;
+  predefined: boolean;
+}
+
+// Simple in-memory custom categories store (backed by API in production)
+function useDataCategories() {
+  const query = useQuery<DataCategory[]>({
+    queryKey: ["data-categories"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/data-categories");
+        if (!res.ok) throw new Error("API unavailable");
+        const json = await res.json();
+        return json.data ?? json;
+      } catch {
+        // Fall back to predefined only
+        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }));
+      }
+    },
+    staleTime: 60_000,
+    initialData: PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true })),
+  });
+  return query;
+}
+
+// ---------------------------------------------------------------------------
+// Manage Categories modal
+// ---------------------------------------------------------------------------
+
+function ManageCategoriesModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const catQuery = useDataCategories();
+  const categories = catQuery.data ?? [];
+
+  const [newName, setNewName] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleCreate() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/data-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+      setNewName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRename(id: string) {
+    const trimmed = editName.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+      setEditId(null);
+      setEditName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this custom category?")) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      qc.invalidateQueries({ queryKey: ["data-categories"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete category");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return null;
+
+  const modalOverlay: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 200,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--io-overlay, rgba(0,0,0,0.5))",
+  };
+
+  const modalBox: React.CSSProperties = {
+    position: "relative",
+    width: "500px",
+    maxWidth: "95vw",
+    maxHeight: "80vh",
+    background: "var(--io-surface-elevated)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "10px",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+  };
+
+  const catInputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "6px 10px",
+    background: "var(--io-surface-secondary)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    color: "var(--io-text)",
+    fontSize: "13px",
+  };
+
+  const smBtn = (
+    variant: "primary" | "ghost" | "danger",
+  ): React.CSSProperties => ({
+    padding: "5px 10px",
+    fontSize: "12px",
+    border:
+      variant === "danger"
+        ? "1px solid var(--io-danger)"
+        : variant === "ghost"
+          ? "1px solid var(--io-border)"
+          : "none",
+    borderRadius: "var(--io-radius)",
+    background: variant === "primary" ? "var(--io-accent)" : "transparent",
+    color:
+      variant === "primary"
+        ? "var(--io-text-on-accent)"
+        : variant === "danger"
+          ? "var(--io-danger)"
+          : "var(--io-text-secondary)",
+    cursor: saving ? "not-allowed" : "pointer",
+    opacity: saving ? 0.6 : 1,
+  });
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div
+          style={{
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: "15px" }}>
+            Manage Data Categories
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              fontSize: "18px",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginBottom: "16px",
+              lineHeight: 1.5,
+            }}
+          >
+            Predefined categories cannot be deleted. Custom categories can be
+            renamed or deleted.
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "var(--io-danger-subtle)",
+                color: "var(--io-danger)",
+                borderRadius: "var(--io-radius)",
+                fontSize: "12px",
+                marginBottom: "12px",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Category list */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              marginBottom: "20px",
+            }}
+          >
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 10px",
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border-subtle)",
+                  borderRadius: "var(--io-radius)",
+                }}
+              >
+                {editId === cat.id ? (
+                  <>
+                    <input
+                      style={catInputStyle}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(cat.id);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      style={smBtn("primary")}
+                      onClick={() => handleRename(cat.id)}
+                      disabled={saving}
+                    >
+                      Save
+                    </button>
+                    <button
+                      style={smBtn("ghost")}
+                      onClick={() => {
+                        setEditId(null);
+                        setEditName("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: "13px",
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
+                      {cat.label}
+                    </span>
+                    {cat.predefined ? (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--io-text-muted)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        predefined
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          style={smBtn("ghost")}
+                          onClick={() => {
+                            setEditId(cat.id);
+                            setEditName(cat.label);
+                          }}
+                          disabled={saving}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          style={smBtn("danger")}
+                          onClick={() => handleDelete(cat.id)}
+                          disabled={saving}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Add new */}
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: "8px",
+            }}
+          >
+            Add Custom Category
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              style={catInputStyle}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Category name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate();
+              }}
+            />
+            <button
+              style={smBtn("primary")}
+              onClick={handleCreate}
+              disabled={saving || !newName.trim()}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--io-border)",
+            display: "flex",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+          }}
+        >
+          <button onClick={onClose} style={smBtn("ghost")}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SECURITY_POLICIES = [
+  "None",
+  "Basic256Sha256",
+  "Aes128Sha256RsaOaep",
+  "Aes256Sha256RsaPss",
+];
+const SECURITY_MODES = ["None", "Sign", "SignAndEncrypt"];
+
+// DCS platform options from doc 17 §Connection Profiles
+const DCS_PLATFORMS = [
+  { value: "", label: "Unknown / Generic" },
+  { value: "siemens_s7_1500", label: "Siemens S7-1500 (TIA Portal)" },
+  { value: "siemens_s7_1200", label: "Siemens S7-1200 (TIA Portal)" },
+  { value: "siemens_wincc_oa", label: "Siemens WinCC OA" },
+  { value: "siemens_wincc_v7", label: "Siemens WinCC V7 / RT Pro" },
+  { value: "honeywell_experion", label: "Honeywell Experion PKS" },
+  { value: "abb_800xa", label: "ABB 800xA" },
+  { value: "emerson_deltav_pk", label: "Emerson DeltaV PK Controller" },
+  { value: "emerson_deltav_app", label: "Emerson DeltaV Application Station" },
+  { value: "yokogawa_exaopc", label: "Yokogawa Exaopc" },
+];
+
+function SourceFormFields({
+  form,
+  onChange,
+  showEnabled,
+  clientCerts,
+}: {
+  form: SourceFormState;
+  onChange: (patch: Partial<SourceFormState>) => void;
+  showEnabled?: boolean;
+  clientCerts?: ClientCertificate[];
+}) {
+  const [manageCatsOpen, setManageCatsOpen] = useState(false);
+  const catQuery = useDataCategories();
+  const categories = catQuery.data ?? [];
+  const field = (
+    label: string,
+    key: keyof SourceFormState,
+    type = "text",
+    placeholder?: string,
+    required?: boolean,
+  ) => (
+    <div>
+      <label style={labelStyle}>
+        {label}
+        {required && " *"}
+      </label>
+      <input
+        type={type}
+        style={inputStyle}
+        value={form[key] as string}
+        onChange={(e) => onChange({ [key]: e.target.value })}
+        placeholder={placeholder}
+        required={required}
+        autoComplete="off"
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      {field("Name", "name", "text", "OPC-Unit3-Primary", true)}
+      {field(
+        "Endpoint URL",
+        "endpoint_url",
+        "text",
+        "opc.tcp://hostname:4840",
+        true,
+      )}
+
+      <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Policy</label>
+          <select
+            style={{ ...inputStyle, cursor: "pointer" }}
+            value={form.security_policy}
+            onChange={(e) => onChange({ security_policy: e.target.value })}
+          >
+            {SECURITY_POLICIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Mode</label>
+          <select
+            style={{ ...inputStyle, cursor: "pointer" }}
+            value={form.security_mode}
+            onChange={(e) => onChange({ security_mode: e.target.value })}
+          >
+            {SECURITY_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Client Certificate dropdown */}
+      <div>
+        <label style={labelStyle}>Client Certificate</label>
+        <select
+          style={{ ...inputStyle, cursor: "pointer" }}
+          value={form.client_certificate_id ?? ""}
+          onChange={(e) =>
+            onChange({ client_certificate_id: e.target.value || null })
+          }
+        >
+          <option value="">(none)</option>
+          {(clientCerts ?? []).map((cert) => (
+            <option key={cert.id} value={cert.id}>
+              {cert.name}
+              {cert.expired ? " [EXPIRED]" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Platform dropdown */}
+      <div>
+        <label style={labelStyle}>Platform</label>
+        <select
+          style={{ ...inputStyle, cursor: "pointer" }}
+          value={form.platform ?? ""}
+          onChange={(e) => onChange({ platform: e.target.value || null })}
+        >
+          {DCS_PLATFORMS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Data Category dropdown */}
+      <div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+          }}
+        >
+          <label style={labelStyle}>Data Category</label>
+          <button
+            type="button"
+            onClick={() => setManageCatsOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--io-accent)",
+              fontSize: "11px",
+              cursor: "p
 
 --- File: /home/io/io-dev/io/ui-audit/02-comparison.md ---
 # UI Audit Comparison — Cross-Module Analysis
@@ -1884,8 +3669,7 @@ function fullyContained(inner: Rect, outer: Rect): boolean {
 | **Implementation** | Inline-styles; all hand-drawn `<span>` elements with circle or badge styles; no shared component | Inline-styles; module-local; scattered across `DesignerToolbar` (dirty dot, READ-ONLY badge), `DesignerTabBar` (modified dot), `DesignerStatusBar` (WS dot, binding summary, TEST MODE) | Inline-styles; no shared component; five distinct `StatusBadge` implementations across `OpcSources`, `SystemHealth`, `Import`, `Email`, `PointManagement`; connection dots in `OpcSources` and `SystemHealth` | All three: no shared status indicator component; all three use small circle dots (6–8px) for binary connection/state indicators; all three use `var(--io-success)` / `var(--io-danger)` tokens for the connected/error states | — |
 | **Source-of-truth files** | `index.tsx:59–134` (ConsoleStatusBar); `index.tsx:2026–2052` (tab dots, banners); `AlarmListPane:34–91`; `PointTablePane:26–59` | `DesignerStatusBar:204–371`; `DesignerToolbar:1584–1615`; `DesignerTabBar:181–193` | `OpcSources:156–186`; `SystemHealth:41–70`; `Import:72–106`; `Email:187–212`; `PointManagement:126–232`; `OpcSources` + `SystemHealth` connection dots | — | — |
 | **Visual properties actually applied** | Connection dot: 6×6px circle, `var(--io-success)`/`var(--io-warning)`/`var(--io-danger)`; dirty/playback dot: 6×6 `var(--io-warning)`; published dot: `#10b981` hardcoded; `PriorityBadge`: pill with hardcoded `rgba()` backgrounds per level; `StateBadge`: text-color-coded; `QualityBadge`: 6×6 circle + text, hardcoded colors | WS dot: `●` glyph 8px, `#22c55e`/`#ef4444` hardcoded; dirty indicator: 7×7px div, `#f97316` hardcoded; READ-ONLY badge: `#eab308`/`rgba(234,179,8,*)` hardcoded; modified tab dot: `var(--io-warning, #f59e0b)` — only token-using indicator; TEST MODE: `#4ade80` with CSS keyframe animation injected as inline `<style>` tag | `OpcSources StatusBadge`: hex-alpha concat bug (broken background); `SystemHealth`: `color-mix(in srgb, colorVar 12%, transparent)` (correct); `Import`: `--io-success-subtle`/`--io-success` token pairs (correct); `Email`: dot-only 7px, token-based; `PointManagement CriticalityBadge`: token pairs (correct); connection dots: `var(--io-success)`/`var(--io-danger)` fill + hardcoded `#22c55e` glow shadow | All three use `var(--io-success)`/`var(--io-danger)` as primary fill tokens for connection state dots | — |
-| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | `OpcSources StatusBadge` broken by hex-alpha CSS var concat; `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages) | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
-| **Notes** | `var(--io-alarm-high)` is used correctly on the save-failure banner — the only alarm token use in Console's status layer | TEST MODE injects a new
+| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | **Fixed 2026-05-27:** `OpcSources StatusBadge` hex-alpha concat bug resolved — `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `1px solid color-mix(in srgb, ${color} 25%, transparent)`. Fix uses the `color-mix` pattern already established in `SystemHealth.tsx`; scoped to the local `StatusBadge` function (OpcSources.tsx:168–170). Remaining: `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success
 
 --- File: /home/io/io-dev/io/ui-audit/04-recommendations.md ---
 # UI Audit Recommendations
@@ -2198,7 +3982,7 @@ No component changes. Pure token additions to `index.css`.
 These are bugs visible at runtime, not polish issues.
 
 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
+2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
 3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
 4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.
@@ -2246,11 +4030,7 @@ Depends on: Phases 1–4 being stable.
 
 ### R1 — `--io-z-modal: 300` is unusable as-is
 
-Every dialog in all three modules uses z-index values between 1000 and 9999. Raising the token will fix any code that correctly references it, but code currently using hardcoded integers (the majority) will be unaffected until individually migrated. There is a risk that the migration is incomplete and layers will stack incorrectly in edge cases (e.g., a console modal rendered inside a designer tab). A z-index audit across all `zIndex` values in the frontend would be needed to produce a safe z-index scale before setting definitive token values.
-
-### R2 — Light theme and HPHMI theme are not yet implemented; audit was dark-theme-only
-
-The audit verified token references but could not test whether visual output is correct in non-dark themes. `alarmFlash.css` is confirmed dark-theme-only (colors are hardcoded hex matching dark-theme token values). `operationalState.css` is intentionally non-adaptive. Any module-local hardcoded hex values will also fail to adapt. If theme switching is a near-term requirement, the Phase 2 alarmFlash fix and Phase 1 token additions should be front-load
+Every dialog in all three modules uses z-index values between 1000 and 9999. Raising the token will fix any code that correctly references it, but code currently using hardcoded integers (the majority) will be unaffected until individually migrated. There is a risk that the migration is incomplete and layers will stack incorrectly in edge cases (e.g., a console modal rendered inside a designer tab). A z-inde
 
 ---
 
@@ -2260,14 +4040,14 @@ Produce the review now.
 
 ## #TURN_END
 
-_2026-05-27T05:31:41+00:00_
+_2026-05-27T05:52:28+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:31:48+00:00_
+_2026-05-27T05:52:33+00:00_
 
 ```
 ~deepreview~
@@ -2278,134 +4058,124 @@ _2026-05-27T05:31:48+00:00_
 _Run deep review script_
 
 ```bash
-${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/run-review.sh "$(cat ${CLAUDE_PROJECT_DIR}/.claude/state/current_log.txt)" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Find current log path and available hook scripts_
-
-```bash
-cat /home/io/io-dev/io/.claude/state/current_log.txt 2>/dev/null && echo "---" && ls /home/io/io-dev/io/.claude/hooks/scripts/ 2>/dev/null
-```
-
-
-## #BASH
-_Run deep review with correct paths_
-
-```bash
-/home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "/home/io/io-dev/io/.claude/logs/2026-05-27_regression-accent-token-prefix/read-onl_052806.md" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_List log files in current work unit directory_
-
-```bash
-ls /home/io/io-dev/io/.claude/logs/2026-05-27_regression-accent-token-prefix/
-```
-
-
-## #BASH
-_List log directory and read current log pointer_
-
-```bash
-ls /home/io/io-dev/io/.claude/logs/ && echo "---" && cat /home/io/io-dev/io/.claude/state/current_log.txt
-```
-
-
-## #BASH
-_List logs with details to see exact filenames_
-
-```bash
-ls -la "/home/io/io-dev/io/.claude/logs/" | cat
-```
-
-
-## #BASH
-_Run deep review with log path via find_
-
-```bash
-LOG=$(find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" | head -1) && echo "LOG: [$LOG]" && /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "$LOG" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Find log file with null separator to handle newline in name_
-
-```bash
-find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} echo "FOUND: [{}]"
-```
-
-
-## #BASH
-_Run deep review passing log path with null-safe xargs_
-
-```bash
-find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "{}" "$CLAUDE_SESSION_ID" "deep"
-```
-
-
-## #BASH
-_Read the generated deep review file_
-
-```bash
-find /home/io/io-dev/io/.claude/reviews/ -name "2026-05-27_regression*" -print0 | xargs -0 cat
+bash /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "$(cat /home/io/io-dev/io/.claude/state/current_log.txt)" "$CLAUDE_SESSION_ID" "deep" 2>&1
 ```
 
 
 ## #TURN_END
 
-_2026-05-27T05:31:49+00:00_
+_2026-05-27T05:52:33+00:00_
+
+---
+---
+
+WORK UNIT SUMMARY:
+---
+# Work Unit Summary
+
+**Generated**: 2026-05-27T05:55:11+00:00
+**Log**: `/home/io/io-dev/io/.claude/logs/2026-05-27_regression-statusbadge-hex-alpha
+
+read-o_054757.md`
+**Session**: 
+
+---
+
+## Work unit purpose
+
+Fixed the `OpcSources` `StatusBadge` hex-alpha concatenation bug where template literal strings like `` `${color}20` `` produced invalid CSS when `color` was a CSS variable, rendering all badge backgrounds as transparent. Updated audit artifacts to reflect the fix.
+
+## Key decisions made
+
+- Scoped the fix to the local `StatusBadge` function in `OpcSources.tsx` only (not a shared component migration), because the function is module-local and not shared
+- Used `color-mix(in srgb, ${color} 12%, transparent)` / `color-mix(in srgb, ${color} 25%, transparent)` to match the existing pattern already established in `SystemHealth.tsx`
+- Did not fix the same `${color}20`/`${color}40` bug found in `Users.tsx`, `Roles.tsx`, `CameraStreams.tsx`, and `MaintenanceTicketsPanel.tsx` — recorded as an open finding instead
+
+## What was built or changed
+
+- `OpcSources.tsx:168–170`: replaced `background: \`${color}20\`` and `border: \`1px solid ${color}40\`` with valid `color-mix()` expressions
+- `ui-audit/04-recommendations.md`: marked the OpcSources StatusBadge regression as resolved (strikethrough + fix details + note about remaining affected files)
+- `ui-audit/02-comparison.md`: updated Category 8 Settings deviations field to record the fix date, before/after code, and the four additional files with the same unfixed bug
+
+## What was deliberately not done
+
+- Same hex-alpha bug in `Users.tsx`, `Roles.tsx`, `CameraStreams.tsx`, `MaintenanceTicketsPanel.tsx` not fixed — out of scope per prompt; recorded as an open finding
+- No migration to a shared `StatusBadge` component (deferred to Phase 4 of the broader convergence plan)
+- No changes to any Claim A, B, or other Claim C work
+
+## Open questions or follow-ups
+
+- Four additional files (`Users.tsx` Badge:108/110, `Roles.tsx` Badge:51/53, `CameraStreams.tsx`:785/787, `MaintenanceTicketsPanel.tsx`:52) have the same `${color}20`/`${color}40` bug and remain broken when CSS variable strings are passed as color arguments
+
+## Files modified
+
+- `frontend/src/pages/settings/OpcSources.tsx`
+- `ui-audit/02-comparison.md`
+- `ui-audit/04-recommendations.md`
+SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found
+---
+
+
+DIFF OF CHANGES:
+---
+diff --git a/frontend/src/pages/settings/OpcSources.tsx b/frontend/src/pages/settings/OpcSources.tsx
+index 0807d2ff..89713e31 100644
+--- a/frontend/src/pages/settings/OpcSources.tsx
++++ b/frontend/src/pages/settings/OpcSources.tsx
+@@ -165,9 +165,9 @@ function StatusBadge({ status }: { status: string }) {
+         borderRadius: "9999px",
+         fontSize: "11px",
+         fontWeight: 600,
+-        background: `${color}20`,
++        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+         color,
+-        border: `1px solid ${color}40`,
++        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+         textTransform: "capitalize",
+       }}
+     >
+diff --git a/ui-audit/02-comparison.md b/ui-audit/02-comparison.md
+index afb93f2d..4af88c4e 100644
+--- a/ui-audit/02-comparison.md
++++ b/ui-audit/02-comparison.md
+@@ -106,7 +106,7 @@
+ | **Implementation** | Inline-styles; all hand-drawn `<span>` elements with circle or badge styles; no shared component | Inline-styles; module-local; scattered across `DesignerToolbar` (dirty dot, READ-ONLY badge), `DesignerTabBar` (modified dot), `DesignerStatusBar` (WS dot, binding summary, TEST MODE) | Inline-styles; no shared component; five distinct `StatusBadge` implementations across `OpcSources`, `SystemHealth`, `Import`, `Email`, `PointManagement`; connection dots in `OpcSources` and `SystemHealth` | All three: no shared status indicator component; all three use small circle dots (6–8px) for binary connection/state indicators; all three use `var(--io-success)` / `var(--io-danger)` tokens for the connected/error states | — |
+ | **Source-of-truth files** | `index.tsx:59–134` (ConsoleStatusBar); `index.tsx:2026–2052` (tab dots, banners); `AlarmListPane:34–91`; `PointTablePane:26–59` | `DesignerStatusBar:204–371`; `DesignerToolbar:1584–1615`; `DesignerTabBar:181–193` | `OpcSources:156–186`; `SystemHealth:41–70`; `Import:72–106`; `Email:187–212`; `PointManagement:126–232`; `OpcSources` + `SystemHealth` connection dots | — | — |
+ | **Visual properties actually applied** | Connection dot: 6×6px circle, `var(--io-success)`/`var(--io-warning)`/`var(--io-danger)`; dirty/playback dot: 6×6 `var(--io-warning)`; published dot: `#10b981` hardcoded; `PriorityBadge`: pill with hardcoded `rgba()` backgrounds per level; `StateBadge`: text-color-coded; `QualityBadge`: 6×6 circle + text, hardcoded colors | WS dot: `●` glyph 8px, `#22c55e`/`#ef4444` hardcoded; dirty indicator: 7×7px div, `#f97316` hardcoded; READ-ONLY badge: `#eab308`/`rgba(234,179,8,*)` hardcoded; modified tab dot: `var(--io-warning, #f59e0b)` — only token-using indicator; TEST MODE: `#4ade80` with CSS keyframe animation injected as inline `<style>` tag | `OpcSources StatusBadge`: hex-alpha concat bug (broken background); `SystemHealth`: `color-mix(in srgb, colorVar 12%, transparent)` (correct); `Import`: `--io-success-subtle`/`--io-success` token pairs (correct); `Email`: dot-only 7px, token-based; `PointManagement CriticalityBadge`: token pairs (correct); connection dots: `var(--io-success)`/`var(--io-danger)` fill + hardcoded `#22c55e` glow shadow | All three use `var(--io-success)`/`var(--io-danger)` as primary fill tokens for connection state dots | — |
+-| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | `OpcSources StatusBadge` broken by hex-alpha CSS var concat; `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages) | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
++| **Deviations from app shell** | Alarm priority badge colors hardcoded (not `--io-alarm-*` tokens); published dot `#10b981` ≠ `var(--io-success)` (`#22c55e` dark); quality badge colors have no token equivalent; save-failure banner uses `#fff` not `var(--io-status-fg)` | WS dot bypasses tokens (`#22c55e`, `#ef4444`); dirty indicator `#f97316` not a token reference; READ-ONLY badge uses `#eab308` (distinct yellow) not `var(--io-warning)`; TEST MODE fully hardcoded including `<style>` tag injected on every render cycle; only `DesignerTabBar` modified dot uses a token (`var(--io-warning, #f59e0b)`) | **Fixed 2026-05-27:** `OpcSources StatusBadge` hex-alpha concat bug resolved — `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `1px solid color-mix(in srgb, ${color} 25%, transparent)`. Fix uses the `color-mix` pattern already established in `SystemHealth.tsx`; scoped to the local `StatusBadge` function (OpcSources.tsx:168–170). Remaining: `--io-info: #3b82f6` IS defined in index.css:72; `AuthProviders TypeBadge` uses it correctly with matching fallback — no visual regression; connection dot glow shadow hardcodes `#22c55e` (not `var(--io-success)`); `--io-text-on-accent` undefined (applies to badge buttons in several pages). **Open finding:** same `${color}20`/`${color}40` hex-alpha bug exists in `Users.tsx` (Badge:108/110), `Roles.tsx` (Badge:51/53), `CameraStreams.tsx` (785/787), `MaintenanceTicketsPanel.tsx` (52) — not fixed here. | All three: hardcoded `#22c55e` for connection dot glow shadows; none have a shared StatusBadge component | — |
+ | **Notes** | `var(--io-alarm-high)` is used correctly on the save-failure banner — the only alarm token use in Console's status layer | TEST MODE injects a new `<style>` element on every render cycle when test mode is active — a performance concern | `Import.tsx` token-pair pattern (`--io-success-subtle`/`--io-success`) is the cleanest `StatusBadge` implementation across all three modules | — | — |
+ 
+ ### Shared Infrastructure — Category 8
+diff --git a/ui-audit/04-recommendations.md b/ui-audit/04-recommendations.md
+index f1e6f423..2aabbd25 100644
+--- a/ui-audit/04-recommendations.md
++++ b/ui-audit/04-recommendations.md
+@@ -308,7 +308,7 @@ No component changes. Pure token additions to `index.css`.
+ These are bugs visible at runtime, not polish issues.
+ 
+ 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
+-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
++2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
+ 3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
+ 4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
+ 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.
+---
+
+Produce the review now.
+```
+
+
+## #TURN_END
+
+_2026-05-27T05:55:22+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:43:14+00:00_
-
-```
-git add -A
-git commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
-```
-
-
-## #BASH
-_Stage all changes and commit with provided message_
-
-```bash
-git -C /home/io/io-dev/io add -A && git -C /home/io/io-dev/io commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
-```
-
-
-## #TURN_END
-
-_2026-05-27T05:43:14+00:00_
-
----
-
----
-
-Produce the summary now.
-```
-
-
-## #TURN_END
-
-_2026-05-27T05:44:02+00:00_
-
----
-
-
-## #WRITE `/home/io/io-dev/io/.claude/docs/interim/selection-highlight-accent-token-fix.md` (3421 chars written)
-
-_2026-05-27T05:45:07+00:00_
-
-
-## #PROMPT
-
-_2026-05-27T05:45:20+00:00_
+_2026-05-27T05:57:04+00:00_
 
 ```
 ~wrapup~
@@ -2413,26 +4183,18 @@ _2026-05-27T05:45:20+00:00_
 
 
 ## #BASH
-_Resolve log path with newline handling_
-
-```bash
-CLAUDE_LOG=$(find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | tr '\0' '\n' | head -1) && echo "Log: [$CLAUDE_LOG]"
-```
-
-
-## #BASH
 _Generate work-unit summary_
 
 ```bash
-find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh "{}" "$CLAUDE_SESSION_ID"
+CLAUDE_LOG=$(cat /home/io/io-dev/io/.claude/state/current_log.txt) && /home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh "$CLAUDE_LOG" "$CLAUDE_SESSION_ID" 2>&1
 ```
 
 
 ## #BASH
-_Generate summary with CLAUDE_PROJECT_DIR set_
+_Generate work-unit summary with env set_
 
 ```bash
-export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh "{}" "$CLAUDE_SESSION_ID"
+export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && CLAUDE_LOG=$(cat /home/io/io-dev/io/.claude/state/current_log.txt) && /home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh "$CLAUDE_LOG" "$CLAUDE_SESSION_ID" 2>&1
 ```
 
 
@@ -2440,67 +4202,139 @@ export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && find /home/io/io-dev/io/.claude/
 _Run shallow review_
 
 ```bash
-export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "{}" "$CLAUDE_SESSION_ID" "shallow"
+export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && CLAUDE_LOG=$(cat /home/io/io-dev/io/.claude/state/current_log.txt) && /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh "$CLAUDE_LOG" "$CLAUDE_SESSION_ID" "shallow" 2>&1
 ```
 
 
 ## #BASH
-_Update interim documentation_
+_Update interim docs_
 
 ```bash
-export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && find /home/io/io-dev/io/.claude/logs/ -name "2026-05-27_regression*" -print0 | xargs -0 -I{} /home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh "{}" "$CLAUDE_SESSION_ID"
+export CLAUDE_PROJECT_DIR=/home/io/io-dev/io && CLAUDE_LOG=$(cat /home/io/io-dev/io/.claude/state/current_log.txt) && /home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh "$CLAUDE_LOG" "$CLAUDE_SESSION_ID" 2>&1
 ```
 
 
 ## #BASH
-_Read summary, shallow review, and docs proposal_
+_Read summary and shallow review_
 
 ```bash
-find /home/io/io-dev/io/.claude/summaries/ -name "2026-05-27_regression*" -print0 | xargs -0 cat && echo "==REVIEW==" && find /home/io/io-dev/io/.claude/reviews/ -name "*shallow*" -print0 | xargs -0 cat | tail -60 && echo "==DOCS==" && find /home/io/io-dev/io/.claude/docs/interim/ -name "selection*" -print0 | xargs -0 cat 2>/dev/null
+cat "/home/io/io-dev/io/.claude/summaries/2026-05-27_regression-statusbadge-hex-alpha
+read-o_054757_summary.md" && echo "---REVIEW---" && cat "/home/io/io-dev/io/.claude/reviews/2026-05-27_regression-statusbadge-hex-alpha
+read-o_054757_review_shallow_055514.md"
+```
+
+
+## #BASH
+_List summary and review files_
+
+```bash
+ls /home/io/io-dev/io/.claude/summaries/ | tail -5 && ls /home/io/io-dev/io/.claude/reviews/ | tail -5
+```
+
+
+## #BASH
+_Find summary file_
+
+```bash
+find /home/io/io-dev/io/.claude/summaries/ -name "*054757*" -o -name "*statusbadge*" 2>/dev/null
+```
+
+
+## #BASH
+_Read summary file with literal newline in filename_
+
+```bash
+cat /home/io/io-dev/io/.claude/summaries/2026-05-27_regression-statusbadge-hex-alpha$'\n'read-o_054757_summary.md 2>/dev/null || ls -la "/home/io/io-dev/io/.claude/summaries/" | grep 054757
+```
+
+
+## #BASH
+_Cat the newest summary file_
+
+```bash
+find /home/io/io-dev/io/.claude/summaries/ -newer /home/io/io-dev/io/.claude/summaries/read-onl_052806_summary.md | xargs cat 2>/dev/null
+```
+
+
+## #BASH
+_Cat all summary files_
+
+```bash
+find /home/io/io-dev/io/.claude/summaries/ -type f | while IFS= read -r f; do echo "=== $f ==="; cat "$f"; done | tail -80
+```
+
+
+## #BASH
+_Read summary file using Python to handle newline in filename_
+
+```bash
+python3 -c "
+import os
+d = '/home/io/io-dev/io/.claude/summaries'
+for f in os.listdir(d):
+    if '054757' in f:
+        path = os.path.join(d, f)
+        print(open(path).read())
+"
+```
+
+
+## #BASH
+_Read shallow review file_
+
+```bash
+python3 -c "
+import os
+d = '/home/io/io-dev/io/.claude/reviews'
+for f in os.listdir(d):
+    if '055514' in f:
+        path = os.path.join(d, f)
+        print(open(path).read())
+"
 ```
 
 
 ## #TURN_END
 
-_2026-05-27T05:45:20+00:00_
+_2026-05-27T05:57:05+00:00_
 
 ---
 
 
 ## #PROMPT
 
-_2026-05-27T05:47:28+00:00_
+_2026-05-27T05:58:47+00:00_
 
 ```
 git add -A
-git commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
+git commit -m "Fix StatusBadge hex-alpha concatenation — badge backgrounds now render"
 ```
 
 
 ## #BASH
-_Check what's changed since last commit_
+_Check staged changes before committing_
 
 ```bash
-git -C /home/io/io-dev/io status --short
+git -C /home/io/io-dev/io status && git -C /home/io/io-dev/io diff --cached
 ```
 
 
-## #ASSISTANT
-
-Only wrapup artifacts since the last commit — no code changes. Committing them now.
-
-
 ## #BASH
-_Stage and commit wrapup artifacts_
+_Stage the three changed files and commit_
 
 ```bash
-git -C /home/io/io-dev/io add -A && git -C /home/io/io-dev/io commit -m "Fix var(--accent) prefix bug — selection highlights now render correctly"
+git -C /home/io/io-dev/io add frontend/src/pages/settings/OpcSources.tsx ui-audit/02-comparison.md ui-audit/04-recommendations.md && git -C /home/io/io-dev/io commit -m "$(cat <<'EOF'
+Fix StatusBadge hex-alpha concatenation — badge backgrounds now render
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
 ```
 
 
 ## #TURN_END
 
-_2026-05-27T05:47:29+00:00_
+_2026-05-27T05:58:47+00:00_
 
 ---
 

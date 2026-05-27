@@ -1,0 +1,2 @@
+File written. The interim doc captures: the bug root cause (invalid CSS from CSS-var + hex-alpha concat), the fix approach (`color-mix` matching SystemHealth pattern), scope rationale (module-local function, not shared), and the four remaining unfixed instances in Users/Roles/CameraStreams/MaintenanceTicketsPanel recorded as open findings.
+SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found
