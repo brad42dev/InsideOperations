@@ -2433,7 +2433,7 @@ export default function DesignerLeftPalette({
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    background: "var(--io-surface)",
+    background: "var(--io-surface-secondary)",
     borderRight: "1px solid var(--io-border)",
   };
 

@@ -195,7 +195,7 @@ export default function SettingsShell() {
                 fontWeight: 600,
                 color: "var(--io-text-muted)",
                 textTransform: "uppercase",
-                letterSpacing: "0.08em",
+                letterSpacing: "0.06em",
                 padding: `${groupIndex === 0 ? "4px" : "12px"} 8px 6px`,
                 userSelect: "none",
               }}
@@ -208,7 +208,10 @@ export default function SettingsShell() {
                 to={item.path}
                 style={({ isActive }) => ({
                   display: "block",
-                  padding: "7px 10px",
+                  padding: "7px 10px 7px 8px",
+                  borderLeft: isActive
+                    ? "2px solid var(--io-accent)"
+                    : "2px solid transparent",
                   borderRadius: "var(--io-radius)",
                   marginBottom: "2px",
                   textDecoration: "none",

@@ -27,7 +27,7 @@ All changes are additions or value corrections to `index.css`. No existing token
 | A10 | `--io-accent-rgb` | ✅ Done 2026-05-27 | Added per-theme: dark=`45 212 191` (#2dd4bf), light=`13 148 136` (#0d9488), hphmi=`20 184 166` (#14b8a6). Comment added in dark theme pointing to light/hphmi values. | 02 List 2 #7 |
 | A11 | `--io-alarm-inactive` | ✅ Done 2026-05-27 | `--io-alarm-inactive: #808080` — added to all three themes with identical value. | 04 Cat 8 actions; 05 Section 3.1 |
 | A12 | `--io-text-inverse` | ⚠ Skipped — already defined; audit claim was incorrect | Token IS defined in all three theme blocks: dark=#09090b (line 34), light=#ffffff (line 235), hphmi=#0f172a (line 431). Plan entry "Not yet defined" was wrong. No action needed. | 04 Cat 10 actions; 05 Section 3.4 |
-| A13 | `--io-z-modal` | ✅ Done 2026-05-27 | Updated per Option B decision: `--io-z-dropdown: 500` (was 200), `--io-z-modal: 1000` (was 300), `--io-z-toast: 2000` (was 700), `--io-z-visual-lock: 1500` (was 500), `--io-z-emergency: 3000` (was 800). Applied to all three theme blocks. Remaining Claim B item: `--io-z-command: 400` and `--io-z-kiosk-auth: 600` are unused in components (CommandPalette hardcodes 3000/3001); adopt tokens + reconcile in Claim B. | 04 Cat 11 actions; 04 Risk R1; 02 List 2 #11 |
+| A13 | `--io-z-modal` | ✅ Done 2026-05-27 | Updated per Option B decision: `--io-z-dropdown: 500` (was 200), `--io-z-modal: 1000` (was 300), `--io-z-toast: 2000` (was 700), `--io-z-visual-lock: 1500` (was 500), `--io-z-emergency: 3000` (was 800). Applied to all three theme blocks. `--io-z-command: 1200` and `--io-z-kiosk-auth: 1800` also set; `CommandPalette.tsx` wired to `var(--io-z-command)`. **Accepted 2026-05-27 as permanent values** — no remaining Claim B gate for these tokens. | 04 Cat 11 actions; 04 Risk R1; 02 List 2 #11 |
 | A14 | `--io-sidebar-width` | ✅ Done 2026-05-27 | Updated to 220px in all three theme blocks per Option A decision. No module code changes needed. | 02 Cat 5 Console+Settings+Designer Deviations; 04 Cat 5 |
 
 **Category A total: 14 changes in `index.css`**
@@ -45,10 +45,10 @@ Changes to module component files in the sidebar and left-nav layer.
 
 | # | Change | File(s) | Description | Source |
 |---|---|---|---|---|
-| B1 | Designer left palette background | `frontend/src/designer/DesignerLeftPalette.tsx` | Change `background: var(--io-surface)` → `background: var(--io-surface-secondary)`. Console and Settings both use `var(--io-surface-secondary)` for their side panels; Designer is one surface tier lighter, creating a visible inconsistency at the module-boundary seam. | 02 Cat 5 Designer Deviations; 04 Cat 5 "Fix: Align Designer left palette background" |
-| B2 | Settings active nav item — left-border accent | `frontend/src/settings/index.tsx` (nav item active-state styles) | Add `borderLeft: '2px solid var(--io-accent)'` and reduce `paddingLeft` by 2px to maintain alignment. The AppShell implements this indicator; Settings omits it. Audit Cat 5 Notes: "Missing active left-border accent is the most visible deviation from AppShell nav pattern." | 02 Cat 5 Settings Deviations; 04 Cat 5 "Fix: Settings active nav item" |
-| B3 | Sidebar width — align code to decided value | Conditional on A14 decision | If 220px chosen (Option A): no code changes needed beyond A14 token update. If 240px chosen (Option B): update `ConsolePalette.tsx` (220px hardcode), `Settings/index.tsx` aside width (220px hardcode), and `DesignerLeftPalette.tsx` width (220px hardcode) to 240px. Change `var(--io-sidebar-width)` references if any exist, not raw integers. | 02 Cat 5 Console+Settings+Designer Deviations; 04 Cat 5 |
-| B4 | Settings nav group header — letterSpacing | `frontend/src/settings/index.tsx` (nav group label styles) | Change `letterSpacing` from 0.08em to 0.06em. Console palette section labels use 0.06em; Designer `SectionHeader` uses 0.06em; Settings nav group header drifts to 0.08em. Font size (11px), weight (600), and transform (uppercase) are already consistent. | 02 Cat 2 Settings Deviations; 02 Cat 5; 04 Cat 2 typography table; 04 Cat 5 "Fix: Section label typography" |
+| B1 | ✅ Done 2026-05-27 — Designer left palette background | `frontend/src/pages/designer/DesignerLeftPalette.tsx` | Changed `background: "var(--io-surface)"` → `"var(--io-surface-secondary)"` at `containerStyle` (line 2436). Console and Settings both use `var(--io-surface-secondary)` for their side panels; Designer is one surface tier lighter, creating a visible inconsistency at the module-boundary seam. | 02 Cat 5 Designer Deviations; 04 Cat 5 "Fix: Align Designer left palette background" |
+| B2 | ✅ Done 2026-05-27 — Settings active nav item — left-border accent | `frontend/src/pages/settings/index.tsx` (nav item active-state styles) | Added `borderLeft: isActive ? "2px solid var(--io-accent)" : "2px solid transparent"` and set uniform `padding: "7px 10px 7px 8px"` (left padding reduced from 10px to 8px; transparent border reserves the 2px on inactive items so text stays at 10px from edge in both states). | 02 Cat 5 Settings Deviations; 04 Cat 5 "Fix: Settings active nav item" |
+| B3 | ✅ Done 2026-05-27 — Sidebar width — 0 file changes | n/a — A14 decided 220px; all module hardcodes already match | No code changes needed. Token `--io-sidebar-width: 220px` is consistent with all hardcodes in Console, Settings, and Designer. | 02 Cat 5 Console+Settings+Designer Deviations; 04 Cat 5 |
+| B4 | ✅ Done 2026-05-27 — Settings nav group header — letterSpacing | `frontend/src/pages/settings/index.tsx` (nav group label styles) | Changed `letterSpacing` from `"0.08em"` to `"0.06em"` (line 198). Matches Console palette section labels and Designer `SectionHeader`. | 02 Cat 2 Settings Deviations; 02 Cat 5; 04 Cat 2 typography table; 04 Cat 5 "Fix: Section label typography" |
 
 **Category B total: 4 changes (B3 expands to 3 additional file edits if 240px is chosen in A14; 0 file changes if 220px chosen)**
 
@@ -112,7 +112,7 @@ Resolve values, then add in a second `index.css` commit.
     - `--io-z-toast: 2000` (was 700)
     - Applied to all three theme blocks.
     - ✅ **Emergency/toast inversion resolved 2026-05-27:** `--io-z-emergency` raised 800→3000; `--io-z-visual-lock` raised 500→1500 (above modal at 1000, below toast). Both applied in all three themes.
-    - ⚠ **Remaining Claim B items:** `--io-z-command: 400` and `--io-z-kiosk-auth: 600` tokens exist only in `tokens.ts`; no component references them. CommandPalette hardcodes `z-index: 3000/3001`. Full token adoption + value reconciliation deferred to Claim B z-index migration.
+    - ✅ **CommandPalette wiring done and accepted (formalized 2026-05-27):** `--io-z-command: 1200` and `--io-z-kiosk-auth: 1800` set in all three themes; `CommandPalette.tsx:327,336` uses `var(--io-z-command)` and `calc(var(--io-z-command) + 1)`. Effective z-index 1200: above modals (1000), below toast (2000). Accepted as the permanent value. No remaining Claim B gate for these two tokens.
 
 14. ✅ **A14** — Done 2026-05-27. **Decision: 220px (Option A).**
     - `--io-sidebar-width: 220px` in all three theme blocks. No module code changes.
@@ -122,10 +122,10 @@ Resolve values, then add in a second `index.css` commit.
 
 Independent of each other; can be in one PR.
 
-15. **B1** — Designer palette background: `var(--io-surface)` → `var(--io-surface-secondary)` in `DesignerLeftPalette.tsx`.
-16. **B2** — Settings active nav indicator: add `borderLeft: '2px solid var(--io-accent)'` + padding adjustment in `Settings/index.tsx`.
-17. **B3** — Sidebar width code: **0 file changes** (220px decided in A14 — token update only, no module edits).
-18. **B4** — Settings nav group `letterSpacing`: 0.08em → 0.06em in `Settings/index.tsx`.
+15. ✅ **B1** — Designer palette background: `var(--io-surface)` → `var(--io-surface-secondary)` in `DesignerLeftPalette.tsx`. Done 2026-05-27.
+16. ✅ **B2** — Settings active nav indicator: added `borderLeft` (accent/transparent) + uniform `padding: "7px 10px 7px 8px"` in `Settings/index.tsx`. Done 2026-05-27.
+17. ✅ **B3** — Sidebar width code: **0 file changes** (220px decided in A14 — token update only, no module edits). Done 2026-05-27.
+18. ✅ **B4** — Settings nav group `letterSpacing`: 0.08em → 0.06em in `Settings/index.tsx`. Done 2026-05-27.
 
 ### Natural PR boundaries
 
