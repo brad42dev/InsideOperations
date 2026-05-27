@@ -148,7 +148,6 @@ export default function BulletChart({ config }: RendererProps) {
       yAxis: vertical ? valueAxis : categoryAxis,
       series,
     };
-     
   }, [liveValue, ranges, target, pointSlot, vertical]);
 
   if (!pointSlot) {

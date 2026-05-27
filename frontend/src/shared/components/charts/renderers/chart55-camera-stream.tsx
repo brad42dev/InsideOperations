@@ -201,7 +201,6 @@ export default function Chart55CameraStream({ config }: RendererProps) {
       window.clearTimeout(overallTimeout);
       cleanup();
     };
-     
   }, [streamId]);
 
   // Error state: containerRef is in the DOM but declareWinner was never called.

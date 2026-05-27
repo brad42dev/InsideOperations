@@ -112,7 +112,6 @@ export default function GaugeChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [liveValue, min, max, thresholds, pointSlot]);
 
   if (!pointSlot) {

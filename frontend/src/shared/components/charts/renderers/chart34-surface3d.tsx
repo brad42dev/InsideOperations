@@ -191,9 +191,8 @@ export default function Chart34Surface3d({ config }: RendererProps) {
     const yName = ySlot?.pointId ?? "Y";
     const zName = zSlot?.pointId ?? "Z";
 
-     
     type PlotlyData = any;
-     
+
     type PlotlyLayout = any;
 
     const traces: PlotlyData[] = [];
@@ -243,7 +242,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
     let cancelled = false;
 
     // plotly.js-dist-min ships its own types via plotly.js; cast through unknown
-     
+
     import("plotly.js-dist-min" as any)
       .then((PlotlyRaw: unknown) => {
         if (cancelled || !plotDivRef.current) return;
@@ -269,7 +268,7 @@ export default function Chart34Surface3d({ config }: RendererProps) {
 
     return () => {
       cancelled = true;
-       
+
       import("plotly.js-dist-min" as any)
         .then((PlotlyRaw: unknown) => {
           if (!div) return;

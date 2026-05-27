@@ -169,7 +169,7 @@ function tileToNode(tile: ExpressionTile): ExprNode | null {
 
     // Note: 'field_ref' TileType is added in DD-23-002. The type cast below
     // ensures this branch compiles until TileType is extended.
-     
+
     case "field_ref" as any: {
       return {
         type: "field_ref",

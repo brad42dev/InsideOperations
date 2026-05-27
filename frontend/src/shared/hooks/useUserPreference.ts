@@ -99,7 +99,7 @@ export function useUserPreference<T extends Primitive>(
         });
       }, 500);
     },
-     
+
     [key, LS_KEY],
   );
 

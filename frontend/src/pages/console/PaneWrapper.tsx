@@ -244,7 +244,10 @@ export default function PaneWrapper({
   const { data: replaceGraphics = [] } = useQuery({
     queryKey: ["console-replace-graphics", showAllUsers],
     queryFn: async () => {
-      const r = await graphicsApi.list({ scope: "console", includeAllUsers: showAllUsers });
+      const r = await graphicsApi.list({
+        scope: "console",
+        includeAllUsers: showAllUsers,
+      });
       if (!r.success) return [];
       return r.data.data ?? [];
     },

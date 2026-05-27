@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
- 
+
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { ResolvedSeriesScale } from "./chart-config-types";
@@ -564,7 +564,6 @@ export default function TimeSeriesChart({
     // dimension changes (e.g. entering or exiting fullscreen).
     const h = highlightedRef.current;
     if (h && h.size > 0) {
-       
       const ux = u as any;
       latestSeriesRef.current.forEach((s, i) => {
         const uSeries = ux.series[i + 1];
@@ -600,7 +599,6 @@ export default function TimeSeriesChart({
     const data = latestDataRef.current;
     if (data[0].length === 0) return;
     uplotRef.current.setData(data);
-     
   }, [timestamps]);
 
   // Resize when dimensions change but chart already exists
@@ -617,7 +615,6 @@ export default function TimeSeriesChart({
     if (!u) return;
     const h = highlighted ?? new Set<string>();
 
-     
     const ux = u as any;
     if (h.size === 0) {
       // Reset manually-set alpha values before calling setSeries so the
@@ -662,7 +659,6 @@ export default function TimeSeriesChart({
     queueMicrotask(() =>
       containerRef.current?.setAttribute("data-chart-ready", "true"),
     );
-     
   }, []);
 
   return (

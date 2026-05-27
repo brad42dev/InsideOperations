@@ -168,7 +168,7 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
     let cancelled = false;
 
     // plotly.js-dist-min ships its own types via plotly.js; cast through unknown
-     
+
     import("plotly.js-dist-min" as any)
       .then((PlotlyRaw: unknown) => {
         if (cancelled || !plotDivRef.current) return;
@@ -195,7 +195,7 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
 
     return () => {
       cancelled = true;
-       
+
       import("plotly.js-dist-min" as any)
         .then((PlotlyRaw: unknown) => {
           if (!div) return;

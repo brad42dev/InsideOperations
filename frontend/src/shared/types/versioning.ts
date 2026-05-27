@@ -60,7 +60,10 @@ export interface VersionRecoveryDialogProps {
   objectId: string;
   objectName?: string;
   onLoadVersion: (
-    content: GraphicVersionContent | WorkspaceVersionContent | ChartVersionContent,
+    content:
+      | GraphicVersionContent
+      | WorkspaceVersionContent
+      | ChartVersionContent,
   ) => void;
 }
 
@@ -85,7 +88,9 @@ export interface UseVersionListResult {
 export interface UseVersionActionsResult {
   loadVersion: (
     versionNumber: number,
-  ) => Promise<GraphicVersionContent | WorkspaceVersionContent | ChartVersionContent | null>;
+  ) => Promise<
+    GraphicVersionContent | WorkspaceVersionContent | ChartVersionContent | null
+  >;
   softDeleteVersion: (versionNumber: number) => Promise<boolean>;
   restoreVersion: (versionNumber: number) => Promise<boolean>;
   recoverVersion: (versionNumber: number) => Promise<boolean>;

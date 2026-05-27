@@ -1,8 +1,5 @@
 import { create } from "zustand";
-import {
-  savedChartsApi,
-  type SavedChartResponse,
-} from "../api/savedCharts";
+import { savedChartsApi, type SavedChartResponse } from "../api/savedCharts";
 import type { ChartConfig } from "../shared/components/charts/chart-config-types";
 
 export interface SavedChart {

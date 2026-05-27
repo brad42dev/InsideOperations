@@ -374,13 +374,7 @@ function PivotDataTable({
     // used instead of metaQueries directly to avoid defeating memoization (useQueries
     // returns a new array reference on every render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    values,
-    metaQueriesKey,
-    config.points,
-    pivot.rowField,
-    pivot.colField,
-  ]);
+  }, [values, metaQueriesKey, config.points, pivot.rowField, pivot.colField]);
 
   const rowKeys = useMemo(() => Array.from(matrix.keys()).sort(), [matrix]);
 

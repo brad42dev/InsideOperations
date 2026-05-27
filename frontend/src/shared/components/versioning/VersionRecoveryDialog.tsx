@@ -12,7 +12,11 @@ import { graphicsApi } from "../../../api/graphics";
 import { consoleApi } from "../../../api/console";
 import { savedChartsApi } from "../../../api/savedCharts";
 import type { GraphicDocument } from "../../types/graphics";
-import type { LayoutPreset, PaneConfig, GridItem } from "../../../pages/console/types";
+import type {
+  LayoutPreset,
+  PaneConfig,
+  GridItem,
+} from "../../../pages/console/types";
 import type { ChartConfig } from "../charts/chart-config-types";
 import type {
   VersionRecoveryDialogProps,
@@ -42,12 +46,19 @@ export function VersionRecoveryDialog({
     objectId,
     onSaveAsOverride: async ({ name, label }) => {
       if (!previewContent) {
-        return { success: false as const, error: { code: "NO_VERSION", message: "No version selected" } };
+        return {
+          success: false as const,
+          error: { code: "NO_VERSION", message: "No version selected" },
+        };
       }
       switch (objectType) {
         case "graphic": {
           const gc = previewContent as GraphicVersionContent;
-          return graphicsApi.create({ name, scene_data: gc.scene_data as GraphicDocument, label });
+          return graphicsApi.create({
+            name,
+            scene_data: gc.scene_data as GraphicDocument,
+            label,
+          });
         }
         case "workspace": {
           const wc = previewContent as WorkspaceVersionContent;
@@ -258,9 +269,7 @@ export function VersionRecoveryDialog({
               loadVersionConfirmVersionNumber === selectedVersion.version_number
             }
             onLoadInCurrentView={() =>
-              setLoadVersionConfirmVersionNumber(
-                selectedVersion.version_number,
-              )
+              setLoadVersionConfirmVersionNumber(selectedVersion.version_number)
             }
             onLoadConfirm={handleLoadInCurrentViewConfirmed}
             onLoadCancel={() => setLoadVersionConfirmVersionNumber(null)}

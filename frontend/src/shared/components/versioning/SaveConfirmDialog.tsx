@@ -45,9 +45,7 @@ export function SaveConfirmDialog({
     if (open) setNotes("");
   }, [open]);
 
-  const title = objectName
-    ? `Save changes to ${objectName}?`
-    : "Save changes?";
+  const title = objectName ? `Save changes to ${objectName}?` : "Save changes?";
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>

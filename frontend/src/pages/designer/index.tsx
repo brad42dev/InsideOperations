@@ -1288,7 +1288,6 @@ export default function DesignerPage() {
         lockHeldRef.current = false;
       }
     };
-     
   }, [graphicId]);
 
   // -------------------------------------------------------------------------
@@ -1381,7 +1380,9 @@ export default function DesignerPage() {
           }
           // Update URL from /designer/graphics/new → /designer/graphics/:id/edit
           // so useParams() returns the real ID and version history / lock flow work correctly.
-          navigate(`/designer/graphics/${resp.data.id}/edit`, { replace: true });
+          navigate(`/designer/graphics/${resp.data.id}/edit`, {
+            replace: true,
+          });
         }
         markClean();
         historyMarkClean();
@@ -1479,7 +1480,14 @@ export default function DesignerPage() {
         setIsSaving(false);
       }
     },
-    [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId, navigate],
+    [
+      isSaving,
+      markClean,
+      historyMarkClean,
+      loadGraphic,
+      tabStoreSetGraphicId,
+      navigate,
+    ],
   );
 
   /** Stable callback for UI-initiated saves (toolbar, menu) — opens the save confirm dialog. */
@@ -1662,30 +1670,39 @@ export default function DesignerPage() {
   // Publish — create permanent version snapshot
   // -------------------------------------------------------------------------
 
-  const handlePublish = useCallback(async (label?: string) => {
-    const currentId = useSceneStore.getState().graphicId;
-    if (!currentId || isPublishing) return;
+  const handlePublish = useCallback(
+    async (label?: string) => {
+      const currentId = useSceneStore.getState().graphicId;
+      if (!currentId || isPublishing) return;
 
-    setIsPublishing(true);
-    try {
-      await handleSave({ explicit: true, label });
-      const result = await graphicsApi.publishGraphic(currentId);
-      if (result.success) {
-        showToast({ title: "Graphic published", variant: "success", duration: 3000 });
-      } else {
-        showToast({
-          title: "Publish failed",
-          description: (result as { error: { message: string } }).error?.message ?? "Unknown error",
-          variant: "error",
-        });
+      setIsPublishing(true);
+      try {
+        await handleSave({ explicit: true, label });
+        const result = await graphicsApi.publishGraphic(currentId);
+        if (result.success) {
+          showToast({
+            title: "Graphic published",
+            variant: "success",
+            duration: 3000,
+          });
+        } else {
+          showToast({
+            title: "Publish failed",
+            description:
+              (result as { error: { message: string } }).error?.message ??
+              "Unknown error",
+            variant: "error",
+          });
+        }
+      } catch (err) {
+        console.error("[DesignerPage] Publish failed:", err);
+        showToast({ title: "Publish failed", variant: "error" });
+      } finally {
+        setIsPublishing(false);
       }
-    } catch (err) {
-      console.error("[DesignerPage] Publish failed:", err);
-      showToast({ title: "Publish failed", variant: "error" });
-    } finally {
-      setIsPublishing(false);
-    }
-  }, [isPublishing, handleSave]);
+    },
+    [isPublishing, handleSave],
+  );
 
   // -------------------------------------------------------------------------
   // Version history — preview and restore
@@ -2169,7 +2186,6 @@ export default function DesignerPage() {
       } else {
         doClose();
       }
-       
     },
     [
       tabStoreCloseTab,
@@ -2686,7 +2702,6 @@ export default function DesignerPage() {
       idbRef.current = null;
       autoSaveIdRef.current = null;
     };
-     
   }, [graphicId, isNew]);
 
   // -------------------------------------------------------------------------

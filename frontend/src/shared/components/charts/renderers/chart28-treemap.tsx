@@ -103,7 +103,6 @@ export default function TreemapChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [values, latestData, seriesSlots]);
 
   if (pointIds.length === 0) {

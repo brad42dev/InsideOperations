@@ -95,7 +95,8 @@ export function VersionActionBar({
     return (
       <div style={barStyle}>
         <span style={{ fontSize: 12, color: "var(--io-text-secondary)" }}>
-          Replace current content with this version? Unsaved changes will be lost.
+          Replace current content with this version? Unsaved changes will be
+          lost.
         </span>
         <ActionButton primary onClick={onLoadConfirm}>
           Load Version

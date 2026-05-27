@@ -1,5 +1,8 @@
 import React from "react";
-import type { UseVersionListResult, VersionSummary } from "../../../shared/types/versioning";
+import type {
+  UseVersionListResult,
+  VersionSummary,
+} from "../../../shared/types/versioning";
 import { formatTimestamp } from "./versioning-utils";
 import { AdminToggle } from "../AdminToggle";
 
@@ -262,14 +265,14 @@ function VersionEntry({
 
   return (
     <div
-      onClick={() => !isDeleted && !isActionLoading && onSelect(version.version_number)}
+      onClick={() =>
+        !isDeleted && !isActionLoading && onSelect(version.version_number)
+      }
       style={{
         padding: "10px 16px",
         borderBottom: "1px solid var(--io-border-subtle)",
         cursor: isDeleted || isActionLoading ? "default" : "pointer",
-        background: isSelected
-          ? "var(--io-accent-subtle)"
-          : "transparent",
+        background: isSelected ? "var(--io-accent-subtle)" : "transparent",
         opacity: isDeleted ? 0.5 : 1,
         borderLeft: isPublish
           ? "3px solid var(--io-accent)"
@@ -277,7 +280,12 @@ function VersionEntry({
       }}
     >
       <div
-        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 4,
+        }}
       >
         {isPublish ? (
           <span

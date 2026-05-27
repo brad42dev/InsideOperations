@@ -100,10 +100,14 @@ export const graphicsApi = {
   /** Delete a graphic */
   remove: (id: string) => api.delete(`/api/v1/design-objects/${id}`),
 
-  recover: (id: string): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
+  recover: (
+    id: string,
+  ): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
     api.post(`/api/v1/design-objects/${id}/recover`, {}),
 
-  permanentDelete: (id: string): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
+  permanentDelete: (
+    id: string,
+  ): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
     api.delete(`/api/v1/design-objects/${id}/permanent`),
 
   /** Batch fetch shapes from the shape library */

@@ -136,7 +136,6 @@ export default function FunnelChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [sorted, showConversion, config, highlighted]);
 
   if (pointIds.length === 0) {

@@ -66,7 +66,9 @@ function StatRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <StatLabel>{label}</StatLabel>
-      <div style={{ fontSize: 12, color: "var(--io-text-primary)", marginTop: 2 }}>
+      <div
+        style={{ fontSize: 12, color: "var(--io-text-primary)", marginTop: 2 }}
+      >
         {value}
       </div>
     </div>

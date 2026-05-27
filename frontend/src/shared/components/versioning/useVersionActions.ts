@@ -73,7 +73,7 @@ export function useVersionActions(
           | ChartVersionContent;
       });
     },
-     
+
     [objectType, objectId],
   );
 
@@ -88,7 +88,7 @@ export function useVersionActions(
       });
       return !!(result as { deleted?: boolean } | null)?.deleted;
     },
-     
+
     [objectType, objectId],
   );
 
@@ -103,7 +103,7 @@ export function useVersionActions(
       });
       return !!result;
     },
-     
+
     [objectType, objectId],
   );
 
@@ -118,7 +118,7 @@ export function useVersionActions(
       });
       return !!result;
     },
-     
+
     [objectType, objectId],
   );
 
@@ -136,7 +136,7 @@ export function useVersionActions(
       });
       return !!result;
     },
-     
+
     [objectType, objectId],
   );
 
@@ -159,7 +159,7 @@ export function useVersionActions(
       });
       return !!result;
     },
-     
+
     [objectType, objectId],
   );
 

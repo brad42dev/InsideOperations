@@ -106,5 +106,5 @@ export function useSelectionKeybinds(
     return () => window.removeEventListener("keydown", onKey);
     // pasteDefault and pastePrevious are stable useCallback refs — this effect
     // runs once on mount.
-  }, [pasteDefault, pastePrevious]);  
+  }, [pasteDefault, pastePrevious]);
 }

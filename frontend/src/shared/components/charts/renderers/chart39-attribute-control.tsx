@@ -317,7 +317,6 @@ export default function AttributeControlChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [attrPoints, limits, labels, variant, showWERules]);
 
   if (!defectSlot) {

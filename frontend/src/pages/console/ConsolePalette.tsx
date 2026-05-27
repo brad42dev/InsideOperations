@@ -1188,7 +1188,9 @@ function ChartsSection({
 }) {
   const [dragging, setDragging] = useState(false);
   const [hovering, setHovering] = useState(false);
-  const [versionHistoryChartId, setVersionHistoryChartId] = useState<string | null>(null);
+  const [versionHistoryChartId, setVersionHistoryChartId] = useState<
+    string | null
+  >(null);
   const {
     charts,
     publishChart,
@@ -1202,14 +1204,19 @@ function ChartsSection({
   const canPublish = usePermission("console:workspace_publish");
   const showAllUsers = useAdminToggleStore((s) => s.showAllUsersObjects);
 
-  const handleLoadChartVersion = useCallback((content: ChartVersionContent | unknown) => {
-    const vc = content as ChartVersionContent;
-    if (!vc?.config || !versionHistoryChartId) return;
-    const chartId = versionHistoryChartId;
-    void savedChartsApi.update(chartId, { config: vc.config as ChartConfig }).then((r) => {
-      if (r.success) void fetchCharts({ allUsers: showAllUsers });
-    });
-  }, [versionHistoryChartId, fetchCharts, showAllUsers]);
+  const handleLoadChartVersion = useCallback(
+    (content: ChartVersionContent | unknown) => {
+      const vc = content as ChartVersionContent;
+      if (!vc?.config || !versionHistoryChartId) return;
+      const chartId = versionHistoryChartId;
+      void savedChartsApi
+        .update(chartId, { config: vc.config as ChartConfig })
+        .then((r) => {
+          if (r.success) void fetchCharts({ allUsers: showAllUsers });
+        });
+    },
+    [versionHistoryChartId, fetchCharts, showAllUsers],
+  );
 
   useEffect(() => {
     if (!initialized) void fetchCharts({ allUsers: showAllUsers });
@@ -1217,7 +1224,7 @@ function ChartsSection({
 
   useEffect(() => {
     if (initialized) void fetchCharts({ allUsers: showAllUsers });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAllUsers]);
   const blankItem: ConsoleDragItem = { itemType: "chart", label: "Chart" };
 
@@ -1801,7 +1808,10 @@ function GraphicsSection({
   const { data, isLoading } = useQuery({
     queryKey: ["console-palette-graphics", showAllUsers],
     queryFn: async () => {
-      const r = await graphicsApi.list({ scope: "console", includeAllUsers: showAllUsers });
+      const r = await graphicsApi.list({
+        scope: "console",
+        includeAllUsers: showAllUsers,
+      });
       if (!r.success) return [];
       return r.data.data ?? [];
     },

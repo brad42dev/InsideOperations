@@ -422,7 +422,6 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
           : []),
       ],
     };
-     
   }, [xbarStats, dispStats, labels, subchartType]);
 
   if (instrumentSlots.length === 0) {

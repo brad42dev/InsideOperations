@@ -271,7 +271,6 @@ export default function ParetoChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [
     sortedNames,
     sortedValues,

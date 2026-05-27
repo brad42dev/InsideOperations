@@ -697,7 +697,10 @@ export default function ProcessPage() {
   const { data: graphicsList, isLoading: graphicsLoading } = useQuery({
     queryKey: ["design-objects", "process", showAllUsers],
     queryFn: async () => {
-      const result = await graphicsApi.list({ scope: "process", includeAllUsers: showAllUsers });
+      const result = await graphicsApi.list({
+        scope: "process",
+        includeAllUsers: showAllUsers,
+      });
       if (result.success) return result.data.data;
       return [] as DesignObjectSummary[];
     },
@@ -1143,7 +1146,12 @@ export default function ProcessPage() {
       viewport.screenHeight / height,
     );
     setViewport((vp) => ({ ...vp, zoom: fitZoom, panX: 0, panY: 0 }));
-  }, [graphic?.scene_data, viewport.screenWidth, viewport.screenHeight, setViewport]);
+  }, [
+    graphic?.scene_data,
+    viewport.screenWidth,
+    viewport.screenHeight,
+    setViewport,
+  ]);
 
   const zoom100 = useCallback(() => {
     setViewport((vp) => ({ ...vp, zoom: 1, panX: 0, panY: 0 }));

@@ -105,7 +105,6 @@ export function useTimeSeriesBuffer({
       _globalLastTs.delete(bufferKey);
     };
     // bufferKey is stable (pane ID) — intentionally empty-ish dep array
-     
   }, [bufferKey]);
 
   const [tick, setTick] = useState(0);
@@ -342,7 +341,7 @@ export function useTimeSeriesBuffer({
   // most once per animation frame, preventing interference with SceneRenderer's
   // own DOM-mutation path.
   const rafPendingRef = useRef(false);
-   
+
   const pendingPvsRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
@@ -350,7 +349,6 @@ export function useTimeSeriesBuffer({
 
     if (wsManager.getState() === "disconnected") void wsManager.connect();
 
-     
     const handler = (pv: any) => {
       pendingPvsRef.current.set(pv.pointId, pv);
       if (!rafPendingRef.current) {

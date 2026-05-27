@@ -808,7 +808,7 @@ export default function GraphicPane({
         nodeSelected,
       });
     },
-     
+
     [zoneId],
   );
 
@@ -822,7 +822,7 @@ export default function GraphicPane({
       e.stopPropagation();
       openPointDetail(pointId, e.clientX, e.clientY);
     },
-     
+
     [],
   );
 
@@ -843,7 +843,6 @@ export default function GraphicPane({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-     
   }, []);
 
   // ── Scene-node selection zone registration ──────────────────────────────────

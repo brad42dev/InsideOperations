@@ -185,7 +185,6 @@ export default function Chart29Cusum({ config }: RendererProps) {
       xRange: { min: tsArr[0], max: tsArr[tsArr.length - 1] },
       emptyReason: null as null,
     };
-     
   }, [histResult, k, h, targetOverride]);
 
   if (!pointSlot) {

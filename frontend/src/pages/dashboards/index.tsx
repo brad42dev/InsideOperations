@@ -939,7 +939,14 @@ export default function DashboardsPage() {
           borderBottom: "1px solid var(--io-border)",
         }}
       >
-        <div style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
           <input
             type="text"
             placeholder="Search dashboards..."

@@ -118,10 +118,14 @@ export const consoleApi = {
   deleteWorkspace: (id: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/console/workspaces/${id}`),
 
-  recoverWorkspace: (id: string): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
+  recoverWorkspace: (
+    id: string,
+  ): Promise<ApiResult<{ id: string; recovered: boolean }>> =>
     api.post(`/api/console/workspaces/${id}/recover`, {}),
 
-  permanentDeleteWorkspace: (id: string): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
+  permanentDeleteWorkspace: (
+    id: string,
+  ): Promise<ApiResult<{ id: string; permanently_deleted: boolean }>> =>
     api.delete(`/api/console/workspaces/${id}/permanent`),
 
   publishWorkspace: async (

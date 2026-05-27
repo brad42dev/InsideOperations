@@ -236,7 +236,6 @@ export default function HeatmapChart({ config }: RendererProps) {
         },
       ],
     };
-     
   }, [heatData, calendarData, calendarMode, calendarYear]);
 
   if (!valueSlot) {

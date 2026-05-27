@@ -543,7 +543,7 @@ export default function TrendPane({
   // rAF batches pending updates so setTick fires at most once per frame,
   // preventing interference with SceneRenderer's DOM-mutation path.
   const trendRafPendingRef = useRef(false);
-   
+
   const trendPendingPvsRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
@@ -551,7 +551,6 @@ export default function TrendPane({
 
     if (wsManager.getState() === "disconnected") void wsManager.connect();
 
-     
     const handler = (pv: any) => {
       trendPendingPvsRef.current.set(pv.pointId, pv);
       if (!trendRafPendingRef.current) {

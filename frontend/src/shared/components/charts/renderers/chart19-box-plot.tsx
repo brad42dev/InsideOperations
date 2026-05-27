@@ -133,7 +133,6 @@ export default function BoxPlotChart({ config }: RendererProps) {
     return { names, boxData, outlierData, allPointsData, meanData };
   }, [historyBatch, seriesSlots, horizontal, showMean, showPoints, slotLabel]);
 
-   
   const option = useMemo<any>(() => {
     const textMuted = resolveToken("--io-text-muted");
     const border = resolveToken("--io-border");
@@ -157,9 +156,9 @@ export default function BoxPlotChart({ config }: RendererProps) {
       legend: { show: false },
       tooltip: { trigger: "item" },
       grid: { left: 48, right: 16, top: 12, bottom: 32, containLabel: true },
-       
+
       xAxis: (horizontal ? valueAxis : categoryAxis) as any,
-       
+
       yAxis: (horizontal ? categoryAxis : valueAxis) as any,
       series: [
         {
@@ -198,7 +197,6 @@ export default function BoxPlotChart({ config }: RendererProps) {
           : []),
       ],
     };
-     
   }, [
     names,
     boxData,

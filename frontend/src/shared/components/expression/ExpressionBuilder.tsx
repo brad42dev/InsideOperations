@@ -2267,7 +2267,7 @@ export function ExpressionBuilder({
         pasteNativeTiles: (tiles) =>
           dispatch({ type: "PASTE_NATIVE_TILES", tiles }),
       }),
-     
+
     [],
   );
   usePasteTarget(expressionPasteTarget);
@@ -2281,7 +2281,6 @@ export function ExpressionBuilder({
       dispatchCopySelection: () => dispatch({ type: "COPY_SELECTION" }),
     }));
     // dispatch is stable (from useReducer)
-     
   }, []);
 
   const [leftPanelTab, setLeftPanelTab] = useState<"palette" | "templates">(

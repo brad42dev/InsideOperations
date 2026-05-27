@@ -423,7 +423,7 @@ export function useOfflineRounds() {
         .then((reg) => {
           // Background Sync API — cast to any as TypeScript's DOM lib
           // omits SyncManager from ServiceWorkerRegistration.
-           
+
           return (reg as any).sync.register("sync-rounds");
         })
         .catch(() => {

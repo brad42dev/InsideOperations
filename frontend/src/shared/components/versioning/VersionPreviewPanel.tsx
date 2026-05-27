@@ -98,7 +98,8 @@ export function VersionPreviewPanel({
               padding: 32,
             }}
           >
-            Chart version {(previewContent as ChartVersionContent).version_number}
+            Chart version{" "}
+            {(previewContent as ChartVersionContent).version_number}
             {(previewContent as ChartVersionContent).label
               ? ` — ${(previewContent as ChartVersionContent).label}`
               : ""}

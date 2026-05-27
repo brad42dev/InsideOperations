@@ -73,15 +73,12 @@ function alarmColor(value: PointValue | undefined): string {
  * server implementations — casting at each use site is more robust.
  */
 
- 
 const OfflineTileLayerClass = (L.TileLayer as any).extend({
-   
   initialize(url: string, options: L.TileLayerOptions & { graphicId: string }) {
-     
     (L.TileLayer.prototype as any).initialize.call(this, url, options);
-     
+
     (this as any)._graphicId = options.graphicId;
-     
+
     (this as any)._evictRun = false;
   },
 
@@ -92,15 +89,14 @@ const OfflineTileLayerClass = (L.TileLayer as any).extend({
     const z = (coords as unknown as { z: number }).z;
     const x = (coords as unknown as { x: number }).x;
     const y = (coords as unknown as { y: number }).y;
-     
+
     const graphicId = (this as any)._graphicId as string;
-     
+
     const evictRun = (this as any)._evictRun as boolean;
     const runEvict = !evictRun;
-     
+
     if (runEvict) (this as any)._evictRun = true;
 
-     
     const getTileUrl = (
       (this as any).getTileUrl as (coords: L.Coords) => string
     ).bind(this);
@@ -292,7 +288,7 @@ export default function TileGraphicViewer({
 
     // Tile layer pointing to API tile pyramid — uses IndexedDB caching
     const tileUrl = `/api/v1/design-objects/${graphicId}/tiles/{z}/{x}/{y}.png`;
-     
+
     const tileLayer = new (OfflineTileLayerClass as any)(tileUrl, {
       tileSize: 256,
       noWrap: true,

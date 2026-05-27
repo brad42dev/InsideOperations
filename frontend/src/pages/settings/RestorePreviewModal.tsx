@@ -307,7 +307,6 @@ export function RestorePreviewModal({
       .catch(() => {
         setLoadError("Network error loading restore preview");
       });
-     
   }, [snapshotId]);
 
   const toggleRow = (id: string) => {

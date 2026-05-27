@@ -282,7 +282,7 @@ function BarcodeGate({
   const [scanError, setScanError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-   
+
   const codeReaderRef = useRef<any>(null);
 
   // BarcodeDetector API scan

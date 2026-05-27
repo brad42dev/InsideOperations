@@ -588,7 +588,9 @@ export default function ConsolePage() {
   } = useQuery({
     queryKey: ["console-workspaces", showAllUsers],
     queryFn: async () => {
-      const result = await consoleApi.listWorkspaces({ includeAllUsers: showAllUsers });
+      const result = await consoleApi.listWorkspaces({
+        includeAllUsers: showAllUsers,
+      });
       if (!result.success) throw new Error(result.error.message);
       return result.data;
     },
@@ -640,7 +642,7 @@ export default function ConsolePage() {
           serverSnapshotsRef.current[activeWs.id] ?? JSON.stringify(activeWs);
       }
     }
-  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]);  
+  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]);
 
   // Sync localStorage workspaces → WorkspaceStore when not using API
   const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false);
@@ -655,7 +657,7 @@ export default function ConsolePage() {
       }
       setLocalWorkspacesLoaded(true);
     }
-  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]);  
+  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]);
 
   // ---- API mutations --------------------------------------------------------
 
@@ -837,14 +839,24 @@ export default function ConsolePage() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
+    mutationFn: async ({
+      id,
+      published,
+    }: {
+      id: string;
+      published: boolean;
+    }) => {
       if (published) {
         // Publish IS a save — persist current in-memory state to the live row first
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id);
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === id);
         if (ws) {
           const saveResult = await consoleApi.saveWorkspace(ws);
           if (!saveResult.success) {
-            throw new Error(saveResult.error?.message ?? "Save before publish failed");
+            throw new Error(
+              saveResult.error?.message ?? "Save before publish failed",
+            );
           }
         }
       }
@@ -853,7 +865,9 @@ export default function ConsolePage() {
     onSuccess: (_data, vars) => {
       if (vars.published) {
         // Sync snapshot refs so dirty indicator clears (save-before-publish bypassed saveMutation)
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === vars.id);
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === vars.id);
         if (ws) {
           const snap = JSON.stringify(ws);
           serverSnapshotsRef.current[vars.id] = snap;
@@ -913,7 +927,9 @@ export default function ConsolePage() {
         gridItems?: GridItem[];
         overflowPanes?: PaneConfig[];
       };
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
       if (!ws) return;
       const updated: WorkspaceLayout = {
         ...ws,
@@ -923,9 +939,15 @@ export default function ConsolePage() {
         overflowPanes: layoutData.overflowPanes ?? ws.overflowPanes,
       };
       setWorkspaces(
-        useWorkspaceStore.getState().workspaces.map((w) => (w.id === activeId ? updated : w)),
+        useWorkspaceStore
+          .getState()
+          .workspaces.map((w) => (w.id === activeId ? updated : w)),
       );
-      showToast({ title: "Version restored", variant: "success", duration: 3000 });
+      showToast({
+        title: "Version restored",
+        variant: "success",
+        duration: 3000,
+      });
     },
     [activeId, setWorkspaces],
   );
@@ -1147,7 +1169,9 @@ export default function ConsolePage() {
     x: number;
     y: number;
   } | null>(null);
-  const [versionHistoryWorkspaceId, setVersionHistoryWorkspaceId] = useState<string | null>(null);
+  const [versionHistoryWorkspaceId, setVersionHistoryWorkspaceId] = useState<
+    string | null
+  >(null);
 
   const handleWorkspaceContextMenu = useCallback((x: number, y: number) => {
     setWorkspaceBgCtxMenu({ x, y });
@@ -1160,7 +1184,7 @@ export default function ConsolePage() {
       new Set(
         activeWorkspace?.panes.filter((p) => p.pinned).map((p) => p.id) ?? [],
       ),
-     
+
     [activeWorkspace?.panes],
   );
 
@@ -3410,7 +3434,9 @@ export default function ConsolePage() {
           onClose={() => setVersionHistoryWorkspaceId(null)}
           objectType="workspace"
           objectId={versionHistoryWorkspaceId}
-          objectName={workspaces.find((w) => w.id === versionHistoryWorkspaceId)?.name}
+          objectName={
+            workspaces.find((w) => w.id === versionHistoryWorkspaceId)?.name
+          }
           onLoadVersion={handleLoadWorkspaceVersion}
         />
       )}

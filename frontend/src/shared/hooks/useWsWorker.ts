@@ -168,7 +168,6 @@ function getPort(): MessagePort {
   port.start();
 
   port.onmessage = (ev: MessageEvent) => {
-     
     const msg = ev.data as Record<string, unknown>;
     handleWorkerMessage(msg);
   };

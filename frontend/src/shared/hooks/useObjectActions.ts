@@ -23,9 +23,7 @@ export interface UseObjectActionsOptions {
    * default API stub. Task 8 uses this to pass the real scene_data/workspace
    * payload from the relevant store.
    */
-  onSaveOverride?: (opts: {
-    label?: string;
-  }) => Promise<ApiResult<unknown>>;
+  onSaveOverride?: (opts: { label?: string }) => Promise<ApiResult<unknown>>;
   /**
    * Override the built-in Save As dispatch. Task 8 uses this to supply the
    * full object payload for the new copy.
@@ -148,7 +146,11 @@ async function dispatchSaveAs(
         scene_data: {} as never,
       });
     case "workspace":
-      return consoleApi.saveWorkspace({ name: opts.name, layout: "2x2", panes: [] });
+      return consoleApi.saveWorkspace({
+        name: opts.name,
+        layout: "2x2",
+        panes: [],
+      });
     case "chart":
       return savedChartsApi.create({
         name: opts.name,
@@ -219,7 +221,9 @@ function extractNewId(result: ApiResult<unknown>): string {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useObjectActions(options: UseObjectActionsOptions): ObjectActions {
+export function useObjectActions(
+  options: UseObjectActionsOptions,
+): ObjectActions {
   const {
     objectType,
     objectId,
@@ -233,9 +237,12 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
   } = options;
 
   const permissions = useAuthStore((s) => s.user?.permissions ?? []);
-  const has = useCallback((p: string) => permissions.includes(p), [permissions]);
+  const has = useCallback(
+    (p: string) => permissions.includes(p),
+    [permissions],
+  );
 
-  const isAutoSave = (objectId?.startsWith("__autosave_") ?? false);
+  const isAutoSave = objectId?.startsWith("__autosave_") ?? false;
 
   const perms = useMemo<PermFlags>(() => {
     if (isAutoSave || !objectId) return NO_PERMS;
@@ -299,8 +306,15 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
         savingRef.current = false;
       }
     },
-     
-    [objectId, objectType, isAutoSave, perms.canSave, onSaveOverride, onSaveSuccess],
+
+    [
+      objectId,
+      objectType,
+      isAutoSave,
+      perms.canSave,
+      onSaveOverride,
+      onSaveSuccess,
+    ],
   );
 
   const saveAs = useCallback(
@@ -328,8 +342,14 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
         savingAsRef.current = false;
       }
     },
-     
-    [objectType, isAutoSave, perms.canSaveAs, onSaveAsOverride, onSaveAsSuccess],
+
+    [
+      objectType,
+      isAutoSave,
+      perms.canSaveAs,
+      onSaveAsOverride,
+      onSaveAsSuccess,
+    ],
   );
 
   const publish = useCallback(
@@ -356,12 +376,17 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
         publishingRef.current = false;
       }
     },
-     
+
     [objectId, objectType, isAutoSave, perms.canPublish, onPublishSuccess],
   );
 
   const unpublish = useCallback(async (): Promise<boolean> => {
-    if (!objectId || isAutoSave || !perms.canUnpublish || unpublishingRef.current)
+    if (
+      !objectId ||
+      isAutoSave ||
+      !perms.canUnpublish ||
+      unpublishingRef.current
+    )
       return false;
     unpublishingRef.current = true;
     setIsUnpublishing(true);
@@ -381,8 +406,13 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
       setIsUnpublishing(false);
       unpublishingRef.current = false;
     }
-     
-  }, [objectId, objectType, isAutoSave, perms.canUnpublish, onUnpublishSuccess]);
+  }, [
+    objectId,
+    objectType,
+    isAutoSave,
+    perms.canUnpublish,
+    onUnpublishSuccess,
+  ]);
 
   const deleteAction = useCallback(async (): Promise<boolean> => {
     if (!objectId || isAutoSave || !perms.canDelete || deletingRef.current)
@@ -405,7 +435,6 @@ export function useObjectActions(options: UseObjectActionsOptions): ObjectAction
       setIsDeleting(false);
       deletingRef.current = false;
     }
-     
   }, [objectId, objectType, isAutoSave, perms.canDelete, onDeleteSuccess]);
 
   return {
