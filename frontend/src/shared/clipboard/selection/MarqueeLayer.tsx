@@ -97,8 +97,8 @@ export function MarqueeLayer({ zoneId, enumerate, containerRef }: Props) {
             left: rect.left,
             width: rect.width,
             height: rect.height,
-            background: "rgba(80, 180, 255, 0.08)",
-            border: "1px dashed var(--accent)",
+            background: "var(--io-accent-subtle)",
+            border: "1px dashed var(--io-accent)",
             pointerEvents: "none",
           }}
         />

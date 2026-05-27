@@ -152,7 +152,7 @@ When this work is complete:
 **Adopt:** Console + Settings convention: `background: var(--io-surface-secondary)`, `borderRight: 1px solid var(--io-border)`.
 
 **Actions (highest priority first):**
-- Fix (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (two occurrences). Also `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. This is the highest priority fix in the shared infrastructure — selection highlight is currently invisible.
+- **Fixed 2026-05-27** (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (lines 2 and 9). `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (line 101) and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (line 100). Selection highlight and marquee border now render with teal accent color.
 - Fix: Align Designer left palette background: `var(--io-surface)` → `var(--io-surface-secondary)` to match Console and Settings
 - Fix: Resolve `--io-sidebar-width` discrepancy — either update the token to 220px to match current practice, or update all three modules to 240px. Pick one and be consistent.
 - Fix: Settings active nav item — add `borderLeft: 2px solid var(--io-accent)` on active state to match AppShell pattern
@@ -252,7 +252,7 @@ When this work is complete:
 
 **Actions (by priority):**
 
-- Fix (functional regression, highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` everywhere. `MarqueeLayer.tsx` marquee background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Two-line fix with outsized impact.
+- **Fixed 2026-05-27** (functional regression, was highest priority): `shared/clipboard/selection/selection.css` and `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). Selection highlight and marquee border now render with teal accent color.
 - Fix: `alarmFlash.css` — migrate alarm hex colors to `--io-alarm-*` tokens (see Cat 8). Required for light/HPHMI theme support.
 - Fix: Console `WorkspaceGrid` container `var(--io-bg)` (undefined) → `var(--io-surface-primary)` (after defining `--io-bg` alias in Cat 1 token work, this becomes automatic)
 - Fix: DesignerCanvas canvas border `rgba(255,255,255,0.08)` → define a token or use `var(--io-border)` with opacity; grid lines `rgba(128,128,128,0.12/0.28)` → acceptable to leave as-is if theme support is not required for the grid appearance
@@ -307,7 +307,7 @@ No component changes. Pure token additions to `index.css`.
 
 These are bugs visible at runtime, not polish issues.
 
-1. `selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)
+1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
 2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
 3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
 4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)

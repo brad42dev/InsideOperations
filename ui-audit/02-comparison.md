@@ -70,8 +70,8 @@
 | **Implementation** | Shared clipboard selection overlay system. `selection.css` applies a selection-box outline and glow effect to `.io-selection-overlay` container child elements via `data-indicator` attribute. `MarqueeLayer.tsx` renders a draggable marquee rectangle during drag operations via mouse events and writes to `globalSelectionStore`. |
 | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` (render return), `:101` (token deviation) |
 | **Visual properties actually applied** | `selection.css`: `[data-indicator="selection-box"]`: `outline: 2px solid var(--accent)`, `outline-offset: -1px`, `borderRadius: 2px`; `[data-indicator="soft-glow"]`: `box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 0 12px 2px var(--accent)`, `borderRadius: 4px`. `MarqueeLayer.tsx`: container `position: absolute, inset: 0`; marquee rect while dragging: `background: rgba(80,180,255,0.08)`, `border: 1px dashed var(--accent)`, `pointerEvents: none` |
-| **Deviations from app shell** | Both files use `var(--accent)` without the `--io-` prefix — this token has no definition anywhere in the codebase; selection box outline and glow shadow render with no color (CSS initial value). `MarqueeLayer.tsx:101` hardcodes background `rgba(80,180,255,0.08)` (blue) instead of `var(--io-accent-subtle)` (teal, index.css:42). Correct token throughout: `var(--io-accent)`. |
-| **Notes** | Functional regression: shared selection overlay is visually invisible. Masked by module-specific selection feedback (PaneWrapper inline-style border for Console panes, SVG stroke in DesignerCanvas). Both files need `var(--accent)` → `var(--io-accent)`. MarqueeLayer background also needs `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` in both files (selection.css lines 2 and 9; MarqueeLayer.tsx line 101). `MarqueeLayer.tsx:100` background `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (teal, index.css:42). Selection box outline, glow shadow, and marquee border now render with the correct teal accent color. |
+| **Notes** | Regression resolved. Selection overlay is now visible. Two-line fix: selection.css (2 token references) + MarqueeLayer.tsx (1 token + 1 hardcoded background). Primary category: Cat 10 (Canvas). Secondary: Cat 5 (Panel/tile multi-select contexts). |
 
 ---
 
@@ -158,8 +158,8 @@
 | **Implementation** | See Category 5 Shared Infrastructure for full entry. Shared clipboard selection overlay; selection.css applies CSS-class-based selection box/glow; MarqueeLayer.tsx renders drag marquee rectangle. |
 | **Source-of-truth files** | `frontend/src/shared/clipboard/selection/selection.css:1-11`; `frontend/src/shared/clipboard/selection/MarqueeLayer.tsx:81-108` |
 | **Visual properties actually applied** | selection-box outline and soft-glow via `var(--accent)` (broken prefix); marquee rect `rgba(80,180,255,0.08)` bg + `1px dashed var(--accent)` border |
-| **Deviations from app shell** | `var(--accent)` prefix bug (should be `var(--io-accent)`); selection overlay invisible at runtime. MarqueeLayer background hardcoded blue, should be `var(--io-accent-subtle)`. |
-| **Notes** | Functional regression — shared selection overlay has no visible color. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
+| **Deviations from app shell** | **Fixed 2026-05-27.** `var(--accent)` → `var(--io-accent)` (selection.css lines 2 and 9; MarqueeLayer.tsx line 101); `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (MarqueeLayer.tsx line 100). |
+| **Notes** | Regression resolved. Full entry in Category 5 Shared Infrastructure. Primary: Cat 10 (canvas interaction). Secondary: Cat 5 (panel multi-select). |
 
 | Field | alarmFlash.css |
 |---|---|
