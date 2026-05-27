@@ -308,7 +308,7 @@ No component changes. Pure token additions to `index.css`.
 These are bugs visible at runtime, not polish issues.
 
 1. ~~`selection.css` + `MarqueeLayer.tsx`: `var(--accent)` → `var(--io-accent)`, `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)`. (2-file change.)~~ **Fixed 2026-05-27.**
-2. `OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.
+2. ~~`OpcSources StatusBadge` hex-alpha concat bug: `${color}20` → `color-mix(...)` or component migration.~~ **Fixed 2026-05-27.** `background: \`${color}20\`` → `color-mix(in srgb, ${color} 12%, transparent)`; `border: \`1px solid ${color}40\`` → `color-mix(in srgb, ${color} 25%, transparent)`. Fix scoped to the local `StatusBadge` function in `OpcSources.tsx` (lines 168–170); matches the `color-mix` pattern already used by `SystemHealth.tsx`. **Note:** The same `${color}20`/`${color}40` hex-alpha pattern also appears in `Users.tsx` (Badge, line 108/110), `Roles.tsx` (Badge, line 51/53), `CameraStreams.tsx` (line 785/787), and `MaintenanceTicketsPanel.tsx` (line 52) — these were not fixed here and remain broken when CSS variable strings are passed as the color argument.
 3. `alarmFlash.css`: migrate hex to `--io-alarm-*` tokens. (This affects theme support, not current dark-theme functionality, but the hardcoded values are wrong in principle and block HPHMI work.)
 4. Critical ARIA fixes: `RestorePreviewModal` + Console inline modals + Import/OpcSources dialogs. (Accessibility regression on destructive paths.)
 5. Replace 8 `window.confirm()` calls with `ConfirmDialog`.

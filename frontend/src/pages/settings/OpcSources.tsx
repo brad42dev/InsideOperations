@@ -165,9 +165,9 @@ function StatusBadge({ status }: { status: string }) {
         borderRadius: "9999px",
         fontSize: "11px",
         fontWeight: 600,
-        background: `${color}20`,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
         color,
-        border: `1px solid ${color}40`,
+        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
         textTransform: "capitalize",
       }}
     >
