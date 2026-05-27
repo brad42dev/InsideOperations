@@ -1,3 +1,3 @@
-/home/io/io-dev/io/.claude/logs/2026-05-27_workstream-2c-drift-checkin
+/home/io/io-dev/io/.claude/logs/2026-05-27_workstream-2d-claim-a-complete
 
-read-ui-aud_074445.md
+read-ui-_075935.md

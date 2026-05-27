@@ -193,3 +193,37 @@ The eight modules being rebuilt around the converged Console/Designer foundation
 | Token hygiene | No token reference may be used that is not defined in `index.css` | Treat any undefined token reference in a rebuilt module as a blocking defect. The token list cleared by Claim A is the authoritative registry; nothing outside it may be referenced. |
 
 **One Claim A item must be resolved before any of the eight modules begins panel-layout work:** A14 (`--io-sidebar-width` value). Building any panel at a hardcoded width and later discovering the chosen value was different requires an eleven-module edit. Decide it once, enforce it everywhere.
+
+---
+
+## Section 6 — Lessons for Claim B
+
+Captured at Claim A close (2026-05-27). These are observations from execution that should shape how Claim B is planned and run.
+
+### L1 — "Defer" notes in a plan are hard gates, not suggestions
+
+A13 explicitly noted `--io-z-command` and `--io-z-kiosk-auth` as deferred to Claim B pending a cross-module z-index audit. The 2b implementer wired `CommandPalette.tsx` to use these tokens anyway — setting `--io-z-command: 1200` without the audit that was supposed to precede it. The values turned out directionally correct and were accepted, but the pattern is dangerous: the audit gate existed because an incorrect value is harder to fix after code has migrated to the token. **For Claim B:** any plan item with an explicit "defer" gate must be treated as blocked until that gate is cleared. If the gate is wrong, clear it first through an explicit decision, then proceed.
+
+### L2 — Token audit precision: verify "undefined" claims before writing fixes
+
+Plan item A12 claimed `--io-text-inverse` was not yet defined. It was already defined in all three theme blocks. The plan had a wrong claim that would have produced a duplicate definition if executed mechanically. **For Claim B:** before any "fix undefined token" task, grep `index.css` and the `tokens.ts` mirror to confirm the token is actually absent. Two-minute verification eliminates a class of bad commits.
+
+### L3 — Alias approach is lower-risk than code-replacement for Claim C files
+
+A7 (`--io-surface-raised`) was cited in the recommendations as "replace the reference in `CanvasLayerRow`." The plan instead defined the alias token. Both approaches reach the same visual outcome, but the alias approach touches zero component files — safer for tokens consumed inside high-risk files like `DesignerCanvas.tsx`. **For Claim B:** prefer alias approach for any token fix whose consumers include Claim C files. Reserve code-replacement for tokens whose consumers are in low-risk, fully-owned Claim B files.
+
+### L4 — Single-consumer tokens: fix the consumer, not the registry
+
+A8 (`--io-accent-muted`) had exactly one consumer (`PromoteToShapeWizard.tsx:2168`) with a hardcoded fallback. Rather than defining a new token for one usage, the consumer was updated to use an existing token. **For Claim B:** before defining any new token, count consumers. If count is one and a semantically close existing token exists, fix at the consumer. New tokens should have ≥2 consumers or represent a genuinely new semantic concept.
+
+### L5 — Plan prose should describe mechanism, not visual effect
+
+The B2 plan entry said "reduce `paddingLeft` by 2px to maintain alignment." The correct implementation uses a uniform padding (`7px 10px 7px 8px`) with a transparent 2px border on inactive items — which is better than the described approach because it reserves space without state-conditional math. The plan described the visual effect rather than the CSS property values. The implementer caught the discrepancy and chose the better approach, but the ambiguity introduced unnecessary decision overhead. **For Claim B:** plan entries for CSS fixes should specify the exact property-value changes, not the intended visual outcome. "Set `borderLeft: 2px solid transparent` on inactive state; set `padding: 7px 10px 7px 8px` uniformly" is unambiguous. "Maintain alignment" is not.
+
+### L6 — DoD criteria must name specific grep scopes
+
+Criterion 1 referenced "shell-layer files" without defining which files constitute the shell layer. The implementer had to interpret this. **For Claim B DoD:** any criterion involving a grep check must name the scope explicitly — either "all files under `frontend/src/`" or an enumerated list of files. Ambiguous scope in DoD allows partial verification to masquerade as full verification.
+
+### L7 — Pre-execution token validation is a required first step
+
+Several A-items (A1–A12) required checking the current state of `index.css` before writing. A12 would have caused a regression if executed without that check. The plan's "research-gated" category acknowledged this for some items but not all. **For Claim B:** treat token validation (grep before write) as a mandatory first step for every token-touching task — even "obviously absent" tokens. Add it explicitly to the DoD of any token-registry task.

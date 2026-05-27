@@ -68,6 +68,7 @@ When this work is complete:
   - `--io-font-sans` (used in Designer zoom dropdown — define with the same font stack as the document)
   - `--io-text-on-accent` (used in Settings btnPrimary — alias to `--io-accent-foreground`)
   - `--io-error` (used in DesignerCanvas context menu — alias to `--io-danger`)
+  - **Status: Implemented 2026-05-27 (Claim A / 2b).** All six tokens above defined. Additional tokens also resolved in same pass: `--io-surface-raised` (A7, alias for `--io-surface-elevated`), `--io-overlay` (A9, alias for `--io-modal-backdrop`), `--io-accent-rgb` (A10, per-theme), `--io-alarm-inactive` (A11, #808080), `--io-sidebar-width` updated to 220px (A14). `--io-accent-muted` intentionally not defined (A8 — single consumer updated at call site instead). `--io-text-inverse` confirmed already defined (A12 — plan claim was incorrect).
 
 - **Replace hardcoded hex with tokens** — highest-value cases:
   - Console published dot `#10b981` → `var(--io-success)`
@@ -136,7 +137,7 @@ When this work is complete:
 **Actions:**
 - Fix: `ContextMenu` danger item color: `var(--io-alarm-urgent)` → `var(--io-danger)` in `shared/components/ContextMenu.tsx`
 - Fix: Designer File menu — add Escape key handler to close
-- Fix: Designer zoom dropdown hover — `var(--io-surface-hover)` → `var(--io-surface-elevated)` (after defining `--io-surface-hover` as an alias)
+- Fix: Designer zoom dropdown hover — `var(--io-surface-hover)` → `var(--io-surface-elevated)` (after defining `--io-surface-hover` as an alias) — **Status: Token prerequisite implemented 2026-05-27 (Claim A / 2b — A3). Code change in zoom dropdown component deferred (Claim B).**
 - Fix: Designer zoom dropdown box-shadow → use `--io-shadow-lg` token if defined, or a consistent hardcoded value matching the File menu
 - Migrate: Console export quick-format dropdown → replace with `ContextMenu` usage (low-risk; existing pattern is one custom dropdown)
 - Evaluate: Designer File menu — if `ContextMenu` can represent a triggered (non-right-click) menu, migrate; otherwise keep but fix the Escape handler and hover state
@@ -153,12 +154,12 @@ When this work is complete:
 
 **Actions (highest priority first):**
 - **Fixed 2026-05-27** (functional regression): `shared/clipboard/selection/selection.css` — `var(--accent)` → `var(--io-accent)` (lines 2 and 9). `MarqueeLayer.tsx` — `var(--accent)` → `var(--io-accent)` (line 101) and `rgba(80,180,255,0.08)` → `var(--io-accent-subtle)` (line 100). Selection highlight and marquee border now render with teal accent color.
-- Fix: Align Designer left palette background: `var(--io-surface)` → `var(--io-surface-secondary)` to match Console and Settings
-- Fix: Resolve `--io-sidebar-width` discrepancy — either update the token to 220px to match current practice, or update all three modules to 240px. Pick one and be consistent.
-- Fix: Settings active nav item — add `borderLeft: 2px solid var(--io-accent)` on active state to match AppShell pattern
+- Fix: Align Designer left palette background: `var(--io-surface)` → `var(--io-surface-secondary)` to match Console and Settings — **Status: Implemented 2026-05-27 (Claim A / 2c — B1). `DesignerLeftPalette.tsx:2436` updated.**
+- Fix: Resolve `--io-sidebar-width` discrepancy — either update the token to 220px to match current practice, or update all three modules to 240px. Pick one and be consistent. — **Status: Implemented 2026-05-27 (Claim A / 2b — A14). Token set to 220px; no module code changes required (all three already at 220px).**
+- Fix: Settings active nav item — add `borderLeft: 2px solid var(--io-accent)` on active state to match AppShell pattern — **Status: Implemented 2026-05-27 (Claim A / 2c — B2). `settings/index.tsx:211–214` updated with accent border + uniform padding.**
 - Fix: Replace DOM-mutation hover in Console palette (`e.currentTarget.style.*`) with CSS `:hover` or React state
-- Fix: Designer `CanvasLayerRow` `--io-surface-raised` undefined → use `var(--io-surface-elevated)`
-- Fix: Section label typography — standardize on 11px/600/uppercase/0.06em per Cat 2 table (Console and Designer already agree; bring Settings nav group into alignment)
+- Fix: Designer `CanvasLayerRow` `--io-surface-raised` undefined → use `var(--io-surface-elevated)` — **Status: Partially implemented 2026-05-27 (Claim A / 2b — A7). Token `--io-surface-raised` defined as alias for `var(--io-surface-elevated)`. Code in `CanvasLayerRow` still references the token name (now resolves via alias); direct code replacement deferred to Claim B.**
+- Fix: Section label typography — standardize on 11px/600/uppercase/0.06em per Cat 2 table (Console and Designer already agree; bring Settings nav group into alignment) — **Status: Partially implemented 2026-05-27 (Claim A / 2c — B4). Settings nav group `letterSpacing` corrected 0.08em→0.06em. Console and Designer already at 0.06em. Other label contexts with letterSpacing drift (Designer RightPanel, Settings table headers) deferred to Claim B.**
 
 **Build new:** None for panel containers. Shared `FieldLabel` (Cat 9) and `StatusBadge` (Cat 8) are the shared components this category depends on.
 
@@ -271,7 +272,7 @@ When this work is complete:
 
 **Actions:**
 
-- Fix (token): Standardize z-index values. `--io-z-modal: 300` is misaligned with actual usage (1000–9999). Either raise the token to 1000 minimum, or define a z-index scale (`--io-z-dropdown: 200`, `--io-z-modal: 1000`, `--io-z-toast: 2000`). Do not leave the token at 300 when no dialog uses it.
+- Fix (token): Standardize z-index values. `--io-z-modal: 300` is misaligned with actual usage (1000–9999). Either raise the token to 1000 minimum, or define a z-index scale (`--io-z-dropdown: 200`, `--io-z-modal: 1000`, `--io-z-toast: 2000`). Do not leave the token at 300 when no dialog uses it. — **Status: Implemented 2026-05-27 (Claim A / 2b — A13). Full scale chosen (Option B): dropdown:500, modal:1000, command:1200, visual-lock:1500, kiosk-auth:1800, toast:2000, emergency:3000. Applied to all three themes. `CommandPalette.tsx` wired to `var(--io-z-command)`. Code-level migration of hardcoded z-index values deferred to Claim B.**
 - Fix (token): `--io-modal-backdrop` is already defined and used in ≥6 Settings files. Console and Designer should migrate to it from hardcoded `rgba(0,0,0,0.5–0.6)`.
 - Fix (accessibility, urgent): `RestorePreviewModal.tsx` — add `role="dialog"` and `aria-modal="true"`. This is the highest-priority ARIA gap because it appears on a destructive-adjacent action path.
 - Fix (accessibility): Console inline modals (3 dialogs in `index.tsx`) — add `role="dialog"` and `aria-modal`.
@@ -284,7 +285,7 @@ When this work is complete:
 - Fix: Standardize `borderRadius` to `var(--io-radius-lg)` across all modals (currently 8, 9, 10, 12px scattered)
 - Fix: Standardize modal content background to `var(--io-surface-elevated)` (currently mixed with `--io-surface`, `--io-surface-secondary`, `--io-surface-primary`)
 - Fix: Designer primary button text in dialogs — `#09090b`/`#fff` hardcoded → `var(--io-accent-foreground)` (after shared buttons.ts is in place, this is automatic)
-- Fix: Designer error color mixing (`--io-alarm-high` for errors in wrong domain, `--io-error` undefined) → use `--io-danger` consistently
+- Fix: Designer error color mixing (`--io-alarm-high` for errors in wrong domain, `--io-error` undefined) → use `--io-danger` consistently — **Status: Token prerequisite implemented 2026-05-27 (Claim A / 2b — A6). `--io-error` defined as alias for `--io-danger`; references in DesignerCanvas context menu now resolve. Code-level audit of `--io-alarm-high` misuses deferred to Claim B.**
 - Fix: Designer step indicator inconsistency across 5 wizard dialogs — define one step indicator pattern (not blocked by other work but needs its own task)
 
 ---
@@ -297,9 +298,9 @@ The dependency structure has four phases. Items within a phase are largely indep
 
 No component changes. Pure token additions to `index.css`.
 
-1. Define missing tokens: `--io-bg`, `--io-text`, `--io-surface-hover`, `--io-font-sans`, `--io-text-on-accent` (alias to `--io-accent-foreground`), `--io-error` (alias to `--io-danger`), `--io-alarm-inactive: #808080`, `--io-text-inverse`.
-2. Fix z-index token: raise `--io-z-modal` to a realistic value (recommend 1000); optionally define `--io-z-dropdown: 500` and `--io-z-toast: 2000`.
-3. Resolve sidebar width: pick 220px or 240px; update token or code to match.
+1. Define missing tokens: `--io-bg`, `--io-text`, `--io-surface-hover`, `--io-font-sans`, `--io-text-on-accent` (alias to `--io-accent-foreground`), `--io-error` (alias to `--io-danger`), `--io-alarm-inactive: #808080`, `--io-text-inverse`. — **Status: Implemented 2026-05-27 (Claim A / 2b).** All listed tokens defined. `--io-text-inverse` confirmed already defined (skipped). Additional tokens also added: `--io-surface-raised`, `--io-overlay`, `--io-accent-rgb`, `--io-surface-hover`. `--io-accent-muted` handled at consumer site instead.
+2. Fix z-index token: raise `--io-z-modal` to a realistic value (recommend 1000); optionally define `--io-z-dropdown: 500` and `--io-z-toast: 2000`. — **Status: Implemented 2026-05-27 (Claim A / 2b — A13).** Full scale set: dropdown:500, modal:1000, command:1200, visual-lock:1500, kiosk-auth:1800, toast:2000, emergency:3000.
+3. Resolve sidebar width: pick 220px or 240px; update token or code to match. — **Status: Implemented 2026-05-27 (Claim A / 2b — A14).** 220px chosen. Token updated; no module code changes needed (all three modules already at 220px).
 
 **Why first:** Every downstream fix that replaces hardcoded hex or undefined token references becomes a one-word change once these tokens exist. Without them, each fix requires two changes (add the token AND update the reference).
 
