@@ -6,6 +6,7 @@ import {
   type RestoreRequest,
 } from "../../api/bulkUpdate";
 import { showToast } from "../../shared/components/Toast";
+import { Dialog } from "../../shared/components/Dialog";
 
 // ---------------------------------------------------------------------------
 // Shared styles (local copies — only what this modal needs)
@@ -359,70 +360,23 @@ export function RestorePreviewModal({
     }
   };
 
-  const MODAL_OVERLAY: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "var(--io-modal-backdrop)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-  };
-
-  const MODAL_BOX: React.CSSProperties = {
-    background: "var(--io-surface-primary)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "10px",
-    padding: "var(--io-space-6)",
-    maxWidth: 860,
-    width: "95%",
-    maxHeight: "85vh",
-    display: "flex",
-    flexDirection: "column",
-    gap: "var(--io-space-4)",
-  };
-
   return (
-    <div style={MODAL_OVERLAY}>
-      <div style={MODAL_BOX}>
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "var(--io-text-primary)",
-              }}
-            >
-              Restore Snapshot
-            </h2>
-            {snapshotLabel && (
-              <p
-                style={{
-                  margin: "2px 0 0",
-                  fontSize: "12px",
-                  color: "var(--io-text-muted)",
-                }}
-              >
-                {snapshotLabel}
-              </p>
-            )}
-          </div>
-          <button
-            style={{ ...BTN_SECONDARY, padding: "4px 10px", fontSize: "12px" }}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-        </div>
+    <Dialog
+      open={true}
+      onOpenChange={(o) => !o && onClose()}
+      title="Restore Snapshot"
+      description={snapshotLabel ?? undefined}
+      width={860}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--io-space-4)",
+          maxHeight: "calc(85vh - 140px)",
+          overflowY: "auto",
+        }}
+      >
 
         {/* Step 1: Loading */}
         {step === 1 && (
@@ -561,7 +515,7 @@ export function RestorePreviewModal({
             {/* Diff table */}
             <div
               style={{
-                flex: 1,
+                maxHeight: 400,
                 overflowY: "auto",
                 overflowX: "auto",
                 border: "1px solid var(--io-border)",
@@ -683,6 +637,6 @@ export function RestorePreviewModal({
           </>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }

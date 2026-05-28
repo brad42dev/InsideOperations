@@ -215,7 +215,7 @@ export default function PaneConfigModal({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.55)",
+            background: "var(--io-modal-backdrop)",
             zIndex: 1000,
           }}
         />
@@ -227,9 +227,9 @@ export default function PaneConfigModal({
             left: "50%",
             transform: "translate(-50%, -50%)",
             zIndex: 1001,
-            background: "var(--io-surface)",
+            background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
-            borderRadius: 8,
+            borderRadius: "var(--io-radius-lg)",
             padding: 24,
             width: 480,
             maxWidth: "calc(100vw - 32px)",

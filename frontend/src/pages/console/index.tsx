@@ -38,6 +38,7 @@ import { SaveConfirmDialog } from "../../shared/components/versioning/SaveConfir
 import type { WorkspaceVersionContent } from "../../shared/types/versioning";
 import { exportsApi, type ExportFormat } from "../../api/exports";
 import { showToast } from "../../shared/components/Toast";
+import { Dialog } from "../../shared/components/Dialog";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
 import { useConsolePanelResize } from "../../shared/hooks/useConsolePanelResize";
 import { useSelectionZone } from "../../store/useSelectionZone";
@@ -3477,102 +3478,14 @@ function WorkspaceNameModal({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && name.trim())
-      onConfirm(name.trim(), description.trim());
-    if (e.key === "Escape") onCancel();
-  }
-
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        style={{
-          background: "var(--io-surface)",
-          border: "1px solid var(--io-border)",
-          borderRadius: 8,
-          padding: "20px 24px",
-          minWidth: 360,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
-          {mode === "create" ? "New Workspace" : "Rename Workspace"}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label
-            style={{
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              fontWeight: 500,
-            }}
-          >
-            Name
-          </label>
-          <input
-            autoFocus
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Workspace name"
-            style={{
-              padding: "6px 10px",
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: 4,
-              color: "var(--io-text)",
-              fontSize: 13,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label
-            style={{
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              fontWeight: 500,
-            }}
-          >
-            Description <span style={{ fontWeight: 400 }}>(optional)</span>
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onCancel();
-            }}
-            placeholder="Brief description of this workspace"
-            rows={3}
-            style={{
-              padding: "6px 10px",
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: 4,
-              color: "var(--io-text)",
-              fontSize: 13,
-              outline: "none",
-              resize: "vertical",
-              fontFamily: "inherit",
-            }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+    <Dialog
+      open={true}
+      onOpenChange={(o) => !o && onCancel()}
+      title={mode === "create" ? "New Workspace" : "Rename Workspace"}
+      width={400}
+      footer={
+        <>
           <button
             onClick={onCancel}
             style={{
@@ -3605,9 +3518,71 @@ function WorkspaceNameModal({
           >
             {mode === "create" ? "Create" : "Rename"}
           </button>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
+            Name
+          </label>
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim())
+                onConfirm(name.trim(), description.trim());
+            }}
+            placeholder="Workspace name"
+            style={{
+              padding: "6px 10px",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-primary)",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
+            Description <span style={{ fontWeight: 400 }}>(optional)</span>
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Brief description of this workspace"
+            rows={3}
+            style={{
+              padding: "6px 10px",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-primary)",
+              fontSize: 13,
+              outline: "none",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -3625,46 +3600,21 @@ function DeleteConfirmDialog({
   onCancel: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        style={{
-          background: "var(--io-surface)",
-          border: "1px solid var(--io-border)",
-          borderRadius: 8,
-          padding: "20px 24px",
-          minWidth: 340,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
-          Delete workspace?
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "var(--io-text-muted)",
-            lineHeight: 1.5,
-          }}
-        >
-          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong>{" "}
+    <Dialog
+      open={true}
+      onOpenChange={(o) => !o && onCancel()}
+      title="Delete workspace?"
+      description={
+        <>
+          <strong style={{ color: "var(--io-text-primary)" }}>
+            {workspaceName}
+          </strong>{" "}
           will be permanently deleted. This cannot be undone.
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        </>
+      }
+      width={360}
+      footer={
+        <>
           <button
             onClick={onCancel}
             style={{
@@ -3693,9 +3643,11 @@ function DeleteConfirmDialog({
           >
             Delete
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {null}
+    </Dialog>
   );
 }
 
@@ -3715,46 +3667,21 @@ function CloseConfirmDialog({
   onCancel: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        style={{
-          background: "var(--io-surface)",
-          border: "1px solid var(--io-border)",
-          borderRadius: 8,
-          padding: "20px 24px",
-          minWidth: 340,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
-          Unsaved changes
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "var(--io-text-muted)",
-            lineHeight: 1.5,
-          }}
-        >
-          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong>{" "}
+    <Dialog
+      open={true}
+      onOpenChange={(o) => !o && onCancel()}
+      title="Unsaved changes"
+      description={
+        <>
+          <strong style={{ color: "var(--io-text-primary)" }}>
+            {workspaceName}
+          </strong>{" "}
           has unsaved changes. Save before closing?
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        </>
+      }
+      width={360}
+      footer={
+        <>
           <button
             onClick={onCancel}
             style={{
@@ -3797,8 +3724,10 @@ function CloseConfirmDialog({
           >
             Save
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {null}
+    </Dialog>
   );
 }

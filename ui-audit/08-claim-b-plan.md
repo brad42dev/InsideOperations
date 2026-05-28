@@ -298,7 +298,7 @@ Visual: pill with `borderRadius: "9999px"`, `padding: "2px 8px"`, `fontSize: 11`
 
 ---
 
-### 2.3 Dialog
+### 2.3 Dialog — **DONE 2026-05-28**
 
 #### Source-of-truth location
 
@@ -342,6 +342,29 @@ Visual spec derived from `04-recommendations.md` Cat 11:
 | Designer dialogs inside `DesignerCanvas.tsx` | Claim C territory | **Out of scope.** Do not touch. |
 
 **Risk item — CloseConfirmDialog:** The Save/Discard/Cancel three-button layout requires either a flexible `footer` prop or a specialized variant. Plan for the `footer?: React.ReactNode` prop to cover this case without over-designing.
+
+**Execution notes (2026-05-28):**
+- `frontend/src/shared/components/Dialog.tsx` created. API: `{ open, onOpenChange, title, description?, children, width?=480, footer? }`. Uses Radix Dialog for ARIA. Overlay `var(--io-modal-backdrop)` / `zIndex: 1000`. Content `var(--io-surface-elevated)` / `var(--io-radius-lg)` / `zIndex: 1001`.
+- **PaneConfigModal.tsx:** Token fixes only — overlay `rgba(0,0,0,0.55)` → `var(--io-modal-backdrop)`, content bg `var(--io-surface)` → `var(--io-surface-elevated)`, content borderRadius `8` → `var(--io-radius-lg)`. Already on Radix Dialog; no structural change.
+- **console/index.tsx WorkspaceNameModal:** Replaced hand-rolled overlay divs with Dialog wrapper. Title converges to 16px/600/text-primary (was 14px/text). Escape handling removed from input keyDown (Radix handles via onOpenChange).
+- **console/index.tsx DeleteConfirmDialog:** Replaced with Dialog. Bold workspace name preserved via `description?: React.ReactNode` (changed from `string` in initial cut after deep review).
+- **console/index.tsx CloseConfirmDialog:** Replaced with Dialog. Three-button footer works via `footer?: ReactNode` prop. Bold workspace name preserved via ReactNode description.
+- **RestorePreviewModal.tsx:** Replaced MODAL_OVERLAY + MODAL_BOX + header section with Dialog wrapper. Title/description rendered by Dialog. Top-right Cancel button removed (Radix Escape/overlay click replaces it). Diff table `flex: 1` changed to `maxHeight: 400px` (Dialog content not flex; explicit cap works for migration pass).
+- **TabClosePrompt.tsx:** Full rewrite using Dialog. Bold graphic name preserved via ReactNode description. Three-button footer.
+- **IographicExportDialog.tsx:** Replaced hand-rolled overlay with Dialog. Header × button removed. Graphic info block and description textarea in children.
+- **Consumers migrated:** 6 (`PaneConfigModal.tsx`, `WorkspaceNameModal` in console/index.tsx, `DeleteConfirmDialog` in console/index.tsx, `CloseConfirmDialog` in console/index.tsx, `RestorePreviewModal.tsx`, `TabClosePrompt.tsx`, `IographicExportDialog.tsx` — counting index.tsx as 3 separate consumers = 8 call sites total across 6 files)
+- **Consumers deferred:**
+  - `pages/settings/Certificates.tsx` — both dialogs already have `role="dialog"`, `aria-modal="true"`, `var(--io-modal-backdrop)`. ARIA gap already addressed; no migration needed.
+  - `pages/designer/components/ValidateBindingsDialog.tsx` — panel widget (`position: absolute`), not a modal overlay. Dialog.tsx not applicable.
+  - `pages/designer/components/VersionHistoryDialog.tsx` — already uses `VersionRecoveryDialog` (shared component); properly structured.
+  - `pages/designer/components/CanvasPropertiesDialog.tsx` — already has `role="dialog"`, `aria-modal="true"`. Primary ARIA gap addressed.
+  - `pages/designer/components/RecognitionWizard.tsx` — already has `role="dialog"`. Complex multi-step; no gain from wrapping.
+  - `pages/designer/components/IographicImportWizard.tsx` — complex multi-step wizard; more than substitution-level work.
+  - `pages/designer/components/CategoryShapeWizard.tsx` — complex multi-step wizard.
+  - `pages/designer/components/SaveAsStencilDialog.tsx` — rendered inside DesignerCanvas.tsx (Claim C scope).
+  - `pages/designer/components/ShapeDropDialog.tsx` — rendered inside DesignerCanvas.tsx (Claim C scope).
+  - `pages/designer/components/PromoteToShapeWizard.tsx` — rendered inside DesignerCanvas.tsx (Claim C scope).
+- `pnpm build` passed with no type errors.
 
 ---
 

@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { graphicsApi } from "../../../api/graphics";
+import { Dialog } from "../../../shared/components/Dialog";
 
 interface IographicExportDialogProps {
   graphicId: string;
@@ -28,13 +29,11 @@ export default function IographicExportDialog({
     setError(null);
     try {
       const blob = await graphicsApi.exportIographic(graphicId, description);
-      // Build a safe filename from the graphic name
       const slug = graphicName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
       const filename = `${slug}.iographic`;
-      // Trigger download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -52,63 +51,48 @@ export default function IographicExportDialog({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.6)",
-      }}
-    >
-      <div
-        style={{
-          background: "var(--io-surface-elevated)",
-          border: "1px solid var(--io-border)",
-          borderRadius: "var(--io-radius)",
-          padding: 24,
-          width: 420,
-          maxWidth: "90%",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: "var(--io-text-primary)",
-            }}
-          >
-            Export .iographic
-          </div>
+    <Dialog
+      open={true}
+      onOpenChange={(o) => !o && onClose()}
+      title="Export .iographic"
+      width={420}
+      footer={
+        <>
           <button
             onClick={onClose}
             style={{
+              padding: "6px 16px",
               background: "transparent",
-              border: "none",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              color: "var(--io-text-secondary)",
+              fontSize: 13,
               cursor: "pointer",
-              color: "var(--io-text-muted)",
-              fontSize: 18,
-              lineHeight: 1,
-              padding: 2,
             }}
           >
-            ×
+            Cancel
           </button>
-        </div>
-
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            style={{
+              padding: "6px 16px",
+              background: "var(--io-accent)",
+              border: "none",
+              borderRadius: "var(--io-radius)",
+              color: "#09090b",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: exporting ? "not-allowed" : "pointer",
+              opacity: exporting ? 0.7 : 1,
+            }}
+          >
+            {exporting ? "Exporting…" : "Export & Download"}
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Graphic info */}
         <div
           style={{
@@ -184,42 +168,7 @@ export default function IographicExportDialog({
             {error}
           </div>
         )}
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "6px 16px",
-              background: "transparent",
-              border: "1px solid var(--io-border)",
-              borderRadius: "var(--io-radius)",
-              color: "var(--io-text-secondary)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            style={{
-              padding: "6px 16px",
-              background: "var(--io-accent)",
-              border: "none",
-              borderRadius: "var(--io-radius)",
-              color: "#09090b",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: exporting ? "not-allowed" : "pointer",
-              opacity: exporting ? 0.7 : 1,
-            }}
-          >
-            {exporting ? "Exporting…" : "Export & Download"}
-          </button>
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
