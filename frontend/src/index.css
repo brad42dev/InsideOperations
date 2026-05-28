@@ -203,14 +203,16 @@ body {
   --io-text-code: 0.8125rem;
   --io-text-code-sm: 0.75rem;
 
-  /* Z-Index (12) */
+  /* Z-Index (14) */
   --io-z-base: 0;
   --io-z-panel: 10;
   --io-z-sidebar: 100;
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
   --io-z-dropdown: 500;
+  --io-z-canvas-overlay: 600;
   --io-z-modal: 1000;
+  --io-z-priority-modal: 1050;
   --io-z-command: 1200;
   --io-z-visual-lock: 1500;
   --io-z-kiosk-auth: 1800;
@@ -423,7 +425,9 @@ body {
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
   --io-z-dropdown: 500;
+  --io-z-canvas-overlay: 600;
   --io-z-modal: 1000;
+  --io-z-priority-modal: 1050;
   --io-z-command: 1200;
   --io-z-visual-lock: 1500;
   --io-z-kiosk-auth: 1800;
@@ -628,7 +632,9 @@ body {
   --io-z-topbar: 100;
   --io-z-edge-hover: 150;
   --io-z-dropdown: 500;
+  --io-z-canvas-overlay: 600;
   --io-z-modal: 1000;
+  --io-z-priority-modal: 1050;
   --io-z-command: 1200;
   --io-z-visual-lock: 1500;
   --io-z-kiosk-auth: 1800;

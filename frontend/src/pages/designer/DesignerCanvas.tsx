@@ -329,7 +329,7 @@ function NameGroupPrompt({
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
     inset: 0,
-    zIndex: 2000,
+    zIndex: "var(--io-z-modal)",
     background: "rgba(0,0,0,0.5)",
     display: "flex",
     alignItems: "center",
@@ -3747,7 +3747,7 @@ export default function DesignerCanvas({
             ghost.style.cssText = [
               "position:fixed",
               "pointer-events:none",
-              "z-index:9999",
+              "z-index:9999", // intentional exception: pointer-events:none transient drag indicator; must sit above all UI including emergency overlays; deliberately exempt from the token scale
               `left:${e.clientX}px`,
               `top:${e.clientY}px`,
               `width:${bb ? bb.width : 40}px`,
@@ -7686,7 +7686,7 @@ export default function DesignerCanvas({
                       strokeWidth={1 / zoom}
                       strokeDasharray={`${8 / zoom} ${4 / zoom}`}
                       pointerEvents="none"
-                      style={{ zIndex: -1 } as React.CSSProperties}
+                      style={{ zIndex: "calc(var(--io-z-base) - 1)" } as React.CSSProperties}
                     />
                   );
                 })()}
@@ -7991,7 +7991,7 @@ export default function DesignerCanvas({
                 position: "absolute",
                 inset: 0,
                 overflow: "hidden",
-                zIndex: 10,
+                zIndex: "var(--io-z-panel)",
               }}
               onMouseDown={(e) => e.stopPropagation()}
               onMouseMove={(e) => e.stopPropagation()}
@@ -8035,7 +8035,7 @@ export default function DesignerCanvas({
                       minWidth: 160,
                       overflow: "hidden",
                       fontSize: 12,
-                      zIndex: 1000,
+                      zIndex: "var(--io-z-canvas-overlay)",
                     }}
                   >
                     <ContextMenuPrimitive.Item
@@ -8219,7 +8219,7 @@ export default function DesignerCanvas({
                 borderRadius: "var(--io-radius)",
                 padding: "3px 10px",
                 fontSize: 11,
-                zIndex: 10,
+                zIndex: "var(--io-z-panel)",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
                 whiteSpace: "nowrap",
               }}
@@ -8299,7 +8299,7 @@ export default function DesignerCanvas({
                 position: "absolute",
                 inset: 0,
                 pointerEvents: "none",
-                zIndex: 15,
+                zIndex: "calc(var(--io-z-panel) + 5)",
                 overflow: "hidden",
               }}
             >
@@ -8374,7 +8374,7 @@ export default function DesignerCanvas({
                     lineHeight: 1.4,
                     padding: 0,
                     margin: 0,
-                    zIndex: 20,
+                    zIndex: "calc(var(--io-z-panel) + 10)",
                     overflow: "hidden",
                     whiteSpace: "pre",
                   }}
@@ -8618,7 +8618,7 @@ export default function DesignerCanvas({
               style={{
                 position: "fixed",
                 inset: 0,
-                zIndex: 1200,
+                zIndex: "var(--io-z-modal)",
                 background: "rgba(0,0,0,0.55)",
                 display: "flex",
                 alignItems: "center",
@@ -8925,7 +8925,7 @@ export default function DesignerCanvas({
                   style={{
                     position: "fixed",
                     inset: 0,
-                    zIndex: 3000,
+                    zIndex: "var(--io-z-emergency)",
                     cursor: "crosshair",
                   }}
                   onMouseMove={(e) => {
@@ -9423,7 +9423,7 @@ export default function DesignerCanvas({
                     position: "fixed",
                     top: slotPopover.screenY,
                     left: slotPopover.screenX,
-                    zIndex: 2000,
+                    zIndex: "var(--io-z-modal)",
                     background: "var(--io-surface-elevated)",
                     border: "1px solid var(--io-border)",
                     borderRadius: "var(--io-radius)",
@@ -9602,7 +9602,7 @@ export default function DesignerCanvas({
             bottom: 16,
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 2000,
+            zIndex: "var(--io-z-dropdown)",
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -9789,7 +9789,7 @@ function RulersOverlay({
           left: RULER_SIZE,
           width: `calc(100% - ${RULER_SIZE}px)`,
           height: RULER_SIZE,
-          zIndex: 10,
+          zIndex: "var(--io-z-panel)",
           cursor: "s-resize",
           pointerEvents: "all",
         }}
@@ -9811,7 +9811,7 @@ function RulersOverlay({
           left: 0,
           width: RULER_SIZE,
           height: `calc(100% - ${RULER_SIZE}px)`,
-          zIndex: 10,
+          zIndex: "var(--io-z-panel)",
           cursor: "e-resize",
           pointerEvents: "all",
         }}
@@ -9834,7 +9834,7 @@ function RulersOverlay({
           width: RULER_SIZE,
           height: RULER_SIZE,
           background: "var(--io-surface-elevated)",
-          zIndex: 11,
+          zIndex: "calc(var(--io-z-panel) + 1)",
           borderRight: "1px solid var(--io-border)",
           borderBottom: "1px solid var(--io-border)",
         }}
@@ -9860,7 +9860,7 @@ function RulersOverlay({
                     ? "rgba(255,160,0,0.5)"
                     : "rgba(0,200,255,0.5)",
                   cursor: g.locked ? "not-allowed" : "ew-resize",
-                  zIndex: 9,
+                  zIndex: "calc(var(--io-z-panel) - 1)",
                   pointerEvents: "all",
                 }
               : {
@@ -9873,7 +9873,7 @@ function RulersOverlay({
                     ? "rgba(255,160,0,0.5)"
                     : "rgba(0,200,255,0.5)",
                   cursor: g.locked ? "not-allowed" : "ns-resize",
-                  zIndex: 9,
+                  zIndex: "calc(var(--io-z-panel) - 1)",
                   pointerEvents: "all",
                 };
 
@@ -9914,7 +9914,7 @@ function RulersOverlay({
             minWidth: 160,
             overflow: "hidden",
             fontSize: 12,
-            zIndex: 1000,
+            zIndex: "var(--io-z-canvas-overlay)",
             padding: "3px 0",
           };
 
@@ -10268,7 +10268,7 @@ function DesignerContextMenuContent({
     minWidth: 180,
     overflow: "hidden",
     fontSize: 12,
-    zIndex: 1000,
+    zIndex: "var(--io-z-canvas-overlay)",
   };
 
   const subContentStyle: React.CSSProperties = {
