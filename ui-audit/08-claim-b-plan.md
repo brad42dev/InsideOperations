@@ -9,7 +9,7 @@
 
 ## Section 1 — Constants Files Plan
 
-### 1.1 `frontend/src/shared/styles/buttons.ts`
+### 1.1 `frontend/src/shared/styles/buttons.ts` — **DONE 2026-05-28**
 
 **Goal:** Replace the per-module button style systems with a single importable constants file. No React component; style objects only.
 
@@ -40,7 +40,7 @@
 | Primary text color | `#fff` hardcoded | `#09090b` or `#fff` hardcoded | `var(--io-text-on-accent)` (alias for `var(--io-accent-foreground)`) | `var(--io-accent-foreground)` | The canonical token; `--io-text-on-accent` is a Claim A alias for it. Both names work, canonical is preferred. |
 | borderRadius | 3–6 (inconsistent integers) | `var(--io-radius)` on IconBtn, `6` integer on text-actions | `var(--io-radius)` | `var(--io-radius)` | Settings and Designer IconBtn agree; Console inconsistency is the gap to close. `var(--io-radius)` = 6px currently. |
 | Secondary fontWeight | Not set (browser default 400) | Not set | Not set | `600` | The audit notes btnSecondary in Settings lacks fontWeight (Cat 6 Deviations). Should match primary for visual consistency at the same type size. Align all variants: 600. |
-| Hover state | None on any variant | IconBtn has `transition: background 0.1s, color 0.1s` | None | `transition: opacity 0.1s` or `:focus-visible` outline | Inline styles cannot express CSS pseudo-classes; constants file exports base style objects; hover requires a companion CSS file or Tailwind class. Plan: export `buttonHoverClass = "io-btn"` to pair with a minimal `shared/styles/buttons.css` that sets `:hover { opacity: 0.85 }` and `:focus-visible { outline: 2px solid var(--io-accent); outline-offset: 2px }`. Defer full DOM-mutation hover removal to consumer migration. |
+| Hover state | None on any variant | IconBtn has `transition: background 0.1s, color 0.1s` | None | `transition: opacity 0.1s` or `:focus-visible` outline | Inline styles cannot express CSS pseudo-classes; constants file exports base style objects; hover requires a companion CSS file or Tailwind class. Plan: export `buttonBaseClass = "io-btn"` to pair with a minimal `shared/styles/buttons.css` that sets `:hover { opacity: 0.85 }` and `:focus-visible { outline: 2px solid var(--io-accent); outline-offset: 2px }`. Defer full DOM-mutation hover removal to consumer migration. |
 | BulkUpdate.tsx BTN_SECONDARY background | `var(--io-surface-sunken)` | — | `transparent` (canonical) | `transparent` | BulkUpdate's secondary uses a surface bg instead of transparent; non-standard. Migrate to shared constants. |
 
 #### Variant specifications for `buttons.ts`
@@ -112,7 +112,7 @@ Also export a `buttonBaseClass = "io-btn"` string constant pairing with a compan
 
 ---
 
-### 1.2 `frontend/src/shared/styles/inputs.ts`
+### 1.2 `frontend/src/shared/styles/inputs.ts` — **DONE 2026-05-28**
 
 **Goal:** Single importable input style object replacing per-module duplicates. No React component.
 

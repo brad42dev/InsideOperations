@@ -1,0 +1,11 @@
+/* Companion to shared/styles/buttons.ts */
+/* Cat 6, Deviations: hover and focus-visible rules cannot be expressed as inline style objects */
+
+.io-btn:hover {
+  opacity: 0.85;
+}
+
+.io-btn:focus-visible {
+  outline: 2px solid var(--io-accent);
+  outline-offset: 2px;
+}

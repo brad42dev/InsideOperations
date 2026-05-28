@@ -1,0 +1,11 @@
+/* Companion to shared/styles/inputs.ts */
+/* Cat 7, Deviations: replaces outline:none pattern used across all three modules */
+/* Applies styled :focus-visible ring; browser default is suppressed only when a visible replacement is shown */
+
+input.io-input:focus-visible,
+select.io-input:focus-visible,
+textarea.io-input:focus-visible {
+  outline: 2px solid var(--io-accent);
+  outline-offset: 0;
+  border-color: var(--io-accent);
+}
