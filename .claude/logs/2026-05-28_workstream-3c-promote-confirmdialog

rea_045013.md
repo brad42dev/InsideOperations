@@ -3604,3 +3604,48 @@ _2026-05-28T05:13:55+00:00_
 
 ---
 
+
+## #PROMPT
+
+_2026-05-28T05:17:39+00:00_
+
+```
+git add -A
+git commit -m "Claim B: promote COMPONENT_NAME to shared location"
+```
+
+
+## #BASH
+_Stage all changes and show staged files_
+
+```bash
+cd /home/io/io-dev/io && git add -A && git diff --cached --name-only
+```
+
+
+## #BASH
+_Commit all staged changes_
+
+```bash
+git commit -m "$(cat <<'EOF'
+Claim B: patch ConfirmDialog tokens and migrate window.confirm() consumers
+
+Fix five hardcoded style values in shared/components/ConfirmDialog.tsx (z-index
+to var(--io-z-modal), background to var(--io-surface-elevated), borderRadius to
+var(--io-radius-lg), confirm color to var(--io-accent-foreground)). Replace
+window.confirm() in DesignerReportsList, DesignerDashboardsList, and CameraStreams
+with controlled ConfirmDialog state. 15 existing consumers inherit token fixes
+automatically.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+
+## #TURN_END
+
+_2026-05-28T05:17:39+00:00_
+
+---
+
