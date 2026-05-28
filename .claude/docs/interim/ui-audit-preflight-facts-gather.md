@@ -55,4 +55,7 @@ The six-section structure of `ui-audit/00-preflight-facts.md` maps directly to t
 
 <!-- IGNORE UNLESS SPECIFICALLY ASKED TO REVIEW DOCUMENT HISTORY -->
 ### 2026-05-28
+Wrapup pass: doc confirmed accurate against work unit log; no code changes occurred in this work unit. Work unit filename already present in work_units list.
+
+### 2026-05-28
 Initial creation. Describes the read-only preflight investigation work unit that produced `ui-audit/00-preflight-facts.md` with six evidence sections covering theme status, z-index distribution, alarm tokens, portal context, git state, and surface-tertiary scope.

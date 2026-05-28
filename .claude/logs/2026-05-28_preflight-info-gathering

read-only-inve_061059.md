@@ -7461,3 +7461,96 @@ _2026-05-28T06:29:36+00:00_
 
 ---
 
+
+## #PROMPT
+
+_2026-05-28T06:30:02+00:00_
+
+```
+commit
+```
+
+
+## #BASH
+_Check git status and diff_
+
+```bash
+git status --short && git diff --stat
+```
+
+
+## #BASH
+_Check recent commit style_
+
+```bash
+git log --oneline -5
+```
+
+
+## #BASH
+_Stage relevant files and commit_
+
+```bash
+git add ui-audit/00-preflight-facts.md \
+  ".claude/logs/2026-05-28_workstream-4-post-ab-review\n\nreview-and-_053822.md" \
+  ".claude/logs/2026-05-28_preflight-info-gathering\n\nread-only-inve_061059.md" \
+  ".claude/reviews/2026-05-28_preflight-info-gathering\n\nread-only-inve_061059_review_shallow_062819.md" \
+  ".claude/summaries/2026-05-28_preflight-info-gathering\n\nread-only-inve_061059_summary.md" \
+  .claude/docs/interim/ui-audit-preflight-facts-gather.md \
+  .claude/archive/ \
+  .claude/state/current_log.txt && \
+git commit -m "$(cat <<'EOF'
+Preflight: gather facts for Claim C (Workstream 5) pre-work
+
+Produces ui-audit/00-preflight-facts.md with six evidence sections:
+themes live (all three implemented + switchable), DesignerCanvas z-index
+inventory (19 hardcoded integers, stacking concern confirmed), alarm tokens
+present across all themes, DesignerCanvas has no react-grid-layout ancestor,
+git state clean, --io-surface-tertiary undefined with 4 active call sites.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+
+## #BASH
+_Stage files with glob patterns_
+
+```bash
+git add ui-audit/00-preflight-facts.md .claude/docs/interim/ui-audit-preflight-facts-gather.md .claude/archive/ .claude/state/current_log.txt && \
+git add ".claude/logs/" ".claude/reviews/" ".claude/summaries/" && \
+git status --short
+```
+
+
+## #BASH
+_Create commit_
+
+```bash
+git commit -m "$(cat <<'EOF'
+Preflight: gather facts for Claim C (Workstream 5) pre-work
+
+Produces ui-audit/00-preflight-facts.md with six evidence sections:
+themes live (all three implemented + switchable), DesignerCanvas z-index
+inventory (19 hardcoded integers, stacking concern confirmed), alarm tokens
+present across all themes, DesignerCanvas has no react-grid-layout ancestor,
+git state clean, --io-surface-tertiary undefined with 4 active call sites.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+
+## #TURN_END
+
+_2026-05-28T06:30:02+00:00_
+
+---
+
+
+## #WRITE `/home/io/io-dev/io/.claude/docs/interim/ui-audit-preflight-facts-gather.md` (4031 chars written)
+
+_2026-05-28T06:30:31+00:00_
+

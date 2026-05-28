@@ -183,11 +183,15 @@ From `07-future-work-notes.md` follow-up-promotions and deferred-consumer-migrat
 
 ### Should any of this clear before Claim C?
 
-**FP-1 — DC-6: Hex-alpha badge bug (Users.tsx, Roles.tsx, CameraStreams.tsx, MaintenanceTicketsPanel.tsx)**
+**FP-1 — DC-6: Hex-alpha badge bug (Users.tsx, Roles.tsx, CameraStreams.tsx, MaintenanceTicketsPanel.tsx)** ✅ RESOLVED 2026-05-28
 
 `07-future-work-notes.md` is explicit: *"Gate: Must complete before module rebuild."* This is a rendering bug — `${color}20` hex-alpha concatenation produces invalid CSS values when a CSS custom property string is passed as the color argument. The fix pattern is fully established (OpcSources fix, Claim A). Four files, same three-line `color-mix()` substitution each.
 
-**This should land before Claim C opens,** not because Claim C depends on it, but because: (a) it is explicitly gated as pre-rebuild, and Claim C precedes the rebuild; (b) it is a standalone bug fix that takes under an hour; (c) leaving active rendering bugs in the codebase while opening a canvas-layer workstream is the wrong sequencing.
+**Fixed (Workstream 4.5c):** Each file had a local badge component (not shared). Changed `${color}20` → `color-mix(in srgb, ${color} 12%, transparent)` and `${color}40` → `color-mix(in srgb, ${color} 25%, transparent)` in:
+- `Users.tsx` — `Badge` component (lines 108, 110)
+- `Roles.tsx` — `Badge` component (lines 51, 53)
+- `CameraStreams.tsx` — `VisibilityBadge` component (lines 786, 788)
+- `MaintenanceTicketsPanel.tsx` — `StatusPill` component (line 52, background only — no border)
 
 **FP-2 — DC-3: ContextMenu danger-item token fix**
 
@@ -318,7 +322,7 @@ From `07-future-work-notes.md` hard constraints and Claim B additions:
 
 The following are explicitly gated as pre-rebuild or should happen before the rebuild begins:
 
-1. **FP-1 (DC-6 hex-alpha bug)** — `Users.tsx`, `Roles.tsx`, `CameraStreams.tsx`, `MaintenanceTicketsPanel.tsx` — rendering bug. Listed in `07-future-work-notes.md` as *"Gate: Must complete before module rebuild."* Small standalone PR.
+1. ~~**FP-1 (DC-6 hex-alpha bug)** — `Users.tsx`, `Roles.tsx`, `CameraStreams.tsx`, `MaintenanceTicketsPanel.tsx` — rendering bug. Listed in `07-future-work-notes.md` as *"Gate: Must complete before module rebuild."* Small standalone PR.~~ ✅ RESOLVED 2026-05-28 (Workstream 4.5c)
 
 2. **FP-3 (DC-5 DesignerLeftPalette local DeleteConfirmDialog)** — single-file consumer migration. Should complete before the Designer module rebuild begins.
 

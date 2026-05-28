@@ -49,7 +49,7 @@ function StatusPill({ status }: { status: string }) {
         borderRadius: 999,
         fontSize: 10,
         fontWeight: 600,
-        background: `${color}20`,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
         color,
         textTransform: "capitalize",
         whiteSpace: "nowrap",
