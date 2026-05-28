@@ -3,7 +3,7 @@
 **Derived from:** `ui-audit/02-comparison.md` (post-reconciliation), `ui-audit/04-recommendations.md`, `ui-audit/05-claim-c-deferral.md`, `ui-audit/06-claim-a-plan.md`  
 **Scope:** `shared/styles/` constants files (buttons, inputs); four promoted components (FieldLabel, StatusBadge, Dialog, ConfirmDialog). Excludes Claim C canvas layer.  
 **Date:** 2026-05-28  
-**Status:** Planning  
+**Status:** Complete 2026-05-28  
 
 ---
 
@@ -657,3 +657,57 @@ The following are explicitly **out of scope** for this workstream:
 9. **ContextMenu token fix.** The `var(--io-alarm-urgent)` → `var(--io-danger)` fix in ContextMenu.tsx is a bug fix, not a component promotion. It can land any time as a standalone PR but is not gated on or gating this workstream.
 
 10. **settingsStyles.ts removal.** The existing `settingsStyles.ts` is not deleted as part of this workstream. Consumer migration happens file-by-file; settingsStyles.ts remains as a compatibility shim until all its consumers are migrated in a follow-up pass.
+
+---
+
+## Section 8 — Lessons from Claim B
+
+**Workstream declared complete 2026-05-28.**
+
+### L1 — Was the conservative initial scope the right call?
+
+Yes. The initial scope (2 constants files + 4 components) was exactly right.
+
+The four component promotions were all cleaner to execute than a larger scope would have been. Nothing required heroics. FieldLabel and StatusBadge were mechanical replacements — zero call-site changes for the primary consumers. Dialog and ConfirmDialog were more complex (consumer-by-consumer rewrites), but each migration was self-contained and build-verified. There was no accumulated complexity from tackling more than four components at once.
+
+The Section 6 candidates (DC-1 through DC-6) remained correctly deferred. Nothing in the execution surfaced a reason to pull them in. The wizard dialogs (IographicImportWizard, CategoryShapeWizard) validated the exclusion: they are multi-step flows where the Dialog wrapper would add structure without simplifying the complexity. Leaving them deferred was correct.
+
+One soft lesson: the consumer migration pass is inherently slower than the promotion pass. Two constants files were created in one phase; consuming them fully across 10+ files is a separate workstream. Future plans should be explicit that "create the shared artifact" and "migrate all consumers" are different work items with different timelines.
+
+### L2 — Which Section 6 candidates now have strong enough evidence to promote in a near-term follow-up pass?
+
+Ordered by readiness:
+
+**DC-6 (Hex-alpha badge bug fix) — Ready now.** Not a promotion; a bug fix. Pattern fully established (OpcSources fix in Claim A). Four files, same three-line fix each. Should land as a standalone PR before the module rebuild begins. No planning needed.
+
+**DC-3 (ContextMenu danger-item token fix) — Ready now.** One-line token replacement. `var(--io-alarm-urgent)` → `var(--io-danger)` in `shared/components/ContextMenu.tsx`. No planning needed.
+
+**DC-5 (DeleteConfirmDialog in DesignerLeftPalette) — Ready in next consumer migration pass.** The shared ConfirmDialog is now correctly patched. Migrating the local `DeleteConfirmDialog` at `DesignerLeftPalette.tsx:217` is a single-file consumer migration with no design decisions required.
+
+**DC-4 (SectionLabel component) — Promote in module-rebuild planning pass.** Three modules have converged on 11px/600/uppercase/0.06em for group headers. Enough evidence exists. Promote when the first rebuilt module needs a side-panel section header — at that point the component pays back immediately and locks in the convention.
+
+**DC-1 (IconBtn) — Evaluate after buttons.ts consumer migration.** The hover/transition behavior of IconBtn is the best in the codebase, but Console and Settings don't yet have icon-button patterns to compare it against. After buttons.ts consumer migration, assess whether the className-based approach in buttons.css is sufficient or whether a shared component adds value. Do not promote prematurely.
+
+**DC-2 (SettingsPageLayout) — Evaluate at module-rebuild start.** Moving `SettingsPageLayout` from `pages/settings/` to `shared/components/` is a path change with no behavioral change. Do it at the point when the first rebuilt module needs a consistent page-level heading — not before. Low risk, low urgency.
+
+### L3 — Did any API choice show signs of becoming a wrong abstraction?
+
+**Dialog.description: ReactNode (intentional drift, well-contained).** The plan specified `string`; execution upgraded to `React.ReactNode` because three consumers needed bold/formatted content (workspace names, graphic names). The change is backward-compatible and the pressure came from real consumer needs, not aesthetics. Not a wrong abstraction — a correct response to discovered requirements. Keep it.
+
+**Dialog.tsx z-index literals (minor inconsistency, not a wrong abstraction).** Dialog uses numeric `1000`/`1001` with comments; ConfirmDialog uses `"var(--io-z-modal)"` CSS token strings. Both work. The inconsistency only matters if the z-index scale changes. Fix in a cleanup pass, not a workstream. Low urgency.
+
+**`--io-surface-tertiary` undefined (token gap, not a component API issue).** StatusBadge's muted-state plan referenced `--io-surface-tertiary` (inherited from Import.tsx base), which is not registered in index.css. Substituted `--io-surface-secondary`. The component API is fine; the token registry has an implicit gap. Flag for a token audit: either register `--io-surface-tertiary` as distinct from `--io-surface-secondary`, or formally adopt `--io-surface-secondary` as canonical for muted badge backgrounds.
+
+**StatusBadge `inactive` → danger semantic (UX flag, not an API issue).** The plan maps `inactive` to danger (red). OpcSources previously showed it as muted. A manually-disabled OPC source now shows a red badge, which may cause alarm fatigue. The component API is correct (the mapping is a deliberate choice, not an accident). Flag for UX review when OpcSources gets its dedicated pass.
+
+No API choice needs to be reversed before the module rebuild.
+
+### L4 — What should change about how the next promotion pass is planned?
+
+**Separate "create artifact" from "migrate consumers" explicitly in the plan.** This workstream completed both for some items and only the first for others. The checkin revealed that all Section 5 DoD criteria were met, but the consumer migration tables had a long tail. Future plans should have two distinct completion criteria: (a) artifact created and primary consumer migrated, and (b) full consumer migration complete. Mark (a) as "Claim B done" and (b) as "follow-up pass."
+
+**Run DC-6 and DC-3 as background fixes, not workstream items.** These are one-file bug fixes with no design decisions. They don't need a plan section — they need a PR. Block the module rebuild on them, not on a future workstream declaration.
+
+**Inventory consumers before planning sequencing.** This workstream planned sequencing (Phases 1–5) from the audit findings. At execution time, the window.confirm() grep found different files than the plan listed (OpcSources and Import had already been addressed; DesignerReportsList and DesignerDashboardsList were new). A pre-execution grep of every consumer type (button styles, input styles, StatusBadge usages, Dialog patterns) should be a mandatory first step in future promotion plans, not something discovered mid-execution.
+
+**Plan for the deferred wizard dialogs separately.** The multi-step wizard dialogs (IographicImportWizard, CategoryShapeWizard, PromoteToShapeWizard, RecognitionWizard) need their own pass with a different approach: not wrapping in Dialog but auditing their step indicator patterns, reviewing ARIA, and standardizing the visual vocabulary. Lumping them with simpler Dialog migrations in a future plan would mix unrelated work.

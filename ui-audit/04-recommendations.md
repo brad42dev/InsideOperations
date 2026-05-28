@@ -177,13 +177,14 @@ When this work is complete:
   - `btnSecondary`: transparent bg, `var(--io-text-secondary)` text, `1px solid var(--io-border)`, `var(--io-radius)`, matching font-weight (600)
   - `btnDanger`: same structure as secondary but `var(--io-danger)` text and border
   - `btnSmall`: size modifier only
-- Migrate: Console toolbar + modal buttons to the shared file
-- Migrate: Designer text-action buttons and Stencil/Import primary buttons to the shared file; leave `IconBtn` as-is (it is already a good local primitive)
-- Merge: `BulkUpdate.tsx` `BTN_PRIMARY`/etc. → import from shared file
-- Fix: Designer StatusBar segments `<div onClick>` → `<button>` (see Cat 3)
-- Fix: Add CSS hover states to all button variants; remove all `onMouseEnter`/`onMouseLeave` style mutations on buttons
-- Fix: `DesignerImport` fallback `#3b82f6` primary button background → `var(--io-accent)`
-- Fix: All destructive button inconsistency in Designer (ghost rgba vs solid fill) → standardize on `btnDanger` solid pattern
+  - **Status: Implemented 2026-05-28 (Claim B).** `shared/styles/buttons.ts` and companion `shared/styles/buttons.css` created. All four variants with corrected tokens. `:hover` opacity and `:focus-visible` outline in companion CSS. Consumer migration deferred — see 08-claim-b-plan.md Section 1.1.
+- Migrate: Console toolbar + modal buttons to the shared file — **Status: Deferred.** Consumer migration pass; see 08-claim-b-plan.md Section 1.1 consumer tables.
+- Migrate: Designer text-action buttons and Stencil/Import primary buttons to the shared file; leave `IconBtn` as-is (it is already a good local primitive) — **Status: Deferred.** Consumer migration pass.
+- Merge: `BulkUpdate.tsx` `BTN_PRIMARY`/etc. → import from shared file — **Status: Deferred.** Consumer migration pass.
+- Fix: Designer StatusBar segments `<div onClick>` → `<button>` (see Cat 3) — **Status: Deferred.** Out of Claim B scope.
+- Fix: Add CSS hover states to all button variants; remove all `onMouseEnter`/`onMouseLeave` style mutations on buttons — **Status: Partially implemented 2026-05-28 (Claim B).** Companion `buttons.css` adds `:hover` opacity and `:focus-visible` outline for elements using `buttonBaseClass`; DOM-mutation removal deferred to Phase 5 (each consumer must opt in by spreading the className).
+- Fix: `DesignerImport` fallback `#3b82f6` primary button background → `var(--io-accent)` — **Status: Deferred.** Consumer migration pass.
+- Fix: All destructive button inconsistency in Designer (ghost rgba vs solid fill) → standardize on `btnDanger` solid pattern — **Status: Deferred.** Consumer migration pass.
 
 **Build new:** `shared/styles/buttons.ts` (constants file, not a component).
 
@@ -196,14 +197,14 @@ When this work is complete:
 **Adopt:** Standard input object: `background: var(--io-surface-sunken)`, `border: 1px solid var(--io-border)`, `borderRadius: var(--io-radius)`, `padding: 8px 10px`, `fontSize: 13px`, `color: var(--io-text-primary)`. Use `--io-input-bg` and `--io-input-border` tokens where applicable (Designer's ShapePointSelector already does this correctly and can serve as validation that the tokens work).
 
 **Actions:**
-- Create: `frontend/src/shared/styles/inputs.ts` with `inputStyle` and `labelStyle` objects
-- Migrate: Console `PaneConfigModal`, `PaneWrapper`, `ConsolePalette` inputs to shared inputStyle
-- Migrate: Designer `DesignerRightPanel inputStyle`, `PointPickerModal` inputs to shared inputStyle
-- Migrate: Settings `Import.tsx`, `BulkUpdate.tsx`, `Sessions.tsx` (the current diverging cases) to the shared inputStyle
-- Fix (accessibility — all modules): Remove `outline: none` and replace with `outline: 2px solid var(--io-accent)` on `:focus-visible`. This is a wide change; use the shared constants file so it's fixed in one place.
-- Fix: `fontFamily: monospace` → `var(--io-font-mono)` in Console `PaneConfigModal` and Settings `Groups.tsx`
-- Fix: `AuthProviders.tsx` — remove the `<style>` tag injected for checkbox `accent-color`; use the `accentColor: "var(--io-accent)"` inline style already used by other pages
-- Keep: Designer `ThemedColorSelect` as a module-local specialized component (restricts to ISA-101 token pairs — this is domain logic, not a shared concern)
+- Create: `frontend/src/shared/styles/inputs.ts` with `inputStyle` and `labelStyle` objects — **Status: Implemented 2026-05-28 (Claim B).** `shared/styles/inputs.ts` (`inputStyle` + `inputClassName`) and companion `shared/styles/inputs.css` (`:focus-visible` ring) created. No `outline:none` in `inputStyle`. Consumer migration deferred.
+- Migrate: Console `PaneConfigModal`, `PaneWrapper`, `ConsolePalette` inputs to shared inputStyle — **Status: Deferred.** Consumer migration pass; see 08-claim-b-plan.md Section 1.2 consumer tables.
+- Migrate: Designer `DesignerRightPanel inputStyle`, `PointPickerModal` inputs to shared inputStyle — **Status: Deferred.** `DesignerRightPanel` compact inspector inputs intentionally excluded (see Section 1.2 scope note).
+- Migrate: Settings `Import.tsx`, `BulkUpdate.tsx`, `Sessions.tsx` (the current diverging cases) to the shared inputStyle — **Status: Deferred.** Consumer migration pass.
+- Fix (accessibility — all modules): Remove `outline: none` and replace with `outline: 2px solid var(--io-accent)` on `:focus-visible`. This is a wide change; use the shared constants file so it's fixed in one place. — **Status: Partially implemented 2026-05-28 (Claim B).** `inputs.css` companion provides `:focus-visible` ring for elements using `inputClassName`; `outline:none` removal in individual files deferred to consumer migration pass.
+- Fix: `fontFamily: monospace` → `var(--io-font-mono)` in Console `PaneConfigModal` and Settings `Groups.tsx` — **Status: Deferred.** Phase 5 polish.
+- Fix: `AuthProviders.tsx` — remove the `<style>` tag injected for checkbox `accent-color`; use the `accentColor: "var(--io-accent)"` inline style already used by other pages — **Status: Deferred.** Phase 5 polish.
+- Keep: Designer `ThemedColorSelect` as a module-local specialized component (restricts to ISA-101 token pairs — this is domain logic, not a shared concern) — **Confirmed.**
 
 **Build new:** `shared/styles/inputs.ts` (constants file, not a component).
 
@@ -216,14 +217,14 @@ When this work is complete:
 **Build new:** `shared/components/StatusBadge.tsx` — a simple component accepting `status` (connected/disconnected/error/warning/info/running/etc.) and optional `label` props, rendering with the correct token pair for each state. This is the one new component where a React component (not just a constants object) is warranted, because the rendering logic (which token pair, whether to show dot vs pill vs text) is non-trivial and repeated five different ways in Settings alone.
 
 **Actions:**
-- Fix (functional regression): `OpcSources StatusBadge` hex-alpha concat bug — `${color}20` → `color-mix(in srgb, ${color} 12%, transparent)` or migrate to shared `StatusBadge` component
-- Migrate: All five Settings StatusBadge implementations → shared component
-- Migrate: Console connection dots and priority/state/quality badges → shared component or token-based inline styles
-- Migrate: Designer WS dot, dirty indicator, READ-ONLY badge → use token colors (minimum); migrate to shared component where appropriate
-- Fix: Designer TEST MODE `<style>` tag injection → CSS class + token-based keyframe, remove the inline `<style>` element
-- Fix: Console published dot `#10b981` → `var(--io-success)`
-- Fix: All connection dot glow shadows `#22c55e` → `var(--io-success)` (or remove glow if it introduces complexity)
-- Fix: `alarmFlash.css` — migrate `#ef4444`, `#f97316`, `#eab308`, `#f4f4f5`, `#60a5fa` to `--io-alarm-urgent`, `--io-alarm-high`, `--io-alarm-low`, `--io-alarm-diagnostic`, `--io-alarm-custom` tokens. This is the correct fix for theme adaptation; the off-state `#808080` has no token equivalent and should be defined (`--io-alarm-inactive: #808080`).
+- Fix (functional regression): `OpcSources StatusBadge` hex-alpha concat bug — `${color}20` → `color-mix(in srgb, ${color} 12%, transparent)` or migrate to shared `StatusBadge` component — **Status: Fixed 2026-05-27 (Claim A regression pass)** and subsequently migrated to shared component 2026-05-28 (Claim B).
+- Migrate: All five Settings StatusBadge implementations → shared component — **Status: Partially implemented 2026-05-28 (Claim B).** `Import.tsx`, `OpcSources.tsx`, `SystemHealth.tsx`, `Email.tsx` migrated (4 of 5). `PointManagement.tsx ActiveBadge` deferred (boolean API mismatch, not a StatusBadge substitution). `Users.tsx`/`Roles.tsx`/`CameraStreams.tsx`/`MaintenanceTicketsPanel.tsx` `Badge` with hex-alpha bug deferred to DC-6 bug-fix pass.
+- Migrate: Console connection dots and priority/state/quality badges → shared component or token-based inline styles — **Status: Deferred.** Console alarm-domain badges (PriorityBadge, StateBadge, QualityBadge) have different semantic vocabulary; deferred to Claim C / alarm token work.
+- Migrate: Designer WS dot, dirty indicator, READ-ONLY badge → use token colors (minimum); migrate to shared component where appropriate — **Status: Deferred.** Designer status indicator token migration deferred.
+- Fix: Designer TEST MODE `<style>` tag injection → CSS class + token-based keyframe, remove the inline `<style>` element — **Status: Deferred.** Out of Claim B scope.
+- Fix: Console published dot `#10b981` → `var(--io-success)` — **Status: Deferred.** Token-replacement pass.
+- Fix: All connection dot glow shadows `#22c55e` → `var(--io-success)` (or remove glow if it introduces complexity) — **Status: Deferred.**
+- Fix: `alarmFlash.css` — migrate `#ef4444`, `#f97316`, `#eab308`, `#f4f4f5`, `#60a5fa` to `--io-alarm-urgent`, `--io-alarm-high`, `--io-alarm-low`, `--io-alarm-diagnostic`, `--io-alarm-custom` tokens. This is the correct fix for theme adaptation; the off-state `#808080` has no token equivalent and should be defined (`--io-alarm-inactive: #808080`). — **Status: Deferred.** Claim C scope; `--io-alarm-inactive` token already defined by Claim A (A11).
 
 **Do not change:** `operationalState.css` — ISA-101 hardcoded colors are intentional and documented.
 
@@ -236,14 +237,14 @@ When this work is complete:
 2. `FieldLabel` from `DesignerRightPanel` — promote to `shared/components/FieldLabel.tsx`
 
 **Actions:**
-- Promote: `DesignerRightPanel.tsx` `FieldLabel` (lines 201–203) → `shared/components/FieldLabel.tsx`. Minimal changes: standardize size to 11px (from 10px) to align with the Cat 2 table convention; keep other properties (`/600/uppercase/0.05em/--io-text-muted`).
-- Adopt: `FieldLabel` in Console `PaneConfigModal` and Settings pages to replace inline `<div>`-based form labels
-- Adopt: `SettingsPageLayout` pattern — evaluate extending it to Console's `PaneConfigModal` header and Designer's view-level headers as applicable
-- Fix: `var(--io-text)` undefined in Console/Designer dialog titles → `var(--io-text-primary)`
-- Fix: Inconsistent `letterSpacing` across uppercase labels → standardize on 0.06em
-- Fix: Console — no semantic heading elements anywhere; add `<h2>` for page/section titles where appropriate
-- Fix: Designer `SymbolLibrary` — `<h2>` elements with inconsistent sizes (15px/600 vs 16px/700 within same file) → pick one and apply consistently
-- Do not change: Settings `SettingsPageLayout` `<h2>` page title — correct semantic for a sub-page context
+- Promote: `DesignerRightPanel.tsx` `FieldLabel` (lines 201–203) → `shared/components/FieldLabel.tsx`. Minimal changes: standardize size to 11px (from 10px) to align with the Cat 2 table convention; keep other properties (`/600/uppercase/0.05em/--io-text-muted`). — **Status: Implemented 2026-05-28 (Claim B).** `shared/components/FieldLabel.tsx` created; `DesignerRightPanel.tsx` local definition removed; all 14+ call sites inherit automatically.
+- Adopt: `FieldLabel` in Console `PaneConfigModal` and Settings pages to replace inline `<div>`-based form labels — **Status: Partially implemented 2026-05-28 (Claim B).** `PaneConfigModal.tsx` 6 field labels migrated. Settings `labelStyle` users intentionally not migrated (12px/500/no-uppercase — visually distinct convention).
+- Adopt: `SettingsPageLayout` pattern — evaluate extending it to Console's `PaneConfigModal` header and Designer's view-level headers as applicable — **Status: Deferred.** Phase 5 / module rebuild; see DC-2 in 08-claim-b-plan.md Section 6.
+- Fix: `var(--io-text)` undefined in Console/Designer dialog titles → `var(--io-text-primary)` — **Status: Fixed 2026-05-27 (Claim A / 2b — A2).** Token defined as alias.
+- Fix: Inconsistent `letterSpacing` across uppercase labels → standardize on 0.06em — **Status: Partially implemented 2026-05-27 (Claim A / 2c — B4).** Settings nav group corrected. Other contexts deferred to Phase 5.
+- Fix: Console — no semantic heading elements anywhere; add `<h2>` for page/section titles where appropriate — **Status: Deferred.** Phase 5 polish.
+- Fix: Designer `SymbolLibrary` — `<h2>` elements with inconsistent sizes (15px/600 vs 16px/700 within same file) → pick one and apply consistently — **Status: Deferred.** Phase 5 polish.
+- Do not change: Settings `SettingsPageLayout` `<h2>` page title — correct semantic for a sub-page context — **Confirmed.**
 
 ---
 
@@ -272,21 +273,25 @@ When this work is complete:
 
 **Actions:**
 
-- Fix (token): Standardize z-index values. `--io-z-modal: 300` is misaligned with actual usage (1000–9999). Either raise the token to 1000 minimum, or define a z-index scale (`--io-z-dropdown: 200`, `--io-z-modal: 1000`, `--io-z-toast: 2000`). Do not leave the token at 300 when no dialog uses it. — **Status: Implemented 2026-05-27 (Claim A / 2b — A13). Full scale chosen (Option B): dropdown:500, modal:1000, command:1200, visual-lock:1500, kiosk-auth:1800, toast:2000, emergency:3000. Applied to all three themes. `CommandPalette.tsx` wired to `var(--io-z-command)`. Code-level migration of hardcoded z-index values deferred to Claim B.**
-- Fix (token): `--io-modal-backdrop` is already defined and used in ≥6 Settings files. Console and Designer should migrate to it from hardcoded `rgba(0,0,0,0.5–0.6)`.
-- Fix (accessibility, urgent): `RestorePreviewModal.tsx` — add `role="dialog"` and `aria-modal="true"`. This is the highest-priority ARIA gap because it appears on a destructive-adjacent action path.
-- Fix (accessibility): Console inline modals (3 dialogs in `index.tsx`) — add `role="dialog"` and `aria-modal`.
-- Fix (accessibility): Settings `Import.tsx` Modal/Drawer and `OpcSources ManageCategoriesModal` — add ARIA.
+- Fix (token): Standardize z-index values. `--io-z-modal: 300` is misaligned with actual usage (1000–9999). Either raise the token to 1000 minimum, or define a z-index scale (`--io-z-dropdown: 200`, `--io-z-modal: 1000`, `--io-z-toast: 2000`). Do not leave the token at 300 when no dialog uses it. — **Status: Implemented 2026-05-27 (Claim A / 2b — A13). Full scale chosen (Option B): dropdown:500, modal:1000, command:1200, visual-lock:1500, kiosk-auth:1800, toast:2000, emergency:3000. Applied to all three themes. `CommandPalette.tsx` wired to `var(--io-z-command)`. Code-level migration: `ConfirmDialog.tsx` patched 2026-05-28 (Claim B); `Dialog.tsx` uses numeric literals with comments (minor consistency gap — see 08c-components-checkin Check 4).**
+- Fix (token): `--io-modal-backdrop` is already defined and used in ≥6 Settings files. Console and Designer should migrate to it from hardcoded `rgba(0,0,0,0.5–0.6)`. — **Status: Partially implemented 2026-05-28 (Claim B).** All new `Dialog.tsx` consumers (Console inline modals, RestorePreviewModal, TabClosePrompt, IographicExportDialog) now use `var(--io-modal-backdrop)`. Unmigrated dialogs still use hardcoded values.
+- Fix (accessibility, urgent): `RestorePreviewModal.tsx` — add `role="dialog"` and `aria-modal="true"`. This is the highest-priority ARIA gap because it appears on a destructive-adjacent action path. — **Status: Implemented 2026-05-28 (Claim B).** Replaced with `shared/components/Dialog` wrapper; Radix provides ARIA automatically.
+- Fix (accessibility): Console inline modals (3 dialogs in `index.tsx`) — add `role="dialog"` and `aria-modal`. — **Status: Implemented 2026-05-28 (Claim B).** All three replaced with Dialog wrapper.
+- Fix (accessibility): Settings `Import.tsx` Modal/Drawer and `OpcSources ManageCategoriesModal` — add ARIA. — **Status: Deferred.** Not in Claim B scope; see 07-future-work-notes.md deferred-consumer-migrations.
 - Fix: Replace all 8 `window.confirm()` calls with `ConfirmDialog`:
-  - OpcSources.tsx (3 calls)
-  - Import.tsx (3 calls)
-  - CameraStreams.tsx (1 call)
-  - SupplementalConnectorsTab.tsx (1 call)
-- Fix: Standardize `borderRadius` to `var(--io-radius-lg)` across all modals (currently 8, 9, 10, 12px scattered)
-- Fix: Standardize modal content background to `var(--io-surface-elevated)` (currently mixed with `--io-surface`, `--io-surface-secondary`, `--io-surface-primary`)
-- Fix: Designer primary button text in dialogs — `#09090b`/`#fff` hardcoded → `var(--io-accent-foreground)` (after shared buttons.ts is in place, this is automatic)
-- Fix: Designer error color mixing (`--io-alarm-high` for errors in wrong domain, `--io-error` undefined) → use `--io-danger` consistently — **Status: Token prerequisite implemented 2026-05-27 (Claim A / 2b — A6). `--io-error` defined as alias for `--io-danger`; references in DesignerCanvas context menu now resolve. Code-level audit of `--io-alarm-high` misuses deferred to Claim B.**
-- Fix: Designer step indicator inconsistency across 5 wizard dialogs — define one step indicator pattern (not blocked by other work but needs its own task)
+  - OpcSources.tsx (3 calls) — **Status: Pre-empted.** At Claim B execution time, grep found 0 remaining calls in OpcSources — resolved before this workstream.
+  - Import.tsx (3 calls) — **Status: Pre-empted.** At Claim B execution time, grep found 0 remaining calls in Import — resolved before this workstream.
+  - CameraStreams.tsx (1 call) — **Status: Implemented 2026-05-28 (Claim B).**
+  - SupplementalConnectorsTab.tsx (1 call) — **Status: Pre-empted.** At Claim B execution time, grep found 0 remaining calls — resolved before this workstream.
+  - `DesignerReportsList.tsx` (1 call, discovered at execution) — **Status: Implemented 2026-05-28 (Claim B).**
+  - `DesignerDashboardsList.tsx` (1 call, discovered at execution) — **Status: Implemented 2026-05-28 (Claim B).**
+  - `dashboards/index.tsx` (1 call) — **Status: Deferred.** Dashboards module, out of scope per 08-claim-b-plan.md Section 7 Item 8.
+  - `PlaylistManager.tsx` (1 call) — **Status: Deferred.** Dashboards module, out of scope.
+- Fix: Standardize `borderRadius` to `var(--io-radius-lg)` across all modals (currently 8, 9, 10, 12px scattered) — **Status: Partially implemented 2026-05-28 (Claim B).** Migrated Dialog consumers use `var(--io-radius-lg)`; `ConfirmDialog.tsx` patched to `var(--io-radius-lg)`. Unmigrated dialogs deferred.
+- Fix: Standardize modal content background to `var(--io-surface-elevated)` (currently mixed with `--io-surface`, `--io-surface-secondary`, `--io-surface-primary`) — **Status: Partially implemented 2026-05-28 (Claim B).** Migrated Dialog consumers and `ConfirmDialog.tsx` now use `var(--io-surface-elevated)`. Unmigrated dialogs deferred.
+- Fix: Designer primary button text in dialogs — `#09090b`/`#fff` hardcoded → `var(--io-accent-foreground)` (after shared buttons.ts is in place, this is automatic) — **Status: Deferred.** `buttons.ts` exists; fix is automatic once consumers migrate; consumer migration deferred.
+- Fix: Designer error color mixing (`--io-alarm-high` for errors in wrong domain, `--io-error` undefined) → use `--io-danger` consistently — **Status: Token prerequisite implemented 2026-05-27 (Claim A / 2b — A6). `--io-error` defined as alias for `--io-danger`; references in DesignerCanvas context menu now resolve. Code-level audit of `--io-alarm-high` misuses deferred.**
+- Fix: Designer step indicator inconsistency across 5 wizard dialogs — define one step indicator pattern (not blocked by other work but needs its own task) — **Status: Deferred.** Wizard dialogs not migrated in Claim B (multi-step complexity; see 08-claim-b-plan.md Section 7 Item 7).
 
 ---
 
@@ -321,12 +326,12 @@ These are bugs visible at runtime, not polish issues.
 
 Depends on: Phase 1 token fixes (so constants reference valid tokens).
 
-1. Create `shared/styles/buttons.ts` with corrected `btnPrimary`, `btnSecondary`, `btnDanger`, `btnSmall` variants.
-2. Create `shared/styles/inputs.ts` with standard `inputStyle` (including focus ring; remove `outline: none`).
-3. Migrate Console button and input inline styles to shared constants.
-4. Migrate Designer text-action buttons and import buttons to `buttons.ts`; migrate `DesignerRightPanel inputStyle` and `PointPickerModal` to `inputs.ts`.
-5. Migrate Settings `Import.tsx`, `BulkUpdate.tsx`, `Sessions.tsx` diverging buttons and inputs to shared constants.
-6. Fix `accentColor` / font-family regressions (OpcSources `<style>` tag, monospace font references) as part of input migration.
+1. Create `shared/styles/buttons.ts` with corrected `btnPrimary`, `btnSecondary`, `btnDanger`, `btnSmall` variants. — **Done 2026-05-28 (Claim B).**
+2. Create `shared/styles/inputs.ts` with standard `inputStyle` (including focus ring; remove `outline: none`). — **Done 2026-05-28 (Claim B).**
+3. Migrate Console button and input inline styles to shared constants. — **Deferred.** Consumer migration pass.
+4. Migrate Designer text-action buttons and import buttons to `buttons.ts`; migrate `DesignerRightPanel inputStyle` and `PointPickerModal` to `inputs.ts`. — **Deferred.** Consumer migration pass.
+5. Migrate Settings `Import.tsx`, `BulkUpdate.tsx`, `Sessions.tsx` diverging buttons and inputs to shared constants. — **Deferred.** Consumer migration pass.
+6. Fix `accentColor` / font-family regressions (OpcSources `<style>` tag, monospace font references) as part of input migration. — **Deferred.** Phase 5 polish.
 
 **Unblocks:** Phase 4 modal work (button styles inside dialogs) and Cat 6/7 cleanup across all modules.
 
@@ -334,11 +339,11 @@ Depends on: Phase 1 token fixes (so constants reference valid tokens).
 
 Depends on: Phase 3 constants (dialogs need buttons; StatusBadge needs token pairs from Phase 1).
 
-1. Promote `FieldLabel` to `shared/components/FieldLabel.tsx`. Migrate usage in Console and Settings.
-2. Build `shared/components/StatusBadge.tsx`. Migrate all five Settings implementations, Console priority/state/quality badges, Designer badge indicators.
-3. Build `shared/components/Dialog.tsx` (thin wrapper: ARIA, backdrop token, z-index, standard container styles). Migrate Console inline modals and Designer non-Radix dialogs to use it.
-4. Fix Designer TEST MODE `<style>` tag injection → CSS keyframe class.
-5. Extend `SettingsPageLayout` accessibility or create a simpler page-title shared component for Console and Designer views.
+1. Promote `FieldLabel` to `shared/components/FieldLabel.tsx`. Migrate usage in Console and Settings. — **Done 2026-05-28 (Claim B).** DesignerRightPanel + PaneConfigModal migrated; Settings deferred (intentionally distinct visual).
+2. Build `shared/components/StatusBadge.tsx`. Migrate all five Settings implementations, Console priority/state/quality badges, Designer badge indicators. — **Partially done 2026-05-28 (Claim B).** Component built; 4 of 5 Settings implementations migrated; Console/Designer deferred; PointManagement deferred (API mismatch); DC-6 (hex-alpha bug) deferred.
+3. Build `shared/components/Dialog.tsx` (thin wrapper: ARIA, backdrop token, z-index, standard container styles). Migrate Console inline modals and Designer non-Radix dialogs to use it. — **Partially done 2026-05-28 (Claim B).** Component built; 7 consumer sites migrated; wizard dialogs, DesignerCanvas-scoped dialogs, Import/OpcSources Settings dialogs deferred.
+4. Fix Designer TEST MODE `<style>` tag injection → CSS keyframe class. — **Deferred.**
+5. Extend `SettingsPageLayout` accessibility or create a simpler page-title shared component for Console and Designer views. — **Deferred.** DC-2 in 08-claim-b-plan.md Section 6.
 
 ### Phase 5 — Polish and alignment (deferred; no functional impact)
 
