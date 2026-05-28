@@ -316,7 +316,9 @@ export default function PaneConfigModal({
                 />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <FieldLabel htmlFor="trend-duration">Duration (minutes)</FieldLabel>
+                <FieldLabel htmlFor="trend-duration">
+                  Duration (minutes)
+                </FieldLabel>
                 <select
                   id="trend-duration"
                   value={trendDuration}

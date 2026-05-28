@@ -377,7 +377,6 @@ export function RestorePreviewModal({
           overflowY: "auto",
         }}
       >
-
         {/* Step 1: Loading */}
         {step === 1 && (
           <div

@@ -568,7 +568,9 @@ export default function DesignerReportsList() {
       </div>
       <ConfirmDialog
         open={confirmDeleteId !== null}
-        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null);
+        }}
         title="Delete template?"
         description="Delete this report template? This cannot be undone."
         confirmLabel="Delete"

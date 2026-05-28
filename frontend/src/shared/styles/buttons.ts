@@ -10,7 +10,7 @@ export const btnPrimary: CSSProperties = {
   background: "var(--io-accent)",
   color: "var(--io-accent-foreground)", // Cat 6, Deviations: canonical token; --io-text-on-accent is alias via A5
   border: "none",
-  borderRadius: "var(--io-radius)",     // Cat 6, Deviations: Settings + Designer IconBtn agree; Console integers corrected
+  borderRadius: "var(--io-radius)", // Cat 6, Deviations: Settings + Designer IconBtn agree; Console integers corrected
   fontSize: "13px",
   fontWeight: 600,
   cursor: "pointer",
@@ -18,12 +18,12 @@ export const btnPrimary: CSSProperties = {
 
 export const btnSecondary: CSSProperties = {
   padding: "8px 16px",
-  background: "transparent",            // Cat 6, Deviations: BulkUpdate non-standard var(--io-surface-sunken) corrected
+  background: "transparent", // Cat 6, Deviations: BulkUpdate non-standard var(--io-surface-sunken) corrected
   color: "var(--io-text-secondary)",
   border: "1px solid var(--io-border)",
   borderRadius: "var(--io-radius)",
   fontSize: "13px",
-  fontWeight: 600,                       // Cat 6, Deviations: align with primary for visual consistency at same type size
+  fontWeight: 600, // Cat 6, Deviations: align with primary for visual consistency at same type size
   cursor: "pointer",
 };
 

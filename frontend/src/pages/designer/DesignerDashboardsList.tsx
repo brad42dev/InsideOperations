@@ -514,7 +514,9 @@ export default function DesignerDashboardsList() {
       </div>
       <ConfirmDialog
         open={confirmDeleteId !== null}
-        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null);
+        }}
         title="Delete dashboard?"
         description="Delete this dashboard? This cannot be undone."
         confirmLabel="Delete"

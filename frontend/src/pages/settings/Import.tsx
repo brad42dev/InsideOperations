@@ -70,7 +70,6 @@ function useDataCategories() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-
 function DomainBadge({ domain }: { domain: string }) {
   return (
     <span

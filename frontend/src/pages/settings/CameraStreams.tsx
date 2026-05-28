@@ -1028,9 +1028,15 @@ export default function CameraStreamsTab() {
       )}
       <ConfirmDialog
         open={confirmDelete !== null}
-        onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null);
+        }}
         title="Delete camera stream?"
-        description={confirmDelete ? `Delete "${confirmDelete.name}"? This cannot be undone.` : ""}
+        description={
+          confirmDelete
+            ? `Delete "${confirmDelete.name}"? This cannot be undone.`
+            : ""
+        }
         confirmLabel="Delete"
         variant="danger"
         onConfirm={() => {

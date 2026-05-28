@@ -396,7 +396,10 @@ function ServicesTab() {
                         :{svc.port}
                       </td>
                       <td style={{ padding: "10px 12px" }}>
-                        <StatusBadge status={svc.status} label={STATUS_LABELS[svc.status]} />
+                        <StatusBadge
+                          status={svc.status}
+                          label={STATUS_LABELS[svc.status]}
+                        />
                       </td>
                       <td
                         style={{
@@ -776,7 +779,10 @@ function OpcSourcesTab() {
                 {src.source_id}
               </span>
             </div>
-            <StatusBadge status={src.connected ? "healthy" : "unhealthy"} label={src.connected ? "Ready" : "Not Ready"} />
+            <StatusBadge
+              status={src.connected ? "healthy" : "unhealthy"}
+              label={src.connected ? "Ready" : "Not Ready"}
+            />
           </div>
           {/* Source metrics */}
           <div
@@ -1400,7 +1406,12 @@ export default function SystemHealth() {
       title="System Health"
       description="Deep operational visibility across all services and infrastructure."
       variant="list"
-      action={<StatusBadge status={overallStatus} label={STATUS_LABELS[overallStatus]} />}
+      action={
+        <StatusBadge
+          status={overallStatus}
+          label={STATUS_LABELS[overallStatus]}
+        />
+      }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* Summary tiles */}

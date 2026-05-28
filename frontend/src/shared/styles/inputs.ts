@@ -14,10 +14,10 @@ export const inputStyle: CSSProperties = {
   padding: "8px 10px",
   background: "var(--io-surface-sunken)", // Cat 7, Deviations: deepest inset surface; --io-input-bg is alias
   border: "1px solid var(--io-border)",
-  borderRadius: "var(--io-radius)",        // Cat 7, Deviations: Settings canonical token; BulkUpdate "6px" string corrected
-  color: "var(--io-text-primary)",         // Cat 7, Deviations: canonical token
+  borderRadius: "var(--io-radius)", // Cat 7, Deviations: Settings canonical token; BulkUpdate "6px" string corrected
+  color: "var(--io-text-primary)", // Cat 7, Deviations: canonical token
   fontSize: "13px",
-  boxSizing: "border-box",                 // Cat 7, Settings: prevents width overflow; not always set in Console/Designer
+  boxSizing: "border-box", // Cat 7, Settings: prevents width overflow; not always set in Console/Designer
   // No outline:none — use inputClassName + inputs.css for an accessible :focus-visible ring
 };
 
