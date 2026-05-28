@@ -52,7 +52,7 @@ export function ConfirmDialog({
             position: "fixed",
             inset: 0,
             background: "var(--io-overlay, rgba(0,0,0,0.5))",
-            zIndex: "var(--io-z-modal)",
+            zIndex: "var(--io-z-priority-modal)",
           }}
         />
         <Dialog.Content
@@ -69,7 +69,7 @@ export function ConfirmDialog({
             padding: "24px",
             width: "420px",
             maxWidth: "calc(100vw - 32px)",
-            zIndex: "calc(var(--io-z-modal) + 1)",
+            zIndex: "calc(var(--io-z-priority-modal) + 1)",
           }}
         >
           <Dialog.Title

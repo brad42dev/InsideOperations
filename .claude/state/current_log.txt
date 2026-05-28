@@ -1,3 +1,1 @@
-/home/io/io-dev/io/.claude/logs/2026-05-28_preflight-info-gathering
-
-read-only-inve_061059.md
+/home/io/io-dev/io/.claude/logs/2026-05-28_workstream-4-5b2-confirmdialog-priority_071338.md
