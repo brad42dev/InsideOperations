@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import StatusBadge from "../../shared/components/StatusBadge";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -142,48 +143,6 @@ const clientCertsApi = {
     }),
 };
 
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "var(--io-success)",
-  inactive: "var(--io-text-muted)",
-  connecting: "var(--io-warning)",
-  error: "var(--io-danger)",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLORS[status] ?? "var(--io-text-muted)";
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "5px",
-        padding: "2px 8px",
-        borderRadius: "9999px",
-        fontSize: "11px",
-        fontWeight: 600,
-        background: `color-mix(in srgb, ${color} 12%, transparent)`,
-        color,
-        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
-        textTransform: "capitalize",
-      }}
-    >
-      <span
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-      {status}
-    </span>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Source stats — inline chips for the table row

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import StatusBadge from "../../shared/components/StatusBadge";
 import ContextMenu from "../../shared/components/ContextMenu";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import { useSearchParams } from "react-router-dom";
@@ -69,41 +70,6 @@ function useDataCategories() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    completed: { bg: "var(--io-success-subtle)", color: "var(--io-success)" },
-    running: { bg: "var(--io-accent-subtle)", color: "var(--io-accent)" },
-    pending: { bg: "var(--io-warning-subtle)", color: "var(--io-warning)" },
-    failed: { bg: "var(--io-danger-subtle)", color: "var(--io-danger)" },
-    cancelled: {
-      bg: "var(--io-surface-tertiary)",
-      color: "var(--io-text-muted)",
-    },
-    partial: { bg: "var(--io-warning-subtle)", color: "var(--io-warning)" },
-    ok: { bg: "var(--io-success-subtle)", color: "var(--io-success)" },
-    error: { bg: "var(--io-danger-subtle)", color: "var(--io-danger)" },
-  };
-  const style = colors[status] ?? {
-    bg: "var(--io-surface-tertiary)",
-    color: "var(--io-text-muted)",
-  };
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "999px",
-        fontSize: "11px",
-        fontWeight: 600,
-        background: style.bg,
-        color: style.color,
-        textTransform: "capitalize",
-      }}
-    >
-      {status}
-    </span>
-  );
-}
 
 function DomainBadge({ domain }: { domain: string }) {
   return (

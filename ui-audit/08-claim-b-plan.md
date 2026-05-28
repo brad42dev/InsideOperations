@@ -228,7 +228,7 @@ The only change from the source: `fontSize: 10` → `fontSize: 11` per the Cat 2
 
 ---
 
-### 2.2 StatusBadge
+### 2.2 StatusBadge — **DONE 2026-05-28**
 
 #### Source-of-truth location
 
@@ -280,6 +280,21 @@ Visual: pill with `borderRadius: "9999px"`, `padding: "2px 8px"`, `fontSize: 11`
 | `pages/settings/CameraStreams.tsx:785–787` | Same hex-alpha bug | Same — separate bug fix |
 | `pages/settings/MaintenanceTicketsPanel.tsx:52` | Same hex-alpha bug | Same — separate bug fix |
 | Console priority/state/quality badges | Hardcoded rgba/hex, semantically different (alarm priority vs. connection status) | **Risk item:** alarm-domain badges (PriorityBadge, StateBadge, QualityBadge) have different semantic vocabulary and hardcoded alarm-specific colors. Not a StatusBadge concern. Flag for Claim C / alarm token work, not here. |
+
+**Execution notes (2026-05-28):**
+- `frontend/src/shared/components/StatusBadge.tsx` created. API: `{ status: string; label?: string }`. `label` defaults to `status` display text.
+- Token-pair map covers plan vocabulary plus additions required by consumers: `sent` (success), `retry` (warning), `degraded` (warning) for Email.tsx and SystemHealth.tsx.
+- Token substitution: `--io-surface-tertiary` is undefined in `index.css`. Plan spec used this token (inherited from Import.tsx base which also used it). Substituted with `--io-surface-secondary` (defined). Adds a subtle visible background for neutral/muted states rather than transparent.
+- OpcSources migration: the border (`1px solid color-mix(...)`) from the post-fix version is **dropped** — not part of the plan's visual spec. The shared component uses token-pair bg directly.
+- OpcSources `inactive` status: current implementation had `inactive → --io-text-muted` (muted); plan maps `inactive → danger`. Migration follows the plan.
+- **Import.tsx:** local `StatusBadge` removed; import from shared added. Zero call-site changes.
+- **OpcSources.tsx:** local `STATUS_COLORS` and `StatusBadge` removed; import from shared added. Zero call-site changes.
+- **SystemHealth.tsx:** local `STATUS_COLORS` and `StatusBadge` removed; import from shared added. Local `STATUS_LABELS` record added to preserve custom display labels (Ready/Degraded/Not Ready/Unknown). All 3 call sites updated with `label` prop.
+- **Email.tsx:** local `STATUS_COLORS` and `StatusBadge` removed; import from shared added. Zero call-site changes. Visual change: dot-only (no background) → dot + pill with background color. Email.tsx `disabled` status (line 339) maps to default muted.
+- **Consumers migrated:** 4 (`Import.tsx`, `OpcSources.tsx`, `SystemHealth.tsx`, `Email.tsx`)
+- **Consumers deferred:** `PointManagement.tsx` (boolean `ActiveBadge` API mismatch — not a substitution); `Users.tsx`, `Roles.tsx`, `CameraStreams.tsx`, `MaintenanceTicketsPanel.tsx` (hex-alpha bug fix, separate pass per DC-6); Console alarm badges (different semantic vocabulary, out of scope per plan).
+- **Design note — `inactive` semantic:** Plan maps `inactive → danger`. OpcSources previously showed `inactive` as muted (neutral). The change means a manually-disabled OPC source now shows a red badge. If operator feedback indicates this causes alarm fatigue, move `inactive` to a new `disabled` tier (muted) and add explicit `disabled` as a muted-tier alias. Intentional as executed; flag for UX review in the OpcSources pass.
+- `pnpm build` passed with no type errors.
 
 ---
 

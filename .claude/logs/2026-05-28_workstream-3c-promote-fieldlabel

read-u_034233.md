@@ -5715,3 +5715,316 @@ _2026-05-28T03:56:05+00:00_
 
 ---
 
+
+## #PROMPT
+
+_2026-05-28T03:56:42+00:00_
+
+```
+git add -A
+git commit -m "Claim B: promote COMPONENT_NAME to shared location"
+```
+
+
+## #BASH
+_Stage all changes and commit FieldLabel promotion_
+
+```bash
+cd /home/io/io-dev/io && git add -A && git commit -m "Claim B: promote FieldLabel to shared location"
+```
+
+
+## #TURN_END
+
+_2026-05-28T03:56:42+00:00_
+
+---
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh` (86→300 chars)
+
+_2026-05-28T03:58:05+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh` (86→300 chars)
+
+_2026-05-28T03:58:09+00:00_
+
+
+## #PROMPT
+
+_2026-05-28T03:58:22+00:00_
+
+```
+The wrapup hook/skill/command keeps getting the following error, can you fix it:  Error: Exit code 1
+     /home/io/io-dev/io/.claude/hooks/scripts/generate-summary.sh: line 11: CLAUDE_PROJECT_DIR: unbound variable
+```
+
+
+## #ASSISTANT
+
+The root cause is clear: `generate-summary.sh` uses `CLAUDE_PROJECT_DIR` before checking if it's set. When the wrapup skill runs these scripts manually via Bash (not through hooks), that variable isn't in the environment. Let me check the other two scripts for the same pattern.
+
+
+## #BASH
+_Check LIB_PATH lines in run-review and update-docs_
+
+```bash
+head -15 /home/io/io-dev/io/.claude/hooks/scripts/run-review.sh /home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh
+```
+
+
+## #ASSISTANT
+
+`run-review.sh` already has the auto-detect fix. Let me check `update-docs.sh` lines 13–20 and then apply the same fix to `generate-summary.sh`.
+
+
+## #BASH
+_Check if update-docs.sh has the auto-detect fix_
+
+```bash
+sed -n '13,20p' /home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh
+```
+
+
+## #BASH
+_Check update-docs.sh for CLAUDE_PROJECT_DIR handling_
+
+```bash
+sed -n '20,30p' /home/io/io-dev/io/.claude/hooks/scripts/update-docs.sh
+```
+
+
+## #ASSISTANT
+
+Both `generate-summary.sh` and `update-docs.sh` have the same bug. `run-review.sh` already has the fix. I'll apply the same auto-detect block to the other two.
+
+
+## #ASSISTANT
+
+Now verify the fix works by running `generate-summary.sh` without `CLAUDE_PROJECT_DIR` set:
+
+
+## #BASH
+_Test generate-summary.sh without CLAUDE_PROJECT_DIR set_
+
+```bash
+env -u CLAUDE_PROJECT_DIR bash .claude/hooks/scripts/generate-summary.sh 2>&1 | head -5
+```
+
+
+## #ASSISTANT
+
+The fix works — the error is now on `$1` (no log path argument was passed), not `CLAUDE_PROJECT_DIR`. The variable is resolved correctly from the script's location.
+
+Quick smoke-test to confirm the path resolution is correct:
+
+
+## #BASH
+_Verify path resolution produces correct project dir_
+
+```bash
+env -u CLAUDE_PROJECT_DIR bash -c '
+  source .claude/hooks/scripts/generate-summary.sh /dev/null "" 2>&1 || true
+  cd .claude/hooks/scripts && bash -c "
+    if [ -z \"\${CLAUDE_PROJECT_DIR:-}\" ]; then
+      PROJ=\"\$(cd \"\$(dirname \"\$0\")/../../..\" && pwd)\"
+    fi
+    echo \"Would resolve to: \$(cd \"$(dirname .claude/hooks/scripts/generate-summary.sh)/../../..\" && pwd)\"
+  "
+'
+env -u CLAUDE_PROJECT_DIR bash -c '
+  SCRIPT=".claude/hooks/scripts/generate-summary.sh"
+  PROJ="$(cd "$(dirname "$SCRIPT")/../../.." && pwd)"
+  echo "Resolved CLAUDE_PROJECT_DIR=$PROJ"
+'
+```
+
+
+## #TURN_END
+
+_2026-05-28T03:58:23+00:00_
+
+---
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/stop.sh` (34→245 chars)
+
+_2026-05-28T04:01:36+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/user-prompt-submit.sh` (48→259 chars)
+
+_2026-05-28T04:01:40+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/post-tool-use.sh` (43→254 chars)
+
+_2026-05-28T04:01:43+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/pre-tool-use-bash.sh` (47→258 chars)
+
+_2026-05-28T04:01:47+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/pre-tool-use-edit.sh` (47→258 chars)
+
+_2026-05-28T04:01:50+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/session-end.sh` (41→252 chars)
+
+_2026-05-28T04:01:53+00:00_
+
+
+## #EDIT `/home/io/io-dev/io/.claude/hooks/scripts/extract-turn.sh` (86→300 chars)
+
+_2026-05-28T04:01:57+00:00_
+
+
+## #PROMPT
+
+_2026-05-28T04:02:08+00:00_
+
+```
+Can you check all the claude code scripts/commands/hooks/etc to make sure they don't have the same error?
+```
+
+
+## #BASH
+_List all shell scripts in .claude directory_
+
+```bash
+find /home/io/io-dev/io/.claude -name "*.sh" | sort
+```
+
+
+## #BASH
+_Find all uses of CLAUDE_PROJECT_DIR in hook scripts_
+
+```bash
+grep -n "CLAUDE_PROJECT_DIR" \
+  /home/io/io-dev/io/.claude/hooks/post-tool-use.sh \
+  /home/io/io-dev/io/.claude/hooks/pre-tool-use-bash.sh \
+  /home/io/io-dev/io/.claude/hooks/pre-tool-use-edit.sh \
+  /home/io/io-dev/io/.claude/hooks/scripts/extract-turn.sh \
+  /home/io/io-dev/io/.claude/hooks/session-end.sh \
+  /home/io/io-dev/io/.claude/hooks/stop.sh \
+  /home/io/io-dev/io/.claude/hooks/user-prompt-submit.sh
+```
+
+
+## #ASSISTANT
+
+Now let me check which of those scripts already have the auto-detect guard vs. which are bare:
+
+
+## #BASH
+_Check each hook for existing guard and set options_
+
+```bash
+for f in \
+  /home/io/io-dev/io/.claude/hooks/post-tool-use.sh \
+  /home/io/io-dev/io/.claude/hooks/pre-tool-use-bash.sh \
+  /home/io/io-dev/io/.claude/hooks/pre-tool-use-edit.sh \
+  /home/io/io-dev/io/.claude/hooks/scripts/extract-turn.sh \
+  /home/io/io-dev/io/.claude/hooks/session-end.sh \
+  /home/io/io-dev/io/.claude/hooks/stop.sh \
+  /home/io/io-dev/io/.claude/hooks/user-prompt-submit.sh; do
+  echo "=== $(basename $f) ==="
+  grep -n "CLAUDE_PROJECT_DIR\|set -" "$f" | head -8
+  echo
+done
+```
+
+
+## #ASSISTANT
+
+Let me check who calls `extract-turn.sh` and `session-end.sh` to understand their invocation contexts:
+
+
+## #BASH
+_Find callers of extract-turn.sh and session-end.sh_
+
+```bash
+grep -r "extract-turn\|session-end" /home/io/io-dev/io/.claude/ --include="*.sh" --include="*.md" -l
+grep -r "extract-turn\|session-end" /home/io/io-dev/io/.claude/ --include="*.sh" -n
+```
+
+
+## #ASSISTANT
+
+`extract-turn.sh` is only called from `stop.sh` (which already has `CLAUDE_PROJECT_DIR` set by the harness), so it inherits the variable. The hooks are invoked by the harness which guarantees `CLAUDE_PROJECT_DIR`. But let me check `settings.json` to confirm and also scan for any manual invocation patterns:
+
+
+## #BASH
+_Check which hooks are registered in settings.json_
+
+```bash
+cat /home/io/io-dev/io/.claude/settings.json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(h.get('command','')) for h in d.get('hooks',{}).get('PreToolUse',[])+d.get('hooks',{}).get('PostToolUse',[])+d.get('hooks',{}).get('Stop',[])+d.get('hooks',{}).get('UserPromptSubmit',[])+d.get('hooks',{}).get('SessionEnd',[])]" 2>/dev/null || grep -A3 '"hooks"' /home/io/io-dev/io/.claude/settings.json | head -40
+```
+
+
+## #BASH
+_Find settings.json files_
+
+```bash
+find /home/io/io-dev/io/.claude /home/io/.claude -name "settings*.json" 2>/dev/null | sort
+```
+
+
+## #BASH
+_Parse hook commands from settings files_
+
+```bash
+python3 -c "
+import json
+for path in ['/home/io/.claude/settings.json', '/home/io/io-dev/io/.claude/settings.local.json']:
+    try:
+        d = json.load(open(path))
+        hooks = d.get('hooks', {})
+        if hooks:
+            print(f'=== {path} ===')
+            for event, entries in hooks.items():
+                for entry in entries:
+                    cmd = entry.get('command', entry.get('hooks', [{}])[0].get('command', '?') if isinstance(entry.get('hooks'), list) else '?')
+                    print(f'  {event}: {cmd}')
+    except Exception as e:
+        print(f'{path}: {e}')
+"
+```
+
+
+## #ASSISTANT
+
+The hooks registered in `settings.json` are invoked by the harness which guarantees `CLAUDE_PROJECT_DIR`, so they won't hit the bug during normal operation. But they're unprotected if ever called manually. I'll add the guard everywhere for consistency and robustness. The paths differ by depth: `hooks/` scripts need `../..`, `hooks/scripts/` scripts need `../../..`.
+
+
+## #ASSISTANT
+
+I can see the pattern clearly. All 7 remaining scripts need the guard. The relative path differs by depth: `hooks/` scripts use `../..`, `hooks/scripts/` scripts use `../../..`. Doing all 7 edits now.
+
+
+## #ASSISTANT
+
+Now verify the path resolution is correct for both depths:
+
+
+## #BASH
+_Verify path resolution for both depths_
+
+```bash
+# hooks/ depth: ../.. from .claude/hooks/ should reach project root
+cd /home/io/io-dev/io/.claude/hooks && echo "hooks/../.. = $(cd ../.. && pwd)"
+# hooks/scripts/ depth: ../../.. from .claude/hooks/scripts/ should reach project root
+cd /home/io/io-dev/io/.claude/hooks/scripts && echo "hooks/scripts/../../.. = $(cd ../../.. && pwd)"
+```
+
+
+## #TURN_END
+
+_2026-05-28T04:02:09+00:00_
+
+---
+

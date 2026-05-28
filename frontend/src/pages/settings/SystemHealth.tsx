@@ -9,65 +9,14 @@ import {
   type ServiceHealth,
 } from "../../api/health";
 import TimeSeriesChart from "../../shared/components/charts/TimeSeriesChart";
+import StatusBadge from "../../shared/components/StatusBadge";
 
-// ── Status badge ──────────────────────────────────────────────────────────────
-
-const STATUS_COLORS: Record<
-  ServiceStatus,
-  { bg: string; text: string; label: string }
-> = {
-  healthy: {
-    bg: "color-mix(in srgb, var(--io-success) 12%, transparent)",
-    text: "var(--io-success)",
-    label: "Ready",
-  },
-  degraded: {
-    bg: "color-mix(in srgb, var(--io-warning) 15%, transparent)",
-    text: "var(--io-warning)",
-    label: "Degraded",
-  },
-  unhealthy: {
-    bg: "color-mix(in srgb, var(--io-danger) 12%, transparent)",
-    text: "var(--io-danger)",
-    label: "Not Ready",
-  },
-  unknown: {
-    bg: "var(--io-surface-secondary)",
-    text: "var(--io-text-muted)",
-    label: "Unknown",
-  },
+const STATUS_LABELS: Record<ServiceStatus, string> = {
+  healthy: "Ready",
+  degraded: "Degraded",
+  unhealthy: "Not Ready",
+  unknown: "Unknown",
 };
-
-function StatusBadge({ status }: { status: ServiceStatus }) {
-  const c = STATUS_COLORS[status];
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "5px",
-        fontSize: "12px",
-        padding: "3px 10px",
-        borderRadius: "100px",
-        background: c.bg,
-        color: c.text,
-        fontWeight: 700,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          background: c.text,
-          flexShrink: 0,
-        }}
-      />
-      {c.label}
-    </span>
-  );
-}
 
 // ── Service metadata ──────────────────────────────────────────────────────────
 
@@ -447,7 +396,7 @@ function ServicesTab() {
                         :{svc.port}
                       </td>
                       <td style={{ padding: "10px 12px" }}>
-                        <StatusBadge status={svc.status} />
+                        <StatusBadge status={svc.status} label={STATUS_LABELS[svc.status]} />
                       </td>
                       <td
                         style={{
@@ -827,7 +776,7 @@ function OpcSourcesTab() {
                 {src.source_id}
               </span>
             </div>
-            <StatusBadge status={src.connected ? "healthy" : "unhealthy"} />
+            <StatusBadge status={src.connected ? "healthy" : "unhealthy"} label={src.connected ? "Ready" : "Not Ready"} />
           </div>
           {/* Source metrics */}
           <div
@@ -1451,7 +1400,7 @@ export default function SystemHealth() {
       title="System Health"
       description="Deep operational visibility across all services and infrastructure."
       variant="list"
-      action={<StatusBadge status={overallStatus} />}
+      action={<StatusBadge status={overallStatus} label={STATUS_LABELS[overallStatus]} />}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* Summary tiles */}

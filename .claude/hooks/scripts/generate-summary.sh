@@ -8,6 +8,12 @@
 
 set -uo pipefail
 
+# Auto-detect project dir from script location if not set in environment
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+    CLAUDE_PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+    export CLAUDE_PROJECT_DIR
+fi
+
 LIB_PATH="${CLAUDE_PROJECT_DIR}/.claude/hooks/scripts/lib-common.sh"
 if [ -f "$LIB_PATH" ]; then
     # shellcheck source=/dev/null

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import StatusBadge from "../../shared/components/StatusBadge";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
@@ -173,43 +174,6 @@ function TestEmailDialog({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "var(--io-warning)",
-  retry: "var(--io-warning)",
-  sent: "var(--io-success)",
-  failed: "var(--io-danger)",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLORS[status] ?? "var(--io-text-muted)";
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "5px",
-        fontSize: "12px",
-        fontWeight: 500,
-        color,
-      }}
-    >
-      <span
-        style={{
-          width: "7px",
-          height: "7px",
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-      {status}
-    </span>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Providers tab

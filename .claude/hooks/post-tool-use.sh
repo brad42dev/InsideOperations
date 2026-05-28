@@ -16,6 +16,12 @@
 
 set -uo pipefail
 
+# Auto-detect project dir from script location if not set in environment
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+    CLAUDE_PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+    export CLAUDE_PROJECT_DIR
+fi
+
 HOOK_NAME="post-tool-use"
 export HOOK_NAME
 
