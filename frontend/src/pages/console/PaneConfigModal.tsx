@@ -1,5 +1,6 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import FieldLabel from "../../shared/components/FieldLabel";
 import { useQuery } from "@tanstack/react-query";
 import { pointsApi } from "../../api/points";
 import type { PaneConfig, PaneType } from "./types";
@@ -252,17 +253,7 @@ export default function PaneConfigModal({
 
           {/* Type selector */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--io-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              Pane Type
-            </label>
+            <FieldLabel>Pane Type</FieldLabel>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {PANE_TYPES.map((pt) => (
                 <button
@@ -293,18 +284,9 @@ export default function PaneConfigModal({
 
           {/* Title */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--io-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              Title (optional)
-            </label>
+            <FieldLabel htmlFor="pane-title">Title (optional)</FieldLabel>
             <input
+              id="pane-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -326,17 +308,7 @@ export default function PaneConfigModal({
           {type === "trend" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--io-text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Points (max 8)
-                </label>
+                <FieldLabel>Points (max 8)</FieldLabel>
                 <PointSearch
                   selected={trendPointIds}
                   onChange={setTrendPointIds}
@@ -344,18 +316,9 @@ export default function PaneConfigModal({
                 />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--io-text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Duration (minutes)
-                </label>
+                <FieldLabel htmlFor="trend-duration">Duration (minutes)</FieldLabel>
                 <select
+                  id="trend-duration"
                   value={trendDuration}
                   onChange={(e) => setTrendDuration(Number(e.target.value))}
                   style={{
@@ -382,17 +345,7 @@ export default function PaneConfigModal({
 
           {type === "point_table" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--io-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                Points
-              </label>
+              <FieldLabel>Points</FieldLabel>
               <PointSearch
                 selected={tablePointIds}
                 onChange={setTablePointIds}
@@ -402,17 +355,7 @@ export default function PaneConfigModal({
 
           {type === "alarm_list" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--io-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                Filter
-              </label>
+              <FieldLabel>Filter</FieldLabel>
               <div style={{ display: "flex", gap: 8 }}>
                 {(["all", "active", "unacknowledged"] as const).map((f) => (
                   <label

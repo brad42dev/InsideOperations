@@ -68,6 +68,7 @@ import {
 } from "../../shared/graphics/commands";
 import { recenterArrayOnBindingChange } from "../../shared/graphics/anchorSlots";
 import ChartConfigPanel from "../../shared/components/charts/ChartConfigPanel";
+import FieldLabel from "../../shared/components/FieldLabel";
 import type { ChartConfig } from "../../shared/components/charts/chart-config-types";
 import type {
   SceneCommand,
@@ -197,24 +198,6 @@ function findParentSymbol(
 // ---------------------------------------------------------------------------
 // Small helper components
 // ---------------------------------------------------------------------------
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label
-      style={{
-        display: "block",
-        fontSize: 10,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        color: "var(--io-text-muted)",
-        marginBottom: 3,
-      }}
-    >
-      {children}
-    </label>
-  );
-}
 
 const inputStyle: React.CSSProperties = {
   width: "100%",

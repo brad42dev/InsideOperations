@@ -1,3 +1,3 @@
-/home/io/io-dev/io/.claude/logs/2026-05-28_workstream-3b-constants-checkin
+/home/io/io-dev/io/.claude/logs/2026-05-28_workstream-3c-promote-fieldlabel
 
-read-ui_033419.md
+read-u_034233.md

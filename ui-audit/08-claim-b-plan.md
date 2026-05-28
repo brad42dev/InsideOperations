@@ -183,7 +183,7 @@ inputClassName = "io-input"  // pair with companion inputs.css
 
 ## Section 2 — Component Promotions Plan
 
-### 2.1 FieldLabel
+### 2.1 FieldLabel — **DONE 2026-05-28**
 
 #### Source-of-truth location
 
@@ -217,6 +217,14 @@ The only change from the source: `fontSize: 10` → `fontSize: 11` per the Cat 2
 | Settings pages using inline label divs | Various; `labelStyle` constant gives a different visual treatment | These pages use 12px/500/no-uppercase labels via `labelStyle`. The promoted FieldLabel is 11px/600/uppercase. Do not force-migrate settings pages — the Settings form-label convention is visually distinct and internally consistent. **Do NOT migrate Settings `labelStyle` usages to FieldLabel in this workstream.** Revisit in a typography-alignment pass (Phase 5 in recommendations). |
 
 **Risk items:** None for the DesignerRightPanel migration (mechanical import change). PaneConfigModal migration is light but requires verifying each `<div>` label is semantically equivalent to a `<label>` and has a corresponding input target for `htmlFor`.
+
+**Execution notes (2026-05-28):**
+- `frontend/src/shared/components/FieldLabel.tsx` created. API: `{ children, htmlFor? }`. `fontSize: 11` (was 10 in source).
+- `DesignerRightPanel.tsx`: local `FieldLabel` function removed; import from shared added. Zero call-site changes — all 14+ usages inherited automatically.
+- `PaneConfigModal.tsx`: 6 field labels migrated. Labels were already `<label>` elements (plan said `<div>` — minor discrepancy, semantics were already correct). `htmlFor` added for "Title (optional)" → `id="pane-title"` and "Duration (minutes)" → `id="trend-duration"`. "Pane Type", "Points (max 8)", "Points", "Filter" have no single associated input; migrated without `htmlFor`. Visual change: `fontSize 12 → 11`, `letterSpacing 0.04em → 0.05em` (convergence target per Cat 2 table).
+- **Consumers migrated:** 2 (`DesignerRightPanel.tsx`, `PaneConfigModal.tsx`)
+- **Consumers deferred:** Settings pages using `labelStyle` (12px/500/no-uppercase — intentionally distinct, not to be migrated per plan). No deferred consumers beyond what the plan already documented.
+- `pnpm build` passed with no type errors.
 
 ---
 
