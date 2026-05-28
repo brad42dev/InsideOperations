@@ -368,7 +368,7 @@ Visual spec derived from `04-recommendations.md` Cat 11:
 
 ---
 
-### 2.4 ConfirmDialog
+### 2.4 ConfirmDialog — **DONE 2026-05-28**
 
 #### Current location
 
@@ -409,6 +409,19 @@ There is no second `ConfirmDialog` implementation to merge. `DesignerLeftPalette
 #### Existing consumers — no changes needed
 
 The 15 existing import sites already use the component correctly. After the token fixes, they inherit the corrected values automatically. No call-site migration required for existing consumers.
+
+**Execution notes (2026-05-28):**
+- Pre-execution read of `ConfirmDialog.tsx` confirmed all 5 current values matched the issue table exactly: overlay `zIndex: 100`, content `zIndex: 101`, content `background: var(--io-surface-secondary)`, content `borderRadius: "10px"`, confirm button `color: var(--io-text-on-accent)`.
+- Token fixes applied to `shared/components/ConfirmDialog.tsx`: overlay `zIndex: 100` → `"var(--io-z-modal)"`, content `zIndex: 101` → `"calc(var(--io-z-modal) + 1)"`, content bg `var(--io-surface-secondary)` → `var(--io-surface-elevated)`, content borderRadius `"10px"` → `var(--io-radius-lg)`, confirm text color `var(--io-text-on-accent)` → `var(--io-accent-foreground)`. All 15 existing consumers inherit changes automatically; no call-site changes needed.
+- `window.confirm()` pre-execution grep: 5 calls found (matches plan). 2 in dashboards module (out of scope per Section 7 Item 8); 3 in scope.
+- **`DesignerReportsList.tsx`:** `handleDelete` changed to set state; ConfirmDialog added to JSX. Message preserved verbatim: "Delete this report template? This cannot be undone." `variant="danger"`.
+- **`DesignerDashboardsList.tsx`:** Same pattern. Message: "Delete this dashboard? This cannot be undone." `variant="danger"`.
+- **`CameraStreams.tsx`:** Inline onClick replaced with `setConfirmDelete(s)`. ConfirmDialog renders dynamic message `Delete "${confirmDelete.name}"? This cannot be undone.` Stores full `VideoStream` object in state to access `.name` for the description. `setDeleteError(null)` preserved in `onConfirm` (was in the original onClick). `variant="danger"`.
+- **createPortal check:** None of the 3 consumer components are inside a `react-grid-layout` transform. No portal needed.
+- **Consumers migrated (window.confirm()):** 3 (`DesignerReportsList.tsx`, `DesignerDashboardsList.tsx`, `CameraStreams.tsx`)
+- **Consumers deferred (window.confirm()):** 2 — `dashboards/index.tsx` and `PlaylistManager.tsx` (out of scope per Section 7 Item 8; documented for dashboards-module pass).
+- **Consumers deferred (existing ConfirmDialog users needing review):** `DesignerLeftPalette.tsx` local `DeleteConfirmDialog` (DC-5 in Section 6; not a substitution-level migration).
+- `pnpm build` passed with no type errors.
 
 ---
 

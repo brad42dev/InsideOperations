@@ -1,3 +1,3 @@
-/home/io/io-dev/io/.claude/logs/2026-05-28_workstream-3c-promote-statusbadge
+/home/io/io-dev/io/.claude/logs/2026-05-28_workstream-3c-promote-confirmdialog
 
-read-_040255.md
+rea_045013.md

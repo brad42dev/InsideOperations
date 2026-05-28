@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   videoStreamsApi,
@@ -802,6 +803,7 @@ export default function CameraStreamsTab() {
   const [editing, setEditing] = useState<VideoStream | null>(null);
   const [aclFor, setAclFor] = useState<VideoStream | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<VideoStream | null>(null);
 
   const streamsQuery = useQuery({
     queryKey: ["video-streams"],
@@ -999,16 +1001,7 @@ export default function CameraStreamsTab() {
                           borderColor: "rgba(239,68,68,0.3)",
                         }}
                         disabled={removeMut.isPending}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Delete "${s.name}"? This cannot be undone.`,
-                            )
-                          ) {
-                            setDeleteError(null);
-                            removeMut.mutate(s.id);
-                          }
-                        }}
+                        onClick={() => setConfirmDelete(s)}
                       >
                         Delete
                       </button>
@@ -1033,6 +1026,20 @@ export default function CameraStreamsTab() {
           onClose={() => setAclFor(null)}
         />
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+        title="Delete camera stream?"
+        description={confirmDelete ? `Delete "${confirmDelete.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDelete) {
+            setDeleteError(null);
+            removeMut.mutate(confirmDelete.id);
+          }
+        }}
+      />
     </SettingsPageLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { reportsApi, type ReportTemplate } from "../../api/reports";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 
 // ---------------------------------------------------------------------------
 // Category badge colors
@@ -287,6 +288,7 @@ export default function DesignerReportsList() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["report-templates"],
@@ -325,9 +327,7 @@ export default function DesignerReportsList() {
   const customTemplates = filtered.filter((t) => !t.is_system_template);
 
   function handleDelete(id: string) {
-    if (window.confirm("Delete this report template? This cannot be undone.")) {
-      deleteMutation.mutate(id);
-    }
+    setConfirmDeleteId(id);
   }
 
   return (
@@ -566,6 +566,17 @@ export default function DesignerReportsList() {
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+        title="Delete template?"
+        description="Delete this report template? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDeleteId) deleteMutation.mutate(confirmDeleteId);
+        }}
+      />
     </div>
   );
 }

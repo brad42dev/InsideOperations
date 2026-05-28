@@ -1,0 +1,2 @@
+Document written to `/home/io/io-dev/io/.claude/docs/interim/2026-05-28-workstream-3c-promote-confirmdialog\n\nre.md`. It covers the five token fixes applied to the existing shared component, the three `window.confirm()` consumer migrations (DesignerReportsList, DesignerDashboardsList, CameraStreams), and the two categories of deferred consumers.
+SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

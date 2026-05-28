@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { dashboardsApi, type Dashboard } from "../../api/dashboards";
 import { useContextMenu } from "../../shared/hooks/useContextMenu";
 import ContextMenu from "../../shared/components/ContextMenu";
+import { ConfirmDialog } from "../../shared/components/ConfirmDialog";
 
 // ---------------------------------------------------------------------------
 // Thumbnail
@@ -303,6 +304,7 @@ export default function DesignerDashboardsList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["dashboards"],
@@ -331,9 +333,7 @@ export default function DesignerDashboardsList() {
   );
 
   function handleDelete(id: string) {
-    if (window.confirm("Delete this dashboard?")) {
-      deleteMutation.mutate(id);
-    }
+    setConfirmDeleteId(id);
   }
 
   return (
@@ -512,6 +512,17 @@ export default function DesignerDashboardsList() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}
+        title="Delete dashboard?"
+        description="Delete this dashboard? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDeleteId) deleteMutation.mutate(confirmDeleteId);
+        }}
+      />
     </div>
   );
 }

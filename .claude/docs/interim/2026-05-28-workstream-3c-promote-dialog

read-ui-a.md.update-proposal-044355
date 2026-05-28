@@ -1,0 +1,2 @@
+File written to `/home/io/io-dev/io/.claude/docs/interim/2026-05-28-workstream-3c-promote-dialog\n\nread-ui-a.md`.
+SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

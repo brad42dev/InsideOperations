@@ -2621,3 +2621,28 @@ _2026-05-28T04:17:05+00:00_
 
 ---
 
+
+## #PROMPT
+
+_2026-05-28T04:18:09+00:00_
+
+```
+git add -A
+git commit -m "Claim B: promote COMPONENT_NAME to shared location"
+```
+
+
+## #BASH
+_Stage all changes and commit with StatusBadge promotion message_
+
+```bash
+cd /home/io/io-dev/io && git add -A && git commit -m "Claim B: promote StatusBadge to shared location"
+```
+
+
+## #TURN_END
+
+_2026-05-28T04:18:09+00:00_
+
+---
+

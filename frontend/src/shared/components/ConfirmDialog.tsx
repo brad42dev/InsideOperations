@@ -36,7 +36,7 @@ export function ConfirmDialog({
       : {
           padding: "8px 16px",
           background: "var(--io-accent)",
-          color: "var(--io-text-on-accent)",
+          color: "var(--io-accent-foreground)",
           border: "none",
           borderRadius: "var(--io-radius)",
           fontSize: "13px",
@@ -52,7 +52,7 @@ export function ConfirmDialog({
             position: "fixed",
             inset: 0,
             background: "var(--io-overlay, rgba(0,0,0,0.5))",
-            zIndex: 100,
+            zIndex: "var(--io-z-modal)",
           }}
         />
         <Dialog.Content
@@ -63,13 +63,13 @@ export function ConfirmDialog({
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            background: "var(--io-surface-secondary)",
+            background: "var(--io-surface-elevated)",
             border: "1px solid var(--io-border)",
-            borderRadius: "10px",
+            borderRadius: "var(--io-radius-lg)",
             padding: "24px",
             width: "420px",
             maxWidth: "calc(100vw - 32px)",
-            zIndex: 101,
+            zIndex: "calc(var(--io-z-modal) + 1)",
           }}
         >
           <Dialog.Title
