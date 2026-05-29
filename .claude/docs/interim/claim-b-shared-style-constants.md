@@ -6,15 +6,20 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3b-constants-files\n\nread-ui-a_024054
+- 2026-05-28_workstream-3b-constants-files
 implementation:
-  - frontend/src/shared/styles/buttons.ts
-  - frontend/src/shared/styles/buttons.css
-  - frontend/src/shared/styles/inputs.ts
-  - frontend/src/shared/styles/inputs.css
+- frontend/src/shared/styles/buttons.ts
+- frontend/src/shared/styles/buttons.css
+- frontend/src/shared/styles/inputs.ts
+- frontend/src/shared/styles/inputs.css
 related:
-  - claim-a-css-token-registry-gaps
-  - frontend-ui-audit-console-designer-settings
+- claim-a-css-token-registry-gaps
+- frontend-ui-audit-console-designer-settings
+topics:
+- ui-framework
+aliases: []
+keywords: []
+covers: Claim B — Shared Style Constants (buttons, inputs)
 ---
 
 # Claim B — Shared Style Constants (buttons, inputs)

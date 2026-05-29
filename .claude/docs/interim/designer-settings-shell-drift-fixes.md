@@ -6,14 +6,18 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2c-shell-drift\n\nread-ui-audit_072739
+- 2026-05-27_workstream-2c-shell-drift
 implementation:
-  - frontend/src/pages/designer/DesignerLeftPalette.tsx
-  - frontend/src/pages/settings/index.tsx
-  - ui-audit/06-claim-a-plan.md
+- frontend/src/pages/designer/DesignerLeftPalette.tsx
+- frontend/src/pages/settings/index.tsx
+- ui-audit/06-claim-a-plan.md
 related:
-  - claim-a-token-registry
-  - claim-c-deferral
+- claim-a-token-registry
+- claim-c-deferral
+topics: []
+aliases: []
+keywords: []
+covers: Designer and Settings Shell Drift Fixes
 ---
 
 # Designer and Settings Shell Drift Fixes

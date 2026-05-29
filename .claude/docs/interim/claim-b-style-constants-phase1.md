@@ -6,14 +6,19 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3b-constants-files\nread-ui-a_024054
+- 2026-05-28_workstream-3b-constants-files
 implementation:
-  - frontend/src/shared/styles/buttons.ts
-  - frontend/src/shared/styles/buttons.css
-  - frontend/src/shared/styles/inputs.ts
-  - frontend/src/shared/styles/inputs.css
+- frontend/src/shared/styles/buttons.ts
+- frontend/src/shared/styles/buttons.css
+- frontend/src/shared/styles/inputs.ts
+- frontend/src/shared/styles/inputs.css
 related:
-  - claim-b-shared-style-constants
+- claim-b-shared-style-constants
+topics:
+- ui-framework
+aliases: []
+keywords: []
+covers: Claim B Style Constants — Phase 1 (Buttons and Inputs)
 ---
 
 # Claim B Style Constants — Phase 1 (Buttons and Inputs)

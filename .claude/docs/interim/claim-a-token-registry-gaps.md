@@ -6,15 +6,21 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - "2026-05-27_workstream-2b-token-gaps_read-ui-audit-_062420" # CORRECTED FROM CORRUPTED ENTRY
+- 2026-05-27_workstream-2b-token-gaps_read-ui-audit-_062420
 implementation:
-  - frontend/src/index.css
-  - frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
-  - frontend/src/shared/components/CommandPalette.tsx
-  - frontend/src/shared/theme/tokens.ts
-  - ui-audit/06-claim-a-plan.md
+- frontend/src/index.css
+- frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
+- frontend/src/shared/components/CommandPalette.tsx
+- frontend/src/shared/theme/tokens.ts
+- ui-audit/06-claim-a-plan.md
 related:
-  - claim-a-token-registry-gaps-zindex
+- claim-a-token-registry-gaps-zindex
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: Claim A — Token Registry Gaps (index.css)
 ---
 
 # Claim A — Token Registry Gaps (index.css)

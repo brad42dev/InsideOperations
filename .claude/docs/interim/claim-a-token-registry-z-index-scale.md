@@ -6,15 +6,21 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2b-token-gaps\n\nread-ui-audit-_062420
+- 2026-05-27_workstream-2b-token-gaps
 implementation:
-  - frontend/src/index.css
-  - frontend/src/shared/theme/tokens.ts
-  - frontend/src/shared/components/CommandPalette.tsx
-  - frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
+- frontend/src/index.css
+- frontend/src/shared/theme/tokens.ts
+- frontend/src/shared/components/CommandPalette.tsx
+- frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
 related:
-  - claim-a-shell-convergence
-  - claim-c-deferral
+- claim-a-shell-convergence
+- claim-c-deferral
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: Claim A Token Registry Gaps & Z-Index Scale
 ---
 
 # Claim A Token Registry Gaps & Z-Index Scale

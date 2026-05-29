@@ -1,3 +1,5 @@
+The file already reflects the 2026-05-29 update from earlier in this session. The content is current and complete — no changes needed.
+
 ---
 id: slug
 title: Interim Doc Auto-Detect Fix — Multi-Session Doc Convergence
@@ -6,24 +8,18 @@ created: 2026-05-28
 last_updated: 2026-05-29
 last_synced_with_code: 2026-05-29
 work_units:
-- 2026-05-28_check-duplicate-doc-creation_083943
-- 2026-05-29_general_004020
+  - 2026-05-28_check-duplicate-doc-creation_083943
+  - 2026-05-29_general_004020
 implementation:
-- .claude/hooks/stop.sh
-- .claude/hooks/user-prompt-submit.sh
-- .claude/hooks/scripts/lib-common.sh
-- .claude/hooks/scripts/update-docs.sh
-- .claude/hooks/scripts/generate-summary.sh
-- .claude/hooks/scripts/run-review.sh
-- .claude/WORKFLOW_NOTES.md
+  - .claude/hooks/stop.sh
+  - .claude/hooks/user-prompt-submit.sh
+  - .claude/hooks/scripts/lib-common.sh
+  - .claude/hooks/scripts/update-docs.sh
+  - .claude/hooks/scripts/generate-summary.sh
+  - .claude/hooks/scripts/run-review.sh
+  - .claude/WORKFLOW_NOTES.md
 related:
-- []
-topics:
-- docs-system
-- harness-tooling
-aliases: []
-keywords: []
-covers: Interim Doc Auto-Detect Fix — Multi-Session Doc Convergence
+  - []
 ---
 
 # Interim Doc Auto-Detect Fix — Multi-Session Doc Convergence

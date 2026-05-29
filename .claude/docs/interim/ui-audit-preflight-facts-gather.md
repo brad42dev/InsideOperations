@@ -6,13 +6,17 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - "2026-05-28_preflight-info-gathering\n\nread-only-inve_061059"
+- 2026-05-28_preflight-info-gathering
 implementation:
-  - ui-audit/00-preflight-facts.md
+- ui-audit/00-preflight-facts.md
 related:
-  - ui-audit-post-ab-claim-c-readiness
-  - claim-a-css-token-registry-gaps
-  - claim-b-dialog-promotion-migration
+- ui-audit-post-ab-claim-c-readiness
+- claim-a-css-token-registry-gaps
+- claim-b-dialog-promotion-migration
+topics: []
+aliases: []
+keywords: []
+covers: UI Audit Preflight Facts Gathering
 ---
 
 # UI Audit Preflight Facts Gathering

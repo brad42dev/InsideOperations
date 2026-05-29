@@ -1,22 +1,27 @@
 ---
 id: 2026-05-28-workstream-3c-promote-confirmdialog
-title: "Claim B: ConfirmDialog Token Fixes and window.confirm() Migration"
+title: 'Claim B: ConfirmDialog Token Fixes and window.confirm() Migration'
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3c-promote-confirmdialog_045013
+- 2026-05-28_workstream-3c-promote-confirmdialog_045013
 implementation:
-  - frontend/src/shared/components/ConfirmDialog.tsx
-  - frontend/src/pages/designer/DesignerReportsList.tsx
-  - frontend/src/pages/designer/DesignerDashboardsList.tsx
-  - frontend/src/pages/settings/CameraStreams.tsx
-  - ui-audit/08-claim-b-plan.md
+- frontend/src/shared/components/ConfirmDialog.tsx
+- frontend/src/pages/designer/DesignerReportsList.tsx
+- frontend/src/pages/designer/DesignerDashboardsList.tsx
+- frontend/src/pages/settings/CameraStreams.tsx
+- ui-audit/08-claim-b-plan.md
 related:
-  - 2026-05-28-workstream-3c-promote-dialog
-  - 2026-05-28-workstream-3c-promote-statusbadge
-
+- 2026-05-28-workstream-3c-promote-dialog
+- 2026-05-28-workstream-3c-promote-statusbadge
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: 'Claim B: ConfirmDialog Token Fixes and window.confirm() Migration'
 ---
 
 # Claim B: ConfirmDialog Token Fixes and window.confirm() Migration

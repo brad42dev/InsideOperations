@@ -6,28 +6,32 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_read-only-task-do-not-analyze-ui-or-ux-y_003908
+- 2026-05-27_read-only-task-do-not-analyze-ui-or-ux-y_003908
 implementation:
-  - ui-audit/00-inventory.md
-  - ui-audit/00b-audit-plan.md
-  - ui-audit/01-console.md
-  - ui-audit/01-console-verification.md
-  - ui-audit/01-designer-pass1.md
-  - ui-audit/01-designer-pass1-supplement.md
-  - ui-audit/01-designer-pass2.md
-  - ui-audit/01-designer-pass3.md
-  - ui-audit/01-designer.md
-  - ui-audit/01-settings-pass1.md
-  - ui-audit/01-settings-pass2.md
-  - ui-audit/01-settings.md
-  - ui-audit/02-comparison.md
-  - ui-audit/02b-sanity-sweep.md
-  - ui-audit/03-verification.md
-  - ui-audit/03c-pre-reconciliation.md
-  - ui-audit/04-recommendations.md
-  - .claude/docs/interim/frontend-ui-audit-console-designer-settings.md
+- ui-audit/00-inventory.md
+- ui-audit/00b-audit-plan.md
+- ui-audit/01-console.md
+- ui-audit/01-console-verification.md
+- ui-audit/01-designer-pass1.md
+- ui-audit/01-designer-pass1-supplement.md
+- ui-audit/01-designer-pass2.md
+- ui-audit/01-designer-pass3.md
+- ui-audit/01-designer.md
+- ui-audit/01-settings-pass1.md
+- ui-audit/01-settings-pass2.md
+- ui-audit/01-settings.md
+- ui-audit/02-comparison.md
+- ui-audit/02b-sanity-sweep.md
+- ui-audit/03-verification.md
+- ui-audit/03c-pre-reconciliation.md
+- ui-audit/04-recommendations.md
+- .claude/docs/interim/frontend-ui-audit-console-designer-settings.md
 related:
-  - frontend-ui-audit-app-shell
+- frontend-ui-audit-app-shell
+topics: []
+aliases: []
+keywords: []
+covers: Frontend UI Audit — Console, Designer, Settings
 ---
 
 # Frontend UI Audit — Console, Designer, Settings

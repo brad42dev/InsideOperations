@@ -1,18 +1,22 @@
 ---
 id: 2026-05-28-workstream-3c-promote-fieldlabel
-title: "FieldLabel: Shared Component Promotion"
+title: 'FieldLabel: Shared Component Promotion'
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3c-promote-fieldlabel_034233
+- 2026-05-28_workstream-3c-promote-fieldlabel_034233
 implementation:
-  - frontend/src/shared/components/FieldLabel.tsx
-  - frontend/src/pages/designer/DesignerRightPanel.tsx
-  - frontend/src/pages/console/PaneConfigModal.tsx
+- frontend/src/shared/components/FieldLabel.tsx
+- frontend/src/pages/designer/DesignerRightPanel.tsx
+- frontend/src/pages/console/PaneConfigModal.tsx
 related:
-  - 2026-05-28-workstream-3b-constants-checkin
+- 2026-05-28-workstream-3b-constants-checkin
+topics: []
+aliases: []
+keywords: []
+covers: 'FieldLabel: Shared Component Promotion'
 ---
 
 # FieldLabel: Shared Component Promotion

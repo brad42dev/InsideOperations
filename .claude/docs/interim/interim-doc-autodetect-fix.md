@@ -1,19 +1,26 @@
 ---
-id: claim-c-canvas-migration
+id: interim-doc-autodetect-fix
 title: Interim Doc Auto-Detect Fix — Duplicate Doc Convergence via docfresh
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_check-duplicate-doc-creation_083943
+- 2026-05-28_check-duplicate-doc-creation_083943
 implementation:
-  - .claude/hooks/stop.sh
-  - .claude/WORKFLOW_NOTES.md
-  - .claude/docs/interim/slug.md
+- .claude/hooks/stop.sh
+- .claude/WORKFLOW_NOTES.md
+- .claude/docs/interim/slug.md
 related:
-  - claim-a-token-registry-gaps
-  - claim-b-dialog-promotion-migration
+- claim-a-token-registry-gaps
+- claim-b-dialog-promotion-migration
+topics:
+- docs-system
+- harness-tooling
+aliases:
+- claim-c-canvas-migration
+keywords: []
+covers: Interim Doc Auto-Detect Fix — Duplicate Doc Convergence via docfresh
 ---
 
 # Interim Doc Auto-Detect Fix — Duplicate Doc Convergence via docfresh

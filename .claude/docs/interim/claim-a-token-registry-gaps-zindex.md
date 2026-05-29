@@ -6,13 +6,19 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2b-token-gaps\n\nread-ui-audit-_062420
+- 2026-05-27_workstream-2b-token-gaps
 implementation:
-  - frontend/src/index.css
-  - frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
-  - ui-audit/06-claim-a-plan.md
+- frontend/src/index.css
+- frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
+- ui-audit/06-claim-a-plan.md
 related:
-  - claim-a-css-token-registry-gaps
+- claim-a-css-token-registry-gaps
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: Claim A — Token Registry Gaps and Z-Index Scale
 ---
 
 # Claim A — Token Registry Gaps and Z-Index Scale

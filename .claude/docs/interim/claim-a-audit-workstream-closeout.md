@@ -6,16 +6,20 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2d-claim-a-complete\n\nread-ui-_075935
+- 2026-05-27_workstream-2d-claim-a-complete
 implementation:
-  - ui-audit/02-comparison.md
-  - ui-audit/04-recommendations.md
-  - ui-audit/06-claim-a-plan.md
-  - ui-audit/07-future-work-notes.md
+- ui-audit/02-comparison.md
+- ui-audit/04-recommendations.md
+- ui-audit/06-claim-a-plan.md
+- ui-audit/07-future-work-notes.md
 related:
-  - claim-a-token-registry
-  - claim-a-shell-drift
-  - ui-audit-comparison
+- claim-a-token-registry
+- claim-a-shell-drift
+- ui-audit-comparison
+topics: []
+aliases: []
+keywords: []
+covers: Claim A UI Audit Workstream Closeout
 ---
 
 # Claim A UI Audit Workstream Closeout

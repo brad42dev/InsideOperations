@@ -6,15 +6,19 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3c-promote-statusbadge_040255
+- 2026-05-28_workstream-3c-promote-statusbadge_040255
 implementation:
-  - frontend/src/shared/components/StatusBadge.tsx
-  - frontend/src/pages/settings/Import.tsx
-  - frontend/src/pages/settings/OpcSources.tsx
-  - frontend/src/pages/settings/SystemHealth.tsx
-  - frontend/src/pages/settings/Email.tsx
+- frontend/src/shared/components/StatusBadge.tsx
+- frontend/src/pages/settings/Import.tsx
+- frontend/src/pages/settings/OpcSources.tsx
+- frontend/src/pages/settings/SystemHealth.tsx
+- frontend/src/pages/settings/Email.tsx
 related:
-  - 2026-05-28-workstream-3c-promote-fieldlabel
+- 2026-05-28-workstream-3c-promote-fieldlabel
+topics: []
+aliases: []
+keywords: []
+covers: StatusBadge — Shared Component Promotion
 ---
 
 # StatusBadge — Shared Component Promotion

@@ -1,18 +1,24 @@
 ---
 id: 2026-05-27-regression-statusbadge-hex-alpha
-title: "OpcSources StatusBadge hex-alpha CSS concat bug fix"
+title: OpcSources StatusBadge hex-alpha CSS concat bug fix
 status: interim
 created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_regression-statusbadge-hex-alpha_054757
+- 2026-05-27_regression-statusbadge-hex-alpha_054757
 implementation:
-  - frontend/src/pages/settings/OpcSources.tsx
-  - ui-audit/02-comparison.md
-  - ui-audit/04-recommendations.md
+- frontend/src/pages/settings/OpcSources.tsx
+- ui-audit/02-comparison.md
+- ui-audit/04-recommendations.md
 related:
-  - 2026-05-27-regression-accent-token-prefix
+- 2026-05-27-regression-accent-token-prefix
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: OpcSources StatusBadge hex-alpha CSS concat bug fix
 ---
 
 # OpcSources StatusBadge hex-alpha CSS concat bug fix

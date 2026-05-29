@@ -6,15 +6,19 @@ created: 2026-05-16
 last_updated: 2026-05-16
 last_synced_with_code: 2026-05-16
 work_units:
-  - 2026-05-16_general_025143
+- 2026-05-16_general_025143
 implementation:
-  - .claude/hooks/stop.sh
-  - .claude/hooks/user-prompt-submit.sh
-  - .claude/hooks/scripts/extract-turn.sh
-  - .claude/hooks/scripts/lib-common.sh
-  - .claude/WORKFLOW_NOTES.md
+- .claude/hooks/stop.sh
+- .claude/hooks/user-prompt-submit.sh
+- .claude/hooks/scripts/extract-turn.sh
+- .claude/hooks/scripts/lib-common.sh
+- .claude/WORKFLOW_NOTES.md
 related:
-  - cc-workflow-hooks
+- cc-workflow-hooks
+topics: []
+aliases: []
+keywords: []
+covers: Hook Loop Fix and Log Sanitization
 ---
 
 # Hook Loop Fix and Log Sanitization

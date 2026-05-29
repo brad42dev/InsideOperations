@@ -6,13 +6,17 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-4-5b-zindex-fix_064832
+- 2026-05-28_workstream-4-5b-zindex-fix_064832
 implementation:
-  - frontend/src/index.css
-  - frontend/src/pages/designer/DesignerCanvas.tsx
-  - ui-audit/11-zindex-assessment.md
+- frontend/src/index.css
+- frontend/src/pages/designer/DesignerCanvas.tsx
+- ui-audit/11-zindex-assessment.md
 related:
-  - 2026-05-28-workstream-4-5a-zindex-assessment
+- 2026-05-28-workstream-4-5a-zindex-assessment
+topics: []
+aliases: []
+keywords: []
+covers: DesignerCanvas Z-Index Token Remap
 ---
 
 # DesignerCanvas Z-Index Token Remap

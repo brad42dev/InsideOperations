@@ -6,13 +6,17 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - "2026-05-27_regression-accent-token-prefix\n\nread-onl_052806"
+- 2026-05-27_regression-accent-token-prefix
 implementation:
-  - frontend/src/shared/clipboard/selection/selection.css
-  - frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
+- frontend/src/shared/clipboard/selection/selection.css
+- frontend/src/shared/clipboard/selection/MarqueeLayer.tsx
 related:
-  - ui-audit-comparison
-  - ui-audit-recommendations
+- ui-audit-comparison
+- ui-audit-recommendations
+topics: []
+aliases: []
+keywords: []
+covers: Selection Highlight and Marquee Accent Token Fix
 ---
 
 # Selection Highlight and Marquee Accent Token Fix

@@ -1,20 +1,26 @@
 ---
 id: 2026-05-28-workstream-4-5c-fp1-hexalpha
-title: "Fix: Hex-Alpha Badge Concatenation Bug (FP-1)"
+title: 'Fix: Hex-Alpha Badge Concatenation Bug (FP-1)'
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - "2026-05-28_workstream-4-5c-fp1-hexalpha\n\nread-ui-au_071913"
+- 2026-05-28_workstream-4-5c-fp1-hexalpha
 implementation:
-  - frontend/src/pages/settings/Users.tsx
-  - frontend/src/pages/settings/Roles.tsx
-  - frontend/src/pages/settings/CameraStreams.tsx
-  - frontend/src/shared/components/MaintenanceTicketsPanel.tsx
-  - ui-audit/09-post-ab-review.md
+- frontend/src/pages/settings/Users.tsx
+- frontend/src/pages/settings/Roles.tsx
+- frontend/src/pages/settings/CameraStreams.tsx
+- frontend/src/shared/components/MaintenanceTicketsPanel.tsx
+- ui-audit/09-post-ab-review.md
 related:
-  - 2026-05-28-workstream-4-5b-zindex-fix
+- 2026-05-28-workstream-4-5b-zindex-fix
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: 'Fix: Hex-Alpha Badge Concatenation Bug (FP-1)'
 ---
 
 # Fix: Hex-Alpha Badge Concatenation Bug (FP-1)

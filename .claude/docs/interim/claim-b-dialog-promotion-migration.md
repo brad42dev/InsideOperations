@@ -6,19 +6,25 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3c-promote-dialog\n\nread-ui-au_041950
+- 2026-05-28_workstream-3c-promote-dialog
 implementation:
-  - frontend/src/shared/components/Dialog.tsx
-  - frontend/src/pages/console/index.tsx
-  - frontend/src/pages/console/PaneConfigModal.tsx
-  - frontend/src/pages/settings/RestorePreviewModal.tsx
-  - frontend/src/pages/designer/components/TabClosePrompt.tsx
-  - frontend/src/pages/designer/components/IographicExportDialog.tsx
-  - ui-audit/08-claim-b-plan.md
+- frontend/src/shared/components/Dialog.tsx
+- frontend/src/pages/console/index.tsx
+- frontend/src/pages/console/PaneConfigModal.tsx
+- frontend/src/pages/settings/RestorePreviewModal.tsx
+- frontend/src/pages/designer/components/TabClosePrompt.tsx
+- frontend/src/pages/designer/components/IographicExportDialog.tsx
+- ui-audit/08-claim-b-plan.md
 related:
-  - claim-b-statusbadge-promotion
-  - claim-b-fieldlabel-promotion
-  - claim-b-constants
+- claim-b-statusbadge-promotion
+- claim-b-fieldlabel-promotion
+- claim-b-constants
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: Claim B — Dialog Promotion and Consumer Migration
 ---
 
 # Claim B — Dialog Promotion and Consumer Migration

@@ -6,14 +6,20 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2b-token-gaps\n\nread-ui-audit-_062420
+- 2026-05-27_workstream-2b-token-gaps
 implementation:
-  - frontend/src/index.css
-  - frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
-  - ui-audit/06-claim-a-plan.md
+- frontend/src/index.css
+- frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
+- ui-audit/06-claim-a-plan.md
 related:
-  - claim-a-plan
-  - claim-c-deferral
+- claim-a-plan
+- claim-c-deferral
+topics:
+- ui-framework
+- module-designer
+aliases: []
+keywords: []
+covers: Claim A — CSS Token Registry Gaps
 ---
 
 # Claim A — CSS Token Registry Gaps

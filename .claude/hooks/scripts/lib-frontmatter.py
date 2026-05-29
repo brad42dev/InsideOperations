@@ -142,10 +142,7 @@ def cmd_get(args):
         print(f"Error: key '{key}' not found in frontmatter", file=sys.stderr)
         sys.exit(1)
     val = fm[key]
-    if isinstance(val, list):
-        print(json.dumps(val, default=str))
-    else:
-        print("" if val is None else str(val))
+    print(json.dumps(val, default=str))
 
 
 def cmd_set(args):
