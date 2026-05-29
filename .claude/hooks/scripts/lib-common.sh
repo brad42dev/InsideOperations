@@ -20,7 +20,7 @@ export WORKFLOW_WRAPUP_DO_DOCS="${WORKFLOW_WRAPUP_DO_DOCS:-1}"
 
 export WORKFLOW_CLAUDE_P_TIMEOUT="${WORKFLOW_CLAUDE_P_TIMEOUT:-180}"
 
-export WORKFLOW_TAGS_INIT='\[initprompt\]'
+export WORKFLOW_TAGS_INIT='\[initprompt(:[^]]*)?\]'
 export WORKFLOW_TAGS_PHASE='\[phaseprompt\]'
 export WORKFLOW_TAGS_WRAPUP='\[wrapup\]'
 export WORKFLOW_TAGS_REVIEW='\[review\]'
@@ -341,4 +341,65 @@ sanitize_body() {
     fi
     printf '%s\n' "$cleaned"
     return 0
+}
+
+# ============================================================================
+# INITPROMPT LABEL / DESCRIPTOR HELPERS
+# ============================================================================
+
+# normalize_slug: convert arbitrary user input to a valid slug.
+# $1 = raw string. Prints normalized slug to stdout, or nothing if invalid.
+normalize_slug() {
+    local raw="$1"
+    local cleaned
+    cleaned=$(printf '%s' "$raw" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g')
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's/([A-Z]+)([A-Z][a-z])/\1-\2/g')
+    cleaned=$(printf '%s' "$cleaned" | tr '[:upper:]' '[:lower:]')
+    cleaned=$(printf '%s' "$cleaned" | tr -c 'a-z0-9' '-')
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's/-+/-/g; s/^-//; s/-$//')
+    if printf '%s' "$cleaned" | grep -qE '^[a-z0-9][a-z0-9-]+$'; then
+        printf '%s\n' "$cleaned"
+    fi
+}
+
+# extract_initprompt_label: if the prompt contains [initprompt:label], normalize
+# and return the label. Prints nothing if no colon-form tag is present or the
+# label normalizes to an invalid slug.
+extract_initprompt_label() {
+    local prompt="$1"
+    local raw_label
+    raw_label=$(echo "$prompt" | grep -oE '\[initprompt:[^]]*\]' | head -1 \
+        | sed -E 's/\[initprompt://; s/\]//')
+    if [ -n "$raw_label" ]; then
+        normalize_slug "$raw_label"
+    fi
+}
+
+# derive_initprompt_descriptor: extract 3-5 meaningful keywords from prompt
+# content (after stripping the tag) to use as a log filename descriptor.
+# Falls back to "work-unit" if no valid slug can be derived.
+derive_initprompt_descriptor() {
+    local prompt="$1"
+    local stopwords='\b(a|an|and|are|as|at|be|but|by|can|do|does|for|from|has|have|i|if|in|is|it|its|me|my|of|on|or|please|so|that|the|then|there|this|to|us|was|we|were|what|where|which|will|with|you|your)\b'
+    local cleaned
+    cleaned=$(printf '%s' "$prompt" | sed -E 's/\[initprompt(:[^]]*)?\]//g')
+    cleaned=$(printf '%s' "$cleaned" | tr '[:upper:]' '[:lower:]')
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's|https?://[^ ]+||g; s/`[^`]*`//g')
+    cleaned=$(printf '%s' "$cleaned" | sed -E "s/$stopwords//g")
+    cleaned=$(printf '%s' "$cleaned" | tr -c 'a-z0-9' ' ' | tr -s ' ')
+    cleaned=$(printf '%s' "$cleaned" | awk '{
+        n = (NF < 5) ? NF : 5
+        for (i = 1; i <= n; i++) {
+            printf "%s", $i
+            if (i < n) printf "-"
+        }
+        print ""
+    }')
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's/-+/-/g; s/^-//; s/-$//')
+    cleaned=$(printf '%s' "$cleaned" | cut -c1-50 | sed -E 's/-[^-]*$//')
+    if [ -z "$cleaned" ] || ! printf '%s' "$cleaned" | grep -qE '^[a-z0-9][a-z0-9-]{2,}$'; then
+        printf 'work-unit\n'
+    else
+        printf '%s\n' "$cleaned"
+    fi
 }

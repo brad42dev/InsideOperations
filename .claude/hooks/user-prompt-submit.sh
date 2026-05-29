@@ -74,16 +74,10 @@ hook_debug "tag_type=$TAG_TYPE"
 # Rotate log if this is a new work unit
 case "$TAG_TYPE" in
     init)
-        # Extract a descriptor from the prompt (first 50 chars, slugified)
-        # User can include something hint-y after [initprompt] to name the work unit.
-        # head -1 takes only the first line so that multi-line prompts never embed
-        # newlines into the log filename via slugify.
-        DESCRIPTOR_TEXT=$(echo "$PROMPT" | head -1 | sed -E 's/\[initprompt\]//' | head -c 80)
-        DESCRIPTOR=$(slugify "$DESCRIPTOR_TEXT")
+        DESCRIPTOR=$(extract_initprompt_label "$PROMPT")
         if [ -z "$DESCRIPTOR" ]; then
-            DESCRIPTOR="work-unit"
+            DESCRIPTOR=$(derive_initprompt_descriptor "$PROMPT")
         fi
-        # Cap the descriptor length to keep filenames sane
         DESCRIPTOR=$(echo "$DESCRIPTOR" | head -c 40)
         rotate_log_to_new "$DESCRIPTOR" > /dev/null
         hook_debug "rotated log on initprompt with descriptor=$DESCRIPTOR"
