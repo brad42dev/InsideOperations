@@ -78,24 +78,67 @@ if [ -n "$TARGET_SLUG" ]; then
         AFFECTED_DOCS+=("$TARGET_DOC")
     fi
 else
-    # Auto-detect: scan existing interim docs for implementation: entries matching files
-    if [ -d "$WORKFLOW_INTERIM_DOCS_DIR" ]; then
-        while IFS= read -r f; do
-            if grep -qF -- "$f" "$WORKFLOW_INTERIM_DOCS_DIR"/*.md 2>/dev/null; then
-                while IFS= read -r doc; do
-                    # Check if this doc actually references this file in its implementation: section
-                    if grep -A 20 'implementation:' "$doc" 2>/dev/null | grep -qF -- "$f"; then
-                        AFFECTED_DOCS+=("$doc")
-                    fi
-                done < <(grep -lF -- "$f" "$WORKFLOW_INTERIM_DOCS_DIR"/*.md 2>/dev/null)
-            fi
-        done <<< "$FILES_MODIFIED"
+    # Auto-detect via deterministic matcher (replaces former grep-based file overlap)
+    MATCH_FILES_LIST=$(mktemp)
+    printf '%s\n' "$FILES_MODIFIED" > "$MATCH_FILES_LIST"
+
+    # Topics input is empty for this iteration; topic extraction from log
+    # content is a future enhancement (see prompt-6+ plan).
+    MATCH_TOPICS=""
+
+    MATCH_OUTPUT=$(python3 "${WORKFLOW_SCRIPTS_DIR}/match-docs.py" \
+        --files-modified "$MATCH_FILES_LIST" \
+        --topics "$MATCH_TOPICS" \
+        --interim-dir "$WORKFLOW_INTERIM_DOCS_DIR" \
+        --topics-file "${WORKFLOW_DOCS_DIR:-.claude/docs}/topics.txt" \
+        2> "$MATCH_FILES_LIST.stderr")
+    MATCH_EXIT=$?
+    rm -f "$MATCH_FILES_LIST"
+
+    # Log every decision for audit
+    MATCH_LOG="${WORKFLOW_STATE_DIR:-.claude/state}/match-docs.log"
+    {
+        printf '[%s] session=%s\n' "$(date -Is)" "${SESSION_ID:-unknown}"
+        printf '  files-modified=%s\n' "$(echo "$FILES_MODIFIED" | tr '\n' ',' | sed 's/,$//')"
+        printf '  topics=%s\n' "$MATCH_TOPICS"
+        printf '  exit=%s\n' "$MATCH_EXIT"
+        printf '  output=%s\n' "$MATCH_OUTPUT"
+        if [ -s "$MATCH_FILES_LIST.stderr" ]; then
+            printf '  stderr:\n'
+            sed 's/^/    /' "$MATCH_FILES_LIST.stderr"
+        fi
+    } >> "$MATCH_LOG"
+    rm -f "$MATCH_FILES_LIST.stderr"
+
+    # Fail-safe: any non-zero exit or unparseable JSON → treat as triage
+    if [ "$MATCH_EXIT" -ne 0 ] || ! echo "$MATCH_OUTPUT" | jq empty 2>/dev/null; then
+        echo "update-docs: matcher failed (exit=$MATCH_EXIT); falling back to triage" >&2
+        MATCH_DECISION="triage"
+        MATCH_TARGET=""
+        MATCH_CANDIDATES=""
+    else
+        MATCH_DECISION=$(echo "$MATCH_OUTPUT" | jq -r '.decision')
+        MATCH_TARGET=$(echo "$MATCH_OUTPUT" | jq -r '.target_doc // ""')
+        MATCH_CANDIDATES=$(echo "$MATCH_OUTPUT" | jq -r '.merge_candidates // [] | join(",")')
     fi
 
-    # Deduplicate
-    if [ ${#AFFECTED_DOCS[@]} -gt 0 ]; then
-        readarray -t AFFECTED_DOCS < <(printf '%s\n' "${AFFECTED_DOCS[@]}" | sort -u)
-    fi
+    case "$MATCH_DECISION" in
+        update)
+            AFFECTED_DOCS+=("$MATCH_TARGET")
+            ;;
+        create)
+            # Fall through to existing new-doc creation path; AFFECTED_DOCS stays empty
+            ;;
+        triage)
+            # Fall through to new-doc creation path, but flag for human review.
+            # Export variables consumed by the create path below.
+            export NEEDS_TRIAGE="true"
+            export MERGE_CANDIDATES="$MATCH_CANDIDATES"
+            ;;
+        *)
+            echo "update-docs: unexpected match decision '$MATCH_DECISION'; treating as create" >&2
+            ;;
+    esac
 fi
 
 # ============================================================================
@@ -265,6 +308,23 @@ EOF
     # Auto-apply per the user's preference
     echo "$NEW_CONTENT" > "$doc_path"
     echo "update-docs: wrote $doc_path ($MODE)"
+
+    if [ "${NEEDS_TRIAGE:-false}" = "true" ]; then
+        python3 "${WORKFLOW_SCRIPTS_DIR}/lib-frontmatter.py" set \
+            "$doc_path" needs_triage 'true'
+        if [ -n "${MERGE_CANDIDATES:-}" ]; then
+            # Convert comma-separated list to JSON array
+            CANDIDATES_JSON=$(echo "$MERGE_CANDIDATES" | \
+                jq -R 'split(",") | map(select(length > 0))')
+            python3 "${WORKFLOW_SCRIPTS_DIR}/lib-frontmatter.py" set \
+                "$doc_path" merge_candidates "$CANDIDATES_JSON"
+        fi
+    fi
 done
+
+# TODO(indexing-prompt-7): rebuild index after any doc change
+# python3 "${WORKFLOW_SCRIPTS_DIR}/rebuild-index.py" \
+#     >> "${WORKFLOW_STATE_DIR:-.claude/state}/rebuild-index.log" 2>&1 \
+#     || echo "update-docs: index rebuild failed (non-fatal)" >&2
 
 exit 0
