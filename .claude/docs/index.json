@@ -1,0 +1,472 @@
+{
+  "generated": "2026-05-29T08:03:08Z",
+  "doc_count": 24,
+  "docs": [
+    {
+      "slug": "2026-05-27-regression-statusbadge-hex-alpha",
+      "id": "2026-05-27-regression-statusbadge-hex-alpha",
+      "title": "OpcSources StatusBadge hex-alpha CSS concat bug fix",
+      "covers": "OpcSources StatusBadge hex-alpha CSS concat bug fix",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-27-regression-statusbadge-hex-alpha.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-3c-promote-confirmdialog",
+      "id": "2026-05-28-workstream-3c-promote-confirmdialog",
+      "title": "Claim B: ConfirmDialog Token Fixes and window.confirm() Migration",
+      "covers": "Claim B: ConfirmDialog Token Fixes and window.confirm() Migration",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 5,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-3c-promote-confirmdialog.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-3c-promote-dialog",
+      "id": "2026-05-28-workstream-3c-promote-dialog",
+      "title": "Claim B: Promote shared Dialog component and migrate consumers",
+      "covers": "Claim B: Promote shared Dialog component and migrate consumers",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 6,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-3c-promote-dialog.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-3c-promote-fieldlabel",
+      "id": "2026-05-28-workstream-3c-promote-fieldlabel",
+      "title": "FieldLabel: Shared Component Promotion",
+      "covers": "FieldLabel: Shared Component Promotion",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-3c-promote-fieldlabel.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-3c-promote-statusbadge",
+      "id": "2026-05-28-workstream-3c-promote-statusbadge",
+      "title": "StatusBadge — Shared Component Promotion",
+      "covers": "StatusBadge — Shared Component Promotion",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 5,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-3c-promote-statusbadge.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-4-5b-zindex-fix",
+      "id": "2026-05-28-workstream-4-5b-zindex-fix",
+      "title": "DesignerCanvas Z-Index Token Remap",
+      "covers": "DesignerCanvas Z-Index Token Remap",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-4-5b-zindex-fix.md"
+    },
+    {
+      "slug": "2026-05-28-workstream-4-5c-fp1-hexalpha",
+      "id": "2026-05-28-workstream-4-5c-fp1-hexalpha",
+      "title": "Fix: Hex-Alpha Badge Concatenation Bug (FP-1)",
+      "covers": "Fix: Hex-Alpha Badge Concatenation Bug (FP-1)",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 5,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/2026-05-28-workstream-4-5c-fp1-hexalpha.md"
+    },
+    {
+      "slug": "claim-a-audit-workstream-closeout",
+      "id": "claim-a-audit-workstream-closeout",
+      "title": "Claim A UI Audit Workstream Closeout",
+      "covers": "Claim A UI Audit Workstream Closeout",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 4,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-a-audit-workstream-closeout.md"
+    },
+    {
+      "slug": "claim-a-css-token-registry-gaps",
+      "id": "claim-a-css-token-registry-gaps",
+      "title": "Claim A — CSS Token Registry Gaps",
+      "covers": "Claim A — CSS Token Registry Gaps",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-a-css-token-registry-gaps.md"
+    },
+    {
+      "slug": "claim-a-token-registry-gaps",
+      "id": "claim-a-token-registry-gaps",
+      "title": "Claim A — Token Registry Gaps (index.css)",
+      "covers": "Claim A — Token Registry Gaps (index.css)",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 5,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-a-token-registry-gaps.md"
+    },
+    {
+      "slug": "claim-a-token-registry-gaps-zindex",
+      "id": "claim-a-token-registry-gaps-zindex",
+      "title": "Claim A — Token Registry Gaps and Z-Index Scale",
+      "covers": "Claim A — Token Registry Gaps and Z-Index Scale",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-a-token-registry-gaps-zindex.md"
+    },
+    {
+      "slug": "claim-a-token-registry-z-index-scale",
+      "id": "claim-a-token-registry-z-index-scale",
+      "title": "Claim A Token Registry Gaps & Z-Index Scale",
+      "covers": "Claim A Token Registry Gaps & Z-Index Scale",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 4,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-a-token-registry-z-index-scale.md"
+    },
+    {
+      "slug": "claim-b-dialog-promotion-migration",
+      "id": "claim-b-dialog-promotion-migration",
+      "title": "Claim B — Dialog Promotion and Consumer Migration",
+      "covers": "Claim B — Dialog Promotion and Consumer Migration",
+      "topics": [
+        "module-designer",
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 7,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-b-dialog-promotion-migration.md"
+    },
+    {
+      "slug": "claim-b-shared-style-constants",
+      "id": "claim-b-shared-style-constants",
+      "title": "Claim B — Shared Style Constants (buttons, inputs)",
+      "covers": "Claim B — Shared Style Constants (buttons, inputs)",
+      "topics": [
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 4,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-b-shared-style-constants.md"
+    },
+    {
+      "slug": "claim-b-style-constants-phase1",
+      "id": "claim-b-style-constants-phase1",
+      "title": "Claim B Style Constants — Phase 1 (Buttons and Inputs)",
+      "covers": "Claim B Style Constants — Phase 1 (Buttons and Inputs)",
+      "topics": [
+        "ui-framework"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 4,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/claim-b-style-constants-phase1.md"
+    },
+    {
+      "slug": "designer-settings-shell-drift-fixes",
+      "id": "designer-settings-shell-drift-fixes",
+      "title": "Designer and Settings Shell Drift Fixes",
+      "covers": "Designer and Settings Shell Drift Fixes",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/designer-settings-shell-drift-fixes.md"
+    },
+    {
+      "slug": "frontend-ui-audit-console-designer-settings",
+      "id": "frontend-ui-audit-console-designer-settings",
+      "title": "Frontend UI Audit — Console, Designer, Settings",
+      "covers": "Frontend UI Audit — Console, Designer, Settings",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 18,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/frontend-ui-audit-console-designer-settings.md"
+    },
+    {
+      "slug": "hook-loop-fix-and-sanitization",
+      "id": "hook-loop-fix-and-sanitization",
+      "title": "Hook Loop Fix and Log Sanitization",
+      "covers": "Hook Loop Fix and Log Sanitization",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-16",
+      "last_updated": "2026-05-16",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 5,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/hook-loop-fix-and-sanitization.md"
+    },
+    {
+      "slug": "interim-doc-autodetect-fix",
+      "id": "interim-doc-autodetect-fix",
+      "title": "Interim Doc Auto-Detect Fix — Duplicate Doc Convergence via docfresh",
+      "covers": "Interim Doc Auto-Detect Fix — Duplicate Doc Convergence via docfresh",
+      "topics": [
+        "docs-system",
+        "harness-tooling"
+      ],
+      "aliases": [
+        "claim-c-canvas-migration"
+      ],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 3,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/interim-doc-autodetect-fix.md"
+    },
+    {
+      "slug": "interim-docs-indexing-infrastructure",
+      "id": "interim-docs-indexing-infrastructure",
+      "title": "Interim Docs Indexing Infrastructure",
+      "covers": "Frontmatter helper, topics vocabulary, schema, and migration establishing the v2 interim docs indexing layer.",
+      "topics": [
+        "docs-system",
+        "harness-tooling"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-29",
+      "last_updated": "2026-05-29",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 7,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/interim-docs-indexing-infrastructure.md"
+    },
+    {
+      "slug": "selection-highlight-accent-token-fix",
+      "id": "selection-highlight-accent-token-fix",
+      "title": "Selection Highlight and Marquee Accent Token Fix",
+      "covers": "Selection Highlight and Marquee Accent Token Fix",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-27",
+      "last_updated": "2026-05-27",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 2,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/selection-highlight-accent-token-fix.md"
+    },
+    {
+      "slug": "slug",
+      "id": "slug",
+      "title": "Interim Doc Auto-Detect Fix — Multi-Session Doc Convergence",
+      "covers": "Interim Doc Auto-Detect Fix — Multi-Session Doc Convergence",
+      "topics": [
+        "docs-system",
+        "harness-tooling"
+      ],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-29",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 4,
+      "work_unit_count": 3,
+      "path": ".claude/docs/interim/slug.md"
+    },
+    {
+      "slug": "ui-audit-post-ab-claim-c-readiness",
+      "id": "ui-audit-post-ab-claim-c-readiness",
+      "title": "Post-Claim-A/B Review and Claim C Readiness Assessment",
+      "covers": "Post-Claim-A/B Review and Claim C Readiness Assessment",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 1,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/ui-audit-post-ab-claim-c-readiness.md"
+    },
+    {
+      "slug": "ui-audit-preflight-facts-gather",
+      "id": "ui-audit-preflight-facts-gather",
+      "title": "UI Audit Preflight Facts Gathering",
+      "covers": "UI Audit Preflight Facts Gathering",
+      "topics": [],
+      "aliases": [],
+      "status": "interim",
+      "created": "2026-05-28",
+      "last_updated": "2026-05-28",
+      "needs_triage": false,
+      "merge_candidates": [],
+      "implementation_count": 1,
+      "work_unit_count": 1,
+      "path": ".claude/docs/interim/ui-audit-preflight-facts-gather.md"
+    }
+  ],
+  "topic_index": {
+    "docs-system": [
+      "interim-doc-autodetect-fix",
+      "interim-docs-indexing-infrastructure",
+      "slug"
+    ],
+    "harness-tooling": [
+      "interim-doc-autodetect-fix",
+      "interim-docs-indexing-infrastructure",
+      "slug"
+    ],
+    "module-designer": [
+      "2026-05-27-regression-statusbadge-hex-alpha",
+      "2026-05-28-workstream-3c-promote-confirmdialog",
+      "2026-05-28-workstream-3c-promote-dialog",
+      "2026-05-28-workstream-4-5c-fp1-hexalpha",
+      "claim-a-css-token-registry-gaps",
+      "claim-a-token-registry-gaps",
+      "claim-a-token-registry-gaps-zindex",
+      "claim-a-token-registry-z-index-scale",
+      "claim-b-dialog-promotion-migration"
+    ],
+    "ui-framework": [
+      "2026-05-27-regression-statusbadge-hex-alpha",
+      "2026-05-28-workstream-3c-promote-confirmdialog",
+      "2026-05-28-workstream-3c-promote-dialog",
+      "2026-05-28-workstream-4-5c-fp1-hexalpha",
+      "claim-a-css-token-registry-gaps",
+      "claim-a-token-registry-gaps",
+      "claim-a-token-registry-gaps-zindex",
+      "claim-a-token-registry-z-index-scale",
+      "claim-b-dialog-promotion-migration",
+      "claim-b-shared-style-constants",
+      "claim-b-style-constants-phase1"
+    ]
+  },
+  "alias_index": {
+    "claim-c-canvas-migration": "interim-doc-autodetect-fix"
+  },
+  "triage_queue": []
+}

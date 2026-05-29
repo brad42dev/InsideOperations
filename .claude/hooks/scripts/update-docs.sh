@@ -322,9 +322,10 @@ EOF
     fi
 done
 
-# TODO(indexing-prompt-7): rebuild index after any doc change
-# python3 "${WORKFLOW_SCRIPTS_DIR}/rebuild-index.py" \
-#     >> "${WORKFLOW_STATE_DIR:-.claude/state}/rebuild-index.log" 2>&1 \
-#     || echo "update-docs: index rebuild failed (non-fatal)" >&2
+# Rebuild index after any doc change (non-fatal — doc write already succeeded)
+if ! python3 "${WORKFLOW_SCRIPTS_DIR}/rebuild-index.py" \
+      >> "${WORKFLOW_STATE_DIR:-.claude/state}/rebuild-index.log" 2>&1; then
+    echo "update-docs: index rebuild failed (non-fatal); see rebuild-index.log" >&2
+fi
 
 exit 0

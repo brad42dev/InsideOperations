@@ -115,6 +115,15 @@ case "$TAG_TYPE" in
         ;;
     docfresh)
         SLUG=$(extract_docfresh_slug "$PROMPT")
+        # Resolve alias: if <slug>.md doesn't exist, check alias_index in index.json
+        if [ ! -f "${WORKFLOW_INTERIM_DOCS_DIR}/${SLUG}.md" ]; then
+            resolved=$(jq -r --arg s "$SLUG" '.alias_index[$s] // empty' \
+                "${WORKFLOW_INTERIM_DOCS_DIR}/../index.json" 2>/dev/null)
+            if [ -n "$resolved" ]; then
+                echo "docfresh: resolved alias '$SLUG' → '$resolved'" >&2
+                SLUG="$resolved"
+            fi
+        fi
         CONTEXT="A targeted documentation refresh was requested ([docfresh:$SLUG] detected). After this turn completes, the workflow infrastructure will update the interim doc for '$SLUG' based on recent work. Proceed with the task."
         ;;
     *)
