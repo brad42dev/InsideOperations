@@ -272,3 +272,50 @@ slugify() {
 short_session_id() {
     echo "$1" | head -c 8
 }
+
+# sanitize_slug: clean model-generated slug output to a safe filename component.
+# Reads from stdin, writes cleaned slug to stdout.
+# Behavior:
+#   1. Strip ANSI escape codes.
+#   2. Drop lines that look like preamble or markdown fencing.
+#   3. Take first remaining non-empty line.
+#   4. Lowercase; replace whitespace runs with single hyphen.
+#   5. Strip any character not in [a-z0-9-].
+#   6. Collapse repeated hyphens; trim leading/trailing hyphens.
+#   7. Truncate to 64 chars.
+#   8. Validate result matches ^[a-z0-9][a-z0-9-]{2,63}$.
+#      If valid, print to stdout and exit 0.
+#      If invalid, print nothing and exit 1 (caller must use deterministic fallback).
+sanitize_slug() {
+    local raw cleaned
+    raw=$(cat)
+    # Strip ANSI escapes
+    cleaned=$(printf '%s' "$raw" | sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g')
+    # Drop common preamble lines and fence lines, take first remaining non-empty line
+    cleaned=$(printf '%s\n' "$cleaned" | \
+        grep -vE '^(Here is|Here'\''s|Sure|Okay|The slug|Slug:|```)' | \
+        awk 'NF { print; exit }')
+    # Lowercase
+    cleaned=$(printf '%s' "$cleaned" | tr '[:upper:]' '[:lower:]')
+    # Whitespace -> hyphen
+    cleaned=$(printf '%s' "$cleaned" | tr -s '[:space:]' '-')
+    # Strip non-[a-z0-9-]
+    cleaned=$(printf '%s' "$cleaned" | tr -cd 'a-z0-9-')
+    # Collapse repeated hyphens
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's/-+/-/g; s/^-//; s/-$//')
+    # Truncate
+    cleaned=$(printf '%s' "$cleaned" | cut -c1-64)
+    # Validate
+    if printf '%s' "$cleaned" | grep -qE '^[a-z0-9][a-z0-9-]{2,63}$'; then
+        printf '%s\n' "$cleaned"
+        return 0
+    fi
+    return 1
+}
+
+# fallback_slug: deterministic slug from current timestamp.
+# Used when sanitize_slug fails. Always succeeds.
+fallback_slug() {
+    local prefix="${1:-interim}"
+    printf '%s-%s\n' "$prefix" "$(date +%Y%m%d-%H%M%S)"
+}
