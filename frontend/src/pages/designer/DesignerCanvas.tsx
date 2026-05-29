@@ -7686,7 +7686,11 @@ export default function DesignerCanvas({
                       strokeWidth={1 / zoom}
                       strokeDasharray={`${8 / zoom} ${4 / zoom}`}
                       pointerEvents="none"
-                      style={{ zIndex: "calc(var(--io-z-base) - 1)" } as React.CSSProperties}
+                      style={
+                        {
+                          zIndex: "calc(var(--io-z-base) - 1)",
+                        } as React.CSSProperties
+                      }
                     />
                   );
                 })()}
