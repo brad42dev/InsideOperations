@@ -9,6 +9,10 @@ work_units:
 - 2026-05-29_general_004020
 implementation:
 - .claude/hooks/scripts/lib-frontmatter.py
+- .claude/hooks/scripts/match-docs.py
+- .claude/hooks/scripts/match-docs.test.sh
+- .claude/hooks/scripts/update-docs.sh
+- .claude/hooks/scripts/lib-common.sh
 - .claude/docs/topics.txt
 - .claude/docs/frontmatter-schema.md
 related:

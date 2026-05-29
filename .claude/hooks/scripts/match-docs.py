@@ -24,6 +24,31 @@ SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_FRONTMATTER = os.path.join(SCRIPTS_DIR, "lib-frontmatter.py")
 
 
+def get_repo_root():
+    """Return the absolute repo root path, or cwd as fallback."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def normalize_path(path, repo_root):
+    """Strip repo root prefix and leading ./ to get a repo-relative path."""
+    if repo_root and path.startswith(repo_root):
+        path = path[len(repo_root):]
+        if path.startswith("/"):
+            path = path[1:]
+    if path.startswith("./"):
+        path = path[2:]
+    return path
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="Match work-unit output to interim docs.")
     p.add_argument("--files-modified", required=True,
@@ -52,7 +77,7 @@ def load_topics_vocab(topics_file):
     return vocab
 
 
-def load_modified_files(path):
+def load_modified_files(path, repo_root):
     if not os.path.exists(path):
         print(f"Error: --files-modified file not found: {path}", file=sys.stderr)
         sys.exit(2)
@@ -61,10 +86,7 @@ def load_modified_files(path):
         for line in f:
             line = line.strip()
             if line:
-                # Strip leading ./
-                if line.startswith("./"):
-                    line = line[2:]
-                files.add(line)
+                files.add(normalize_path(line, repo_root))
     return files
 
 
@@ -85,7 +107,7 @@ def parse_doc_frontmatter(doc_path):
         return None
 
 
-def collect_docs(interim_dir):
+def collect_docs(interim_dir, repo_root):
     """Return list of (path, slug, frontmatter) for all parseable .md docs."""
     docs = []
     if not os.path.isdir(interim_dir):
@@ -101,8 +123,7 @@ def collect_docs(interim_dir):
         impl = fm.get("implementation") or []
         if not isinstance(impl, list):
             impl = []
-        # Normalize leading ./
-        impl = [f[2:] if f.startswith("./") else f for f in impl]
+        impl = [normalize_path(f, repo_root) for f in impl]
         topics = fm.get("topics") or []
         if not isinstance(topics, list):
             topics = []
@@ -210,8 +231,15 @@ def decide(results, debug):
 def main():
     args = parse_args()
 
+    repo_root = get_repo_root()
+
     vocab = load_topics_vocab(args.topics_file)
-    modified_files = load_modified_files(args.files_modified)
+    modified_files = load_modified_files(args.files_modified, repo_root)
+
+    if args.debug:
+        print("DEBUG: normalized files-modified:", file=sys.stderr)
+        for f in sorted(modified_files):
+            print(f"  {f}", file=sys.stderr)
 
     raw_topics = [t.strip() for t in args.topics.split(",") if t.strip()]
     unknown = [t for t in raw_topics if t not in vocab]
@@ -219,7 +247,7 @@ def main():
         print(f"Warning: unknown topic '{t}' ignored", file=sys.stderr)
     input_topics = set(t for t in raw_topics if t in vocab)
 
-    docs = collect_docs(args.interim_dir)
+    docs = collect_docs(args.interim_dir, repo_root)
     file_freq = build_file_freq(docs)
 
     results = score_docs(docs, modified_files, input_topics, file_freq, args.debug)

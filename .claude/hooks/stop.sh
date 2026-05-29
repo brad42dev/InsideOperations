@@ -128,13 +128,14 @@ case "$TAG_TYPE" in
             if [ "$WORKFLOW_WRAPUP_DO_REVIEW" = "1" ]; then
                 "${WORKFLOW_SCRIPTS_DIR}/run-review.sh" "$LOG_PATH" "$SESSION_ID" "shallow"
             fi
-            if [ "$WORKFLOW_WRAPUP_DO_DOCS" = "1" ]; then
-                if [ -n "$WRAPUP_DOC_SLUG" ]; then
-                    "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID" "$WRAPUP_DOC_SLUG"
-                else
-                    "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID"
-                fi
-            fi
+            # TEMPORARILY DISABLED during indexing-system rollout — re-enable after prompt 6 smoke test confirms matcher behavior
+            # if [ "$WORKFLOW_WRAPUP_DO_DOCS" = "1" ]; then
+            #     if [ -n "$WRAPUP_DOC_SLUG" ]; then
+            #         "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID" "$WRAPUP_DOC_SLUG"
+            #     else
+            #         "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID"
+            #     fi
+            # fi
             rm -f "$WORKFLOW_LOCK"
         ) >> "$WORKFLOW_STATE_DIR/wrapup.log" 2>&1 &
         hook_debug "wrap-up started in background, pid=$!"
@@ -165,7 +166,8 @@ case "$TAG_TYPE" in
         SLUG=$(extract_docfresh_slug "$ORIG_PROMPT")
         hook_debug "Triggering docfresh for slug=$SLUG"
         (
-            "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID" "$SLUG"
+            # TEMPORARILY DISABLED during indexing-system rollout — re-enable after prompt 6 smoke test confirms matcher behavior
+            # "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID" "$SLUG"
             rm -f "$WORKFLOW_LOCK"
         ) >> "$WORKFLOW_STATE_DIR/docfresh.log" 2>&1 &
         hook_debug "docfresh started in background, pid=$!"
