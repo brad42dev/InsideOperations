@@ -276,6 +276,17 @@ EOF
     NEW_CONTENT=$(claude_p_with_timeout "$PROMPT" 2>&1)
     EXIT_CODE=$?
 
+    # Pre-check: skip non-substantive output without creating a proposal file
+    OUTPUT_BYTES=${#NEW_CONTENT}
+    if [ "$OUTPUT_BYTES" -lt 100 ]; then
+        echo "update-docs: claude -p returned ${OUTPUT_BYTES} bytes — too short to be a doc, skipping" >&2
+        continue
+    fi
+    if printf '%s' "$NEW_CONTENT" | head -1 | grep -qiE '^[Dd]oc is up to date|^[Nn]o (update|changes) needed'; then
+        echo "update-docs: claude -p indicated no update needed, skipping" >&2
+        continue
+    fi
+
     if [ $EXIT_CODE -ne 0 ]; then
         echo "update-docs: failed to update $doc_path (exit $EXIT_CODE)" >&2
         # Write a proposal file so the update isn't lost

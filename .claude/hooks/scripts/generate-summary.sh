@@ -111,6 +111,11 @@ EOF
     exit $EXIT_CODE
 fi
 
+CLEAN_SUMMARY=$(printf '%s' "$SUMMARY_OUTPUT" | sanitize_body) || {
+    echo "generate-summary: claude -p produced empty output; skipping write" >&2
+    exit 0
+}
+
 # Write the summary with a header
 cat > "$SUMMARY_PATH" <<EOF
 # Work Unit Summary
@@ -121,7 +126,7 @@ cat > "$SUMMARY_PATH" <<EOF
 
 ---
 
-$SUMMARY_OUTPUT
+$CLEAN_SUMMARY
 EOF
 
 echo "generate-summary: wrote $SUMMARY_PATH"

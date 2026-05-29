@@ -319,3 +319,26 @@ fallback_slug() {
     local prefix="${1:-interim}"
     printf '%s-%s\n' "$prefix" "$(date +%Y%m%d-%H%M%S)"
 }
+
+# sanitize_body: clean model-generated body content. Reads stdin, writes stdout.
+# Strips common preamble lines and ANSI escapes. Empty result returns exit 1.
+sanitize_body() {
+    local cleaned
+    cleaned=$(cat)
+    # Strip ANSI escapes
+    cleaned=$(printf '%s' "$cleaned" | sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g')
+    # Drop leading preamble lines (only at the very top, not anywhere)
+    cleaned=$(printf '%s\n' "$cleaned" | \
+        awk 'BEGIN{in_preamble=1} {
+            if (in_preamble && /^(Here is|Here'\''s|Sure|Okay|The summary|The review|```)/) { next }
+            in_preamble=0
+            print
+        }')
+    # Strip leading/trailing blank lines
+    cleaned=$(printf '%s' "$cleaned" | sed -E '1{/^[[:space:]]*$/d}; ${/^[[:space:]]*$/d}')
+    if [ -z "$cleaned" ]; then
+        return 1
+    fi
+    printf '%s\n' "$cleaned"
+    return 0
+}

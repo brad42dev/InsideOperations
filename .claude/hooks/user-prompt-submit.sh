@@ -95,6 +95,17 @@ case "$TAG_TYPE" in
         ;;
 esac
 
+# Warn if current log is getting long without a new work-unit tag
+if [ "$TAG_TYPE" != "init" ]; then
+    CURRENT_LOG=$(cat "$WORKFLOW_STATE_DIR/current_log.txt" 2>/dev/null || echo "")
+    if [ -f "$CURRENT_LOG" ]; then
+        line_count=$(wc -l < "$CURRENT_LOG" 2>/dev/null || echo 0)
+        if [ "$line_count" -gt 2000 ]; then
+            echo "[harness] current log is ${line_count} lines. Consider starting a new work unit with [initprompt:descriptor]." >&2
+        fi
+    fi
+fi
+
 # Record turn state for the Stop hook
 record_turn_state "$SESSION_ID" "$PROMPT" "$TRANSCRIPT_PATH"
 

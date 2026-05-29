@@ -210,6 +210,11 @@ EOF
     exit $EXIT_CODE
 fi
 
+CLEAN_REVIEW=$(printf '%s' "$REVIEW_OUTPUT" | sanitize_body) || {
+    echo "run-review: claude -p produced empty output; skipping write" >&2
+    exit 0
+}
+
 cat > "$REVIEW_PATH" <<EOF
 # Review ($DEPTH)
 
@@ -220,7 +225,7 @@ cat > "$REVIEW_PATH" <<EOF
 
 ---
 
-$REVIEW_OUTPUT
+$CLEAN_REVIEW
 EOF
 
 echo "run-review: wrote $REVIEW_PATH"

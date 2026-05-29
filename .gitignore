@@ -60,3 +60,20 @@ credentials.json
 .claude/agent-output/
 .claude/*.md
 frontend/tsconfig.tsbuildinfo
+
+# Claude Code harness ephemeral state
+.claude/archive/
+.claude/reviews/
+.claude/summaries/
+.claude/state/current_turn_*.json
+.claude/state/match-docs.log
+.claude/state/slug-gen.log
+.claude/state/rebuild-index.log
+.claude/state/wrapup.log
+
+# Update proposal files (failed claude -p doc-write attempts)
+.claude/docs/interim/*.update-proposal-*
+.claude/docs/*.update-proposal-*
+
+# Pre-migration backup
+.claude/docs/interim.pre-migration-backup/
