@@ -6,9 +6,7 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - 2026-05-27_workstream-2b-token-gaps
-
-read-ui-audit-_062420
+  - "2026-05-27_workstream-2b-token-gaps_read-ui-audit-_062420" # CORRECTED FROM CORRUPTED ENTRY
 implementation:
   - frontend/src/index.css
   - frontend/src/pages/designer/components/PromoteToShapeWizard.tsx
