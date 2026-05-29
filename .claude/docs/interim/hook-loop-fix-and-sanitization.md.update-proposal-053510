@@ -1,1 +1,0 @@
-Doc written to `/home/io/io-dev/io/.claude/docs/interim/hook-loop-fix-and-sanitization.md`. It covers the recursion bug diagnosis, the file-based lock (the chosen fix), why the 1000-char prefix and `--bare` approaches were rejected, the known-tag sanitization in `extract-turn.sh`, and the stdin prompt-delivery fix for large logs.

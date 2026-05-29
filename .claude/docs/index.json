@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-29T08:03:08Z",
+  "generated": "2026-05-29T08:13:30Z",
   "doc_count": 24,
   "docs": [
     {
@@ -357,8 +357,8 @@
       "last_updated": "2026-05-29",
       "needs_triage": false,
       "merge_candidates": [],
-      "implementation_count": 7,
-      "work_unit_count": 1,
+      "implementation_count": 11,
+      "work_unit_count": 2,
       "path": ".claude/docs/interim/interim-docs-indexing-infrastructure.md"
     },
     {

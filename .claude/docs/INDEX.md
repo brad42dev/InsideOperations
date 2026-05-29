@@ -3,7 +3,7 @@
 
 # Interim Documentation Index
 
-Generated: 2026-05-29T08:03:08Z
+Generated: 2026-05-29T08:13:30Z
 Total documents: 24
 
 ## Triage Queue
@@ -270,8 +270,8 @@ _None._
 - **Topics:** docs-system, harness-tooling
 - **Status:** interim
 - **Last updated:** 2026-05-29
-- **Implementation:** 7 files
-- **Work units:** 1
+- **Implementation:** 11 files
+- **Work units:** 2
 - **Aliases:** none
 
 ### selection-highlight-accent-token-fix

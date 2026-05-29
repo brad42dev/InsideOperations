@@ -1,9 +1,0 @@
-# Doc Update Failed
-
-Generated: 2026-05-16T05:27:36+00:00
-Exit code: 126
-
-Output:
-```
-WORKFLOW ERROR: claude -p failed with exit code 126. Output: /home/io/io-dev/io/.claude/hooks/scripts/lib-common.sh: line 224: /usr/bin/timeout: Argument list too long
-```
