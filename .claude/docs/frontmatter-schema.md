@@ -6,6 +6,18 @@ This file defines the YAML frontmatter schema used for both interim and canonica
 
 Interim docs are produced now, during the period before the major doc decomposition. They will eventually be merged into the canonical structure. Keeping interim and canonical schemas aligned means the merge is mostly additive (filling in canonical-only fields on existing interim docs) rather than transformative.
 
+## Machine-validated vs convention
+
+Most fields in this schema are conventions — they're not mechanically enforced. The harness will not reject a doc for having an unusual `related` list or a missing `last_synced_with_code`.
+
+Four fields ARE mechanically validated by `.claude/hooks/scripts/lib-frontmatter.py`:
+- `topics` (vocabulary check against topics.txt)
+- `aliases` (collision check at index rebuild)
+- `covers` (single line, max 140 chars)
+- `keywords` (max 8 entries, each ≤30 chars)
+
+Validation failures during automated doc writes cause the write to be rejected and the doc to be preserved unchanged.
+
 ## Fields used by both interim and canonical docs
 
 ```yaml
@@ -35,6 +47,17 @@ implementation:                   # list of code file paths this doc describes
 related:                          # informal list of related doc IDs (used by interim)
   - other-feature-slug
   - another-area-slug
+
+# INDEXING (all four are machine-validated)
+topics:                           # list of controlled-vocabulary topics from .claude/docs/topics.txt
+  - module-designer
+  - ui-framework
+aliases:                          # list of prior slugs this doc has been known by (for rename safety)
+  - old-slug-of-this-doc
+keywords:                         # optional advisory keywords (model-generated, validated). max 8 entries, each ≤30 chars
+  - keyword1
+  - keyword2
+covers: Brief description of what this doc covers.  # one-line blurb (model-generated, validated). single line, max 140 chars
 ---
 ```
 
@@ -92,7 +115,7 @@ Each category implies different expected fields. Modules describe themselves; ui
 ### `id`
 - Lowercase, kebab-case, no spaces, no special characters except hyphens
 - Globally unique across all docs in the project
-- Stable: do not rename. If a concept name changes substantially, create a new doc and mark the old one `status: deprecated` with a pointer.
+- Stable in spirit, but the `aliases` field provides a sanctioned rename mechanism. If a doc's slug was wrong from creation (e.g., model error during initial slug generation) or a concept name changes substantially, you may rename the file and `id` field, adding the old slug to `aliases`. The harness's index resolves docfresh references through aliases, so prior references continue to work. Use rename + alias rather than deprecate + redirect when the original slug was a mistake or never accumulated meaningful external references. Use deprecate + redirect when the concept itself has split or fundamentally changed.
 
 ### `status`
 - `interim` — produced during the pre-decomposition period; will be merged into canonical structure
@@ -120,6 +143,39 @@ Each category implies different expected fields. Modules describe themselves; ui
 ### `related` (interim) vs `references`/`referenced_by` (canonical)
 - During the interim period, just maintain `related` as an informal list
 - During canonical decomposition, `related` is replaced with `references` and `referenced_by`, which are bidirectional and formally maintained
+
+### `aliases`
+- List of prior slugs this doc has been known by.
+- Append-only — when a doc is renamed, the old slug is added to aliases.
+- Resolved by the docs index (index.json) so docfresh:slug tags using old slugs continue to work.
+- Two docs MUST NOT claim the same alias. The index rebuilder detects collisions and fails loudly.
+
+### `topics`
+- List of controlled-vocabulary topics from `.claude/docs/topics.txt`.
+- Used by the auto-detect matcher to decide UPDATE vs CREATE vs TRIAGE when a work unit completes.
+- Multiple topics per doc are fine and expected (e.g., [module-designer, ui-framework]).
+- Unknown topics cause validation failure. To add a new topic, edit topics.txt directly.
+- The vocabulary is intentionally coarse-grained. Sub-areas are NOT broken out as separate topics — they're handled by file-path overlap in the matcher.
+
+### `covers`
+- One-line human-readable blurb summarizing what this doc covers.
+- Single line only. Max 140 characters. Newlines rejected by validation.
+- Model-generated during doc creation/update, validated before write. Falls back to `title` on validation failure.
+- Used in the human-readable INDEX.md and index.json for discovery.
+
+### `keywords`
+- Optional list of advisory keywords.
+- Max 8 entries, each ≤30 chars.
+- Model-generated. Advisory signal in the matcher (low weight). Never decisive on its own.
+- Falls back to empty list on validation failure.
+
+## Validation and machine-checked fields
+
+- `topics` values are validated against `.claude/docs/topics.txt`; unknown topics cause validation failure.
+- `covers` must be a single line, max 140 characters.
+- `keywords` is capped at 8 entries, each ≤30 chars.
+- All four new fields are validated by `.claude/hooks/scripts/lib-frontmatter.py`.
+- All other fields in this schema are NOT mechanically validated — they're conventions.
 
 ## Body content conventions
 
@@ -175,6 +231,16 @@ implementation:
 related:
   - designer-resize-controls
   - sidecar-rendering
+topics:
+  - module-designer
+  - graphics-shapes
+aliases: []
+keywords:
+  - sidecar
+  - resize
+  - positioning
+  - shape
+covers: How shape sidecars maintain absolute pixel offsets during resize rather than scaling with the shape.
 ---
 
 # Shape Resize Sidecar Positioning
@@ -232,6 +298,17 @@ implementation:
   - src/main.rs:1245-1289
 canonical_examples:
   - src/menus/contextMenu.ts:42-78
+topics:
+  - context-menus
+  - ui-framework
+aliases:
+  - right-click-menus
+keywords:
+  - context menu
+  - right-click
+  - event intercept
+  - cursor position
+covers: Global right-click menu system — context-aware menus rendered at cursor position, shared across all modules.
 ---
 
 # Right-Click Menus

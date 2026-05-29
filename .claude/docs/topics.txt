@@ -1,0 +1,58 @@
+# Controlled vocabulary for interim doc `topics:` frontmatter field.
+# One topic per line. lowercase-hyphenated. No spaces.
+# Edit this file directly to add/remove topics. The harness
+# validates topics against this list and rejects unknown values.
+#
+# Organized into sections for readability. Section headers are
+# comments and are NOT part of the vocabulary.
+
+# Frontend modules
+module-console
+module-process
+module-designer
+module-dashboards
+module-reports
+module-forensics
+module-log
+module-rounds
+module-settings
+module-shifts
+module-alerts
+
+# Backend services
+service-api-gateway
+service-auth
+service-data-broker
+service-opc
+service-event
+service-parser
+service-archive
+service-import
+service-alert
+service-email
+service-recognition
+
+# Graphics
+graphics-rendering
+graphics-shapes
+graphics-charts
+graphics-import
+
+# Real-time and data
+real-time-data
+timeseries-storage
+opc-integration
+
+# Cross-cutting features
+expression-builder
+expression-evaluation
+universal-import
+universal-export
+universal-copy-paste
+observability
+context-menus
+ui-framework
+
+# Meta
+harness-tooling
+docs-system
