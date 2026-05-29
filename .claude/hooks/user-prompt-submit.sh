@@ -75,8 +75,10 @@ hook_debug "tag_type=$TAG_TYPE"
 case "$TAG_TYPE" in
     init)
         # Extract a descriptor from the prompt (first 50 chars, slugified)
-        # User can include something hint-y after [initprompt] to name the work unit
-        DESCRIPTOR_TEXT=$(echo "$PROMPT" | sed -E 's/\[initprompt\]//' | head -c 80)
+        # User can include something hint-y after [initprompt] to name the work unit.
+        # head -1 takes only the first line so that multi-line prompts never embed
+        # newlines into the log filename via slugify.
+        DESCRIPTOR_TEXT=$(echo "$PROMPT" | head -1 | sed -E 's/\[initprompt\]//' | head -c 80)
         DESCRIPTOR=$(slugify "$DESCRIPTOR_TEXT")
         if [ -z "$DESCRIPTOR" ]; then
             DESCRIPTOR="work-unit"

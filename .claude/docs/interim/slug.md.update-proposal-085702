@@ -1,0 +1,1 @@
+Doc created at `.claude/docs/interim/slug.md`. It covers the root cause (auto-detect all-or-nothing file match fails for disjoint-file follow-on sessions), the fix (`[wrapup] [docfresh:slug]` combined-tag in `stop.sh`), and the convergence convention documented in `WORKFLOW_NOTES.md`.

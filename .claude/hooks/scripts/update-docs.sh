@@ -121,10 +121,17 @@ $LOG_CONTENT
 EOF
 )
 
-    NEW_SLUG=$(claude_p_with_timeout "$NEW_SLUG_PROMPT" 2>&1 | tr -d ' \n' | head -c 60)
+    # Take the first line that is ALREADY a valid slug (^[a-z][a-z0-9-]*$).
+    # This skips tool-status preamble ("File created...") and chatty explanation
+    # lines ("Here is the slug:") which contain non-slug chars. If no line matches,
+    # NEW_SLUG is empty and the fallback below runs.
+    NEW_SLUG=$(claude_p_with_timeout "$NEW_SLUG_PROMPT" 2>&1 | grep -m1 '^[a-z][a-z0-9-]*$' | head -c 60)
     if [ -z "$NEW_SLUG" ] || ! echo "$NEW_SLUG" | grep -qE '^[a-z0-9-]+$'; then
-        # Fallback to a generic slug based on the log filename
-        NEW_SLUG=$(slugify "$LOG_FILENAME" | head -c 50)
+        # Fallback to a generic slug based on the log filename.
+        # Collapse embedded newlines first — log filenames may contain \n\n if the
+        # initprompt was multi-line before this fix was applied.
+        SAFE_LOG=$(printf '%s' "$LOG_FILENAME" | tr '\n' '-')
+        NEW_SLUG=$(slugify "$SAFE_LOG" | head -c 50)
     fi
 
     NEW_DOC="${WORKFLOW_INTERIM_DOCS_DIR}/${NEW_SLUG}.md"

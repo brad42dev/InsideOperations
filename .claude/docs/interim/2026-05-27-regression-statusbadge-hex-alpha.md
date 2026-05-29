@@ -6,7 +6,7 @@ created: 2026-05-27
 last_updated: 2026-05-27
 last_synced_with_code: 2026-05-27
 work_units:
-  - "2026-05-27_regression-statusbadge-hex-alpha\n\nread-o_054757"
+  - 2026-05-27_regression-statusbadge-hex-alpha_054757
 implementation:
   - frontend/src/pages/settings/OpcSources.tsx
   - ui-audit/02-comparison.md
@@ -67,4 +67,3 @@ Audit artifacts updated: `ui-audit/02-comparison.md` Category 8 Settings deviati
 ### 2026-05-27
 
 Created. Documents the OpcSources StatusBadge hex-alpha concatenation bug fix: replaced invalid `${color}20`/`${color}40` template literal patterns with `color-mix(in srgb, ...)` expressions matching the SystemHealth.tsx pattern. Audit files updated to reflect resolution and record four remaining unfixed instances in other Settings pages.
-SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

@@ -1,12 +1,12 @@
 ---
-id: "2026-05-28-workstream-3c-promote-confirmdialog-re"
+id: 2026-05-28-workstream-3c-promote-confirmdialog
 title: "Claim B: ConfirmDialog Token Fixes and window.confirm() Migration"
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - "2026-05-28_workstream-3c-promote-confirmdialog\n\nrea_045013"
+  - 2026-05-28_workstream-3c-promote-confirmdialog_045013
 implementation:
   - frontend/src/shared/components/ConfirmDialog.tsx
   - frontend/src/pages/designer/DesignerReportsList.tsx
@@ -91,4 +91,3 @@ Deep review and wrapup pass. Review found no blocking concerns: diff matches int
 
 ### 2026-05-28
 Initial creation. Documents the ConfirmDialog token fix pass and window.confirm() migration for DesignerReportsList, DesignerDashboardsList, and CameraStreams. Component was already at shared location; no file move occurred.
-SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

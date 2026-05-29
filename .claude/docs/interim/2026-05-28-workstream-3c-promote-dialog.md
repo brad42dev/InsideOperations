@@ -1,16 +1,12 @@
 ---
 id: 2026-05-28-workstream-3c-promote-dialog
-
-read-ui-a
 title: "Claim B: Promote shared Dialog component and migrate consumers"
 status: interim
 created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-3c-promote-dialog
-
-read-ui-au_041950
+  - 2026-05-28_workstream-3c-promote-dialog_041950
 implementation:
   - frontend/src/shared/components/Dialog.tsx
   - frontend/src/pages/console/index.tsx
@@ -21,11 +17,7 @@ implementation:
 related:
   - claim-b-shared-style-constants
   - 2026-05-28-workstream-3c-promote-fieldlabel
-
-read-
   - 2026-05-28-workstream-3c-promote-statusbadge
-
-read-
 ---
 
 # Claim B: Promote shared Dialog component and migrate consumers

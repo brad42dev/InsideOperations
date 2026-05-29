@@ -6,9 +6,7 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - 2026-05-28_workstream-4-5b-zindex-fix
-
-read-ui-audi_064832
+  - 2026-05-28_workstream-4-5b-zindex-fix_064832
 implementation:
   - frontend/src/index.css
   - frontend/src/pages/designer/DesignerCanvas.tsx
@@ -61,4 +59,3 @@ Post-implementation review completed. Deep review identified three concerns: (1)
 
 ### 2026-05-28
 Initial creation. Documents the full z-index remap of `DesignerCanvas.tsx`: 2 new tokens added to `index.css`, 18 hardcoded values remapped to tokens, 1 hardcoded value (9999) retained with exception comment, `ui-audit/11-zindex-assessment.md` marked COMPLETE.
-SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

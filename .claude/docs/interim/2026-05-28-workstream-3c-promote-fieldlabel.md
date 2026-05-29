@@ -6,7 +6,7 @@ created: 2026-05-28
 last_updated: 2026-05-28
 last_synced_with_code: 2026-05-28
 work_units:
-  - "2026-05-28_workstream-3c-promote-fieldlabel\n\nread-u_034233"
+  - 2026-05-28_workstream-3c-promote-fieldlabel_034233
 implementation:
   - frontend/src/shared/components/FieldLabel.tsx
   - frontend/src/pages/designer/DesignerRightPanel.tsx
@@ -68,4 +68,3 @@ Workstream complete. Both shallow and deep review passes returned no concerns. O
 ### 2026-05-28
 
 Created. Documents the promotion of `FieldLabel` from `DesignerRightPanel.tsx` to `shared/components/FieldLabel.tsx` as part of Claim B workstream 3c. Records the one intentional style delta from source (`fontSize: 10 → 11`), the two consumers migrated, the Settings deferral rationale, and the `htmlFor` additions made during `PaneConfigModal.tsx` migration.
-SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

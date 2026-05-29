@@ -2108,3 +2108,108 @@ _2026-05-28T07:32:18+00:00_
 
 ---
 
+
+## #PROMPT
+
+_2026-05-28T07:36:26+00:00_
+
+```
+commit
+```
+
+
+## #BASH
+_Show working tree status_
+
+```bash
+git -C /home/io/io-dev/io status
+```
+
+
+## #BASH
+_Show unstaged changes_
+
+```bash
+git -C /home/io/io-dev/io diff
+```
+
+
+## #BASH
+_Show recent commits_
+
+```bash
+git -C /home/io/io-dev/io log --oneline -5
+```
+
+
+## #BASH
+_Stage code, audit doc, and harness artifacts_
+
+```bash
+git -C /home/io/io-dev/io add \
+  frontend/src/pages/settings/Users.tsx \
+  frontend/src/pages/settings/Roles.tsx \
+  frontend/src/pages/settings/CameraStreams.tsx \
+  frontend/src/shared/components/MaintenanceTicketsPanel.tsx \
+  ui-audit/09-post-ab-review.md \
+  .claude/state/current_log.txt \
+  .claude/docs/interim/ui-audit-preflight-facts-gather.md \
+  .claude/state/ \
+  .claude/archive/ && \
+git -C /home/io/io-dev/io add \
+  ".claude/logs/2026-05-28_workstream-4-5c-fp1-hexalpha\n\nread-ui-au_071913.md" \
+  ".claude/docs/interim/2026-05-28-workstream-4-5c-fp1-hexalpha\n\nread-ui-a.md" \
+  ".claude/reviews/2026-05-28_workstream-4-5c-fp1-hexalpha\n\nread-ui-au_071913_review_deep_072340.md" \
+  ".claude/reviews/2026-05-28_workstream-4-5c-fp1-hexalpha\n\nread-ui-au_071913_review_shallow_073026.md" \
+  ".claude/summaries/2026-05-28_workstream-4-5c-fp1-hexalpha\n\nread-ui-au_071913_summary.md" && \
+git -C /home/io/io-dev/io status --short
+```
+
+
+## #BASH
+_Stage all relevant files using directory patterns_
+
+```bash
+git -C /home/io/io-dev/io add \
+  frontend/src/pages/settings/Users.tsx \
+  frontend/src/pages/settings/Roles.tsx \
+  frontend/src/pages/settings/CameraStreams.tsx \
+  frontend/src/shared/components/MaintenanceTicketsPanel.tsx \
+  ui-audit/09-post-ab-review.md \
+  .claude/state/current_log.txt \
+  .claude/docs/interim/ui-audit-preflight-facts-gather.md \
+  .claude/state/ \
+  .claude/archive/ && \
+git -C /home/io/io-dev/io add ".claude/logs/" ".claude/docs/interim/" ".claude/reviews/" ".claude/summaries/" && \
+git -C /home/io/io-dev/io status --short
+```
+
+
+## #BASH
+_Create commit for FP-1 hex-alpha fix_
+
+```bash
+git -C /home/io/io-dev/io commit -m "$(cat <<'EOF'
+fix: replace hex-alpha badge concatenation with color-mix() (FP-1)
+
+Four settings/panel badge components used ${color}20 and ${color}40
+hex-alpha concatenation to compute tinted backgrounds and borders.
+This produces invalid CSS when color is a CSS custom property string,
+causing badges to render transparent. Replaces with color-mix(in srgb,
+${color} 12%, transparent) and color-mix(in srgb, ${color} 25%,
+transparent) in Badge (Users.tsx, Roles.tsx), VisibilityBadge
+(CameraStreams.tsx), and StatusPill (MaintenanceTicketsPanel.tsx).
+Marks FP-1 resolved in ui-audit/09-post-ab-review.md.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+
+## #TURN_END
+
+_2026-05-28T07:36:26+00:00_
+
+---
+

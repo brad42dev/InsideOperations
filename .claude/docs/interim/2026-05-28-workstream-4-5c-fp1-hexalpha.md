@@ -57,4 +57,3 @@ Wrapup pass: deep review confirmed no code corrections needed. Noted that Sectio
 
 ### 2026-05-28
 Created. Documents the hex-alpha badge fix (FP-1) applied to four settings/panel files as Workstream 4.5c. Each file had an independent local component; `color-mix()` substitution applied to each. Audit doc updated to reflect resolution.
-SessionEnd hook [${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh] failed: /bin/sh: 1: /home/io/io-dev/io/frontend/.claude/hooks/session-end.sh: not found

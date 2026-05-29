@@ -220,6 +220,24 @@ claude_p_with_timeout() {
     shift
     local tmpfile output exit_code
 
+    # Derive the project root to run claude -p from. We cannot trust the
+    # inherited CWD — a prior tool call may have left the shell in a
+    # subdirectory (e.g. frontend/), which causes the sub-session to resolve
+    # CLAUDE_PROJECT_DIR incorrectly, breaking hook paths inside that session.
+    #
+    # Prefer CLAUDE_PROJECT_DIR if set and contains .claude/; otherwise derive
+    # from this file's own path (lib-common.sh is at .claude/hooks/scripts/,
+    # so three levels up is the repo root).
+    local project_dir
+    if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -d "${CLAUDE_PROJECT_DIR}/.claude" ]; then
+        project_dir="$CLAUDE_PROJECT_DIR"
+    else
+        project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+        if [ ! -d "$project_dir/.claude" ]; then
+            hook_debug "WARNING: claude_p_with_timeout: derived project_dir=$project_dir has no .claude/ — proceeding anyway"
+        fi
+    fi
+
     # Write prompt to a temp file and pipe via stdin to avoid ARG_MAX limits
     # when log content is embedded in the prompt (can be hundreds of KB).
     # Recursion from sub-sessions is prevented by the workflow-action.lock in
@@ -227,7 +245,7 @@ claude_p_with_timeout() {
     tmpfile=$(mktemp /tmp/workflow-prompt-XXXXXX)
     printf '%s' "$prompt" > "$tmpfile"
 
-    output=$(timeout --signal=TERM "$WORKFLOW_CLAUDE_P_TIMEOUT" claude -p "$@" < "$tmpfile" 2>&1)
+    output=$(cd "$project_dir" && timeout --signal=TERM "$WORKFLOW_CLAUDE_P_TIMEOUT" claude -p "$@" < "$tmpfile" 2>&1)
     exit_code=$?
     rm -f "$tmpfile"
 

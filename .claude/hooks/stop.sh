@@ -116,14 +116,24 @@ acquire_workflow_lock() {
 case "$TAG_TYPE" in
     wrapup)
         acquire_workflow_lock
-        hook_debug "Triggering wrap-up sequence"
+        # If the same prompt also contains [docfresh:slug], pass the slug to
+        # update-docs.sh so the wrapup targets that specific doc rather than
+        # running auto-detect. This lets multi-session work converge on one doc:
+        #   session A: [wrapup]                      → auto-detect, creates doc
+        #   session B: [wrapup] [docfresh:my-slug]   → full wrapup, updates my-slug
+        WRAPUP_DOC_SLUG=$(extract_docfresh_slug "$ORIG_PROMPT")
+        hook_debug "Triggering wrap-up sequence${WRAPUP_DOC_SLUG:+ (doc slug: $WRAPUP_DOC_SLUG)}"
         (
             "${WORKFLOW_SCRIPTS_DIR}/generate-summary.sh" "$LOG_PATH" "$SESSION_ID"
             if [ "$WORKFLOW_WRAPUP_DO_REVIEW" = "1" ]; then
                 "${WORKFLOW_SCRIPTS_DIR}/run-review.sh" "$LOG_PATH" "$SESSION_ID" "shallow"
             fi
             if [ "$WORKFLOW_WRAPUP_DO_DOCS" = "1" ]; then
-                "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID"
+                if [ -n "$WRAPUP_DOC_SLUG" ]; then
+                    "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID" "$WRAPUP_DOC_SLUG"
+                else
+                    "${WORKFLOW_SCRIPTS_DIR}/update-docs.sh" "$LOG_PATH" "$SESSION_ID"
+                fi
             fi
             rm -f "$WORKFLOW_LOCK"
         ) >> "$WORKFLOW_STATE_DIR/wrapup.log" 2>&1 &
